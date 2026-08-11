@@ -1,0 +1,6 @@
+# robots.txt para demiempresa.online
+User-agent: *
+Allow: /
+Allow: /crear-empresa
+
+Sitemap: https://demiempresa.online/sitemap.xml
