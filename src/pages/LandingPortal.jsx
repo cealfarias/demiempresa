@@ -210,6 +210,25 @@ export default function LandingPortal() {
             >
               🚀 Acceder a SaaS Planilla <ArrowRight size={18} />
             </a>
+
+            <a
+              href="https://contabilidad.demiempresa.online"
+              style={{
+                padding: '0.85rem 1.85rem',
+                backgroundColor: '#2563EB',
+                color: 'white',
+                textDecoration: 'none',
+                borderRadius: '10px',
+                fontWeight: 'bold',
+                fontSize: '0.95rem',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                boxShadow: '0 10px 25px -5px rgba(37, 99, 235, 0.5)'
+              }}
+            >
+              📊 Acceder a Contabilidad NIIF <ArrowRight size={18} />
+            </a>
           </div>
         </div>
       </section>
