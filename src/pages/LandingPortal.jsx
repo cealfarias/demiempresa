@@ -1,95 +1,104 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Building2, Users, FileText, Scale, Zap, Shield, Sparkles, 
   ArrowRight, CheckCircle2, Lock, UserPlus, LogIn, Laptop, Globe, 
-  ChevronRight, Award, BarChart3, HelpCircle, Layers, Grid, CreditCard
+  ChevronRight, Award, BarChart3, HelpCircle, Layers, Grid, CreditCard,
+  Briefcase, Activity, Settings, PieChart, ShieldCheck
 } from 'lucide-react';
 
 export default function LandingPortal() {
   const navigate = useNavigate();
 
-  const appsEcosistema = [
-    {
-      id: 'legal',
-      nombre: 'Constitución de Empresa & Legal Tech (CNR / CSJ)',
-      badge: 'TRÁMITE OFICIAL CNR',
-      badgeColor: '#D97706',
-      descripcion: 'Asesoría y trámite completo de constitución de sociedades (S.A. de C.V.) y comerciantes en el Registro de Comercio CNR (creaempresa.cnr.gob.sv/ServiciosOL/creaEmpresa.htm) y Abogados CSJ.',
-      icon: <Scale size={28} color="#D97706" />,
-      url: 'https://demiempresa.online/crear-empresa',
-      internalRoute: '/crear-empresa',
-      gradient: 'linear-gradient(135deg, #78350F 0%, #D97706 100%)'
-    },
-    {
-      id: 'planilla',
-      nombre: 'SaaS Planilla & RRHH',
-      badge: 'POPULAR & OPERATIVO',
-      badgeColor: '#16A34A',
-      descripcion: 'Gestión de nóminas, cálculo automático de ISSS OIR, AFP Crecer/Confia, retenciones ISR y Finiquitos Art. 58 C.T.',
-      icon: <Users size={28} color="#2563EB" />,
-      url: 'https://planilla.demiempresa.online',
-      gradient: 'linear-gradient(135deg, #1E3A8A 0%, #3B82F6 100%)'
-    },
+  const mainApps = [
     {
       id: 'contabilidad',
-      nombre: 'Contabilidad General NIIF',
-      badge: 'INTEGRADO',
-      badgeColor: '#2563EB',
-      descripcion: 'Libros de compras/ventas IVA, partidas contables por doble entrada, balances de comprobación y estado de resultados.',
-      icon: <BarChart3 size={28} color="#059669" />,
+      nombre: 'Contabilidad y Finanzas',
+      badge: 'NÚCLEO FINANCIERO',
+      badgeColor: '#059669',
+      descripcion: 'Acceso directo a estados financieros, partidas contables y reportes NIIF. El corazón financiero de tu empresa.',
+      icon: <PieChart size={32} color="#10B981" />,
       url: 'https://contabilidad.demiempresa.online',
-      gradient: 'linear-gradient(135deg, #065F46 0%, #10B981 100%)'
+      gradient: 'linear-gradient(135deg, #064E3B 0%, #059669 100%)',
+      borderColor: 'rgba(16, 185, 129, 0.4)'
     },
     {
       id: 'dte',
-      nombre: 'DTE Facturación Electrónica MH',
-      badge: 'OFICIAL MH',
+      nombre: 'Facturación Electrónica',
+      badge: 'DTE OFICIAL',
       badgeColor: '#7C3AED',
-      descripcion: 'Emisión directa de Comprobantes de Crédito Fiscal (CCF), Facturas de Consumidor Final y Notas de Crédito firmadas.',
-      icon: <Zap size={28} color="#7C3AED" />,
+      descripcion: 'Emite y administra Comprobantes de Crédito Fiscal y Facturas con autorización directa del Ministerio de Hacienda.',
+      icon: <Zap size={32} color="#8B5CF6" />,
       url: 'https://dte.demiempresa.online',
-      gradient: 'linear-gradient(135deg, #4C1D95 0%, #8B5CF6 100%)'
+      gradient: 'linear-gradient(135deg, #4C1D95 0%, #7C3AED 100%)',
+      borderColor: 'rgba(139, 92, 246, 0.4)'
+    },
+    {
+      id: 'planilla',
+      nombre: 'Planilla y RRHH',
+      badge: 'GESTIÓN DE TALENTO',
+      badgeColor: '#2563EB',
+      descripcion: 'Control integral de tu personal. Cálculo automático de ISSS, AFP, retenciones de renta y finiquitos.',
+      icon: <Users size={32} color="#3B82F6" />,
+      url: 'https://planilla.demiempresa.online',
+      gradient: 'linear-gradient(135deg, #1E3A8A 0%, #2563EB 100%)',
+      borderColor: 'rgba(59, 130, 246, 0.4)'
     },
     {
       id: 'activofijo',
-      nombre: 'Gestión de Activos Fijos',
-      badge: 'EMPRESARIAL',
+      nombre: 'Activos Fijos',
+      badge: 'CONTROL PATRIMONIAL',
       badgeColor: '#0284C7',
-      descripcion: 'Control físico de bienes, depreciaciones acumuladas mensuales, etiquetas de código de barras y resguardos.',
-      icon: <Building2 size={28} color="#0284C7" />,
+      descripcion: 'Administra la depreciación, asignación y ubicación física de todos los bienes y equipos de la empresa.',
+      icon: <Building2 size={32} color="#0EA5E9" />,
       url: 'https://activofijo.demiempresa.online',
-      gradient: 'linear-gradient(135deg, #0C4A6E 0%, #0284C7 100%)'
+      gradient: 'linear-gradient(135deg, #0C4A6E 0%, #0284C7 100%)',
+      borderColor: 'rgba(14, 165, 233, 0.4)'
     },
     {
       id: 'inventario',
-      nombre: 'Facturación e Inventarios (POS)',
-      badge: 'PUNTO DE VENTA',
+      nombre: 'Inventarios y POS',
+      badge: 'OPERACIONES',
       badgeColor: '#EA580C',
-      descripcion: 'Control de existencias Kardex, punto de venta multicaja, catálogo de productos y alertas de stock mínimo.',
-      icon: <Layers size={28} color="#EA580C" />,
+      descripcion: 'Kardex actualizado en tiempo real, múltiples bodegas y control de ventas en puntos de venta físicos.',
+      icon: <Layers size={32} color="#F97316" />,
       url: 'https://inventario.demiempresa.online',
-      gradient: 'linear-gradient(135deg, #7C2D12 0%, #EA580C 100%)'
+      gradient: 'linear-gradient(135deg, #7C2D12 0%, #EA580C 100%)',
+      borderColor: 'rgba(249, 115, 22, 0.4)'
+    },
+    {
+      id: 'legal',
+      nombre: 'Legal y Constitución',
+      badge: 'TRÁMITES OFICIALES',
+      badgeColor: '#D97706',
+      descripcion: 'Gestiona la creación de nuevas empresas y mantén al día las obligaciones mercantiles en el CNR.',
+      icon: <Scale size={32} color="#F59E0B" />,
+      url: 'https://demiempresa.online/crear-empresa',
+      internalRoute: '/crear-empresa',
+      gradient: 'linear-gradient(135deg, #78350F 0%, #D97706 100%)',
+      borderColor: 'rgba(245, 158, 11, 0.4)'
     },
     {
       id: 'cooperativas',
-      nombre: 'Administración de Cooperativas',
+      nombre: 'Cooperativas',
       badge: 'FINANCIERO',
       badgeColor: '#475569',
-      descripcion: 'Gestión de asociados en cooperativas de ahorro y crédito, aportaciones mensuales, préstamos e intereses.',
-      icon: <CreditCard size={28} color="#475569" />,
+      descripcion: 'Gestión de asociados, aportaciones mensuales, préstamos e intereses para cooperativas de ahorro y crédito.',
+      icon: <CreditCard size={32} color="#94A3B8" />,
       url: 'https://cooperativas.demiempresa.online',
-      gradient: 'linear-gradient(135deg, #1E293B 0%, #475569 100%)'
+      gradient: 'linear-gradient(135deg, #1E293B 0%, #475569 100%)',
+      borderColor: 'rgba(71, 85, 105, 0.4)'
     },
     {
       id: 'ajedrez',
-      nombre: 'Ajedrez & Entrenamiento Cerebral',
-      badge: 'NEURO-PRODUCTIVIDAD',
+      nombre: 'Entrenamiento Cerebral',
+      badge: 'PRODUCTIVIDAD',
       badgeColor: '#DC2626',
-      descripcion: 'Ejercicios de concentración estratégica, análisis táctico de jugadas y agilidad mental para ejecutivos y líderes.',
-      icon: <Award size={28} color="#DC2626" />,
+      descripcion: 'Ejercicios de concentración estratégica, análisis táctico y agilidad mental para líderes.',
+      icon: <Award size={32} color="#EF4444" />,
       url: 'https://ajedrez.demiempresa.online',
-      gradient: 'linear-gradient(135deg, #7F1D1D 0%, #EF4444 100%)'
+      gradient: 'linear-gradient(135deg, #7F1D1D 0%, #DC2626 100%)',
+      borderColor: 'rgba(220, 38, 38, 0.4)'
     }
   ];
 
@@ -102,213 +111,150 @@ export default function LandingPortal() {
   };
 
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: '#0F172A', color: 'white', fontFamily: 'Inter, sans-serif' }}>
+    <div style={{ minHeight: '100vh', backgroundColor: '#09090B', color: '#FAFAFA' }}>
       
-      {/* TOP HEADER PORTAL */}
-      <header style={{
-        padding: '1.25rem 2rem',
-        borderBottom: '1px solid #1E293B',
-        backgroundColor: 'rgba(15, 23, 42, 0.95)',
-        backdropFilter: 'blur(10px)',
-        position: 'sticky',
-        top: 0,
-        zIndex: 100,
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center'
+      {/* HEADER NAV */}
+      <nav style={{
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        padding: '1.25rem 2.5rem', borderBottom: '1px solid #27272A',
+        backgroundColor: 'rgba(9, 9, 11, 0.85)', backdropFilter: 'blur(12px)',
+        position: 'fixed', top: 0, width: '100%', zIndex: 50
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
-          <div style={{ backgroundColor: '#2563EB', padding: '0.65rem', borderRadius: '12px', display: 'flex', boxShadow: '0 0 15px rgba(37, 99, 235, 0.5)' }}>
-            <Globe size={26} color="white" />
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <div style={{ background: 'linear-gradient(135deg, #3B82F6, #8B5CF6)', padding: '0.5rem', borderRadius: '10px' }}>
+            <Activity size={24} color="white" />
           </div>
           <div>
-            <span style={{ fontSize: '1.35rem', fontWeight: 'bold', letterSpacing: '-0.5px', color: 'white' }}>
-              demiempresa<span style={{ color: '#60A5FA' }}>.online</span>
-            </span>
-            <span style={{ display: 'block', fontSize: '0.725rem', color: '#94A3B8', fontWeight: '500' }}>
-              La Suite Empresarial Integrada de El Salvador
+            <h1 style={{ margin: 0, fontSize: '1.25rem', fontWeight: '800', letterSpacing: '-0.5px' }}>
+              demiempresa
+            </h1>
+            <span style={{ fontSize: '0.7rem', color: '#A1A1AA', fontWeight: '500', textTransform: 'uppercase', letterSpacing: '1px' }}>
+              Centro de Administración
             </span>
           </div>
         </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          <button
-            onClick={() => navigate('/crear-empresa')}
-            style={{ padding: '0.55rem 1.25rem', backgroundColor: '#D97706', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold', fontSize: '0.85rem', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
-          >
-            🏛️ Constitución Empresa (CNR)
-          </button>
-          <a
-            href="https://planilla.demiempresa.online/login"
-            style={{ padding: '0.55rem 1.35rem', backgroundColor: '#2563EB', color: 'white', textDecoration: 'none', borderRadius: '8px', fontWeight: 'bold', fontSize: '0.85rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem', boxShadow: '0 4px 14px rgba(37, 99, 235, 0.4)' }}
-          >
-            <LogIn size={16} /> Iniciar Sesión SSO
+        
+        <div style={{ display: 'flex', gap: '1rem' }}>
+          <a href="https://planilla.demiempresa.online/login" style={{
+            padding: '0.6rem 1.2rem', backgroundColor: '#FAFAFA', color: '#09090B',
+            textDecoration: 'none', borderRadius: '8px', fontWeight: '600', fontSize: '0.875rem',
+            display: 'flex', alignItems: 'center', gap: '0.5rem', transition: 'all 0.2s'
+          }}>
+            <Lock size={16} /> Panel Global
           </a>
         </div>
-      </header>
+      </nav>
 
-      {/* HERO SECTION */}
-      <section style={{
-        padding: '5rem 2rem 4rem 2rem',
-        textAlign: 'center',
-        background: 'radial-gradient(circle at 50% 20%, #1E3A8A 0%, #0F172A 70%)',
-        position: 'relative',
-        overflow: 'hidden'
-      }}>
-        <div style={{ maxWidth: '900px', margin: '0 auto' }}>
-          <span style={{ fontSize: '0.8rem', backgroundColor: 'rgba(59, 130, 246, 0.15)', color: '#60A5FA', border: '1px solid rgba(96, 165, 250, 0.3)', padding: '0.35rem 1rem', borderRadius: '999px', fontWeight: 'bold', letterSpacing: '0.5px' }}>
-            🇸🇻 LA SUITE DIGITAL INTEGRADA PARA EMPRESAS EN EL SALVADOR
-          </span>
-
-          <h1 style={{ fontSize: '3rem', fontWeight: '800', margin: '1.25rem 0 1rem 0', lineHeight: '1.15', color: 'white' }}>
-            Un Solo Usuario para Controlar <br />
-            <span style={{ background: 'linear-gradient(90deg, #60A5FA 0%, #34D399 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-              Todas las Aplicaciones de Tu Negocio
-            </span>
-          </h1>
-
-          <p style={{ fontSize: '1.1rem', color: '#94A3B8', maxWidth: '720px', margin: '0 auto 2.5rem auto', lineHeight: '1.6' }}>
-            Accede de forma unificada a las 8 plataformas empresariales clave: Constitución de Empresa CNR, Nóminas y RRHH, Contabilidad NIIF, Facturación Electrónica DTE y Gestión de Activos.
-          </p>
-
-          <div style={{ display: 'flex', justifyContent: 'center', gap: '1rem', flexWrap: 'wrap' }}>
-            <button
-              onClick={() => navigate('/crear-empresa')}
-              style={{
-                padding: '0.85rem 1.85rem',
-                backgroundColor: '#D97706',
-                color: 'white',
-                border: 'none',
-                borderRadius: '10px',
-                fontWeight: 'bold',
-                fontSize: '0.95rem',
-                cursor: 'pointer',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '0.5rem',
-                boxShadow: '0 10px 25px -5px rgba(217, 119, 6, 0.5)'
-              }}
-            >
-              🏛️ Crear & Registrar Empresa (CNR) <ArrowRight size={18} />
-            </button>
-
-            <a
-              href="https://planilla.demiempresa.online"
-              style={{
-                padding: '0.85rem 1.85rem',
-                backgroundColor: '#16A34A',
-                color: 'white',
-                textDecoration: 'none',
-                borderRadius: '10px',
-                fontWeight: 'bold',
-                fontSize: '0.95rem',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '0.5rem',
-                boxShadow: '0 10px 25px -5px rgba(22, 163, 74, 0.5)'
-              }}
-            >
-              🚀 Acceder a SaaS Planilla <ArrowRight size={18} />
-            </a>
-
-            <a
-              href="https://contabilidad.demiempresa.online"
-              style={{
-                padding: '0.85rem 1.85rem',
-                backgroundColor: '#2563EB',
-                color: 'white',
-                textDecoration: 'none',
-                borderRadius: '10px',
-                fontWeight: 'bold',
-                fontSize: '0.95rem',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '0.5rem',
-                boxShadow: '0 10px 25px -5px rgba(37, 99, 235, 0.5)'
-              }}
-            >
-              📊 Acceder a Contabilidad NIIF <ArrowRight size={18} />
-            </a>
+      {/* HERO / HUB INTRO */}
+      <main style={{ paddingTop: '10rem', paddingBottom: '4rem', paddingLeft: '2rem', paddingRight: '2rem', maxWidth: '1280px', margin: '0 auto' }}>
+        
+        <div style={{ textAlign: 'center', maxWidth: '800px', margin: '0 auto 5rem auto' }}>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', backgroundColor: '#18181B', padding: '0.4rem 1rem', borderRadius: '2rem', border: '1px solid #27272A', marginBottom: '1.5rem' }}>
+            <ShieldCheck size={16} color="#10B981" />
+            <span style={{ fontSize: '0.85rem', fontWeight: '600', color: '#A1A1AA' }}>El Ecosistema para Propietarios</span>
           </div>
-        </div>
-      </section>
-
-      {/* SHOWCASE GRID DE LAS 8 APLICACIONES */}
-      <section style={{ padding: '4rem 2rem', maxWidth: '1280px', margin: '0 auto' }}>
-        <div style={{ textAlign: 'center', marginBottom: '3rem' }}>
-          <h2 style={{ fontSize: '2rem', fontWeight: 'bold', color: 'white', margin: '0 0 0.5rem 0' }}>
-            Las 8 Aplicaciones del Ecosistema demiempresa.online
+          
+          <h2 style={{ fontSize: '3.75rem', fontWeight: '800', lineHeight: '1.1', margin: '0 0 1.5rem 0', letterSpacing: '-1.5px' }}>
+            Todo el control de tu empresa, <br/>
+            <span style={{ background: 'linear-gradient(to right, #60A5FA, #A78BFA)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>en un solo lugar.</span>
           </h2>
-          <p style={{ color: '#94A3B8', fontSize: '0.95rem' }}>
-            Regístrate una sola vez y navega libremente entre todos los módulos corporativos:
+          
+          <p style={{ fontSize: '1.125rem', color: '#A1A1AA', lineHeight: '1.6', marginBottom: '2.5rem' }}>
+            demiempresa es el sitio al que acuden los líderes y propietarios para administrar todas las funciones de su empresa. Toma el mando con acceso directo a finanzas, facturación, recursos humanos y más.
           </p>
         </div>
 
+        {/* APPS GRID */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.5rem' }}>
-          {appsEcosistema.map(app => (
-            <div
-              key={app.id}
+          {mainApps.map(app => (
+            <div 
+              key={app.id} 
+              onClick={() => handleEntrarApp(app)} 
+              className="app-card"
               style={{
-                backgroundColor: '#1E293B',
-                border: '1px solid #334155',
-                borderRadius: '16px',
-                padding: '1.75rem',
-                display: 'flex',
-                flexDirection: 'column',
-                justifyContent: 'space-between',
-                transition: 'all 0.25s ease',
-                boxShadow: '0 4px 6px -1px rgba(0,0,0,0.2)'
+                backgroundColor: '#18181B', border: `1px solid #27272A`, borderRadius: '20px',
+                padding: '2rem', cursor: 'pointer', position: 'relative', overflow: 'hidden',
+                display: 'flex', flexDirection: 'column', height: '100%',
+                '--card-border-color': app.borderColor
               }}
             >
-              <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.25rem' }}>
-                  <div style={{ backgroundColor: '#0F172A', padding: '0.75rem', borderRadius: '12px', border: '1px solid #334155' }}>
-                    {app.icon}
-                  </div>
-                  <span style={{ fontSize: '0.65rem', backgroundColor: app.badgeColor, color: 'white', padding: '0.2rem 0.6rem', borderRadius: '999px', fontWeight: 'bold' }}>
-                    {app.badge}
-                  </span>
+              <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '4px', background: app.gradient }}></div>
+              
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                <div style={{ background: `${app.borderColor.replace('0.4', '0.15')}`, padding: '0.75rem', borderRadius: '12px' }}>
+                  {app.icon}
                 </div>
-
-                <h3 style={{ fontSize: '1.2rem', fontWeight: 'bold', color: 'white', margin: '0 0 0.5rem 0' }}>
-                  {app.nombre}
-                </h3>
-                <p style={{ fontSize: '0.825rem', color: '#94A3B8', lineHeight: '1.5', margin: 0 }}>
-                  {app.descripcion}
-                </p>
+                <span style={{ fontSize: '0.65rem', backgroundColor: `${app.badgeColor}20`, color: app.badgeColor, padding: '0.35rem 0.75rem', borderRadius: '1rem', fontWeight: '700', letterSpacing: '0.5px' }}>
+                  {app.badge}
+                </span>
               </div>
-
-              <div style={{ marginTop: '1.75rem', paddingTop: '1rem', borderTop: '1px solid #334155' }}>
-                <button
-                  onClick={() => handleEntrarApp(app)}
-                  style={{
-                    width: '100%',
-                    padding: '0.65rem',
-                    background: app.gradient,
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '8px',
-                    fontWeight: 'bold',
-                    fontSize: '0.85rem',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '0.4rem'
-                  }}
-                >
-                  Entrar a {app.nombre.split(' ')[0]} <ChevronRight size={16} />
-                </button>
+              
+              <h3 style={{ fontSize: '1.35rem', fontWeight: '700', margin: '0 0 0.75rem 0', color: '#FAFAFA', letterSpacing: '-0.5px' }}>
+                {app.nombre}
+              </h3>
+              
+              <p style={{ fontSize: '0.95rem', color: '#A1A1AA', lineHeight: '1.5', margin: '0 0 1.5rem 0', flexGrow: 1 }}>
+                {app.descripcion}
+              </p>
+              
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: app.badgeColor, fontWeight: '600', fontSize: '0.9rem', marginTop: 'auto' }}>
+                Acceder al Módulo <ArrowRight size={16} />
               </div>
             </div>
           ))}
         </div>
+      </main>
+
+      {/* VALUE PROPOSITION SECTION */}
+      <section style={{ backgroundColor: '#18181B', borderTop: '1px solid #27272A', borderBottom: '1px solid #27272A', padding: '6rem 2rem' }}>
+        <div style={{ maxWidth: '1280px', margin: '0 auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '4rem', alignItems: 'center' }}>
+          <div>
+            <h2 style={{ fontSize: '2.5rem', fontWeight: '800', margin: '0 0 1.5rem 0', color: '#FAFAFA', lineHeight: '1.2', letterSpacing: '-1px' }}>
+              Por qué los propietarios eligen <span style={{ color: '#3B82F6' }}>demiempresa</span>
+            </h2>
+            <p style={{ fontSize: '1.125rem', color: '#A1A1AA', marginBottom: '2.5rem', lineHeight: '1.6' }}>
+              Administrar una empresa requiere precisión, legalidad y visión. Nuestra plataforma integra todas las áreas críticas de tu negocio para que puedas tomar las riendas de tu compañía con absoluta seguridad.
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+              {[
+                { title: 'Control Centralizado', desc: 'Gestiona todas las operaciones desde un único panel sin saltar entre múltiples proveedores.' },
+                { title: 'Información en Tiempo Real', desc: 'Conoce la salud financiera, el estado de las ventas y la nómina al instante.' },
+                { title: 'Cumplimiento Legal Total', desc: 'Facturación DTE, NIIF, y planillas apegadas a las normativas del Ministerio de Hacienda y CNR.' }
+              ].map((item, i) => (
+                <div key={i} style={{ display: 'flex', gap: '1rem', alignItems: 'flex-start' }}>
+                  <div style={{ backgroundColor: 'rgba(16, 185, 129, 0.1)', padding: '0.5rem', borderRadius: '50%' }}>
+                    <CheckCircle2 size={24} color="#10B981" />
+                  </div>
+                  <div>
+                    <h4 style={{ margin: '0 0 0.25rem 0', fontSize: '1.05rem', fontWeight: '700', color: '#E4E4E7' }}>{item.title}</h4>
+                    <p style={{ margin: 0, fontSize: '0.95rem', color: '#A1A1AA', lineHeight: '1.5' }}>{item.desc}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+          
+          <div style={{ backgroundColor: '#09090B', border: '1px solid #27272A', borderRadius: '24px', padding: '3.5rem', position: 'relative', overflow: 'hidden' }}>
+            <div style={{ position: 'absolute', top: '-50px', right: '-50px', background: '#3B82F6', width: '200px', height: '200px', filter: 'blur(100px)', opacity: 0.3, borderRadius: '50%' }}></div>
+            <Grid size={48} color="#A1A1AA" style={{ marginBottom: '1.5rem' }} />
+            <h3 style={{ fontSize: '1.75rem', fontWeight: '700', marginBottom: '1rem', color: '#FAFAFA', letterSpacing: '-0.5px' }}>
+              Visión Integral de tu Negocio
+            </h3>
+            <p style={{ color: '#A1A1AA', lineHeight: '1.6', fontSize: '1.1rem' }}>
+              Desde la constitución legal de tu empresa hasta la emisión de la última factura electrónica de tus sucursales. Conecta tu operación diaria, el talento de recursos humanos y tus activos físicos en un centro de mando robusto y confiable.
+            </p>
+          </div>
+        </div>
       </section>
 
       {/* FOOTER */}
-      <footer style={{ backgroundColor: '#090D16', borderTop: '1px solid #1E293B', padding: '2.5rem 2rem', textAlign: 'center', color: '#64748B', fontSize: '0.85rem' }}>
-        <p style={{ margin: 0 }}>
-          © 2026 <strong>demiempresa.online</strong> • Plataforma SaaS Empresarial de El Salvador. Todos los derechos reservados.
+      <footer style={{ padding: '4rem 2rem', textAlign: 'center', color: '#71717A', fontSize: '0.95rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
+          <Activity size={24} color="#A1A1AA" />
+          <span style={{ fontWeight: '800', color: '#E4E4E7', fontSize: '1.1rem', letterSpacing: '-0.5px' }}>demiempresa</span>
+        </div>
+        <p style={{ margin: 0, color: '#52525B' }}>
+          © {new Date().getFullYear()} El Centro de Administración Empresarial. Todos los derechos reservados.
         </p>
       </footer>
     </div>
