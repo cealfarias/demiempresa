@@ -11,10 +11,20 @@ export default function LandingPortal() {
   const navigate = useNavigate();
 
   useEffect(() => {
+    // Hide initially if it's their first time
     const isFirstTime = localStorage.getItem('avatar_landing_greeted') !== 'true';
     if (isFirstTime) {
+      const container = document.getElementById('demiempresa-avatar-container');
+      if (container) container.style.display = 'none';
+
       localStorage.setItem('avatar_landing_greeted', 'true');
       
+      // Wait 15 seconds, then materialize
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('avatar:materialize'));
+      }, 15000);
+
+      // Start talking shortly after materializing
       setTimeout(() => {
         window.dispatchEvent(new CustomEvent('avatar:say', {
           detail: {
@@ -23,7 +33,7 @@ export default function LandingPortal() {
             options: []
           }
         }));
-      }, 1000);
+      }, 17500);
 
       setTimeout(() => {
         window.dispatchEvent(new CustomEvent('avatar:say', {
@@ -33,7 +43,7 @@ export default function LandingPortal() {
             options: []
           }
         }));
-      }, 6000);
+      }, 23000);
 
       setTimeout(() => {
         window.dispatchEvent(new CustomEvent('avatar:say', {
@@ -43,7 +53,7 @@ export default function LandingPortal() {
             options: []
           }
         }));
-      }, 15000);
+      }, 31000);
 
       setTimeout(() => {
         window.dispatchEvent(new CustomEvent('avatar:say', {
@@ -53,7 +63,7 @@ export default function LandingPortal() {
             options: []
           }
         }));
-      }, 26000);
+      }, 43000);
 
       setTimeout(() => {
         window.dispatchEvent(new CustomEvent('avatar:say', {
@@ -65,9 +75,29 @@ export default function LandingPortal() {
             ]
           }
         }));
-      }, 31000);
+      }, 48000);
     }
   }, []);
+
+  let hoverTimeout = null;
+
+  const handleCardHover = (app) => {
+    // Only queue if they hover for at least 600ms (avoids spamming when moving mouse quickly across cards)
+    if (hoverTimeout) clearTimeout(hoverTimeout);
+    hoverTimeout = setTimeout(() => {
+      window.dispatchEvent(new CustomEvent('avatar:say', {
+        detail: {
+          text: `Módulo de ${app.nombre}: ${app.descripcion}`,
+          highlightId: null,
+          options: []
+        }
+      }));
+    }, 600);
+  };
+
+  const handleCardLeave = () => {
+    if (hoverTimeout) clearTimeout(hoverTimeout);
+  };
 
   const mainApps = [
     {
@@ -229,6 +259,8 @@ export default function LandingPortal() {
             <div 
               key={app.id} 
               onClick={() => handleEntrarApp(app)} 
+              onMouseEnter={() => handleCardHover(app)}
+              onMouseLeave={handleCardLeave}
               className="app-card"
               style={{
                 backgroundColor: '#18181B', border: `1px solid #27272A`, borderRadius: '20px',

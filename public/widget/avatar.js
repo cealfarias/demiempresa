@@ -45,10 +45,13 @@
 
   let isActive = false;
   let typeInterval = null;
-  let currentMessage = '';
-  
-  // Highlighting
   let currentHighlightId = null;
+  
+  // Audio/Queue State
+  let messageQueue = [];
+  let currentUtterance = null;
+  let isTyping = false;
+  let fallbackTimer = null;
 
   function setSpeakingState(speaking) {
     isActive = speaking;
@@ -92,40 +95,87 @@
   function dismiss() {
     setSpeakingState(false);
     dialog.style.display = 'none';
+    messageQueue = []; // Clear queue
     if (window.speechSynthesis) window.speechSynthesis.cancel();
     if (typeInterval) clearInterval(typeInterval);
+    if (fallbackTimer) clearTimeout(fallbackTimer);
   }
 
   closeBtn.addEventListener('click', dismiss);
 
-  function speakTTS(text) {
-    if (!('speechSynthesis' in window)) return;
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = 'es-ES';
-    utterance.rate = 1.0;
-    utterance.pitch = 1.1;
+  function processNextInQueue() {
+    if (isActive || messageQueue.length === 0) return;
     
-    const setVoiceAndSpeak = () => {
-      const voices = window.speechSynthesis.getVoices();
-      const svVoice = voices.find(v => v.lang === 'es-SV' || v.lang === 'es_SV' || v.name.includes('Salvador'));
-      if (svVoice) utterance.voice = svVoice;
-      else {
-        const esVoice = voices.find(v => v.lang.startsWith('es-') && (v.name.includes('Google') || v.name.includes('Microsoft')));
-        if (esVoice) utterance.voice = esVoice;
-      }
-      try { window.speechSynthesis.speak(utterance); } catch (e) { console.warn(e); }
-    };
-
-    if (window.speechSynthesis.getVoices().length === 0) {
-      window.speechSynthesis.addEventListener('voiceschanged', setVoiceAndSpeak, { once: true });
-      setTimeout(setVoiceAndSpeak, 1000);
-    } else {
-      setVoiceAndSpeak();
-    }
+    const nextMsg = messageQueue.shift();
+    _sayInternal(nextMsg.text, nextMsg.highlightId, nextMsg.options);
   }
 
-  function typeText(text, optionsArray) {
+  function _sayInternal(text, highlightId, interactiveOptions) {
+    setSpeakingState(true);
+    dialog.style.display = 'block';
+    
+    if (currentHighlightId) removeHighlight(currentHighlightId);
+    if (highlightId) {
+      currentHighlightId = highlightId;
+      applyHighlight(highlightId);
+    }
+
+    // TTS
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      currentUtterance = new SpeechSynthesisUtterance(text);
+      currentUtterance.lang = 'es-ES';
+      currentUtterance.rate = 1.0;
+      currentUtterance.pitch = 1.1;
+
+      currentUtterance.onend = () => {
+        if (fallbackTimer) clearTimeout(fallbackTimer);
+        setSpeakingState(false);
+        setTimeout(processNextInQueue, 500); // Wait a bit before next message
+      };
+      
+      currentUtterance.onerror = () => {
+        if (fallbackTimer) clearTimeout(fallbackTimer);
+        setSpeakingState(false);
+        setTimeout(processNextInQueue, 500);
+      };
+
+      const setVoiceAndSpeak = () => {
+        const voices = window.speechSynthesis.getVoices();
+        const svVoice = voices.find(v => v.lang === 'es-SV' || v.lang === 'es_SV' || v.name.includes('Salvador'));
+        if (svVoice) currentUtterance.voice = svVoice;
+        else {
+          const esVoice = voices.find(v => v.lang.startsWith('es-') && (v.name.includes('Google') || v.name.includes('Microsoft')));
+          if (esVoice) currentUtterance.voice = esVoice;
+        }
+        try { window.speechSynthesis.speak(currentUtterance); } catch (e) { console.warn(e); }
+      };
+
+      if (window.speechSynthesis.getVoices().length === 0) {
+        window.speechSynthesis.addEventListener('voiceschanged', setVoiceAndSpeak, { once: true });
+        setTimeout(setVoiceAndSpeak, 1000);
+      } else {
+        setVoiceAndSpeak();
+      }
+
+      // Fallback in case onend never fires (Chrome bug)
+      const duration = Math.max(text.length * 80, 2000);
+      if (fallbackTimer) clearTimeout(fallbackTimer);
+      fallbackTimer = setTimeout(() => {
+        if (isActive) {
+           setSpeakingState(false);
+           processNextInQueue();
+        }
+      }, duration);
+    } else {
+      // No TTS
+      setTimeout(() => {
+        setSpeakingState(false);
+        processNextInQueue();
+      }, Math.max(text.length * 60, 2000));
+    }
+
+    // Typing effect
     if (typeInterval) clearInterval(typeInterval);
     textEl.textContent = '';
     optionsEl.innerHTML = '';
@@ -139,15 +189,13 @@
         clearInterval(typeInterval);
         cursorEl.style.display = 'none';
         
-        // Render options if any
-        if (optionsArray && optionsArray.length > 0) {
-          optionsArray.forEach((opt, idx) => {
+        if (interactiveOptions && interactiveOptions.length > 0) {
+          interactiveOptions.forEach((opt, idx) => {
             const btn = document.createElement('button');
             btn.textContent = opt.label;
             btn.className = 'avatar-btn ' + (idx === 0 ? 'avatar-btn-primary' : 'avatar-btn-secondary');
             btn.onclick = () => {
               if (opt.action) {
-                // If the action is a string, dispatch it as an event back to the app
                 window.dispatchEvent(new CustomEvent(opt.action));
               }
               dismiss();
@@ -159,36 +207,73 @@
     }, 40);
   }
 
-  // 4. API for Host Applications
-  window.DemiempresaAvatar = {
-    say: function(text, highlightId = null, interactiveOptions = null) {
-      setSpeakingState(true);
-      dialog.style.display = 'block';
-      
-      if (currentHighlightId) removeHighlight(currentHighlightId);
-      if (highlightId) {
-        currentHighlightId = highlightId;
-        applyHighlight(highlightId);
-      }
-      
-      speakTTS(text);
-      typeText(text, interactiveOptions);
-    },
-    dismiss: dismiss
+  // Context Menu
+  const menuContainer = document.createElement('div');
+  menuContainer.id = 'avatar-context-menu';
+  menuContainer.style.display = 'none';
+  menuContainer.innerHTML = `
+    <button class="avatar-menu-item" id="btn-menu-ocultar">Ocultar</button>
+    <button class="avatar-menu-item" id="btn-menu-callar">Silenciar/Callar</button>
+    <button class="avatar-menu-item avatar-menu-item-danger" id="btn-menu-reiniciar">Reiniciar Intro</button>
+  `;
+  container.appendChild(menuContainer);
+
+  document.getElementById('btn-menu-ocultar').onclick = () => { container.style.display = 'none'; menuContainer.style.display = 'none'; };
+  document.getElementById('btn-menu-callar').onclick = () => { dismiss(); menuContainer.style.display = 'none'; };
+  document.getElementById('btn-menu-reiniciar').onclick = () => { 
+    localStorage.removeItem('avatar_landing_greeted'); 
+    window.location.reload(); 
   };
 
-  // 5. Global Event Listener for Cross-Domain triggers
+  dragHandle.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    menuContainer.style.display = menuContainer.style.display === 'none' ? 'flex' : 'none';
+  });
+  
+  // Close menu on click outside
+  document.addEventListener('click', (e) => {
+    if (!dragHandle.contains(e.target) && !menuContainer.contains(e.target)) {
+      menuContainer.style.display = 'none';
+    }
+  });
+
+  // API for Host Applications
+  window.DemiempresaAvatar = {
+    say: function(text, highlightId = null, interactiveOptions = null) {
+      // Put in queue
+      messageQueue.push({ text, highlightId, options: interactiveOptions });
+      processNextInQueue();
+    },
+    dismiss: dismiss,
+    materialize: function() {
+      container.style.display = 'flex';
+      orb.classList.add('avatar-materializing');
+      setTimeout(() => {
+        orb.classList.remove('avatar-materializing');
+      }, 3000);
+    }
+  };
+
+  // Default hide if it's the landing page and not greeted yet (controlled by App)
+  // But wait, the script runs immediately. Let the React app control visibility if needed.
+  
+  // Global Event Listener for Cross-Domain triggers
   window.addEventListener('avatar:say', (e) => {
     const { text, highlightId, options } = e.detail;
     window.DemiempresaAvatar.say(text, highlightId, options);
   });
 
-  // 6. Dragging Logic
+  window.addEventListener('avatar:materialize', () => {
+    window.DemiempresaAvatar.materialize();
+  });
+
+  // Dragging Logic
   let isDragging = false;
   let startX, startY;
   let posX = 0, posY = 0;
 
   dragHandle.addEventListener('mousedown', (e) => {
+    if(e.button !== 0) return; // Only left click
     e.preventDefault();
     isDragging = true;
     startX = e.clientX - posX;
