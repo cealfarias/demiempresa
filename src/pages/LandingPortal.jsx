@@ -29,7 +29,7 @@ export default function LandingPortal() {
       badgeColor: '#7C3AED',
       descripcion: 'Emite y administra Comprobantes de Crédito Fiscal y Facturas con autorización directa del Ministerio de Hacienda.',
       icon: <Zap size={32} color="#8B5CF6" />,
-      url: 'https://dte.demiempresa.online',
+      url: 'https://ventas.demiempresa.online',
       gradient: 'linear-gradient(135deg, #4C1D95 0%, #7C3AED 100%)',
       borderColor: 'rgba(139, 92, 246, 0.4)'
     },
@@ -62,7 +62,7 @@ export default function LandingPortal() {
       badgeColor: '#EA580C',
       descripcion: 'Kardex actualizado en tiempo real, múltiples bodegas y control de ventas en puntos de venta físicos.',
       icon: <Layers size={32} color="#F97316" />,
-      url: 'https://inventario.demiempresa.online',
+      url: 'https://ventas.demiempresa.online',
       gradient: 'linear-gradient(135deg, #7C2D12 0%, #EA580C 100%)',
       borderColor: 'rgba(249, 115, 22, 0.4)'
     },
