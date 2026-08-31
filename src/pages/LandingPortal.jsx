@@ -4,7 +4,7 @@ import {
   Building2, Users, FileText, Scale, Zap, Shield, Sparkles, 
   ArrowRight, CheckCircle2, Lock, UserPlus, LogIn, Laptop, Globe, 
   ChevronRight, Award, BarChart3, HelpCircle, Layers, Grid, CreditCard,
-  Briefcase, Activity, Settings, PieChart, ShieldCheck
+  Briefcase, Activity, Settings, PieChart, ShieldCheck, ShoppingCart, Truck
 } from 'lucide-react';
 
 export default function LandingPortal() {
@@ -99,99 +99,135 @@ export default function LandingPortal() {
     if (hoverTimeout) clearTimeout(hoverTimeout);
   };
 
-  const mainApps = [
+  const areas = [
     {
-      id: 'contabilidad',
-      nombre: 'Contabilidad y Finanzas',
-      badge: 'NÚCLEO FINANCIERO',
-      badgeColor: '#059669',
-      descripcion: 'Acceso directo a estados financieros, partidas contables y reportes NIIF. El corazón financiero de tu empresa.',
-      icon: <PieChart size={32} color="#10B981" />,
-      url: 'https://contabilidad.demiempresa.online',
-      gradient: 'linear-gradient(135deg, #064E3B 0%, #059669 100%)',
-      borderColor: 'rgba(16, 185, 129, 0.4)'
+      titulo: '1. Operaciones y Comercialización',
+      descripcion: 'Constituye el motor principal del negocio, abarcando la cadena desde el abastecimiento hasta la entrega final al cliente.',
+      color: '#F97316',
+      badgeColor: 'rgba(249, 115, 22, 0.1)',
+      apps: [
+        {
+          id: 'logistica',
+          nombre: 'Logística e Inventarios',
+          descripcion: 'Gestión de múltiples bodegas, entradas, salidas y actualización del kardex en tiempo real.',
+          icon: <Layers size={28} color="#F97316" />,
+          url: 'https://ventas.demiempresa.online'
+        },
+        {
+          id: 'pos',
+          nombre: 'Ventas y Facturación POS',
+          descripcion: 'Ejecución de ventas en puntos físicos, manejo de cajas y trato directo con el cliente final.',
+          icon: <Zap size={28} color="#F97316" />,
+          url: 'https://ventas.demiempresa.online'
+        },
+        {
+          id: 'compras',
+          nombre: 'Compras y Abastecimiento',
+          descripcion: 'Negociación con proveedores y adquisición de materia prima o productos terminados para la reventa.',
+          icon: <Globe size={28} color="#F97316" />,
+          url: 'https://ventas.demiempresa.online'
+        }
+      ]
     },
     {
-      id: 'dte',
-      nombre: 'Facturación Electrónica',
-      badge: 'DTE OFICIAL',
-      badgeColor: '#7C3AED',
-      descripcion: 'Emite y administra Comprobantes de Crédito Fiscal y Facturas con autorización directa del Ministerio de Hacienda.',
-      icon: <Zap size={32} color="#8B5CF6" />,
-      url: 'https://ventas.demiempresa.online',
-      gradient: 'linear-gradient(135deg, #4C1D95 0%, #7C3AED 100%)',
-      borderColor: 'rgba(139, 92, 246, 0.4)'
+      titulo: '2. Contabilidad y Finanzas',
+      descripcion: 'Se encarga de la administración del capital, la precisión de los registros y el cumplimiento de las obligaciones tributarias.',
+      color: '#10B981',
+      badgeColor: 'rgba(16, 185, 129, 0.1)',
+      apps: [
+        {
+          id: 'contable',
+          nombre: 'Gestión Contable',
+          descripcion: 'Generación de partidas, conciliaciones bancarias, emisión de estados financieros y reportes estructurados bajo NIIF.',
+          icon: <PieChart size={28} color="#10B981" />,
+          url: 'https://contabilidad.demiempresa.online'
+        },
+        {
+          id: 'dteoficial',
+          nombre: 'Facturación Oficial (DTE)',
+          descripcion: 'Emisión, validación y resguardo de Documentos Tributarios Electrónicos bajo lineamientos del Ministerio de Hacienda.',
+          icon: <FileText size={28} color="#10B981" />,
+          url: 'https://ventas.demiempresa.online'
+        },
+        {
+          id: 'activofijo',
+          nombre: 'Control Patrimonial',
+          descripcion: 'Seguimiento de la ubicación física, asignación y cálculo de depreciación de todos los activos fijos.',
+          icon: <Building2 size={28} color="#10B981" />,
+          url: 'https://activofijo.demiempresa.online'
+        },
+        {
+          id: 'cooperativas',
+          nombre: 'Cooperativas Financieras',
+          descripcion: 'Gestión de asociados, aportaciones mensuales, préstamos e intereses para cooperativas de ahorro y crédito.',
+          icon: <CreditCard size={28} color="#10B981" />,
+          url: 'https://cooperativas.demiempresa.online'
+        }
+      ]
     },
     {
-      id: 'planilla',
-      nombre: 'Planilla y RRHH',
-      badge: 'GESTIÓN DE TALENTO',
-      badgeColor: '#2563EB',
-      descripcion: 'Control integral de tu personal. Cálculo automático de ISSS, AFP, retenciones de renta y finiquitos.',
-      icon: <Users size={32} color="#3B82F6" />,
-      url: 'https://planilla.demiempresa.online',
-      gradient: 'linear-gradient(135deg, #1E3A8A 0%, #2563EB 100%)',
-      borderColor: 'rgba(59, 130, 246, 0.4)'
+      titulo: '3. Gestión de Talento y Recursos Humanos',
+      descripcion: 'Administra el ciclo de vida, la legalidad y la retribución del personal que opera la empresa.',
+      color: '#3B82F6',
+      badgeColor: 'rgba(59, 130, 246, 0.1)',
+      apps: [
+        {
+          id: 'planilla',
+          nombre: 'Procesamiento de Planilla',
+          descripcion: 'Cálculo matemático de salarios, retenciones legales de ISSS, AFP y el impuesto sobre la renta.',
+          icon: <Users size={28} color="#3B82F6" />,
+          url: 'https://planilla.demiempresa.online'
+        },
+        {
+          id: 'laboral',
+          nombre: 'Administración Laboral',
+          descripcion: 'Elaboración de contratos, cálculo de vacaciones, aguinaldos y finiquitos legales.',
+          icon: <Briefcase size={28} color="#3B82F6" />,
+          url: 'https://planilla.demiempresa.online'
+        },
+        {
+          id: 'desarrollo',
+          nombre: 'Desarrollo Organizacional',
+          descripcion: 'Capacitación técnica, evaluación de desempeño y entrenamiento cerebral enfocado en la productividad.',
+          icon: <Award size={28} color="#3B82F6" />,
+          url: 'https://ajedrez.demiempresa.online'
+        }
+      ]
     },
     {
-      id: 'activofijo',
-      nombre: 'Activos Fijos',
-      badge: 'CONTROL PATRIMONIAL',
-      badgeColor: '#0284C7',
-      descripcion: 'Administra la depreciación, asignación y ubicación física de todos los bienes y equipos de la empresa.',
-      icon: <Building2 size={32} color="#0EA5E9" />,
-      url: 'https://activofijo.demiempresa.online',
-      gradient: 'linear-gradient(135deg, #0C4A6E 0%, #0284C7 100%)',
-      borderColor: 'rgba(14, 165, 233, 0.4)'
-    },
-    {
-      id: 'inventario',
-      nombre: 'Inventarios y POS',
-      badge: 'OPERACIONES',
-      badgeColor: '#EA580C',
-      descripcion: 'Kardex actualizado en tiempo real, múltiples bodegas y control de ventas en puntos de venta físicos.',
-      icon: <Layers size={32} color="#F97316" />,
-      url: 'https://ventas.demiempresa.online',
-      gradient: 'linear-gradient(135deg, #7C2D12 0%, #EA580C 100%)',
-      borderColor: 'rgba(249, 115, 22, 0.4)'
-    },
-    {
-      id: 'legal',
-      nombre: 'Legal y Constitución',
-      badge: 'TRÁMITES OFICIALES',
-      badgeColor: '#D97706',
-      descripcion: 'Gestiona la creación de nuevas empresas y mantén al día las obligaciones mercantiles en el CNR.',
-      icon: <Scale size={32} color="#F59E0B" />,
-      url: 'https://demiempresa.online/crear-empresa',
-      internalRoute: '/crear-empresa',
-      gradient: 'linear-gradient(135deg, #78350F 0%, #D97706 100%)',
-      borderColor: 'rgba(245, 158, 11, 0.4)'
-    },
-    {
-      id: 'cooperativas',
-      nombre: 'Cooperativas',
-      badge: 'FINANCIERO',
-      badgeColor: '#475569',
-      descripcion: 'Gestión de asociados, aportaciones mensuales, préstamos e intereses para cooperativas de ahorro y crédito.',
-      icon: <CreditCard size={32} color="#94A3B8" />,
-      url: 'https://cooperativas.demiempresa.online',
-      gradient: 'linear-gradient(135deg, #1E293B 0%, #475569 100%)',
-      borderColor: 'rgba(71, 85, 105, 0.4)'
-    },
-    {
-      id: 'ajedrez',
-      nombre: 'Entrenamiento Cerebral',
-      badge: 'PRODUCTIVIDAD',
-      badgeColor: '#DC2626',
-      descripcion: 'Ejercicios de concentración estratégica, análisis táctico y agilidad mental para líderes.',
-      icon: <Award size={32} color="#EF4444" />,
-      url: 'https://ajedrez.demiempresa.online',
-      gradient: 'linear-gradient(135deg, #7F1D1D 0%, #DC2626 100%)',
-      borderColor: 'rgba(220, 38, 38, 0.4)'
+      titulo: '4. Administración y Control Legal',
+      descripcion: 'Asegura la integración de las demás funciones y mantiene a la empresa dentro del marco jurídico mercantil.',
+      color: '#F59E0B',
+      badgeColor: 'rgba(245, 158, 11, 0.1)',
+      apps: [
+        {
+          id: 'estrategia',
+          nombre: 'Dirección Estratégica',
+          descripcion: 'Planificación de objetivos, análisis de datos en paneles centralizados y toma de decisiones a nivel gerencial.',
+          icon: <BarChart3 size={28} color="#F59E0B" />,
+          url: 'https://planilla.demiempresa.online/login'
+        },
+        {
+          id: 'mercantil',
+          nombre: 'Cumplimiento Mercantil',
+          descripcion: 'Formalización de la sociedad, renovación de matrículas de comercio y gestión de trámites oficiales ante el CNR.',
+          icon: <Scale size={28} color="#F59E0B" />,
+          url: 'https://demiempresa.online/crear-empresa',
+          internalRoute: '/crear-empresa'
+        },
+        {
+          id: 'seguridad',
+          nombre: 'Seguridad Integral',
+          descripcion: 'Protección física de las instalaciones y resguardo informático de los datos y servidores de la compañía.',
+          icon: <Shield size={28} color="#F59E0B" />,
+          url: '#'
+        }
+      ]
     }
   ];
 
   const handleEntrarApp = (app) => {
+    if (app.url === '#') return; // En desarrollo
     if (app.internalRoute) {
       navigate(app.internalRoute);
     } else {
@@ -235,61 +271,76 @@ export default function LandingPortal() {
       </nav>
 
       {/* HERO / HUB INTRO */}
-      <main style={{ paddingTop: '10rem', paddingBottom: '4rem', paddingLeft: '2rem', paddingRight: '2rem', maxWidth: '1280px', margin: '0 auto' }}>
+      <main style={{ paddingTop: '8rem', paddingBottom: '4rem', paddingLeft: '2rem', paddingRight: '2rem', maxWidth: '1280px', margin: '0 auto' }}>
         
-        <div style={{ textAlign: 'center', maxWidth: '800px', margin: '0 auto 5rem auto' }}>
+        <div style={{ textAlign: 'center', maxWidth: '800px', margin: '0 auto 4rem auto' }}>
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', backgroundColor: '#18181B', padding: '0.4rem 1rem', borderRadius: '2rem', border: '1px solid #27272A', marginBottom: '1.5rem' }}>
             <ShieldCheck size={16} color="#10B981" />
-            <span style={{ fontSize: '0.85rem', fontWeight: '600', color: '#A1A1AA' }}>El Ecosistema para Propietarios</span>
+            <span style={{ fontSize: '0.85rem', fontWeight: '600', color: '#A1A1AA' }}>El Ecosistema Corporativo</span>
           </div>
           
-          <h2 style={{ fontSize: '3.75rem', fontWeight: '800', lineHeight: '1.1', margin: '0 0 1.5rem 0', letterSpacing: '-1.5px' }}>
-            Todo el control de tu empresa, <br/>
-            <span style={{ background: 'linear-gradient(to right, #60A5FA, #A78BFA)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>en un solo lugar.</span>
+          <h2 style={{ fontSize: '3rem', fontWeight: '800', lineHeight: '1.1', margin: '0 0 1.5rem 0', letterSpacing: '-1.5px' }}>
+            Áreas Estructurales de tu Empresa
           </h2>
           
           <p style={{ fontSize: '1.125rem', color: '#A1A1AA', lineHeight: '1.6', marginBottom: '2.5rem' }}>
-            demiempresa es el sitio al que acuden los líderes y propietarios para administrar todas las funciones de su empresa. Toma el mando con acceso directo a finanzas, facturación, recursos humanos y más.
+            Las funciones de una empresa se dividen en áreas clave que garantizan su operatividad, sostenibilidad y crecimiento. Selecciona el módulo al que deseas acceder:
           </p>
         </div>
 
-        {/* APPS GRID */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.5rem' }}>
-          {mainApps.map(app => (
-            <div 
-              key={app.id} 
-              onClick={() => handleEntrarApp(app)} 
-              onMouseEnter={() => handleCardHover(app)}
-              onMouseLeave={handleCardLeave}
-              className="app-card"
-              style={{
-                backgroundColor: '#18181B', border: `1px solid #27272A`, borderRadius: '20px',
-                padding: '2rem', cursor: 'pointer', position: 'relative', overflow: 'hidden',
-                display: 'flex', flexDirection: 'column', height: '100%',
-                '--card-border-color': app.borderColor
-              }}
-            >
-              <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '4px', background: app.gradient }}></div>
-              
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-                <div style={{ background: `${app.borderColor.replace('0.4', '0.15')}`, padding: '0.75rem', borderRadius: '12px' }}>
-                  {app.icon}
-                </div>
-                <span style={{ fontSize: '0.65rem', backgroundColor: `${app.badgeColor}20`, color: app.badgeColor, padding: '0.35rem 0.75rem', borderRadius: '1rem', fontWeight: '700', letterSpacing: '0.5px' }}>
-                  {app.badge}
-                </span>
+        {/* ESTRUCTURAS ORGANIZACIONALES */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '4rem' }}>
+          {areas.map((area, idx) => (
+            <div key={idx} style={{ padding: '2rem', backgroundColor: '#121214', border: '1px solid #27272A', borderRadius: '24px' }}>
+              <div style={{ marginBottom: '2rem', paddingBottom: '1.5rem', borderBottom: '1px solid #27272A' }}>
+                <h3 style={{ fontSize: '1.75rem', fontWeight: '800', color: area.color, margin: '0 0 0.5rem 0', letterSpacing: '-0.5px' }}>
+                  {area.titulo}
+                </h3>
+                <p style={{ fontSize: '1rem', color: '#A1A1AA', margin: 0, lineHeight: '1.5', maxWidth: '800px' }}>
+                  {area.descripcion}
+                </p>
               </div>
-              
-              <h3 style={{ fontSize: '1.35rem', fontWeight: '700', margin: '0 0 0.75rem 0', color: '#FAFAFA', letterSpacing: '-0.5px' }}>
-                {app.nombre}
-              </h3>
-              
-              <p style={{ fontSize: '0.95rem', color: '#A1A1AA', lineHeight: '1.5', margin: '0 0 1.5rem 0', flexGrow: 1 }}>
-                {app.descripcion}
-              </p>
-              
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: app.badgeColor, fontWeight: '600', fontSize: '0.9rem', marginTop: 'auto' }}>
-                Acceder al Módulo <ArrowRight size={16} />
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1.5rem' }}>
+                {area.apps.map(app => (
+                  <div 
+                    key={app.id} 
+                    onClick={() => handleEntrarApp(app)} 
+                    onMouseEnter={() => handleCardHover(app)}
+                    onMouseLeave={handleCardLeave}
+                    className="app-card"
+                    style={{
+                      backgroundColor: '#18181B', border: `1px solid #27272A`, borderRadius: '16px',
+                      padding: '1.5rem', cursor: app.url === '#' ? 'default' : 'pointer', position: 'relative', overflow: 'hidden',
+                      display: 'flex', flexDirection: 'column', height: '100%',
+                      opacity: app.url === '#' ? 0.6 : 1
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1rem' }}>
+                      <div style={{ backgroundColor: area.badgeColor, padding: '0.75rem', borderRadius: '12px' }}>
+                        {app.icon}
+                      </div>
+                      <h4 style={{ fontSize: '1.15rem', fontWeight: '700', margin: 0, color: '#FAFAFA' }}>
+                        {app.nombre}
+                      </h4>
+                    </div>
+                    
+                    <p style={{ fontSize: '0.9rem', color: '#A1A1AA', lineHeight: '1.5', margin: '0 0 1.25rem 0', flexGrow: 1 }}>
+                      {app.descripcion}
+                    </p>
+                    
+                    {app.url !== '#' && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: area.color, fontWeight: '600', fontSize: '0.85rem', marginTop: 'auto' }}>
+                        Acceder <ArrowRight size={16} />
+                      </div>
+                    )}
+                    {app.url === '#' && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#52525B', fontWeight: '600', fontSize: '0.85rem', marginTop: 'auto' }}>
+                        Próximamente
+                      </div>
+                    )}
+                  </div>
+                ))}
               </div>
             </div>
           ))}
