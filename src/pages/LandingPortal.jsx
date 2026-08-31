@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Building2, Users, FileText, Scale, Zap, Shield, Sparkles, 
@@ -9,6 +9,45 @@ import {
 
 export default function LandingPortal() {
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const isFirstTime = localStorage.getItem('avatar_landing_greeted') !== 'true';
+    if (isFirstTime) {
+      localStorage.setItem('avatar_landing_greeted', 'true');
+      
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('avatar:say', {
+          detail: {
+            text: '¡Bienvenido a demiempresa! Aquí materializamos la visión integral de tu negocio.',
+            highlightId: null,
+            options: []
+          }
+        }));
+      }, 1500);
+
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('avatar:say', {
+          detail: {
+            text: 'Te acompañamos desde la constitución legal de tu empresa, hasta la emisión de la última factura electrónica en tus sucursales.',
+            highlightId: null,
+            options: []
+          }
+        }));
+      }, 7000);
+
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('avatar:say', {
+          detail: {
+            text: 'Conectamos tu operación diaria, la gestión del talento humano y tus activos físicos en un centro de mando robusto y confiable, centralizando todo en contabilidad.',
+            highlightId: null,
+            options: [
+              { label: '¡Explorar Ecosistema!', action: null }
+            ]
+          }
+        }));
+      }, 16000);
+    }
+  }, []);
 
   const mainApps = [
     {
