@@ -24,5 +24,25 @@ La Plataforma ha sido desarrollada en estricto cumplimiento con la legislación 
 ## 5. Propiedad Intelectual
 Nos reservamos todos los derechos de propiedad intelectual y derechos de autor sobre el código fuente y diseño de la Plataforma. Queda prohibida la ingeniería inversa o el uso de herramientas automatizadas (scraping) para extraer información estructural del software.
 
-## 6. Disponibilidad del Servicio
-Nos esforzamos por mantener un *uptime* del 99.9%. Sin embargo, la Plataforma puede estar sujeta a interrupciones por mantenimiento programado o caídas de los validadores externos (ej. servicios de contingencia del MH). Realizamos respaldos periódicos para garantizar la continuidad del negocio.
+## 6. Integración con Plataformas de Terceros (Gmail)
+La Plataforma ofrece una herramienta opcional para importar automáticamente archivos JSON de DTEs desde su cuenta de Gmail. Al utilizar esta herramienta:
+- Usted otorga permiso de lectura estrictamente limitado a los correos electrónicos para extraer archivos adjuntos de extensión JSON.
+- La Plataforma no almacena el contenido de sus mensajes personales, contraseñas, ni se comunica en su nombre. Los tokens de acceso son temporales y se utilizan bajo demanda exclusivamente para la extracción de documentos tributarios.
+
+## 7. Copias de Seguridad y Respaldo de Datos (Backups)
+⚠️ CLÁUSULA IMPORTANTE: El contenido de esta sección establece las responsabilidades del usuario final respecto al respaldo y recuperación de su información tributaria.
+- **Responsabilidad Exclusiva del Usuario:** El usuario final es el único y exclusivo responsable de realizar, gestionar y verificar las copias de seguridad de toda la información generada en la Plataforma (exportaciones CSV, listados consolidados, DTEs importados).
+- **Exoneración de Responsabilidad:** demiempresa, sus desarrolladores y asociados no se hacen responsables bajo ninguna circunstancia por la pérdida, eliminación accidental o inaccesibilidad de datos derivada de la falta de respaldos por parte del usuario, incluyendo eliminaciones manuales solicitadas al sistema, errores humanos, accesos no autorizados a su cuenta, o fallas técnicas.
+- **Herramientas de Exportación:** La Plataforma pone a disposición del usuario herramientas para exportar sus anexos de IVA y registros históricos. Es responsabilidad exclusiva del usuario descargar estos reportes mes a mes para su custodia contable física o en servidores propios.
+
+## 8. Disponibilidad del Servicio
+Nos esforzamos por mantener un *uptime* del 99.9%. Sin embargo, la Plataforma puede estar sujeta a interrupciones por mantenimiento programado o caídas de los validadores externos (ej. servicios de contingencia del MH). Realizamos respaldos periódicos, pero la responsabilidad primaria de custodia recae en el usuario (ver Cláusula 7).
+
+## 9. Licenciamiento y Modelos de Uso
+La Plataforma se ofrece bajo diferentes modalidades de licencia, las cuales pueden variar según el plan elegido:
+- **Versión Gratuita (Freeware con Publicidad):** El uso de la plataforma puede ser gratuito sujeto a la visualización de anuncios publicitarios de terceros y límites transaccionales.
+- **Período de Prueba (Trial de 30 Días):** Podrá disponer de un período de prueba gratuito de 30 días con todas las funciones Premium habilitadas. Transcurrido este tiempo, deberá adquirir una suscripción Premium o su cuenta pasará a la versión gratuita.
+- **Suscripciones Premium:** Versiones libres de publicidad, con procesamiento de DTEs ilimitado, importación masiva avanzada, y soporte técnico preferencial.
+
+## 10. Aceptación y Modificación
+Al registrarse y hacer uso del ecosistema demiempresa.online, el usuario declara haber leído, comprendido y aceptado la totalidad de estas cláusulas. El desconocimiento de estos términos no exime al usuario de su cumplimiento. Nos reservamos el derecho de actualizar estos términos en cualquier momento.
