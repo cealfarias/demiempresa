@@ -23,7 +23,7 @@ export default function LandingPortal() {
             options: []
           }
         }));
-      }, 1500);
+      }, 1000);
 
       setTimeout(() => {
         window.dispatchEvent(new CustomEvent('avatar:say', {
@@ -33,19 +33,29 @@ export default function LandingPortal() {
             options: []
           }
         }));
-      }, 7000);
+      }, 6000);
 
       setTimeout(() => {
         window.dispatchEvent(new CustomEvent('avatar:say', {
           detail: {
             text: 'Conectamos tu operación diaria, la gestión del talento humano y tus activos físicos en un centro de mando robusto y confiable, centralizando todo en contabilidad.',
             highlightId: null,
+            options: []
+          }
+        }));
+      }, 15000);
+
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('avatar:say', {
+          detail: {
+            text: 'Y lo más importante: todo bajo las leyes de la República. Garantizamos el estricto cumplimiento de las Leyes Tributarias, el Código de Trabajo, las normativas del Ministerio de Hacienda y las NIIF para PYMES.',
+            highlightId: null,
             options: [
               { label: '¡Explorar Ecosistema!', action: null }
             ]
           }
         }));
-      }, 16000);
+      }, 26000);
     }
   }, []);
 
