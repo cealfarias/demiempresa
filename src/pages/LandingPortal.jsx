@@ -48,14 +48,24 @@ export default function LandingPortal() {
       setTimeout(() => {
         window.dispatchEvent(new CustomEvent('avatar:say', {
           detail: {
-            text: 'Y lo más importante: todo bajo las leyes de la República. Garantizamos el estricto cumplimiento de las Leyes Tributarias, el Código de Trabajo, las normativas del Ministerio de Hacienda y las NIIF para PYMES.',
+            text: 'Y lo más importante: todo bajo las leyes de la República de El Salvador.',
+            highlightId: null,
+            options: []
+          }
+        }));
+      }, 26000);
+
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('avatar:say', {
+          detail: {
+            text: 'Garantizamos el estricto cumplimiento de las Leyes vigentes tales como El Código Tributario, el Código de Trabajo, las normativas del Ministerio de Hacienda, las NIIF para PYMES, y demás leyes que regulan las actividades de la empresa en general.',
             highlightId: null,
             options: [
               { label: '¡Explorar Ecosistema!', action: null }
             ]
           }
         }));
-      }, 26000);
+      }, 31000);
     }
   }, []);
 
