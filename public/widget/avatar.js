@@ -11,6 +11,9 @@
   document.head.appendChild(link);
 
   // 2. Base HTML structure
+  const baseUrl = new URL('.', document.currentScript ? document.currentScript.src : window.location.origin + '/widget/').href;
+  const rootUrl = new URL('..', baseUrl).href; // goes up one level to public root
+  
   const container = document.createElement('div');
   container.id = 'demiempresa-avatar-container';
   container.innerHTML = `
@@ -23,8 +26,8 @@
     <div class="avatar-orb-wrapper" id="avatar-drag-handle" title="Asistente Virtual Demiempresa">
       <div id="avatar-glow" class="avatar-glow" style="display: none;"></div>
       <div id="avatar-orb" class="avatar-orb">
-        <video id="avatar-vid-idle" class="avatar-video" src="/avatar-idle.mp4" autoplay loop muted playsinline onerror="this.style.display='none'"></video>
-        <video id="avatar-vid-talking" class="avatar-video" src="/avatar-talking.mp4" autoplay loop muted playsinline style="opacity: 0;" onerror="this.style.display='none'"></video>
+        <video id="avatar-vid-idle" class="avatar-video" src="${rootUrl}avatar-idle.mp4" autoplay loop muted playsinline onerror="this.style.display='none'"></video>
+        <video id="avatar-vid-talking" class="avatar-video" src="${rootUrl}avatar-talking.mp4" autoplay loop muted playsinline style="opacity: 0;" onerror="this.style.display='none'"></video>
         <svg class="avatar-icon-fallback" viewBox="0 0 24 24"><path d="M12 8V4H8"></path><rect width="16" height="12" x="4" y="8" rx="2"></rect><path d="M2 14h2"></path><path d="M20 14h2"></path><path d="M15 13v2"></path><path d="M9 13v2"></path></svg>
       </div>
     </div>
