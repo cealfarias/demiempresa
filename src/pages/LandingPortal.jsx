@@ -11,72 +11,77 @@ export default function LandingPortal() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Hide initially if it's their first time
-    const isFirstTime = localStorage.getItem('avatar_landing_greeted') !== 'true';
-    if (isFirstTime) {
-      const container = document.getElementById('demiempresa-avatar-container');
-      if (container) container.style.display = 'none';
+    // Show avatar container immediately
+    const container = document.getElementById('demiempresa-avatar-container');
+    if (container) container.style.display = 'flex';
 
-      localStorage.setItem('avatar_landing_greeted', 'true');
-      
-      // Wait 15 seconds, then materialize
-      setTimeout(() => {
-        window.dispatchEvent(new CustomEvent('avatar:materialize'));
-      }, 15000);
+    // Materialize avatar
+    setTimeout(() => {
+      window.dispatchEvent(new CustomEvent('avatar:materialize'));
+    }, 300);
 
-      // Start talking shortly after materializing
-      setTimeout(() => {
-        window.dispatchEvent(new CustomEvent('avatar:say', {
-          detail: {
-            text: '¡Bienvenido a demiempresa! Aquí materializamos la visión integral de tu negocio.',
-            highlightId: null,
-            options: []
-          }
-        }));
-      }, 17500);
+    // Avatar speaks the requested message
+    setTimeout(() => {
+      window.dispatchEvent(new CustomEvent('avatar:say', {
+        detail: {
+          text: 'Fernando, dice "que le gusta mario, le hace falta"',
+          highlightId: null,
+          options: []
+        }
+      }));
+    }, 1000);
 
-      setTimeout(() => {
-        window.dispatchEvent(new CustomEvent('avatar:say', {
-          detail: {
-            text: 'Te acompañamos desde la constitución legal de tu empresa, hasta la emisión de la última factura electrónica en tus sucursales.',
-            highlightId: null,
-            options: []
-          }
-        }));
-      }, 23000);
+    setTimeout(() => {
+      window.dispatchEvent(new CustomEvent('avatar:say', {
+        detail: {
+          text: '¡Bienvenido a demiempresa! Aquí materializamos la visión integral de tu negocio.',
+          highlightId: null,
+          options: []
+        }
+      }));
+    }, 7000);
 
-      setTimeout(() => {
-        window.dispatchEvent(new CustomEvent('avatar:say', {
-          detail: {
-            text: 'Conectamos tu operación diaria, la gestión del talento humano y tus activos físicos en un centro de mando robusto y confiable, centralizando todo en contabilidad.',
-            highlightId: null,
-            options: []
-          }
-        }));
-      }, 31000);
+    setTimeout(() => {
+      window.dispatchEvent(new CustomEvent('avatar:say', {
+        detail: {
+          text: 'Te acompañamos desde la constitución legal de tu empresa, hasta la emisión de la última factura electrónica en tus sucursales.',
+          highlightId: null,
+          options: []
+        }
+      }));
+    }, 13000);
 
-      setTimeout(() => {
-        window.dispatchEvent(new CustomEvent('avatar:say', {
-          detail: {
-            text: 'Y lo más importante: todo bajo las leyes de la República de El Salvador.',
-            highlightId: null,
-            options: []
-          }
-        }));
-      }, 43000);
+    setTimeout(() => {
+      window.dispatchEvent(new CustomEvent('avatar:say', {
+        detail: {
+          text: 'Conectamos tu operación diaria, la gestión del talento humano y tus activos físicos en un centro de mando robusto y confiable, centralizando todo en contabilidad.',
+          highlightId: null,
+          options: []
+        }
+      }));
+    }, 21000);
 
-      setTimeout(() => {
-        window.dispatchEvent(new CustomEvent('avatar:say', {
-          detail: {
-            text: 'Garantizamos el estricto cumplimiento de las Leyes vigentes tales como El Código Tributario, el Código de Trabajo, las normativas del Ministerio de Hacienda, las NIIF para PYMES, y demás leyes que regulan las actividades de la empresa en general.',
-            highlightId: null,
-            options: [
-              { label: '¡Explorar Ecosistema!', action: null }
-            ]
-          }
-        }));
-      }, 48000);
-    }
+    setTimeout(() => {
+      window.dispatchEvent(new CustomEvent('avatar:say', {
+        detail: {
+          text: 'Y lo más importante: todo bajo las leyes de la República de El Salvador.',
+          highlightId: null,
+          options: []
+        }
+      }));
+    }, 30000);
+
+    setTimeout(() => {
+      window.dispatchEvent(new CustomEvent('avatar:say', {
+        detail: {
+          text: 'Garantizamos el estricto cumplimiento de las Leyes vigentes tales como El Código Tributario, el Código de Trabajo, las normativas del Ministerio de Hacienda, las NIIF para PYMES, y demás leyes que regulan las actividades de la empresa en general.',
+          highlightId: null,
+          options: [
+            { label: '¡Explorar Ecosistema!', action: null }
+          ]
+        }
+      }));
+    }, 35000);
   }, []);
 
   let hoverTimeout = null;
