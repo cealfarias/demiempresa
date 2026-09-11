@@ -20,17 +20,7 @@ export default function LandingPortal() {
       window.dispatchEvent(new CustomEvent('avatar:materialize'));
     }, 300);
 
-    // Avatar speaks the requested message
-    setTimeout(() => {
-      window.dispatchEvent(new CustomEvent('avatar:say', {
-        detail: {
-          text: 'Fernando, dice "que le gusta mario, le hace falta"',
-          highlightId: null,
-          options: []
-        }
-      }));
-    }, 1000);
-
+    // Avatar speaks
     setTimeout(() => {
       window.dispatchEvent(new CustomEvent('avatar:say', {
         detail: {
@@ -39,7 +29,7 @@ export default function LandingPortal() {
           options: []
         }
       }));
-    }, 7000);
+    }, 1000);
 
     setTimeout(() => {
       window.dispatchEvent(new CustomEvent('avatar:say', {
