@@ -35,19 +35,16 @@ export default function LandingPage({ onOpenPWA, onOpenLogin }) {
       <header className="sticky top-0 z-40 bg-zinc-950/90 backdrop-blur-md border-b border-zinc-800/80 px-4 py-3.5 shadow-xl">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           
-          {/* Brand Logo & Badges */}
+          {/* Brand Logo & Concatenated Title */}
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 via-orange-500 to-amber-600 flex items-center justify-center text-zinc-950 font-black text-xl shadow-lg ring-2 ring-amber-500/30">
               M
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <h1 className="font-extrabold text-lg text-zinc-100 tracking-tight">
-                  Mercado San Miguelito
+              <div className="flex items-center gap-2 flex-wrap">
+                <h1 className="font-extrabold text-base md:text-lg text-zinc-100 tracking-tight">
+                  Mercado San Miguelito <span className="text-amber-400 font-mono text-xs font-black">{BUILD_INFO.tag}</span>
                 </h1>
-                <span className="hidden sm:inline-flex bg-amber-500/10 text-amber-400 text-[11px] font-bold px-2.5 py-0.5 rounded-full border border-amber-500/30 items-center gap-1">
-                  <Tag className="w-3 h-3" /> {BUILD_INFO.tag}
-                </span>
               </div>
               <p className="text-[11px] text-zinc-400 font-mono tracking-wide">sanmiguelito.demiempresa.online</p>
             </div>
@@ -81,13 +78,13 @@ export default function LandingPage({ onOpenPWA, onOpenLogin }) {
           
           <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-zinc-900/90 border border-amber-500/30 text-amber-400 text-xs font-extrabold shadow-inner">
             <Sparkles className="w-4 h-4 text-amber-400 animate-pulse" />
-            <span>Versión Oficial en Producción: <strong className="font-mono underline">{BUILD_INFO.tag}</strong></span>
+            <span>Versión de Desarrollo Activa: <strong className="font-mono text-amber-300 font-black">{BUILD_INFO.tag}</strong></span>
           </div>
 
           <h1 className="text-4xl sm:text-6xl md:text-7xl font-black text-zinc-100 tracking-tight leading-[1.1] max-w-4xl mx-auto">
             Los mejores puestos del <br className="hidden sm:inline" />
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-400 via-orange-400 to-amber-500">
-              Mercado San Miguelito
+              Mercado San Miguelito <span className="text-zinc-400 font-mono text-xl sm:text-3xl font-bold">{BUILD_INFO.tag}</span>
             </span> a tu puerta
           </h1>
 
@@ -175,20 +172,15 @@ export default function LandingPage({ onOpenPWA, onOpenLogin }) {
         </div>
       </section>
 
-      {/* FOOTER WITH VISIBLE BUILD TAG */}
+      {/* FOOTER */}
       <footer className="border-t border-zinc-800/80 py-10 px-4 text-center text-xs text-zinc-500 space-y-3 bg-zinc-950">
         <div className="flex justify-center items-center gap-2">
           <div className="w-6 h-6 rounded-lg bg-amber-500 text-zinc-950 font-black flex items-center justify-center text-xs">
             M
           </div>
-          <span className="font-extrabold text-zinc-300 text-sm">Mercado San Miguelito Delivery</span>
+          <span className="font-extrabold text-zinc-300 text-sm">Mercado San Miguelito <span className="text-amber-400 font-mono text-xs">{BUILD_INFO.tag}</span></span>
         </div>
         <p className="font-mono text-[11px] text-zinc-400">sanmiguelito.demiempresa.online</p>
-
-        {/* Visible Build Version Badge in Footer */}
-        <div className="inline-flex items-center gap-1 bg-zinc-900 border border-amber-500/30 text-amber-400 px-3 py-1 rounded-full font-mono text-[11px] font-bold shadow-inner">
-          <Tag className="w-3 h-3" /> {BUILD_INFO.tag}
-        </div>
 
         <p className="text-[11px] text-zinc-600 max-w-lg mx-auto">
           Servicio oficial de logística y encargo centralizado en San Salvador, El Salvador. Cobertura de 5 km.

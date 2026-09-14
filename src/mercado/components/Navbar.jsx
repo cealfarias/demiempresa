@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useMercado } from '../context/MercadoContext';
 import { BUILD_INFO } from '../data/mockData';
-import { ShoppingCart, Sparkles, Navigation, UserPlus, Home, User, Tag } from 'lucide-react';
+import { ShoppingCart, Sparkles, Navigation, UserPlus, Home, User } from 'lucide-react';
 import DriverRegistrationModal from './DriverRegistrationModal';
 
 export default function Navbar({ onOpenCart, onOpenTracking, onGoHome, onOpenLogin }) {
@@ -22,7 +22,7 @@ export default function Navbar({ onOpenCart, onOpenTracking, onGoHome, onOpenLog
       <header className="sticky top-0 z-40 bg-zinc-950/90 backdrop-blur-md border-b border-zinc-800 px-4 py-3 shadow-lg">
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-3">
           
-          {/* Brand & Build Tag Badge */}
+          {/* Brand with Concatenated Build Tag */}
           <div className="flex items-center justify-between">
             <div
               onClick={onGoHome}
@@ -33,14 +33,9 @@ export default function Navbar({ onOpenCart, onOpenTracking, onGoHome, onOpenLog
               </div>
               <div>
                 <div className="flex items-center gap-2 flex-wrap">
-                  <h1 className="font-extrabold text-lg text-zinc-100 tracking-tight group-hover:text-amber-400 transition-colors">
-                    Mercado San Miguelito
+                  <h1 className="font-extrabold text-base md:text-lg text-zinc-100 tracking-tight group-hover:text-amber-400 transition-colors">
+                    Mercado San Miguelito <span className="text-amber-400 font-mono text-xs font-extrabold">{BUILD_INFO.tag}</span>
                   </h1>
-                  
-                  {/* Visible Build Version Tag */}
-                  <span className="bg-amber-500/20 text-amber-400 text-[10px] font-mono font-bold px-2 py-0.5 rounded-full border border-amber-500/40 flex items-center gap-1">
-                    <Tag className="w-3 h-3 text-amber-400" /> {BUILD_INFO.tag}
-                  </span>
                 </div>
                 <p className="text-xs text-zinc-400 font-mono">sanmiguelito.demiempresa.online</p>
               </div>
@@ -72,7 +67,6 @@ export default function Navbar({ onOpenCart, onOpenTracking, onGoHome, onOpenLog
 
           {/* Action Buttons & Role Selector Tabs */}
           <div className="flex items-center gap-2 overflow-x-auto scrollbar-none">
-            
             <button
               onClick={onGoHome}
               className="px-2.5 py-1.5 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border border-zinc-800 rounded-lg text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1"
@@ -101,7 +95,6 @@ export default function Navbar({ onOpenCart, onOpenTracking, onGoHome, onOpenLog
               <Navigation className="w-3.5 h-3.5" /> Rastrear Pedido
             </button>
 
-            {/* Role Tabs */}
             <div className="flex items-center gap-1 bg-zinc-900/80 p-1 rounded-xl border border-zinc-800">
               {roles.map((r) => (
                 <button
@@ -118,7 +111,6 @@ export default function Navbar({ onOpenCart, onOpenTracking, onGoHome, onOpenLog
               ))}
             </div>
 
-            {/* Desktop Cart Button */}
             {currentRole === 'cliente' && (
               <button
                 onClick={onOpenCart}
@@ -137,7 +129,6 @@ export default function Navbar({ onOpenCart, onOpenTracking, onGoHome, onOpenLog
         </div>
       </header>
 
-      {/* Driver Registration Modal */}
       <DriverRegistrationModal
         isOpen={isDriverModalOpen}
         onClose={() => setIsDriverModalOpen(false)}
