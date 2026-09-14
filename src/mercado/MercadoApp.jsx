@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { MercadoProvider, useMercado } from './context/MercadoContext';
 import Navbar from './components/Navbar';
 import CartDrawer from './components/CartDrawer';
@@ -15,6 +15,10 @@ function MercadoContent() {
   const [viewState, setViewState] = useState('landing'); // 'landing' | 'pwa' | 'tracking'
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isLoginOpen, setIsLoginOpen] = useState(false);
+
+  useEffect(() => {
+    document.title = "Mercados Nacionales Delivery | Mercado San Miguelito - De tu mercado a tu puerta";
+  }, []);
 
   // If user opens landing, show LandingPage
   if (viewState === 'landing') {
