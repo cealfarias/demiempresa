@@ -1,8 +1,8 @@
 export const BUILD_INFO = {
   version: '1.0.0',
-  commit: '6c49295',
-  tag: '[Build v1.0.0-6c49295]',
-  fullTitle: 'Mercado San Miguelito [Build v1.0.0-6c49295]'
+  commit: '222d61a',
+  tag: '[Build v1.0.0-222d61a]',
+  fullTitle: 'Mercado San Miguelito [Build v1.0.0-222d61a]'
 };
 
 export const MERCADOS_DISPONIBLES = [
