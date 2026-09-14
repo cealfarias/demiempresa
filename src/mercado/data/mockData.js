@@ -1,3 +1,9 @@
+export const MERCADOS_DISPONIBLES = [
+  { id: 'sanmiguelito', name: 'Mercado San Miguelito', ciudad: 'San Salvador', coor: '13.7042, -89.1915', activo: true },
+  { id: 'central', name: 'Mercado Central', ciudad: 'San Salvador', coor: '13.6967, -89.1950', activo: false },
+  { id: 'cuscatlan', name: 'Mercado Cuscatlán', ciudad: 'San Salvador', coor: '13.6980, -89.2020', activo: false },
+];
+
 export const DEPARTAMENTOS = [
   { id: 'comida', name: 'Comida Preparada', icon: 'Utensils', color: 'bg-amber-500' },
   { id: 'frutas-verduras', name: 'Frutas y Verduras', icon: 'Apple', color: 'bg-emerald-500' },
@@ -30,19 +36,19 @@ export const LINEAS_POR_DEPTO = {
 };
 
 export const PUESTOS = [
-  { id: 'p1', name: 'Pupusería Doña Chilo', pasillo: 'Pasillo 3, Puesto #42', rating: 4.8 },
-  { id: 'p2', name: 'Pupusería San Miguelito', pasillo: 'Pasillo 3, Puesto #45', rating: 4.6 },
-  { id: 'p3', name: 'Sopas y Comedero El Güero', pasillo: 'Pasillo 2, Puesto #18', rating: 4.9 },
-  { id: 'p4', name: 'Frutería El Carmen', pasillo: 'Pasillo 1, Puesto #05', rating: 4.7 },
-  { id: 'p5', name: 'Verdulería La Bendición', pasillo: 'Pasillo 1, Puesto #12', rating: 4.5 },
-  { id: 'p6', name: 'Carnicería San José', pasillo: 'Pasillo 5, Puesto #88', rating: 4.9 },
-  { id: 'p7', name: 'Lácteos Petacones y Mas', pasillo: 'Pasillo 4, Puesto #60', rating: 4.8 },
+  { id: 'p1', name: 'Pupusería Doña Chilo', pasillo: 'Pasillo 3, Puesto #42', rating: 4.8, contacto: '7844-1100' },
+  { id: 'p2', name: 'Pupusería San Miguelito', pasillo: 'Pasillo 3, Puesto #45', rating: 4.6, contacto: '7922-3344' },
+  { id: 'p3', name: 'Sopas y Comedero El Güero', pasillo: 'Pasillo 2, Puesto #18', rating: 4.9, contacto: '7199-8877' },
+  { id: 'p4', name: 'Frutería El Carmen', pasillo: 'Pasillo 1, Puesto #05', rating: 4.7, contacto: '7766-5544' },
+  { id: 'p5', name: 'Verdulería La Bendición', pasillo: 'Pasillo 1, Puesto #12', rating: 4.5, contacto: '7233-4455' },
+  { id: 'p6', name: 'Carnicería San José', pasillo: 'Pasillo 5, Puesto #88', rating: 4.9, contacto: '7511-2233' },
+  { id: 'p7', name: 'Lácteos Petacones y Mas', pasillo: 'Pasillo 4, Puesto #60', rating: 4.8, contacto: '7400-9988' },
 ];
 
 export const TIPOS_TRANSPORTE = [
   { id: 'apie', label: 'A Pie (Runner Mercado)', icon: 'Footprints', desc: 'Ideal para recolección interna en pasillos del mercado' },
   { id: 'bicicleta', label: 'Bicicleta', icon: 'Bike', desc: 'Entregas en radio corto (1-3 km)' },
-  { id: 'moto', label: 'Motocicleta', icon: 'Bike', desc: 'Entregas rápidas en todo San Salvador' },
+  { id: 'moto', label: 'Motocicleta', icon: 'Bike', desc: 'Entregas rápidas dentro del radio de 5 km en San Salvador' },
   { id: 'carro', label: 'Automóvil / Carro', icon: 'Car', desc: 'Pedidos de volumen alto o cajas pesadas de abarrotes' },
 ];
 
@@ -71,7 +77,7 @@ export const REPARTIDORES_INICIALES = [
   },
   {
     id: 'rec-01',
-    nombre: 'Chepe Gómez',
+    nombre: 'Chepe Gómez (Runner)',
     telefono: '7100-2211',
     tipoTransporte: 'apie',
     vehiculo: 'Runner Mercado (Coche de mano)',
@@ -241,10 +247,10 @@ export const METODOS_PAGO = [
   {
     id: 'transfer365',
     name: 'Transfer365 Móvil',
-    subtitle: 'Transferencia bancaria instantánea sin costo',
+    subtitle: 'Banco Davivienda - Tel: 6989-3101',
     icon: 'Building2',
     color: 'bg-emerald-600',
-    details: 'Banco Agrícola / Cuscatlán / BAC / Davivienda'
+    details: 'Transferencia móvil instantánea a Banco Davivienda sin costo'
   },
   {
     id: 'chivo',
@@ -252,14 +258,22 @@ export const METODOS_PAGO = [
     subtitle: 'Pago rápido en USD / Bitcoin',
     icon: 'Wallet',
     color: 'bg-blue-600',
-    details: 'Escanea código QR o transfiere a teléfono registrado'
+    details: 'Escanea código QR oficial o transfiere a teléfono registrado'
   },
   {
     id: 'cubo',
-    name: 'Cubo Pago',
+    name: 'El Cubo (Tarjetas)',
     subtitle: 'Tarjeta de Crédito / Débito (Visa, Mastercard)',
     icon: 'CreditCard',
     color: 'bg-purple-600',
-    details: 'Pasarela segura Cubo con confirmación inmediata'
+    details: 'Pasarela segura El Cubo con confirmación inmediata'
+  },
+  {
+    id: 'efectivo',
+    name: 'Efectivo contra Entrega',
+    subtitle: 'Pago físico al recibir la orden',
+    icon: 'Banknote',
+    color: 'bg-amber-600',
+    details: 'Pagas al motorista o runner al momento de la entrega'
   }
 ];

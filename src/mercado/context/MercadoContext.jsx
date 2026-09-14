@@ -1,10 +1,12 @@
-import React, { createContext, useContext, useState } from 'react';
-import { PRODUCTOS, REPARTIDORES_INICIALES } from '../data/mockData';
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import { PRODUCTOS, REPARTIDORES_INICIALES, MERCADOS_DISPONIBLES } from '../data/mockData';
 
 const MercadoContext = createContext();
 
 export const MercadoProvider = ({ children }) => {
   const [currentRole, setCurrentRole] = useState('cliente'); // 'cliente' | 'recolector' | 'despachador' | 'admin'
+  const [selectedMarket, setSelectedMarket] = useState('sanmiguelito');
+  const [deliveryType, setDeliveryType] = useState('domicilio'); // 'domicilio' | 'pickup'
   const [cart, setCart] = useState([]);
   const [tipAmount, setTipAmount] = useState(1.00); // Default tip $1.00
   const [paymentMethod, setPaymentMethod] = useState('transfer365');
@@ -21,8 +23,10 @@ export const MercadoProvider = ({ children }) => {
     {
       id: 'MSM-1001',
       date: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      status: 'En Camino', // 'Pago Confirmado' | 'En Recolección' | 'En Centro Acopio' | 'En Camino' | 'Entregado'
-      paymentMethod: 'Transfer365 Móvil',
+      status: 'En Camino', // 'Pago Confirmado' | 'En Recolección' | 'En Centro Acopio' | 'En Camino' | 'Entregado' | 'Cancelado'
+      paymentMethod: 'Transfer365 Móvil (Davivienda 6989-3101)',
+      deliveryType: 'domicilio',
+      qrCode: 'QR-MSM-1001-XYZ',
       address: 'Colonia Médica, Calle Juan Pablo II #402, San Salvador',
       customerName: 'María Elena Ramos',
       phone: '7854-1122',
@@ -44,31 +48,24 @@ export const MercadoProvider = ({ children }) => {
           price: 4.50,
           quantity: 1,
           collected: true
-        },
-        {
-          id: 'prod-6',
-          name: 'Aguacate Criollo de Ahuachapán',
-          puestoName: 'Frutería El Carmen',
-          pasillo: 'Pasillo 1, Puesto #05',
-          price: 1.25,
-          quantity: 2,
-          collected: true
         }
       ],
-      subtotal: 10.40,
+      subtotal: 7.90,
+      appCommission: 0.79, // 10% App Commission
       deliveryFee: 1.75,
       tip: 1.50,
       tipCollector: 0.75,
       tipDispatcher: 0.75,
-      total: 13.65,
+      total: 11.94,
       collectorId: 'rec-01',
-      collectorName: 'Chepe Gómez (Runner Mercado)',
+      collectorName: 'Chepe Gómez (Runner)',
       dispatcherId: 'desp-01',
       dispatcherName: 'Kevin Rivera',
       dispatcherVehicle: 'Motocicleta Honda Cargo 150 - Placa M-492102',
       dispatcherPhone: '7822-4455',
       dispatcherTipo: 'moto',
-      etaMinutes: 12
+      etaMinutes: 12,
+      incidents: []
     }
   ]);
 
@@ -78,7 +75,7 @@ export const MercadoProvider = ({ children }) => {
       id: `desp-${Math.floor(100 + Math.random() * 900)}`,
       nombre: nuevo.nombre,
       telefono: nuevo.telefono,
-      tipoTransporte: nuevo.tipoTransporte, // 'apie' | 'bicicleta' | 'moto' | 'carro'
+      tipoTransporte: nuevo.tipoTransporte,
       vehiculo: nuevo.vehiculo || 'Sin vehículo registrado',
       estado: 'Disponible',
       entregasRealizadas: 0,
@@ -122,49 +119,104 @@ export const MercadoProvider = ({ children }) => {
 
   const clearCart = () => setCart([]);
 
-  // Calculate cart totals
+  // Calculate cart totals with 10% App Commission
   const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
-  const deliveryFee = subtotal > 0 ? 1.75 : 0;
+  const appCommission = Number((subtotal * 0.10).toFixed(2)); // 10% App Commission
+  const deliveryFee = deliveryType === 'domicilio' ? (subtotal > 0 ? 1.75 : 0) : 0;
   const tipCollector = Number((tipAmount / 2).toFixed(2));
   const tipDispatcher = Number((tipAmount - tipCollector).toFixed(2));
-  const grandTotal = subtotal + deliveryFee + tipAmount;
+  const grandTotal = subtotal + appCommission + deliveryFee + tipAmount;
 
   // Create new Order
   const createOrder = () => {
     if (cart.length === 0) return null;
 
-    // Pick first available moto or car driver for demo assignment
     const assignedDriver = repartidores.find(r => r.tipoTransporte === 'moto') || repartidores[0];
+    const newOrderId = `MSM-${Math.floor(1000 + Math.random() * 9000)}`;
 
     const newOrder = {
-      id: `MSM-${Math.floor(1000 + Math.random() * 9000)}`,
+      id: newOrderId,
       date: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      status: 'En Recolección',
-      paymentMethod: paymentMethod === 'transfer365' ? 'Transfer365 Móvil' : paymentMethod === 'chivo' ? 'Chivo Wallet' : 'Cubo Pago',
-      address: customerAddress,
+      createdAtTimestamp: Date.now(),
+      status: 'Pago Confirmado',
+      paymentMethod: paymentMethod === 'transfer365' 
+        ? 'Transfer365 Móvil (Davivienda 6989-3101)' 
+        : paymentMethod === 'chivo' ? 'Chivo Wallet' 
+        : paymentMethod === 'cubo' ? 'El Cubo (Tarjetas)' : 'Efectivo contra entrega',
+      deliveryType,
+      qrCode: `QR-${newOrderId}`,
+      address: deliveryType === 'domicilio' ? customerAddress : 'Retiro en Punto Acopio Mercado San Miguelito (Pickup)',
       customerName: 'Cliente San Miguelito',
       phone: '7700-9900',
       items: cart.map(item => ({ ...item, collected: false })),
       subtotal: Number(subtotal.toFixed(2)),
+      appCommission,
       deliveryFee,
       tip: tipAmount,
       tipCollector,
       tipDispatcher,
       total: Number(grandTotal.toFixed(2)),
       collectorId: 'rec-01',
-      collectorName: 'Chepe Gómez (Runner Mercado)',
+      collectorName: 'Chepe Gómez (Runner)',
       dispatcherId: assignedDriver ? assignedDriver.id : 'desp-01',
       dispatcherName: assignedDriver ? assignedDriver.nombre : 'Kevin Rivera',
       dispatcherVehicle: assignedDriver ? assignedDriver.vehiculo : 'Motocicleta Honda Cargo 150',
       dispatcherPhone: assignedDriver ? assignedDriver.telefono : '7822-4455',
       dispatcherTipo: assignedDriver ? assignedDriver.tipoTransporte : 'moto',
-      etaMinutes: 15
+      etaMinutes: deliveryType === 'domicilio' ? 15 : 0,
+      incidents: []
     };
 
     setOrders((prev) => [newOrder, ...prev]);
     setActiveTrackingOrderId(newOrder.id);
     clearCart();
     return newOrder;
+  };
+
+  // Cancel order logic with 20% admin fee
+  const cancelOrder = (orderId) => {
+    setOrders((prev) =>
+      prev.map((order) => {
+        if (order.id === orderId) {
+          // Cancellation only allowed if runner hasn't collected items yet
+          const canCancel = order.status === 'Pago Confirmado' || order.status === 'En Recolección';
+          if (!canCancel) return order;
+
+          const penaltyFee = Number((order.total * 0.20).toFixed(2)); // 20% Fee
+          const refundAmount = Number((order.total * 0.80).toFixed(2)); // 80% Refund
+
+          return {
+            ...order,
+            status: 'Cancelado',
+            cancellationPenalty: penaltyFee,
+            refundAmount: refundAmount,
+            cancelledAt: new Date().toLocaleTimeString()
+          };
+        }
+        return order;
+      })
+    );
+  };
+
+  // Emergency Incident Protocol
+  const reportIncident = (orderId, note) => {
+    setOrders((prev) =>
+      prev.map((order) => {
+        if (order.id === orderId) {
+          const newIncident = {
+            id: `INC-${Date.now()}`,
+            timestamp: new Date().toLocaleTimeString(),
+            note,
+            status: 'Atendiendo por Supervisor'
+          };
+          return {
+            ...order,
+            incidents: [...(order.incidents || []), newIncident]
+          };
+        }
+        return order;
+      })
+    );
   };
 
   // Collector actions
@@ -179,7 +231,7 @@ export const MercadoProvider = ({ children }) => {
           return {
             ...order,
             items: updatedItems,
-            status: allCollected ? 'En Centro Acopio' : 'En Recolección'
+            status: allCollected ? (order.deliveryType === 'pickup' ? 'Listo en Acopio (Pickup)' : 'En Centro Acopio') : 'En Recolección'
           };
         }
         return order;
@@ -199,6 +251,10 @@ export const MercadoProvider = ({ children }) => {
       value={{
         currentRole,
         setCurrentRole,
+        selectedMarket,
+        setSelectedMarket,
+        deliveryType,
+        setDeliveryType,
         cart,
         addToCart,
         updateQuantity,
@@ -211,12 +267,15 @@ export const MercadoProvider = ({ children }) => {
         customerAddress,
         setCustomerAddress,
         subtotal,
+        appCommission,
         deliveryFee,
         tipCollector,
         tipDispatcher,
         grandTotal,
         orders,
         createOrder,
+        cancelOrder,
+        reportIncident,
         toggleItemCollected,
         updateOrderStatus,
         repartidores,

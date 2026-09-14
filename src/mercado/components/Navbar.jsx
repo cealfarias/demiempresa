@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { useMercado } from '../context/MercadoContext';
-import { ShoppingCart, Sparkles, Navigation, UserPlus } from 'lucide-react';
+import { ShoppingCart, Sparkles, Navigation, UserPlus, Home, User } from 'lucide-react';
 import DriverRegistrationModal from './DriverRegistrationModal';
 
-export default function Navbar({ onOpenCart, onOpenTracking }) {
+export default function Navbar({ onOpenCart, onOpenTracking, onGoHome, onOpenLogin }) {
   const { currentRole, setCurrentRole, cart } = useMercado();
   const [isDriverModalOpen, setIsDriverModalOpen] = useState(false);
 
@@ -22,20 +22,23 @@ export default function Navbar({ onOpenCart, onOpenTracking }) {
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-3">
           {/* Brand & Badge */}
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center text-zinc-950 font-black text-xl shadow-md">
+            <div
+              onClick={onGoHome}
+              className="flex items-center gap-3 cursor-pointer group"
+            >
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center text-zinc-950 font-black text-xl shadow-md group-hover:scale-105 transition-transform">
                 M
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <h1 className="font-extrabold text-lg text-zinc-100 tracking-tight">
+                  <h1 className="font-extrabold text-lg text-zinc-100 tracking-tight group-hover:text-amber-400 transition-colors">
                     Mercado San Miguelito
                   </h1>
                   <span className="bg-amber-500/20 text-amber-400 text-xs font-semibold px-2 py-0.5 rounded-full border border-amber-500/30 flex items-center gap-1">
                     <Sparkles className="w-3 h-3" /> PWA Directa
                   </span>
                 </div>
-                <p className="text-xs text-zinc-400">sanmiguelito.demiempresa.online</p>
+                <p className="text-xs text-zinc-400 font-mono">sanmiguelito.demiempresa.online</p>
               </div>
             </div>
 
@@ -66,6 +69,20 @@ export default function Navbar({ onOpenCart, onOpenTracking }) {
           {/* Action Buttons & Role Selector Tabs */}
           <div className="flex items-center gap-2 overflow-x-auto scrollbar-none">
             
+            <button
+              onClick={onGoHome}
+              className="px-2.5 py-1.5 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border border-zinc-800 rounded-lg text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1"
+            >
+              <Home className="w-3.5 h-3.5 text-amber-400" /> Inicio
+            </button>
+
+            <button
+              onClick={onOpenLogin}
+              className="px-2.5 py-1.5 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border border-zinc-800 rounded-lg text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1"
+            >
+              <User className="w-3.5 h-3.5 text-blue-400" /> Iniciar Sesión
+            </button>
+
             {/* Quick Action: Register Driver */}
             <button
               onClick={() => setIsDriverModalOpen(true)}

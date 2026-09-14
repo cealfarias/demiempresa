@@ -1,15 +1,14 @@
 import React, { useState } from 'react';
 import { useMercado } from '../context/MercadoContext';
-import { DEPARTAMENTOS, LINEAS_POR_DEPTO, PRODUCTOS, PUESTOS } from '../data/mockData';
-import { Utensils, Apple, Beef, ShoppingBag, Search, Plus, MapPin, Sparkles, Filter, CheckCircle } from 'lucide-react';
+import { DEPARTAMENTOS, LINEAS_POR_DEPTO, PRODUCTOS, MERCADOS_DISPONIBLES } from '../data/mockData';
+import { Utensils, Apple, Beef, ShoppingBag, Search, Plus, MapPin, Sparkles, Store, ShieldCheck } from 'lucide-react';
 
 export default function ClientView({ onOpenCart }) {
-  const { addToCart, cart } = useMercado();
+  const { addToCart, cart, selectedMarket, setSelectedMarket } = useMercado();
   const [selectedDepto, setSelectedDepto] = useState('comida');
   const [selectedLinea, setSelectedLinea] = useState('todos');
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Department icon resolver
   const getDeptoIcon = (iconName) => {
     if (iconName === 'Utensils') return <Utensils className="w-5 h-5" />;
     if (iconName === 'Apple') return <Apple className="w-5 h-5" />;
@@ -17,10 +16,8 @@ export default function ClientView({ onOpenCart }) {
     return <ShoppingBag className="w-5 h-5" />;
   };
 
-  // Lines available for current department
   const currentLines = LINEAS_POR_DEPTO[selectedDepto] || [];
 
-  // Filter products by department, line, search query
   const filteredProducts = PRODUCTOS.filter((p) => {
     const matchDepto = p.departamentoId === selectedDepto;
     const matchLinea = selectedLinea === 'todos' || p.lineaId === selectedLinea;
@@ -34,17 +31,46 @@ export default function ClientView({ onOpenCart }) {
   return (
     <div className="space-y-6 pb-16">
       
+      {/* Market Selector Bar */}
+      <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-md">
+        <div className="flex items-center gap-2.5">
+          <div className="w-9 h-9 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center font-bold">
+            <Store className="w-5 h-5" />
+          </div>
+          <div>
+            <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider block">Mercado de Origen</span>
+            <select
+              value={selectedMarket}
+              onChange={(e) => setSelectedMarket(e.target.value)}
+              className="bg-zinc-950 border border-zinc-700 rounded-lg px-2.5 py-1 text-xs text-amber-400 font-bold focus:outline-none"
+            >
+              {MERCADOS_DISPONIBLES.map((m) => (
+                <option key={m.id} value={m.id} disabled={!m.activo}>
+                  {m.name} ({m.ciudad}) {!m.activo ? '- Próximamente' : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 text-xs text-zinc-400">
+          <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 px-3 py-1 rounded-full font-bold flex items-center gap-1">
+            <MapPin className="w-3.5 h-3.5" /> Radio Cobertura 5 km
+          </span>
+        </div>
+      </div>
+
       {/* PWA Banner */}
       <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-amber-500/20 via-orange-600/10 to-zinc-900 border border-amber-500/30 p-6 md:p-8">
         <div className="max-w-2xl space-y-2">
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/20 text-amber-400 text-xs font-bold border border-amber-500/40">
-            <Sparkles className="w-3.5 h-3.5" /> PWA Directa sin descargas
+            <Sparkles className="w-3.5 h-3.5" /> Recolección Centralizada & Retiro Pickup QR (48h)
           </div>
           <h2 className="text-2xl md:text-3xl font-black text-zinc-100 tracking-tight">
-            Los mejores puestos del Mercado San Miguelito a tu puerta
+            Tus puestos favoritos del Mercado San Miguelito a tu puerta
           </h2>
           <p className="text-xs md:text-sm text-zinc-300">
-            Pide pupusas, verduras, carnes y lácteos en una sola orden. Nuestro recolector junta tus compras puesto por puesto y te los enviamos con pago anticipado seguro.
+            Pupusas, sopas, verduras y carnes en una sola orden. Selecciona **Envío a Domicilio (5 km)** o **Retiro en Punto (Pickup)** con pago anticipado.
           </p>
         </div>
       </div>
@@ -87,7 +113,6 @@ export default function ClientView({ onOpenCart }) {
 
       {/* Search Bar & Sublines Filter */}
       <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
-        {/* Search input */}
         <div className="relative flex-1">
           <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-500" />
           <input
@@ -99,7 +124,6 @@ export default function ClientView({ onOpenCart }) {
           />
         </div>
 
-        {/* Lines Pills */}
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 scrollbar-none">
           <button
             onClick={() => setSelectedLinea('todos')}
@@ -148,7 +172,6 @@ export default function ClientView({ onOpenCart }) {
                   className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden flex flex-col justify-between hover:border-zinc-700 transition-all group"
                 >
                   <div>
-                    {/* Image & Price Tag */}
                     <div className="relative h-40 overflow-hidden bg-zinc-950">
                       <img
                         src={product.image}
@@ -161,7 +184,6 @@ export default function ClientView({ onOpenCart }) {
                       </div>
                     </div>
 
-                    {/* Details */}
                     <div className="p-3.5 space-y-2">
                       <div className="flex items-center gap-1.5 text-[11px] font-bold text-amber-400">
                         <MapPin className="w-3.5 h-3.5 shrink-0" />
@@ -180,7 +202,6 @@ export default function ClientView({ onOpenCart }) {
                     </div>
                   </div>
 
-                  {/* Action Button */}
                   <div className="p-3.5 pt-0">
                     <button
                       onClick={() => addToCart(product)}
