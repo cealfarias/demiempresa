@@ -188,30 +188,62 @@ export default function CartDrawer({ isOpen, onClose }) {
           {activeStep === 'checkout' && (
             <form onSubmit={handleCheckoutSubmit} className="space-y-3">
               
+              {/* Customer Contact Information */}
+              <div className="bg-[#111C2E] border border-slate-800 rounded-xl p-3 space-y-2">
+                <label className="text-xs font-extrabold text-[#00D09C] uppercase tracking-wider block">
+                  Datos del Cliente
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-[10px] text-slate-400 block font-bold mb-0.5">Nombre Completo</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Ej: María Elena Ramos"
+                      value={customerName}
+                      onChange={(e) => setCustomerName(e.target.value)}
+                      className="w-full bg-[#0A1120] border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-[#00D09C]"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-slate-400 block font-bold mb-0.5">Teléfono (WhatsApp)</label>
+                    <input
+                      type="tel"
+                      required
+                      placeholder="Ej: 7854-1122"
+                      value={customerPhone}
+                      onChange={(e) => setCustomerPhone(e.target.value)}
+                      className="w-full bg-[#0A1120] border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-[#00D09C]"
+                    />
+                  </div>
+                </div>
+              </div>
+
               {/* Delivery Address or Pickup Info */}
               {deliveryType === 'domicilio' ? (
-                <div className="bg-[#131B29] border border-slate-800 rounded-xl p-3 space-y-1.5">
+                <div className="bg-[#111C2E] border border-slate-800 rounded-xl p-3 space-y-1.5">
                   <label className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
-                    <MapPin className="w-3.5 h-3.5 text-emerald-400" /> Dirección de Entrega (Radio 5 km)
+                    <MapPin className="w-3.5 h-3.5 text-[#00D09C]" /> Dirección de Entrega (Radio 5 km)
                   </label>
                   <input
                     type="text"
                     value={customerAddress}
                     onChange={(e) => setCustomerAddress(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-emerald-500"
+                    placeholder="Colonia, Calle, Pasaje, Casa #..."
+                    className="w-full bg-[#0A1120] border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-[#00D09C]"
                     required
                   />
                 </div>
               ) : (
-                <div className="bg-[#131B29] border border-emerald-500/30 rounded-xl p-3 space-y-1 text-xs">
-                  <div className="flex items-center gap-1.5 text-emerald-400 font-extrabold text-xs">
+                <div className="bg-[#111C2E] border border-[#00D09C]/30 rounded-xl p-3 space-y-1 text-xs">
+                  <div className="flex items-center gap-1.5 text-[#00D09C] font-extrabold text-xs">
                     <Store className="w-3.5 h-3.5" /> Retiro en Punto de Venta (Pickup)
                   </div>
                   <p className="text-slate-300 text-[11px]">
                     Retiras en la Mesa de Acopio del Mercado San Miguelito con tu Código QR.
                   </p>
-                  <div className="bg-emerald-500/10 border border-emerald-500/20 p-1.5 rounded text-[10px] text-emerald-300 flex items-center gap-1.5">
-                    <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-emerald-400" />
+                  <div className="bg-[#00D09C]/10 border border-[#00D09C]/20 p-1.5 rounded text-[10px] text-[#10E3B2] flex items-center gap-1.5">
+                    <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-[#00D09C]" />
                     <span>Límite de retiro: <strong>48 horas</strong>.</span>
                   </div>
                 </div>

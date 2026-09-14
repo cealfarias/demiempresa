@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { PRODUCTOS, REPARTIDORES_INICIALES, MERCADOS_DISPONIBLES } from '../data/mockData';
+import { MERCADOS_DISPONIBLES } from '../data/mockData';
+import { apiService } from '../services/apiService';
 
 const MercadoContext = createContext();
 
@@ -11,6 +12,33 @@ export const MercadoProvider = ({ children }) => {
   const [tipAmount, setTipAmount] = useState(1.00); // Default tip $1.00
   const [paymentMethod, setPaymentMethod] = useState('transfer365');
   const [customerAddress, setCustomerAddress] = useState('Colonia Layco, Pasaje 2, Casa #14, San Salvador');
+  const [customerName, setCustomerName] = useState('Cliente San Miguelito');
+  const [customerPhone, setCustomerPhone] = useState('7700-9900');
+  const [paymentTxRef, setPaymentTxRef] = useState('');
+
+  // Products state backed by apiService (real data persistence)
+  const [products, setProducts] = useState(() => apiService.getProducts());
+
+  const addProduct = (newProd) => {
+    const updated = apiService.saveProduct(newProd);
+    setProducts(updated);
+  };
+
+  const updateProduct = (prod) => {
+    const updated = apiService.saveProduct(prod);
+    setProducts(updated);
+  };
+
+  const deleteProduct = (prodId) => {
+    const updated = apiService.deleteProduct(prodId);
+    setProducts(updated);
+  };
+
+  const refreshDataFromService = () => {
+    setProducts(apiService.getProducts());
+    setRepartidores(apiService.getDrivers());
+    setOrders(apiService.getOrders());
+  };
   
   // Theme state: 'dark' (noche) | 'light' (día)
   const [theme, setTheme] = useState(() => {
@@ -36,62 +64,75 @@ export const MercadoProvider = ({ children }) => {
     }
   }, [theme]);
 
-  // Drivers registry
-  const [repartidores, setRepartidores] = useState(REPARTIDORES_INICIALES);
+  // Drivers registry backed by apiService
+  const [repartidores, setRepartidores] = useState(() => apiService.getDrivers());
 
   // Active tracking order ID for live customer map tracking
   const [activeTrackingOrderId, setActiveTrackingOrderId] = useState('MSM-1001');
 
-  // Initial demo order with rich details
-  const [orders, setOrders] = useState([
-    {
-      id: 'MSM-1001',
-      date: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      status: 'En Camino',
-      paymentMethod: 'Transfer365 Móvil (Davivienda 6989-3101)',
-      deliveryType: 'domicilio',
-      qrCode: 'QR-MSM-1001-XYZ',
-      address: 'Colonia Médica, Calle Juan Pablo II #402, San Salvador',
-      customerName: 'María Elena Ramos',
-      phone: '7854-1122',
-      items: [
-        {
-          id: 'prod-1',
-          name: 'Pupusa de Queso con Loroco',
-          puestoName: 'Pupusería Doña Chilo',
-          pasillo: 'Pasillo 3, Puesto #42',
-          price: 0.85,
-          quantity: 4,
-          collected: true
-        },
-        {
-          id: 'prod-4',
-          name: 'Sopa de Gallina India con Arroz',
-          puestoName: 'Sopas y Comedero El Güero',
-          pasillo: 'Pasillo 2, Puesto #18',
-          price: 4.50,
-          quantity: 1,
-          collected: true
-        }
-      ],
-      subtotal: 7.90,
-      appCommission: 0.79, // 10% App Commission
-      deliveryFee: 1.75,
-      tip: 1.50,
-      tipCollector: 0.75,
-      tipDispatcher: 0.75,
-      total: 11.94,
-      collectorId: 'rec-01',
-      collectorName: 'Chepe Gómez (Runner)',
-      dispatcherId: 'desp-01',
-      dispatcherName: 'Kevin Rivera',
-      dispatcherVehicle: 'Motocicleta Honda Cargo 150 - Placa M-492102',
-      dispatcherPhone: '7822-4455',
-      dispatcherTipo: 'moto',
-      etaMinutes: 12,
-      incidents: []
-    }
-  ]);
+  // Initial orders backed by apiService
+  const [orders, setOrders] = useState(() => {
+    const savedOrders = apiService.getOrders();
+    if (savedOrders && savedOrders.length > 0) return savedOrders;
+    // Default initial demo order
+    const defaultInitial = [
+      {
+        id: 'MSM-1001',
+        date: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        status: 'En Camino',
+        paymentMethod: 'Transfer365 Móvil (Davivienda 6989-3101)',
+        paymentTxRef: 'REF-DAV-982104',
+        deliveryType: 'domicilio',
+        qrCode: 'QR-MSM-1001-XYZ',
+        address: 'Colonia Médica, Calle Juan Pablo II #402, San Salvador',
+        customerName: 'María Elena Ramos',
+        phone: '7854-1122',
+        items: [
+          {
+            id: 'prod-1',
+            name: 'Pupusa de Queso con Loroco',
+            puestoName: 'Pupusería Doña Chilo',
+            pasillo: 'Pasillo 3, Puesto #42',
+            price: 0.85,
+            quantity: 4,
+            collected: true
+          },
+          {
+            id: 'prod-4',
+            name: 'Sopa de Gallina India con Arroz',
+            puestoName: 'Sopas y Comedero El Güero',
+            pasillo: 'Pasillo 2, Puesto #18',
+            price: 4.50,
+            quantity: 1,
+            collected: true
+          }
+        ],
+        subtotal: 7.90,
+        appCommission: 0.79, // 10% App Commission
+        deliveryFee: 1.75,
+        tip: 1.50,
+        tipCollector: 0.75,
+        tipDispatcher: 0.75,
+        total: 11.94,
+        collectorId: 'rec-01',
+        collectorName: 'Chepe Gómez (Runner)',
+        dispatcherId: 'desp-01',
+        dispatcherName: 'Kevin Rivera',
+        dispatcherVehicle: 'Motocicleta Honda Cargo 150 - Placa M-492102',
+        dispatcherPhone: '7822-4455',
+        dispatcherTipo: 'moto',
+        etaMinutes: 12,
+        incidents: []
+      }
+    ];
+    apiService.updateOrdersList(defaultInitial);
+    return defaultInitial;
+  });
+
+  // Keep apiService in sync whenever orders update
+  useEffect(() => {
+    apiService.updateOrdersList(orders);
+  }, [orders]);
 
   // Register new driver/repartidor
   const registrarRepartidor = (nuevo) => {
@@ -106,7 +147,8 @@ export const MercadoProvider = ({ children }) => {
       rating: 5.0,
       foto: nuevo.foto || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80'
     };
-    setRepartidores((prev) => [nuevoRep, ...prev]);
+    const updated = apiService.saveDriver(nuevoRep);
+    setRepartidores(updated);
     return nuevoRep;
   };
 
@@ -150,7 +192,7 @@ export const MercadoProvider = ({ children }) => {
   const tipDispatcher = Number((tipAmount - tipCollector).toFixed(2));
   const grandTotal = subtotal + appCommission + deliveryFee + tipAmount;
 
-  const createOrder = () => {
+  const createOrder = (customClientInfo = {}) => {
     if (cart.length === 0) return null;
 
     const assignedDriver = repartidores.find(r => r.tipoTransporte === 'moto') || repartidores[0];
@@ -165,11 +207,12 @@ export const MercadoProvider = ({ children }) => {
         ? 'Transfer365 Móvil (Davivienda 6989-3101)' 
         : paymentMethod === 'chivo' ? 'Chivo Wallet' 
         : paymentMethod === 'cubo' ? 'El Cubo (Tarjetas)' : 'Efectivo contra entrega',
+      paymentTxRef: customClientInfo.paymentTxRef || paymentTxRef || `TX-${Date.now().toString().slice(-6)}`,
       deliveryType,
       qrCode: `QR-${newOrderId}`,
-      address: deliveryType === 'domicilio' ? customerAddress : 'Retiro en Punto Acopio Mercado San Miguelito (Pickup)',
-      customerName: 'Cliente San Miguelito',
-      phone: '7700-9900',
+      address: deliveryType === 'domicilio' ? (customClientInfo.address || customerAddress) : 'Retiro en Punto Acopio Mercado San Miguelito (Pickup)',
+      customerName: customClientInfo.name || customerName || 'Cliente San Miguelito',
+      phone: customClientInfo.phone || customerPhone || '7700-9900',
       items: cart.map(item => ({ ...item, collected: false })),
       subtotal: Number(subtotal.toFixed(2)),
       appCommission,
@@ -274,6 +317,11 @@ export const MercadoProvider = ({ children }) => {
         setSelectedMarket,
         deliveryType,
         setDeliveryType,
+        products,
+        addProduct,
+        updateProduct,
+        deleteProduct,
+        refreshDataFromService,
         cart,
         addToCart,
         updateQuantity,
@@ -285,6 +333,12 @@ export const MercadoProvider = ({ children }) => {
         setPaymentMethod,
         customerAddress,
         setCustomerAddress,
+        customerName,
+        setCustomerName,
+        customerPhone,
+        setCustomerPhone,
+        paymentTxRef,
+        setPaymentTxRef,
         subtotal,
         appCommission,
         deliveryFee,

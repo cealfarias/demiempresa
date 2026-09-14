@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { useMercado } from '../context/MercadoContext';
-import { DEPARTAMENTOS, LINEAS_POR_DEPTO, PRODUCTOS, MERCADOS_DISPONIBLES } from '../data/mockData';
+import { DEPARTAMENTOS, LINEAS_POR_DEPTO, MERCADOS_DISPONIBLES } from '../data/mockData';
 import { Utensils, Apple, Beef, ShoppingBag, Search, Plus, MapPin, Sparkles, Store, ShieldCheck } from 'lucide-react';
 
 export default function ClientView({ onOpenCart }) {
-  const { addToCart, cart, selectedMarket, setSelectedMarket } = useMercado();
+  const { addToCart, cart, selectedMarket, setSelectedMarket, products } = useMercado();
   const [selectedDepto, setSelectedDepto] = useState('comida');
   const [selectedLinea, setSelectedLinea] = useState('todos');
   const [searchQuery, setSearchQuery] = useState('');
@@ -18,13 +18,13 @@ export default function ClientView({ onOpenCart }) {
 
   const currentLines = LINEAS_POR_DEPTO[selectedDepto] || [];
 
-  const filteredProducts = PRODUCTOS.filter((p) => {
+  const filteredProducts = (products || []).filter((p) => {
     const matchDepto = p.departamentoId === selectedDepto;
     const matchLinea = selectedLinea === 'todos' || p.lineaId === selectedLinea;
     const matchQuery =
-      p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.puestoName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.description.toLowerCase().includes(searchQuery.toLowerCase());
+      (p.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (p.puestoName || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (p.description || '').toLowerCase().includes(searchQuery.toLowerCase());
     return matchDepto && matchLinea && matchQuery;
   });
 
