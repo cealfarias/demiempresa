@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { ShoppingBag, Utensils, Bike, Building2, Wallet, CreditCard, ShieldCheck, Sparkles, HeartHandshake, ArrowRight, CheckCircle2, User, Footprints, Store, MapPin, Clock, ChevronDown, ChevronUp, Lock, PhoneCall, FileText } from 'lucide-react';
+import { BUILD_INFO } from '../data/mockData';
+import { ShoppingBag, Utensils, Bike, Building2, Wallet, CreditCard, ShieldCheck, Sparkles, HeartHandshake, ArrowRight, CheckCircle2, User, Footprints, Store, MapPin, Clock, ChevronDown, ChevronUp, Tag } from 'lucide-react';
 
 export default function LandingPage({ onOpenPWA, onOpenLogin }) {
   const [openFaq, setOpenFaq] = useState(null);
@@ -45,7 +46,7 @@ export default function LandingPage({ onOpenPWA, onOpenLogin }) {
                   Mercado San Miguelito
                 </h1>
                 <span className="hidden sm:inline-flex bg-amber-500/10 text-amber-400 text-[11px] font-bold px-2.5 py-0.5 rounded-full border border-amber-500/30 items-center gap-1">
-                  <Sparkles className="w-3 h-3" /> Delivery Oficial PWA
+                  <Tag className="w-3 h-3" /> {BUILD_INFO.tag}
                 </span>
               </div>
               <p className="text-[11px] text-zinc-400 font-mono tracking-wide">sanmiguelito.demiempresa.online</p>
@@ -80,7 +81,7 @@ export default function LandingPage({ onOpenPWA, onOpenLogin }) {
           
           <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-zinc-900/90 border border-amber-500/30 text-amber-400 text-xs font-extrabold shadow-inner">
             <Sparkles className="w-4 h-4 text-amber-400 animate-pulse" />
-            <span>Plataforma Directa Web App (PWA) sin descargas requeridas</span>
+            <span>Versión Oficial en Producción: <strong className="font-mono underline">{BUILD_INFO.tag}</strong></span>
           </div>
 
           <h1 className="text-4xl sm:text-6xl md:text-7xl font-black text-zinc-100 tracking-tight leading-[1.1] max-w-4xl mx-auto">
@@ -94,7 +95,6 @@ export default function LandingPage({ onOpenPWA, onOpenLogin }) {
             Pupusas tradicionales, sopas de gallina india, carnes frescas, verduras y lácteos de múltiples comederos en una sola orden con pago anticipado seguro y rastreo GPS (Radio de 5 km en San Salvador).
           </p>
 
-          {/* Primary Call to Action */}
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3.5 pt-4">
             <button
               onClick={onOpenPWA}
@@ -114,7 +114,6 @@ export default function LandingPage({ onOpenPWA, onOpenLogin }) {
             </button>
           </div>
 
-          {/* Guaranteed Badges */}
           <div className="pt-10 flex flex-wrap items-center justify-center gap-3 text-xs text-zinc-400">
             <span className="font-bold text-zinc-300">Pagos Seguros:</span>
             <span className="flex items-center gap-1.5 bg-zinc-900/90 px-3.5 py-2 rounded-xl border border-zinc-800 font-semibold text-emerald-400 shadow-sm">
@@ -131,7 +130,7 @@ export default function LandingPage({ onOpenPWA, onOpenLogin }) {
         </div>
       </section>
 
-      {/* CORE FEATURES (VALUE PROPOSITIONS) */}
+      {/* CORE FEATURES */}
       <section className="py-16 px-4 bg-zinc-900/60 border-y border-zinc-800/80">
         <div className="max-w-6xl mx-auto space-y-12">
           
@@ -143,7 +142,6 @@ export default function LandingPage({ onOpenPWA, onOpenLogin }) {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            
             <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 space-y-3.5 hover:border-amber-500/40 transition-all shadow-lg group">
               <div className="w-12 h-12 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center font-bold text-2xl group-hover:scale-110 transition-transform">
                 🛍️
@@ -173,113 +171,11 @@ export default function LandingPage({ onOpenPWA, onOpenLogin }) {
                 Recibe a domicilio dentro del radio de 5 km con seguimiento GPS en vivo, o retira personalmente en acopio con tu Código QR (48h).
               </p>
             </div>
-
           </div>
         </div>
       </section>
 
-      {/* HOW IT WORKS (STEP BY STEP) */}
-      <section className="py-16 px-4">
-        <div className="max-w-5xl mx-auto space-y-12">
-          
-          <div className="text-center space-y-2">
-            <h2 className="text-xs font-bold text-amber-400 uppercase tracking-widest">Flujo Operativo</h2>
-            <p className="text-2xl sm:text-3xl font-black text-zinc-100">¿Cómo procesamos tu pedido?</p>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-            
-            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-2 relative shadow-md">
-              <span className="w-8 h-8 rounded-xl bg-amber-500 text-zinc-950 font-black text-xs flex items-center justify-center shadow-sm">1</span>
-              <h4 className="font-bold text-sm text-zinc-100">Eliges los puestos</h4>
-              <p className="text-xs text-zinc-400">Seleccionas comida preparada, carnes o verduras de tus vendedores de confianza.</p>
-            </div>
-
-            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-2 relative shadow-md">
-              <span className="w-8 h-8 rounded-xl bg-amber-500 text-zinc-950 font-black text-xs flex items-center justify-center shadow-sm">2</span>
-              <h4 className="font-bold text-sm text-zinc-100">Pago Anticipado</h4>
-              <p className="text-xs text-zinc-400">Confirmas con Transfer365 Davivienda (6989-3101), Chivo, Cubo o Efectivo.</p>
-            </div>
-
-            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-2 relative shadow-md">
-              <span className="w-8 h-8 rounded-xl bg-amber-500 text-zinc-950 font-black text-xs flex items-center justify-center shadow-sm">3</span>
-              <h4 className="font-bold text-sm text-zinc-100">Recolección Runner</h4>
-              <p className="text-xs text-zinc-400">Un runner junta tus compras pasillo por pasillo y empaca tu orden en acopio.</p>
-            </div>
-
-            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-2 relative shadow-md">
-              <span className="w-8 h-8 rounded-xl bg-amber-500 text-zinc-950 font-black text-xs flex items-center justify-center shadow-sm">4</span>
-              <h4 className="font-bold text-sm text-zinc-100">Entrega / Pickup</h4>
-              <p className="text-xs text-zinc-400">Recibes a domicilio con mapa GPS en vivo o retiras en acopio con Código QR.</p>
-            </div>
-
-          </div>
-        </div>
-      </section>
-
-      {/* FAQ SECTION (PREGUNTAS FRECUENTES) */}
-      <section className="py-16 px-4 bg-zinc-900/40 border-t border-zinc-800">
-        <div className="max-w-3xl mx-auto space-y-8">
-          
-          <div className="text-center space-y-2">
-            <h2 className="text-xs font-bold text-amber-400 uppercase tracking-widest">Resolvemos tus dudas</h2>
-            <p className="text-2xl sm:text-3xl font-black text-zinc-100">Preguntas Frecuentes</p>
-          </div>
-
-          <div className="space-y-3">
-            {faqs.map((faq, idx) => {
-              const isOpen = openFaq === idx;
-              return (
-                <div
-                  key={idx}
-                  className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden transition-all"
-                >
-                  <button
-                    onClick={() => setOpenFaq(isOpen ? null : idx)}
-                    className="w-full p-4 text-left font-bold text-xs sm:text-sm text-zinc-100 flex items-center justify-between gap-4 hover:text-amber-400 transition-colors"
-                  >
-                    <span>{faq.q}</span>
-                    {isOpen ? <ChevronUp className="w-4 h-4 text-amber-400 shrink-0" /> : <ChevronDown className="w-4 h-4 text-zinc-500 shrink-0" />}
-                  </button>
-
-                  {isOpen && (
-                    <div className="p-4 pt-0 text-xs text-zinc-400 border-t border-zinc-800/60 leading-relaxed animate-in fade-in duration-200">
-                      {faq.a}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-
-        </div>
-      </section>
-
-      {/* PARTNERS & DRIVERS CALLOUT */}
-      <section className="py-16 px-4">
-        <div className="max-w-5xl mx-auto bg-gradient-to-r from-zinc-900 via-zinc-900 to-zinc-950 border border-zinc-800 rounded-3xl p-8 md:p-12 flex flex-col md:flex-row items-center justify-between gap-8 shadow-2xl relative overflow-hidden">
-          <div className="space-y-3 max-w-lg relative z-10">
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-500/20 text-blue-400 text-xs font-bold border border-blue-500/30">
-              <Bike className="w-3.5 h-3.5" /> Red de Aliados & Transportistas
-            </div>
-            <h3 className="text-2xl md:text-3xl font-black text-zinc-100">
-              ¿Tienes un puesto en el Mercado o tu propio vehículo?
-            </h3>
-            <p className="text-xs text-zinc-400 leading-relaxed">
-              Registra tu comedero o puesto para recibir ventas digitales, o regístrate como repartidor (A pie, Moto, Carro, Bici) para ganar propinas y tarifas de despacho.
-            </p>
-          </div>
-
-          <button
-            onClick={onOpenLogin}
-            className="w-full md:w-auto px-6 py-3.5 bg-blue-600 hover:bg-blue-500 text-zinc-100 font-extrabold rounded-2xl text-xs transition-all whitespace-nowrap shadow-lg shrink-0 active:scale-95 relative z-10"
-          >
-            Registrarme como Aliado / Transportista
-          </button>
-        </div>
-      </section>
-
-      {/* FOOTER */}
+      {/* FOOTER WITH VISIBLE BUILD TAG */}
       <footer className="border-t border-zinc-800/80 py-10 px-4 text-center text-xs text-zinc-500 space-y-3 bg-zinc-950">
         <div className="flex justify-center items-center gap-2">
           <div className="w-6 h-6 rounded-lg bg-amber-500 text-zinc-950 font-black flex items-center justify-center text-xs">
@@ -288,6 +184,12 @@ export default function LandingPage({ onOpenPWA, onOpenLogin }) {
           <span className="font-extrabold text-zinc-300 text-sm">Mercado San Miguelito Delivery</span>
         </div>
         <p className="font-mono text-[11px] text-zinc-400">sanmiguelito.demiempresa.online</p>
+
+        {/* Visible Build Version Badge in Footer */}
+        <div className="inline-flex items-center gap-1 bg-zinc-900 border border-amber-500/30 text-amber-400 px-3 py-1 rounded-full font-mono text-[11px] font-bold shadow-inner">
+          <Tag className="w-3 h-3" /> {BUILD_INFO.tag}
+        </div>
+
         <p className="text-[11px] text-zinc-600 max-w-lg mx-auto">
           Servicio oficial de logística y encargo centralizado en San Salvador, El Salvador. Cobertura de 5 km.
         </p>

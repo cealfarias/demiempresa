@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useMercado } from '../context/MercadoContext';
-import { ShoppingCart, Sparkles, Navigation, UserPlus, Home, User } from 'lucide-react';
+import { BUILD_INFO } from '../data/mockData';
+import { ShoppingCart, Sparkles, Navigation, UserPlus, Home, User, Tag } from 'lucide-react';
 import DriverRegistrationModal from './DriverRegistrationModal';
 
 export default function Navbar({ onOpenCart, onOpenTracking, onGoHome, onOpenLogin }) {
@@ -20,7 +21,8 @@ export default function Navbar({ onOpenCart, onOpenTracking, onGoHome, onOpenLog
     <>
       <header className="sticky top-0 z-40 bg-zinc-950/90 backdrop-blur-md border-b border-zinc-800 px-4 py-3 shadow-lg">
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-3">
-          {/* Brand & Badge */}
+          
+          {/* Brand & Build Tag Badge */}
           <div className="flex items-center justify-between">
             <div
               onClick={onGoHome}
@@ -30,12 +32,14 @@ export default function Navbar({ onOpenCart, onOpenTracking, onGoHome, onOpenLog
                 M
               </div>
               <div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <h1 className="font-extrabold text-lg text-zinc-100 tracking-tight group-hover:text-amber-400 transition-colors">
                     Mercado San Miguelito
                   </h1>
-                  <span className="bg-amber-500/20 text-amber-400 text-xs font-semibold px-2 py-0.5 rounded-full border border-amber-500/30 flex items-center gap-1">
-                    <Sparkles className="w-3 h-3" /> PWA Directa
+                  
+                  {/* Visible Build Version Tag */}
+                  <span className="bg-amber-500/20 text-amber-400 text-[10px] font-mono font-bold px-2 py-0.5 rounded-full border border-amber-500/40 flex items-center gap-1">
+                    <Tag className="w-3 h-3 text-amber-400" /> {BUILD_INFO.tag}
                   </span>
                 </div>
                 <p className="text-xs text-zinc-400 font-mono">sanmiguelito.demiempresa.online</p>
@@ -83,7 +87,6 @@ export default function Navbar({ onOpenCart, onOpenTracking, onGoHome, onOpenLog
               <User className="w-3.5 h-3.5 text-blue-400" /> Iniciar Sesión
             </button>
 
-            {/* Quick Action: Register Driver */}
             <button
               onClick={() => setIsDriverModalOpen(true)}
               className="px-3 py-1.5 bg-blue-600/20 text-blue-300 border border-blue-500/30 hover:bg-blue-600/30 rounded-lg text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5"
@@ -91,7 +94,6 @@ export default function Navbar({ onOpenCart, onOpenTracking, onGoHome, onOpenLog
               <UserPlus className="w-3.5 h-3.5" /> Registrar Transportista
             </button>
 
-            {/* Quick Action: Live Tracking */}
             <button
               onClick={onOpenTracking}
               className="px-3 py-1.5 bg-emerald-600/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-600/30 rounded-lg text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5"

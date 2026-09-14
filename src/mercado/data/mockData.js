@@ -1,3 +1,10 @@
+export const BUILD_INFO = {
+  version: '1.0.0',
+  commit: '6c49295',
+  tag: 'Build v1.0.0 (Commit 6c49295)',
+  date: '14/09/2026'
+};
+
 export const MERCADOS_DISPONIBLES = [
   { id: 'sanmiguelito', name: 'Mercado San Miguelito', ciudad: 'San Salvador', coor: '13.7042, -89.1915', activo: true },
   { id: 'central', name: 'Mercado Central', ciudad: 'San Salvador', coor: '13.6967, -89.1950', activo: false },
@@ -89,7 +96,6 @@ export const REPARTIDORES_INICIALES = [
 ];
 
 export const PRODUCTOS = [
-  // Comida - Pupusas
   {
     id: 'prod-1',
     name: 'Pupusa de Queso con Loroco',
@@ -129,8 +135,6 @@ export const PRODUCTOS = [
     image: 'https://images.unsplash.com/photo-1565299585323-38d6b0865b47?auto=format&fit=crop&w=400&q=80',
     description: 'Chicharrón molido en casa, frijoles refritos y queso cremoso.'
   },
-
-  // Comida - Sopas
   {
     id: 'prod-4',
     name: 'Sopa de Gallina India con Arroz y Ensalada',
@@ -157,8 +161,6 @@ export const PRODUCTOS = [
     image: 'https://images.unsplash.com/photo-1547592166-23ac45744acd?auto=format&fit=crop&w=400&q=80',
     description: 'Con yuca, elote, guineo verde, elotitos y verdura surtida.'
   },
-
-  // Frutas y Verduras
   {
     id: 'prod-6',
     name: 'Aguacate Criollo de Ahuachapán',
@@ -198,8 +200,6 @@ export const PRODUCTOS = [
     image: 'https://images.unsplash.com/photo-1592924357228-91a4daadcfea?auto=format&fit=crop&w=400&q=80',
     description: 'Tomate rojo de pasta ideal para salsas y guisados.'
   },
-
-  // Carnes y Mariscos
   {
     id: 'prod-9',
     name: 'Lomo de Res Fresco Cortado al Gusto',
@@ -213,8 +213,6 @@ export const PRODUCTOS = [
     image: 'https://images.unsplash.com/photo-1603048588665-791ca8aea617?auto=format&fit=crop&w=400&q=80',
     description: 'Carne magra de res fresca del día, limpia sin exceso de gordo.'
   },
-
-  // Lácteos
   {
     id: 'prod-10',
     name: 'Queso Duro Viejo Salado Petacones',
