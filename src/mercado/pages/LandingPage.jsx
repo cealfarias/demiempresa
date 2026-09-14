@@ -1,17 +1,42 @@
-import React from 'react';
-import { ShoppingBag, Utensils, Bike, Building2, Wallet, CreditCard, ShieldCheck, Sparkles, HeartHandshake, ArrowRight, CheckCircle2, User, Footprints, Store } from 'lucide-react';
+import React, { useState } from 'react';
+import { ShoppingBag, Utensils, Bike, Building2, Wallet, CreditCard, ShieldCheck, Sparkles, HeartHandshake, ArrowRight, CheckCircle2, User, Footprints, Store, MapPin, Clock, ChevronDown, ChevronUp, Lock, PhoneCall, FileText } from 'lucide-react';
 
 export default function LandingPage({ onOpenPWA, onOpenLogin }) {
+  const [openFaq, setOpenFaq] = useState(null);
+
+  const faqs = [
+    {
+      q: '¿Cómo funciona la compra multi-puesto en el Mercado San Miguelito?',
+      a: 'Puedes agregar productos de diferentes puestos (ej. pupusas de un comedero, sopas de otro puesto y verduras de la sección de frescos) en un mismo carrito. Un runner interno recolecta todo local por local y te lo entregamos en una sola orden.'
+    },
+    {
+      q: '¿Cuáles son las formas de pago aceptadas?',
+      a: 'Aceptamos Transfer365 Móvil (Banco Davivienda al 6989-3101), Chivo Wallet (USD / Bitcoin), El Cubo para tarjetas de crédito/débito y Pago en Efectivo contra entrega.'
+    },
+    {
+      q: '¿Cómo funciona el retiro en punto de venta (Pickup)?',
+      a: 'Si prefieres retirar personalmente sin costo de envío, seleccionas "Retiro en Punto" al pagar. La app generará un código QR único. Tienes hasta 48 horas para retirar tu pedido en la Mesa de Acopio del Mercado.'
+    },
+    {
+      q: '¿Cuál es la política de cancelación de pedidos?',
+      a: 'Puedes cancelar tu pedido sin problema antes de que el runner inicie la recolección en el mercado. Se aplicará un 20% de cargo administrativo por gastos operativos iniciales y se te reembolsará el 80% restante.'
+    },
+    {
+      q: '¿Cómo se reparten las propinas?',
+      a: 'El 100% de la propina voluntaria que agregues al pagar se divide equitativamente (50% / 50%) entre el runner que junta los productos en el mercado y el motorista que realiza el delivery.'
+    }
+  ];
+
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 font-sans selection:bg-amber-500 selection:text-zinc-950">
       
-      {/* Top Header Navigation */}
-      <header className="sticky top-0 z-40 bg-zinc-950/90 backdrop-blur-md border-b border-zinc-800 px-4 py-3.5 shadow-lg">
+      {/* TOP HEADER */}
+      <header className="sticky top-0 z-40 bg-zinc-950/90 backdrop-blur-md border-b border-zinc-800/80 px-4 py-3.5 shadow-xl">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           
-          {/* Logo & Subdomain Badge */}
+          {/* Brand Logo & Badges */}
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center text-zinc-950 font-black text-xl shadow-md">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 via-orange-500 to-amber-600 flex items-center justify-center text-zinc-950 font-black text-xl shadow-lg ring-2 ring-amber-500/30">
               M
             </div>
             <div>
@@ -19,27 +44,27 @@ export default function LandingPage({ onOpenPWA, onOpenLogin }) {
                 <h1 className="font-extrabold text-lg text-zinc-100 tracking-tight">
                   Mercado San Miguelito
                 </h1>
-                <span className="hidden sm:inline-flex bg-amber-500/20 text-amber-400 text-xs font-semibold px-2.5 py-0.5 rounded-full border border-amber-500/30 items-center gap-1">
-                  <Sparkles className="w-3 h-3" /> Delivery Centralizado
+                <span className="hidden sm:inline-flex bg-amber-500/10 text-amber-400 text-[11px] font-bold px-2.5 py-0.5 rounded-full border border-amber-500/30 items-center gap-1">
+                  <Sparkles className="w-3 h-3" /> Delivery Oficial PWA
                 </span>
               </div>
-              <p className="text-xs text-zinc-400 font-mono">sanmiguelito.demiempresa.online</p>
+              <p className="text-[11px] text-zinc-400 font-mono tracking-wide">sanmiguelito.demiempresa.online</p>
             </div>
           </div>
 
-          {/* Action Buttons */}
-          <div className="flex items-center gap-2">
+          {/* Action Header Buttons */}
+          <div className="flex items-center gap-2.5">
             <button
               onClick={onOpenLogin}
-              className="px-3.5 py-2 bg-zinc-900 hover:bg-zinc-800 text-zinc-200 border border-zinc-700 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5"
+              className="px-3.5 py-2 bg-zinc-900 hover:bg-zinc-800 text-zinc-200 border border-zinc-700/80 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm active:scale-95"
             >
-              <User className="w-4 h-4 text-amber-400" /> Iniciar Sesión
+              <User className="w-4 h-4 text-amber-400" /> Acceder / Registro
             </button>
             <button
               onClick={onOpenPWA}
-              className="px-4 py-2 bg-gradient-to-r from-amber-500 to-orange-600 hover:brightness-110 text-zinc-950 font-black rounded-xl text-xs transition-all flex items-center gap-1.5 shadow-lg active:scale-95"
+              className="px-4 py-2 bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 hover:brightness-110 text-zinc-950 font-black rounded-xl text-xs transition-all flex items-center gap-1.5 shadow-lg shadow-amber-500/20 active:scale-95"
             >
-              <span>Ver Catálogo</span>
+              <span>Ver Catálogo PWA</span>
               <ArrowRight className="w-4 h-4" />
             </button>
           </div>
@@ -48,105 +73,104 @@ export default function LandingPage({ onOpenPWA, onOpenLogin }) {
 
       {/* HERO SECTION */}
       <section className="relative overflow-hidden pt-12 pb-20 px-4">
-        {/* Background glow effects */}
-        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute top-1/3 right-10 w-72 h-72 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-amber-500/10 rounded-full blur-[120px] pointer-events-none" />
+        <div className="absolute top-1/3 right-10 w-80 h-80 bg-emerald-500/10 rounded-full blur-[100px] pointer-events-none" />
 
         <div className="max-w-5xl mx-auto text-center space-y-6 relative z-10">
           
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-zinc-900 border border-amber-500/40 text-amber-400 text-xs font-bold shadow-inner">
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-zinc-900/90 border border-amber-500/30 text-amber-400 text-xs font-extrabold shadow-inner">
             <Sparkles className="w-4 h-4 text-amber-400 animate-pulse" />
-            <span>PWA Oficial sin descargas para el Mercado San Miguelito</span>
+            <span>Plataforma Directa Web App (PWA) sin descargas requeridas</span>
           </div>
 
-          <h1 className="text-3xl sm:text-5xl md:text-6xl font-black text-zinc-100 tracking-tight leading-tight max-w-4xl mx-auto">
-            Los mejores puestos del <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-400 via-orange-400 to-amber-500">Mercado San Miguelito</span> a tu puerta
+          <h1 className="text-4xl sm:text-6xl md:text-7xl font-black text-zinc-100 tracking-tight leading-[1.1] max-w-4xl mx-auto">
+            Los mejores puestos del <br className="hidden sm:inline" />
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-400 via-orange-400 to-amber-500">
+              Mercado San Miguelito
+            </span> a tu puerta
           </h1>
 
-          <p className="text-sm md:text-base text-zinc-300 max-w-2xl mx-auto leading-relaxed">
-            Pupusas recién hechas, sopas de gallina india, carnes frescas, frutas y lácteos de múltiples comederos en una sola orden con pago anticipado seguro y rastreo GPS.
+          <p className="text-sm sm:text-base md:text-lg text-zinc-300 max-w-2xl mx-auto leading-relaxed font-normal">
+            Pupusas tradicionales, sopas de gallina india, carnes frescas, verduras y lácteos de múltiples comederos en una sola orden con pago anticipado seguro y rastreo GPS (Radio de 5 km en San Salvador).
           </p>
 
-          {/* Call to Actions */}
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-4">
+          {/* Primary Call to Action */}
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3.5 pt-4">
             <button
               onClick={onOpenPWA}
-              className="w-full sm:w-auto px-8 py-4 bg-gradient-to-r from-amber-500 to-orange-600 text-zinc-950 font-black rounded-2xl text-sm hover:brightness-110 transition-all flex items-center justify-center gap-2 shadow-xl shadow-amber-500/20 active:scale-95"
+              className="w-full sm:w-auto px-8 py-4 bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 text-zinc-950 font-black rounded-2xl text-sm hover:brightness-110 transition-all flex items-center justify-center gap-2.5 shadow-2xl shadow-amber-500/25 active:scale-95"
             >
               <ShoppingBag className="w-5 h-5" />
-              <span>Explorar Productos y Hacer Pedido</span>
+              <span>Explorar Catálogo & Ordenar</span>
               <ArrowRight className="w-5 h-5" />
             </button>
 
             <button
               onClick={onOpenLogin}
-              className="w-full sm:w-auto px-6 py-4 bg-zinc-900 hover:bg-zinc-800 text-zinc-200 border border-zinc-700 font-bold rounded-2xl text-sm transition-all flex items-center justify-center gap-2"
+              className="w-full sm:w-auto px-6 py-4 bg-zinc-900 hover:bg-zinc-800 text-zinc-200 border border-zinc-700/80 font-extrabold rounded-2xl text-sm transition-all flex items-center justify-center gap-2 shadow-md active:scale-95"
             >
-              <User className="w-4 h-4 text-amber-400" />
-              <span>Ingresar / Registrarme</span>
+              <User className="w-4.5 h-4.5 text-amber-400" />
+              <span>Iniciar Sesión / Registro</span>
             </button>
           </div>
 
-          {/* Payment Gateways Strip */}
-          <div className="pt-8 flex flex-wrap items-center justify-center gap-4 text-xs text-zinc-400">
-            <span className="font-bold text-zinc-300">Pago Anticipado Seguro con:</span>
-            <span className="flex items-center gap-1 bg-zinc-900 px-3 py-1.5 rounded-lg border border-zinc-800 font-semibold text-emerald-400">
-              <Building2 className="w-4 h-4" /> Transfer365 Móvil
+          {/* Guaranteed Badges */}
+          <div className="pt-10 flex flex-wrap items-center justify-center gap-3 text-xs text-zinc-400">
+            <span className="font-bold text-zinc-300">Pagos Seguros:</span>
+            <span className="flex items-center gap-1.5 bg-zinc-900/90 px-3.5 py-2 rounded-xl border border-zinc-800 font-semibold text-emerald-400 shadow-sm">
+              <Building2 className="w-4 h-4" /> Transfer365 (Davivienda 6989-3101)
             </span>
-            <span className="flex items-center gap-1 bg-zinc-900 px-3 py-1.5 rounded-lg border border-zinc-800 font-semibold text-blue-400">
-              <Wallet className="w-4 h-4" /> Chivo Wallet
+            <span className="flex items-center gap-1.5 bg-zinc-900/90 px-3.5 py-2 rounded-xl border border-zinc-800 font-semibold text-blue-400 shadow-sm">
+              <Wallet className="w-4 h-4" /> Chivo Wallet (USD/BTC)
             </span>
-            <span className="flex items-center gap-1 bg-zinc-900 px-3 py-1.5 rounded-lg border border-zinc-800 font-semibold text-purple-400">
-              <CreditCard className="w-4 h-4" /> Cubo Pago (Tarjetas)
+            <span className="flex items-center gap-1.5 bg-zinc-900/90 px-3.5 py-2 rounded-xl border border-zinc-800 font-semibold text-purple-400 shadow-sm">
+              <CreditCard className="w-4 h-4" /> El Cubo (Tarjetas)
             </span>
           </div>
 
         </div>
       </section>
 
-      {/* VALUE PROPOSITIONS */}
-      <section className="py-16 px-4 bg-zinc-900/50 border-y border-zinc-800">
+      {/* CORE FEATURES (VALUE PROPOSITIONS) */}
+      <section className="py-16 px-4 bg-zinc-900/60 border-y border-zinc-800/80">
         <div className="max-w-6xl mx-auto space-y-12">
           
           <div className="text-center space-y-2 max-w-xl mx-auto">
-            <h2 className="text-xs font-bold text-amber-400 uppercase tracking-widest">¿Por qué elegirnos?</h2>
-            <p className="text-2xl md:text-3xl font-black text-zinc-100">
-              Un modelo diseñado exclusivamente para la dinámica del Mercado
+            <h2 className="text-xs font-bold text-amber-400 uppercase tracking-widest">Modelo Logístico Exclusivo</h2>
+            <p className="text-2xl sm:text-3xl font-black text-zinc-100">
+              Diseñado para la dinámica real del Mercado San Miguelito
             </p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             
-            {/* Prop 1 */}
-            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 space-y-3 hover:border-amber-500/40 transition-all">
-              <div className="w-12 h-12 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center font-bold text-xl">
+            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 space-y-3.5 hover:border-amber-500/40 transition-all shadow-lg group">
+              <div className="w-12 h-12 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center font-bold text-2xl group-hover:scale-110 transition-transform">
                 🛍️
               </div>
               <h3 className="font-extrabold text-base text-zinc-100">Carrito Multi-Puesto</h3>
               <p className="text-xs text-zinc-400 leading-relaxed">
-                Combina en un solo envío pupusas del Pasillo 3, sopa de gallina del Pasillo 2 y aguacates del Pasillo 1. Un solo pago y una sola tarifa de envío.
+                Pide pupusas del Pasillo 3, sopas de gallina india del Pasillo 2 y frutas frescas del Pasillo 1 en un solo pedido con una tarifa unificada.
               </p>
             </div>
 
-            {/* Prop 2 */}
-            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 space-y-3 hover:border-emerald-500/40 transition-all">
-              <div className="w-12 h-12 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold text-xl">
+            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 space-y-3.5 hover:border-emerald-500/40 transition-all shadow-lg group">
+              <div className="w-12 h-12 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold text-2xl group-hover:scale-110 transition-transform">
                 🏃
               </div>
-              <h3 className="font-extrabold text-base text-zinc-100">Recolección Centralizada</h3>
+              <h3 className="font-extrabold text-base text-zinc-100">Runners & Acopio</h3>
               <p className="text-xs text-zinc-400 leading-relaxed">
-                Nuestros *runners* internos navegan los pasillos del mercado juntando tus compras puesto por puesto antes de entregarlas al centro de acopio.
+                Compradores internos (*runners*) navegan local por local consolidando tus productos antes de empacarlos en la Mesa de Acopio del Mercado.
               </p>
             </div>
 
-            {/* Prop 3 */}
-            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 space-y-3 hover:border-blue-500/40 transition-all">
-              <div className="w-12 h-12 rounded-xl bg-blue-500/20 text-blue-400 flex items-center justify-center font-bold text-xl">
+            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 space-y-3.5 hover:border-blue-500/40 transition-all shadow-lg group">
+              <div className="w-12 h-12 rounded-xl bg-blue-500/20 text-blue-400 flex items-center justify-center font-bold text-2xl group-hover:scale-110 transition-transform">
                 🛵
               </div>
-              <h3 className="font-extrabold text-base text-zinc-100">Reparto por Vehículo & GPS</h3>
+              <h3 className="font-extrabold text-base text-zinc-100">Despacho & Retiro Pickup</h3>
               <p className="text-xs text-zinc-400 leading-relaxed">
-                Despachadores en moto, carro o bici según la distancia y volumen del paquete, con seguimiento en vivo y estimación exacta de tiempo.
+                Recibe a domicilio dentro del radio de 5 km con seguimiento GPS en vivo, o retira personalmente en acopio con tu Código QR (48h).
               </p>
             </div>
 
@@ -159,44 +183,82 @@ export default function LandingPage({ onOpenPWA, onOpenLogin }) {
         <div className="max-w-5xl mx-auto space-y-12">
           
           <div className="text-center space-y-2">
-            <h2 className="text-xs font-bold text-amber-400 uppercase tracking-widest">Paso a Paso</h2>
-            <p className="text-2xl md:text-3xl font-black text-zinc-100">¿Cómo funciona la orden?</p>
+            <h2 className="text-xs font-bold text-amber-400 uppercase tracking-widest">Flujo Operativo</h2>
+            <p className="text-2xl sm:text-3xl font-black text-zinc-100">¿Cómo procesamos tu pedido?</p>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
             
-            <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5 space-y-2 relative">
-              <span className="w-7 h-7 rounded-full bg-amber-500 text-zinc-950 font-black text-xs flex items-center justify-center">1</span>
-              <h4 className="font-bold text-sm text-zinc-100">Eliges tus productos</h4>
-              <p className="text-xs text-zinc-400">Navegas por departamentos y líneas seleccionando puestos del mercado.</p>
+            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-2 relative shadow-md">
+              <span className="w-8 h-8 rounded-xl bg-amber-500 text-zinc-950 font-black text-xs flex items-center justify-center shadow-sm">1</span>
+              <h4 className="font-bold text-sm text-zinc-100">Eliges los puestos</h4>
+              <p className="text-xs text-zinc-400">Seleccionas comida preparada, carnes o verduras de tus vendedores de confianza.</p>
             </div>
 
-            <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5 space-y-2 relative">
-              <span className="w-7 h-7 rounded-full bg-amber-500 text-zinc-950 font-black text-xs flex items-center justify-center">2</span>
+            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-2 relative shadow-md">
+              <span className="w-8 h-8 rounded-xl bg-amber-500 text-zinc-950 font-black text-xs flex items-center justify-center shadow-sm">2</span>
               <h4 className="font-bold text-sm text-zinc-100">Pago Anticipado</h4>
-              <p className="text-xs text-zinc-400">Pagas al instante con Transfer365, Chivo o Tarjeta con propina compartida.</p>
+              <p className="text-xs text-zinc-400">Confirmas con Transfer365 Davivienda (6989-3101), Chivo, Cubo o Efectivo.</p>
             </div>
 
-            <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5 space-y-2 relative">
-              <span className="w-7 h-7 rounded-full bg-amber-500 text-zinc-950 font-black text-xs flex items-center justify-center">3</span>
-              <h4 className="font-bold text-sm text-zinc-100">Recolección Interna</h4>
-              <p className="text-xs text-zinc-400">El runner busca tus compras en los pasillos y arma tu paquete en acopio.</p>
+            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-2 relative shadow-md">
+              <span className="w-8 h-8 rounded-xl bg-amber-500 text-zinc-950 font-black text-xs flex items-center justify-center shadow-sm">3</span>
+              <h4 className="font-bold text-sm text-zinc-100">Recolección Runner</h4>
+              <p className="text-xs text-zinc-400">Un runner junta tus compras pasillo por pasillo y empaca tu orden en acopio.</p>
             </div>
 
-            <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5 space-y-2 relative">
-              <span className="w-7 h-7 rounded-full bg-amber-500 text-zinc-950 font-black text-xs flex items-center justify-center">4</span>
-              <h4 className="font-bold text-sm text-zinc-100">Entrega a Domicilio</h4>
-              <p className="text-xs text-zinc-400">El motorista asignado lleva tu pedido hasta la puerta de tu hogar o trabajo.</p>
+            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-2 relative shadow-md">
+              <span className="w-8 h-8 rounded-xl bg-amber-500 text-zinc-950 font-black text-xs flex items-center justify-center shadow-sm">4</span>
+              <h4 className="font-bold text-sm text-zinc-100">Entrega / Pickup</h4>
+              <p className="text-xs text-zinc-400">Recibes a domicilio con mapa GPS en vivo o retiras en acopio con Código QR.</p>
             </div>
 
           </div>
         </div>
       </section>
 
+      {/* FAQ SECTION (PREGUNTAS FRECUENTES) */}
+      <section className="py-16 px-4 bg-zinc-900/40 border-t border-zinc-800">
+        <div className="max-w-3xl mx-auto space-y-8">
+          
+          <div className="text-center space-y-2">
+            <h2 className="text-xs font-bold text-amber-400 uppercase tracking-widest">Resolvemos tus dudas</h2>
+            <p className="text-2xl sm:text-3xl font-black text-zinc-100">Preguntas Frecuentes</p>
+          </div>
+
+          <div className="space-y-3">
+            {faqs.map((faq, idx) => {
+              const isOpen = openFaq === idx;
+              return (
+                <div
+                  key={idx}
+                  className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden transition-all"
+                >
+                  <button
+                    onClick={() => setOpenFaq(isOpen ? null : idx)}
+                    className="w-full p-4 text-left font-bold text-xs sm:text-sm text-zinc-100 flex items-center justify-between gap-4 hover:text-amber-400 transition-colors"
+                  >
+                    <span>{faq.q}</span>
+                    {isOpen ? <ChevronUp className="w-4 h-4 text-amber-400 shrink-0" /> : <ChevronDown className="w-4 h-4 text-zinc-500 shrink-0" />}
+                  </button>
+
+                  {isOpen && (
+                    <div className="p-4 pt-0 text-xs text-zinc-400 border-t border-zinc-800/60 leading-relaxed animate-in fade-in duration-200">
+                      {faq.a}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+        </div>
+      </section>
+
       {/* PARTNERS & DRIVERS CALLOUT */}
-      <section className="py-16 px-4 bg-gradient-to-br from-zinc-900 via-zinc-950 to-zinc-900 border-t border-zinc-800">
-        <div className="max-w-5xl mx-auto bg-zinc-900 border border-zinc-800 rounded-3xl p-8 md:p-12 flex flex-col md:flex-row items-center justify-between gap-8 shadow-2xl">
-          <div className="space-y-3 max-w-lg">
+      <section className="py-16 px-4">
+        <div className="max-w-5xl mx-auto bg-gradient-to-r from-zinc-900 via-zinc-900 to-zinc-950 border border-zinc-800 rounded-3xl p-8 md:p-12 flex flex-col md:flex-row items-center justify-between gap-8 shadow-2xl relative overflow-hidden">
+          <div className="space-y-3 max-w-lg relative z-10">
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-500/20 text-blue-400 text-xs font-bold border border-blue-500/30">
               <Bike className="w-3.5 h-3.5" /> Red de Aliados & Transportistas
             </div>
@@ -210,7 +272,7 @@ export default function LandingPage({ onOpenPWA, onOpenLogin }) {
 
           <button
             onClick={onOpenLogin}
-            className="w-full md:w-auto px-6 py-3.5 bg-blue-600 hover:bg-blue-500 text-zinc-100 font-extrabold rounded-2xl text-xs transition-all whitespace-nowrap shadow-lg shrink-0"
+            className="w-full md:w-auto px-6 py-3.5 bg-blue-600 hover:bg-blue-500 text-zinc-100 font-extrabold rounded-2xl text-xs transition-all whitespace-nowrap shadow-lg shrink-0 active:scale-95 relative z-10"
           >
             Registrarme como Aliado / Transportista
           </button>
@@ -218,10 +280,20 @@ export default function LandingPage({ onOpenPWA, onOpenLogin }) {
       </section>
 
       {/* FOOTER */}
-      <footer className="border-t border-zinc-800 py-8 px-4 text-center text-xs text-zinc-500 space-y-2">
-        <p className="font-bold text-zinc-300">Mercado San Miguelito Delivery</p>
+      <footer className="border-t border-zinc-800/80 py-10 px-4 text-center text-xs text-zinc-500 space-y-3 bg-zinc-950">
+        <div className="flex justify-center items-center gap-2">
+          <div className="w-6 h-6 rounded-lg bg-amber-500 text-zinc-950 font-black flex items-center justify-center text-xs">
+            M
+          </div>
+          <span className="font-extrabold text-zinc-300 text-sm">Mercado San Miguelito Delivery</span>
+        </div>
         <p className="font-mono text-[11px] text-zinc-400">sanmiguelito.demiempresa.online</p>
-        <p>© 2026 Todos los derechos reservados. Operado por Demiempresa.</p>
+        <p className="text-[11px] text-zinc-600 max-w-lg mx-auto">
+          Servicio oficial de logística y encargo centralizado en San Salvador, El Salvador. Cobertura de 5 km.
+        </p>
+        <p className="text-[10px] text-zinc-600 pt-2 border-t border-zinc-900">
+          © 2026 Operado por Demiempresa. Todos los derechos reservados.
+        </p>
       </footer>
     </div>
   );
