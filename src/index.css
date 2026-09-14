@@ -10,17 +10,17 @@
   -webkit-font-smoothing: antialiased;
 }
 
-/* Modo Noche (Oscuro Vibrante - Midnight Oceanic) */
+/* Modo Noche (Mercados Nacionales Steel Navy) */
 html.dark, body.dark {
   color-scheme: dark;
-  background-color: #0B0F17;
-  color: #F1F5F9;
+  background-color: #0A1120;
+  color: #F8FAFC;
 }
 
 /* Modo Día (Claro Limpio) */
 html.light, body.light {
   color-scheme: light;
-  background-color: #F8FAFC;
+  background-color: #F1F5F9;
   color: #0F172A;
 }
 

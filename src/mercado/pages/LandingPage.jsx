@@ -29,24 +29,27 @@ export default function LandingPage({ onOpenPWA, onOpenLogin }) {
   ];
 
   return (
-    <div className="min-h-screen bg-[#0B0F17] text-slate-100 font-sans selection:bg-emerald-500 selection:text-zinc-950">
+    <div className="min-h-screen bg-[#0A1120] text-slate-100 font-sans selection:bg-[#00D09C] selection:text-[#0A1120]">
       
       {/* TOP HEADER */}
-      <header className="sticky top-0 z-40 bg-[#0B0F17]/95 backdrop-blur-xl border-b border-emerald-500/20 px-3 py-3 sm:px-6 sm:py-4 shadow-2xl">
+      <header className="sticky top-0 z-40 bg-[#0A1120]/95 backdrop-blur-xl border-b border-[#00D09C]/20 px-3 py-3 sm:px-6 sm:py-4 shadow-2xl">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           
           {/* Brand Logo & Concatenated Title */}
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl bg-gradient-to-br from-emerald-400 via-teal-500 to-orange-500 flex items-center justify-center text-zinc-950 font-black text-lg sm:text-2xl shadow-glow-emerald">
-              M
+            <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl bg-slate-900 border border-slate-700/80 flex items-center justify-center p-1.5 shadow-glow-mint">
+              <svg viewBox="0 0 100 80" className="w-full h-full">
+                <path d="M10 70 L35 25 C42 12, 58 12, 65 25 L65 70 Z" fill="#00D09C" />
+                <path d="M45 70 L65 35 C72 22, 88 22, 95 35 L95 70 Z" fill="#CBD5E1" />
+              </svg>
             </div>
             <div>
               <div className="flex items-center gap-1.5 flex-wrap">
-                <h1 className="font-black text-xs sm:text-base md:text-lg text-slate-100 tracking-tight">
-                  Mercado San Miguelito <span className="text-orange-400 font-mono text-[10px] sm:text-xs font-black px-1.5 py-0.5 rounded bg-orange-500/10 border border-orange-500/20">{BUILD_INFO.tag}</span>
+                <h1 className="font-extrabold text-xs sm:text-base md:text-lg text-white tracking-tight">
+                  Mercados <span className="text-[#00D09C]">San Miguelito</span> <span className="text-slate-300 font-mono text-[10px] sm:text-xs font-bold px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700">{BUILD_INFO.tag}</span>
                 </h1>
               </div>
-              <p className="text-[10px] sm:text-xs text-emerald-400 font-mono tracking-wide">sanmiguelito.demiempresa.online</p>
+              <p className="text-[10px] sm:text-xs text-[#00D09C]/90 font-mono tracking-wide">sanmiguelito.demiempresa.online</p>
             </div>
           </div>
 
@@ -60,7 +63,7 @@ export default function LandingPage({ onOpenPWA, onOpenLogin }) {
             </button>
             <button
               onClick={onOpenPWA}
-              className="px-3 py-1.5 sm:px-5 sm:py-2 bg-gradient-to-r from-orange-500 via-amber-500 to-orange-600 hover:brightness-110 text-zinc-950 font-black rounded-xl text-[11px] sm:text-xs transition-all flex items-center gap-1.5 shadow-glow-orange active:scale-95"
+              className="px-3 py-1.5 sm:px-5 sm:py-2 bg-[#00D09C] hover:bg-[#10E3B2] text-[#0A1120] font-black rounded-xl text-[11px] sm:text-xs transition-all flex items-center gap-1.5 shadow-glow-mint active:scale-95"
             >
               <span>Ver Catálogo</span>
               <ArrowRight className="w-3.5 h-3.5" />
@@ -71,31 +74,31 @@ export default function LandingPage({ onOpenPWA, onOpenLogin }) {
 
       {/* HERO SECTION */}
       <section className="relative overflow-hidden pt-8 pb-14 sm:pt-14 sm:pb-20 px-4">
-        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] sm:w-[600px] h-[400px] sm:h-[600px] bg-emerald-500/15 rounded-full blur-[140px] pointer-events-none" />
-        <div className="absolute top-1/3 right-5 w-64 h-64 bg-orange-500/15 rounded-full blur-[120px] pointer-events-none" />
+        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] sm:w-[600px] h-[400px] sm:h-[600px] bg-[#00D09C]/15 rounded-full blur-[140px] pointer-events-none" />
+        <div className="absolute top-1/3 right-5 w-64 h-64 bg-cyan-500/10 rounded-full blur-[120px] pointer-events-none" />
 
-        <div className="max-w-4xl mx-auto text-center space-y-5 relative z-10">
+        <div className="max-w-4xl mx-auto text-center space-y-4 relative z-10">
           
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-900/90 border border-emerald-500/30 text-emerald-400 text-[11px] sm:text-xs font-bold shadow-inner">
-            <Sparkles className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
-            <span>Versión Activa: <strong className="font-mono text-orange-300 font-black">{BUILD_INFO.tag}</strong></span>
+          {/* Official Style Badge */}
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-900/90 border border-[#00D09C]/30 text-white text-[10px] sm:text-xs font-bold shadow-inner">
+            <span className="bg-[#00D09C] text-[#0A1120] font-black px-2 py-0.5 rounded text-[9px] uppercase tracking-wider">RED DE</span>
+            <span>Mercados Nacionales de El Salvador</span>
           </div>
 
-          <h1 className="text-2xl sm:text-5xl md:text-6xl font-black text-slate-100 tracking-tight leading-snug sm:leading-tight max-w-3xl mx-auto">
-            Los mejores puestos del <br />
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 via-teal-300 to-orange-400">
-              Mercado San Miguelito
-            </span> <span className="text-orange-400 font-mono text-base sm:text-2xl font-bold">{BUILD_INFO.tag}</span> a tu puerta
+          {/* Official Style Heading */}
+          <h1 className="text-2xl sm:text-5xl md:text-6xl font-black text-white tracking-tight leading-snug sm:leading-tight max-w-3xl mx-auto">
+            Mercados <span className="text-[#00D09C]">Nacionales</span> <br />
+            de El Salvador <span className="text-slate-300 font-mono text-base sm:text-2xl font-bold">{BUILD_INFO.tag}</span>
           </h1>
 
           <p className="text-xs sm:text-base text-slate-300 max-w-xl mx-auto leading-relaxed font-normal">
-            Pupusas tradicionales, sopas de gallina india, carnes frescas, verduras y lácteos de múltiples comederos en una sola orden con pago seguro y rastreo GPS (5 km en San Salvador).
+            Plataforma oficial de encargo y delivery centralizado para el <strong>Mercado San Miguelito</strong>. Pupusas, sopas, verduras y carnes en una sola orden con rastreo GPS.
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-3">
             <button
               onClick={onOpenPWA}
-              className="w-full sm:w-auto px-6 py-3.5 sm:px-8 sm:py-4 bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 text-zinc-950 font-black rounded-xl text-xs sm:text-sm hover:brightness-110 transition-all flex items-center justify-center gap-2 shadow-glow-emerald active:scale-95"
+              className="w-full sm:w-auto px-6 py-3.5 sm:px-8 sm:py-4 bg-[#00D09C] text-[#0A1120] font-black rounded-xl text-xs sm:text-sm hover:bg-[#10E3B2] transition-all flex items-center justify-center gap-2 shadow-glow-mint active:scale-95"
             >
               <ShoppingBag className="w-4 h-4 sm:w-5 sm:h-5" />
               <span>Explorar Catálogo & Ordenar</span>
@@ -114,7 +117,7 @@ export default function LandingPage({ onOpenPWA, onOpenLogin }) {
           {/* Payment Badges */}
           <div className="pt-6 flex flex-wrap items-center justify-center gap-2 text-[11px] text-slate-400">
             <span className="font-bold text-slate-300">Pagos Seguros:</span>
-            <span className="flex items-center gap-1 bg-slate-900/90 px-2.5 py-1.5 rounded-lg border border-slate-800 font-bold text-emerald-400">
+            <span className="flex items-center gap-1 bg-slate-900/90 px-2.5 py-1.5 rounded-lg border border-slate-800 font-bold text-[#00D09C]">
               <Building2 className="w-3.5 h-3.5" /> Davivienda (6989-3101)
             </span>
             <span className="flex items-center gap-1 bg-slate-900/90 px-2.5 py-1.5 rounded-lg border border-slate-800 font-bold text-cyan-400">
@@ -129,42 +132,42 @@ export default function LandingPage({ onOpenPWA, onOpenLogin }) {
       </section>
 
       {/* CORE FEATURES */}
-      <section className="py-12 px-4 bg-slate-900/50 border-y border-emerald-500/10">
+      <section className="py-12 px-4 bg-slate-900/50 border-y border-[#00D09C]/10">
         <div className="max-w-5xl mx-auto space-y-8">
           
           <div className="text-center space-y-1.5 max-w-lg mx-auto">
-            <h2 className="text-[11px] font-extrabold text-orange-400 uppercase tracking-widest">Modelo Logístico Exclusivo</h2>
-            <p className="text-xl sm:text-2xl font-black text-slate-100">
+            <h2 className="text-[11px] font-extrabold text-[#00D09C] uppercase tracking-widest">Modelo Logístico Centralizado</h2>
+            <p className="text-xl sm:text-2xl font-black text-white">
               Diseñado para la dinámica real del Mercado San Miguelito
             </p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="bg-[#131B29] border border-slate-800 rounded-2xl p-5 space-y-3 hover:border-emerald-500/40 transition-all shadow-lg group">
-              <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold text-xl group-hover:scale-110 transition-transform">
+            <div className="bg-[#111C2E] border border-slate-800 rounded-2xl p-5 space-y-3 hover:border-[#00D09C]/40 transition-all shadow-lg group">
+              <div className="w-10 h-10 rounded-xl bg-[#00D09C]/20 text-[#00D09C] flex items-center justify-center font-bold text-xl group-hover:scale-110 transition-transform">
                 🛍️
               </div>
-              <h3 className="font-extrabold text-sm sm:text-base text-slate-100">Carrito Multi-Puesto</h3>
+              <h3 className="font-extrabold text-sm sm:text-base text-white">Carrito Multi-Puesto</h3>
               <p className="text-xs text-slate-400 leading-relaxed">
                 Pide pupusas del Pasillo 3, sopas del Pasillo 2 y frutas del Pasillo 1 en un solo pedido consolidado.
               </p>
             </div>
 
-            <div className="bg-[#131B29] border border-slate-800 rounded-2xl p-5 space-y-3 hover:border-teal-500/40 transition-all shadow-lg group">
-              <div className="w-10 h-10 rounded-xl bg-teal-500/20 text-teal-400 flex items-center justify-center font-bold text-xl group-hover:scale-110 transition-transform">
+            <div className="bg-[#111C2E] border border-slate-800 rounded-2xl p-5 space-y-3 hover:border-[#00D09C]/40 transition-all shadow-lg group">
+              <div className="w-10 h-10 rounded-xl bg-[#00D09C]/20 text-[#00D09C] flex items-center justify-center font-bold text-xl group-hover:scale-110 transition-transform">
                 🏃
               </div>
-              <h3 className="font-extrabold text-sm sm:text-base text-slate-100">Runners en Mercado</h3>
+              <h3 className="font-extrabold text-sm sm:text-base text-white">Runners en Mercado</h3>
               <p className="text-xs text-slate-400 leading-relaxed">
                 Runners internos navegan local por local juntando tus productos antes de empacarlos en la Mesa de Acopio.
               </p>
             </div>
 
-            <div className="bg-[#131B29] border border-slate-800 rounded-2xl p-5 space-y-3 hover:border-cyan-500/40 transition-all shadow-lg group">
+            <div className="bg-[#111C2E] border border-slate-800 rounded-2xl p-5 space-y-3 hover:border-cyan-500/40 transition-all shadow-lg group">
               <div className="w-10 h-10 rounded-xl bg-cyan-500/20 text-cyan-400 flex items-center justify-center font-bold text-xl group-hover:scale-110 transition-transform">
                 🛵
               </div>
-              <h3 className="font-extrabold text-sm sm:text-base text-slate-100">Despacho & Retiro QR</h3>
+              <h3 className="font-extrabold text-sm sm:text-base text-white">Despacho & Retiro QR</h3>
               <p className="text-xs text-slate-400 leading-relaxed">
                 Recibe a domicilio dentro de 5 km con GPS, o retira personalmente en Acopio con tu QR único (48h).
               </p>
@@ -176,22 +179,22 @@ export default function LandingPage({ onOpenPWA, onOpenLogin }) {
       {/* FAQ ACCORDION */}
       <section className="py-12 px-4 max-w-3xl mx-auto space-y-6">
         <div className="text-center space-y-1">
-          <h2 className="text-[11px] font-extrabold text-emerald-400 uppercase tracking-widest">Preguntas Frecuentes</h2>
-          <p className="text-lg sm:text-xl font-black text-slate-100">Todo lo que necesitas saber antes de ordenar</p>
+          <h2 className="text-[11px] font-extrabold text-[#00D09C] uppercase tracking-widest">Preguntas Frecuentes</h2>
+          <p className="text-lg sm:text-xl font-black text-white">Todo lo que necesitas saber antes de ordenar</p>
         </div>
 
         <div className="space-y-3">
           {faqs.map((faq, idx) => (
             <div
               key={idx}
-              className="bg-[#131B29] border border-slate-800 rounded-xl overflow-hidden transition-all"
+              className="bg-[#111C2E] border border-slate-800 rounded-xl overflow-hidden transition-all"
             >
               <button
                 onClick={() => setOpenFaq(openFaq === idx ? null : idx)}
-                className="w-full px-4 py-3 text-left font-bold text-xs sm:text-sm text-slate-200 flex items-center justify-between gap-3 hover:text-emerald-400 transition-colors"
+                className="w-full px-4 py-3 text-left font-bold text-xs sm:text-sm text-slate-200 flex items-center justify-between gap-3 hover:text-[#00D09C] transition-colors"
               >
                 <span>{faq.q}</span>
-                {openFaq === idx ? <ChevronUp className="w-4 h-4 text-emerald-400 shrink-0" /> : <ChevronDown className="w-4 h-4 text-slate-400 shrink-0" />}
+                {openFaq === idx ? <ChevronUp className="w-4 h-4 text-[#00D09C] shrink-0" /> : <ChevronDown className="w-4 h-4 text-slate-400 shrink-0" />}
               </button>
 
               {openFaq === idx && (
@@ -205,17 +208,20 @@ export default function LandingPage({ onOpenPWA, onOpenLogin }) {
       </section>
 
       {/* FOOTER */}
-      <footer className="border-t border-slate-800 py-8 px-4 text-center text-xs text-slate-500 space-y-2 bg-[#0B0F17]">
+      <footer className="border-t border-slate-800 py-8 px-4 text-center text-xs text-slate-500 space-y-2 bg-[#0A1120]">
         <div className="flex justify-center items-center gap-2">
-          <div className="w-6 h-6 rounded-lg bg-gradient-to-r from-emerald-500 to-teal-500 text-zinc-950 font-black flex items-center justify-center text-xs">
-            M
+          <div className="w-6 h-6 rounded-lg bg-slate-900 border border-slate-700 flex items-center justify-center p-1">
+            <svg viewBox="0 0 100 80" className="w-full h-full">
+              <path d="M10 70 L35 25 C42 12, 58 12, 65 25 L65 70 Z" fill="#00D09C" />
+              <path d="M45 70 L65 35 C72 22, 88 22, 95 35 L95 70 Z" fill="#CBD5E1" />
+            </svg>
           </div>
-          <span className="font-extrabold text-slate-200 text-xs sm:text-sm">Mercado San Miguelito <span className="text-orange-400 font-mono text-xs">{BUILD_INFO.tag}</span></span>
+          <span className="font-extrabold text-white text-xs sm:text-sm">Mercados <span className="text-[#00D09C]">Nacionales</span> - San Miguelito <span className="text-slate-400 font-mono text-xs">{BUILD_INFO.tag}</span></span>
         </div>
-        <p className="font-mono text-[11px] text-emerald-400/80">sanmiguelito.demiempresa.online</p>
+        <p className="font-mono text-[11px] text-[#00D09C]">sanmiguelito.demiempresa.online</p>
 
-        <p className="text-[11px] text-slate-500 max-w-lg mx-auto">
-          Servicio oficial de logística y encargo centralizado en San Salvador, El Salvador. Cobertura de 5 km.
+        <p className="text-[11px] text-slate-400 max-w-lg mx-auto">
+          Servicio de logística y encargo centralizado de Mercados Nacionales de El Salvador. Cobertura 5 km en San Salvador.
         </p>
         <p className="text-[10px] text-slate-600 pt-2 border-t border-slate-900">
           © 2026 Operado por Demiempresa. Todos los derechos reservados.
