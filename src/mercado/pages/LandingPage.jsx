@@ -39,10 +39,20 @@ export default function LandingPage({ onOpenPWA, onOpenLogin }) {
           <div className="flex items-center gap-2.5">
             <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl bg-slate-900 border border-slate-700/80 flex items-center justify-center p-1 shadow-glow-mint">
               <svg viewBox="0 0 100 100" className="w-full h-full" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M15 82 L38 32 C43 21 54 21 58 32 L58 82 Z" fill="#00D09C" />
-                <path d="M48 82 L65 42 C70 31 82 31 87 42 L95 82 Z" fill="#CBD5E1" />
-                <path d="M45 22 C45 16 50 12 56 12 C62 12 67 16 67 22 C67 30 56 38 56 38 C56 38 45 30 45 22 Z" fill="#00D09C" />
-                <circle cx="56" cy="21" r="3" fill="#0A1120" />
+                <path d="M4 36 H12" stroke="#00D09C" strokeWidth="4" strokeLinecap="round" />
+                <path d="M2 46 H10" stroke="#CBD5E1" strokeWidth="4" strokeLinecap="round" />
+                <path d="M6 56 H12" stroke="#00D09C" strokeWidth="4" strokeLinecap="round" />
+                <rect x="16" y="24" width="26" height="26" rx="5" fill="#00D09C" />
+                <path d="M22 37 H36" stroke="#0A1120" strokeWidth="3.5" strokeLinecap="round" />
+                <circle cx="32" cy="70" r="14" stroke="#CBD5E1" strokeWidth="6" fill="none" />
+                <circle cx="32" cy="70" r="5" fill="#00D09C" />
+                <circle cx="76" cy="70" r="14" stroke="#CBD5E1" strokeWidth="6" fill="none" />
+                <circle cx="76" cy="70" r="5" fill="#00D09C" />
+                <path d="M42 54 H58 L70 38 H84" stroke="#00D09C" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" />
+                <path d="M54 54 L72 70" stroke="#CBD5E1" strokeWidth="5" strokeLinecap="round" />
+                <path d="M34 70 L46 42" stroke="#CBD5E1" strokeWidth="5" strokeLinecap="round" />
+                <path d="M42 42 H56" stroke="#00D09C" strokeWidth="5" strokeLinecap="round" />
+                <path d="M84 38 L92 39" stroke="#10E3B2" strokeWidth="4" strokeLinecap="round" />
               </svg>
             </div>
             <div>
@@ -214,10 +224,20 @@ export default function LandingPage({ onOpenPWA, onOpenLogin }) {
         <div className="flex justify-center items-center gap-2">
           <div className="w-6 h-6 rounded-lg bg-slate-900 border border-slate-700 flex items-center justify-center p-0.5">
             <svg viewBox="0 0 100 100" className="w-full h-full" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M15 82 L38 32 C43 21 54 21 58 32 L58 82 Z" fill="#00D09C" />
-              <path d="M48 82 L65 42 C70 31 82 31 87 42 L95 82 Z" fill="#CBD5E1" />
-              <path d="M45 22 C45 16 50 12 56 12 C62 12 67 16 67 22 C67 30 56 38 56 38 C56 38 45 30 45 22 Z" fill="#00D09C" />
-              <circle cx="56" cy="21" r="3" fill="#0A1120" />
+              <path d="M4 36 H12" stroke="#00D09C" strokeWidth="4" strokeLinecap="round" />
+              <path d="M2 46 H10" stroke="#CBD5E1" strokeWidth="4" strokeLinecap="round" />
+              <path d="M6 56 H12" stroke="#00D09C" strokeWidth="4" strokeLinecap="round" />
+              <rect x="16" y="24" width="26" height="26" rx="5" fill="#00D09C" />
+              <path d="M22 37 H36" stroke="#0A1120" strokeWidth="3.5" strokeLinecap="round" />
+              <circle cx="32" cy="70" r="14" stroke="#CBD5E1" strokeWidth="6" fill="none" />
+              <circle cx="32" cy="70" r="5" fill="#00D09C" />
+              <circle cx="76" cy="70" r="14" stroke="#CBD5E1" strokeWidth="6" fill="none" />
+              <circle cx="76" cy="70" r="5" fill="#00D09C" />
+              <path d="M42 54 H58 L70 38 H84" stroke="#00D09C" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M54 54 L72 70" stroke="#CBD5E1" strokeWidth="5" strokeLinecap="round" />
+              <path d="M34 70 L46 42" stroke="#CBD5E1" strokeWidth="5" strokeLinecap="round" />
+              <path d="M42 42 H56" stroke="#00D09C" strokeWidth="5" strokeLinecap="round" />
+              <path d="M84 38 L92 39" stroke="#10E3B2" strokeWidth="4" strokeLinecap="round" />
             </svg>
           </div>
           <span className="font-extrabold text-white text-xs sm:text-sm">Mercados Nacionales <span className="text-[#00D09C]">Delivery</span> - San Miguelito <span className="text-slate-400 font-mono text-xs">{BUILD_INFO.tag}</span></span>
