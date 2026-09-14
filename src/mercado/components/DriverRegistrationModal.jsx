@@ -36,85 +36,85 @@ export default function DriverRegistrationModal({ isOpen, onClose }) {
   };
 
   const getTransportIcon = (id) => {
-    if (id === 'apie') return <Footprints className="w-5 h-5 text-emerald-400" />;
-    if (id === 'bicicleta') return <Bike className="w-5 h-5 text-amber-400" />;
-    if (id === 'moto') return <Bike className="w-5 h-5 text-blue-400" />;
-    return <Car className="w-5 h-5 text-purple-400" />;
+    if (id === 'apie') return <Footprints className="w-4 h-4 text-emerald-400" />;
+    if (id === 'bicicleta') return <Bike className="w-4 h-4 text-orange-400" />;
+    if (id === 'moto') return <Bike className="w-4 h-4 text-cyan-400" />;
+    return <Car className="w-4 h-4 text-indigo-400" />;
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-zinc-950/85 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-zinc-900 border border-zinc-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-5 relative animate-in zoom-in-95 duration-200">
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4">
+      <div className="bg-[#131B29] border border-slate-800 rounded-2xl max-w-lg w-full p-5 sm:p-6 shadow-2xl space-y-4 relative animate-in zoom-in-95 duration-200">
         
         {/* Close Button */}
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 p-2 rounded-xl bg-zinc-800 text-zinc-400 hover:text-zinc-100 transition-all"
+          className="absolute top-4 right-4 p-1.5 rounded-lg bg-slate-900 text-slate-400 hover:text-slate-100 transition-all"
         >
-          <X className="w-5 h-5" />
+          <X className="w-4 h-4" />
         </button>
 
         {submitted ? (
-          <div className="text-center py-8 space-y-4">
-            <div className="w-16 h-16 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center mx-auto border border-emerald-500/40">
-              <CheckCircle2 className="w-10 h-10" />
+          <div className="text-center py-6 space-y-3">
+            <div className="w-14 h-14 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center mx-auto border border-emerald-500/40">
+              <CheckCircle2 className="w-8 h-8" />
             </div>
-            <h3 className="text-lg font-black text-zinc-100">¡Registro Exitoso como Transportista!</h3>
-            <p className="text-xs text-zinc-400 max-w-xs mx-auto">
-              Te has registrado correctamente en el equipo de despacho del Mercado San Miguelito. Ya puedes recibir rutas según tu tipo de vehículo.
+            <h3 className="text-base font-black text-slate-100">¡Registro Exitoso!</h3>
+            <p className="text-xs text-slate-400 max-w-xs mx-auto">
+              Te has registrado correctamente en el equipo de despacho del Mercado San Miguelito.
             </p>
             <button
               onClick={() => {
                 setSubmitted(false);
                 onClose();
               }}
-              className="bg-emerald-500 text-zinc-950 font-extrabold text-xs px-6 py-2.5 rounded-xl hover:bg-emerald-400 transition-all"
+              className="bg-gradient-to-r from-emerald-500 to-teal-600 text-zinc-950 font-black text-xs px-5 py-2 rounded-xl hover:brightness-110 transition-all shadow-glow-emerald"
             >
               Entendido / Ir al Panel
             </button>
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="flex items-center gap-3 border-b border-zinc-800 pb-3">
-              <div className="w-10 h-10 rounded-xl bg-blue-500/20 text-blue-400 flex items-center justify-center font-bold">
-                <UserPlus className="w-6 h-6" />
+          <form onSubmit={handleSubmit} className="space-y-3">
+            <div className="flex items-center gap-2.5 border-b border-slate-800 pb-2.5">
+              <div className="w-9 h-9 rounded-xl bg-cyan-500/20 text-cyan-400 flex items-center justify-center font-bold">
+                <UserPlus className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="font-extrabold text-base text-zinc-100">Registro de Conductor / Repartidor</h3>
-                <p className="text-xs text-zinc-400">Únete a la red de despacho del Mercado San Miguelito</p>
+                <h3 className="font-black text-sm sm:text-base text-slate-100">Registro de Conductor / Repartidor</h3>
+                <p className="text-[11px] text-slate-400">Únete a la red de despacho del Mercado San Miguelito</p>
               </div>
             </div>
 
             {/* Name & Phone */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-zinc-300">Nombre Completo</label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <div className="space-y-0.5">
+                <label className="text-[11px] font-bold text-slate-300">Nombre Completo</label>
                 <input
                   type="text"
                   required
                   placeholder="ej. Carlos Mendoza"
                   value={form.nombre}
                   onChange={(e) => setForm({ ...form, nombre: e.target.value })}
-                  className="w-full bg-zinc-950 border border-zinc-700 rounded-xl px-3 py-2 text-xs text-zinc-100 focus:outline-none focus:border-blue-500"
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-cyan-500"
                 />
               </div>
 
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-zinc-300">Teléfono (WhatsApp)</label>
+              <div className="space-y-0.5">
+                <label className="text-[11px] font-bold text-slate-300">Teléfono (WhatsApp)</label>
                 <input
                   type="tel"
                   required
                   placeholder="ej. 7890-1234"
                   value={form.telefono}
                   onChange={(e) => setForm({ ...form, telefono: e.target.value })}
-                  className="w-full bg-zinc-950 border border-zinc-700 rounded-xl px-3 py-2 text-xs text-zinc-100 focus:outline-none focus:border-blue-500"
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-cyan-500"
                 />
               </div>
             </div>
 
             {/* Vehicle Type Selector */}
-            <div className="space-y-2">
-              <label className="text-xs font-bold text-zinc-300 block">
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
                 Tipo de Transporte / Medios de Despacho
               </label>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -122,10 +122,10 @@ export default function DriverRegistrationModal({ isOpen, onClose }) {
                   <label
                     key={t.id}
                     onClick={() => setForm({ ...form, tipoTransporte: t.id })}
-                    className={`p-3 rounded-xl border transition-all cursor-pointer flex items-start gap-2.5 ${
+                    className={`p-2.5 rounded-xl border transition-all cursor-pointer flex items-start gap-2 ${
                       form.tipoTransporte === t.id
-                        ? 'bg-blue-500/10 border-blue-500 text-zinc-100'
-                        : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:border-zinc-700'
+                        ? 'bg-cyan-500/15 border-cyan-500 text-slate-100'
+                        : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
                     }`}
                   >
                     <input
@@ -133,14 +133,14 @@ export default function DriverRegistrationModal({ isOpen, onClose }) {
                       name="transporte"
                       checked={form.tipoTransporte === t.id}
                       onChange={() => setForm({ ...form, tipoTransporte: t.id })}
-                      className="mt-1 accent-blue-500"
+                      className="mt-0.5 accent-cyan-500"
                     />
                     <div>
-                      <div className="flex items-center gap-1.5 font-bold text-xs text-zinc-100">
+                      <div className="flex items-center gap-1.5 font-bold text-xs text-slate-100">
                         {getTransportIcon(t.id)}
                         <span>{t.label}</span>
                       </div>
-                      <p className="text-[10px] text-zinc-400 mt-0.5">{t.desc}</p>
+                      <p className="text-[9px] text-slate-400 mt-0.5">{t.desc}</p>
                     </div>
                   </label>
                 ))}
@@ -149,26 +149,26 @@ export default function DriverRegistrationModal({ isOpen, onClose }) {
 
             {/* Vehicle Details (If not 'apie') */}
             {form.tipoTransporte !== 'apie' && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-zinc-950 p-3 rounded-xl border border-zinc-800">
-                <div className="space-y-1">
-                  <label className="text-[11px] font-bold text-zinc-300">Marca y Modelo del Vehículo</label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 bg-slate-950 p-2.5 rounded-xl border border-slate-800">
+                <div className="space-y-0.5">
+                  <label className="text-[10px] font-bold text-slate-300">Marca y Modelo</label>
                   <input
                     type="text"
-                    placeholder="ej. Honda Cargo 150 / Nissan March"
+                    placeholder="Honda Cargo 150"
                     value={form.vehiculo}
                     onChange={(e) => setForm({ ...form, vehiculo: e.target.value })}
-                    className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-2.5 py-1.5 text-xs text-zinc-100 focus:outline-none"
+                    className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-100 focus:outline-none"
                   />
                 </div>
 
-                <div className="space-y-1">
-                  <label className="text-[11px] font-bold text-zinc-300">Número de Placa</label>
+                <div className="space-y-0.5">
+                  <label className="text-[10px] font-bold text-slate-300">Placa</label>
                   <input
                     type="text"
-                    placeholder="ej. M-123456 / P-789012"
+                    placeholder="M-123456"
                     value={form.placa}
                     onChange={(e) => setForm({ ...form, placa: e.target.value })}
-                    className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-2.5 py-1.5 text-xs text-zinc-100 focus:outline-none"
+                    className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-100 focus:outline-none"
                   />
                 </div>
               </div>
@@ -176,7 +176,7 @@ export default function DriverRegistrationModal({ isOpen, onClose }) {
 
             <button
               type="submit"
-              className="w-full py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-zinc-100 font-extrabold text-xs rounded-xl hover:brightness-110 transition-all shadow-lg"
+              className="w-full py-2.5 bg-gradient-to-r from-indigo-600 to-cyan-600 text-slate-100 font-black text-xs rounded-xl hover:brightness-110 transition-all shadow-md"
             >
               Completar Registro de Transporte
             </button>

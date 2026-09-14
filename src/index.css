@@ -4,19 +4,20 @@
 @tailwind utilities;
 
 :root {
-  font-family: 'Inter', system-ui, Avenir, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  line-height: 1.45;
   font-weight: 400;
+  -webkit-font-smoothing: antialiased;
 }
 
-/* Modo Noche (Oscuro) */
+/* Modo Noche (Oscuro Vibrante - Midnight Oceanic) */
 html.dark, body.dark {
   color-scheme: dark;
-  background-color: #09090B;
-  color: #FAFAFA;
+  background-color: #0B0F17;
+  color: #F1F5F9;
 }
 
-/* Modo Día (Claro) */
+/* Modo Día (Claro Limpio) */
 html.light, body.light {
   color-scheme: light;
   background-color: #F8FAFC;
@@ -28,7 +29,8 @@ body {
   padding: 0;
   min-width: 320px;
   min-height: 100vh;
-  transition: background-color 0.3s ease, color 0.3s ease;
+  font-size: 14px;
+  transition: background-color 0.25s ease, color 0.25s ease;
 }
 
 * {
