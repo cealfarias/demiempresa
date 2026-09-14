@@ -37,19 +37,21 @@ export default function LandingPage({ onOpenPWA, onOpenLogin }) {
           
           {/* Brand Logo & Concatenated Title */}
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl bg-slate-900 border border-slate-700/80 flex items-center justify-center p-1.5 shadow-glow-mint">
-              <svg viewBox="0 0 100 80" className="w-full h-full">
-                <path d="M10 70 L35 25 C42 12, 58 12, 65 25 L65 70 Z" fill="#00D09C" />
-                <path d="M45 70 L65 35 C72 22, 88 22, 95 35 L95 70 Z" fill="#CBD5E1" />
+            <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl bg-slate-900 border border-slate-700/80 flex items-center justify-center p-1 shadow-glow-mint">
+              <svg viewBox="0 0 100 100" className="w-full h-full" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M15 82 L38 32 C43 21 54 21 58 32 L58 82 Z" fill="#00D09C" />
+                <path d="M48 82 L65 42 C70 31 82 31 87 42 L95 82 Z" fill="#CBD5E1" />
+                <path d="M45 22 C45 16 50 12 56 12 C62 12 67 16 67 22 C67 30 56 38 56 38 C56 38 45 30 45 22 Z" fill="#00D09C" />
+                <circle cx="56" cy="21" r="3" fill="#0A1120" />
               </svg>
             </div>
             <div>
               <div className="flex items-center gap-1.5 flex-wrap">
                 <h1 className="font-extrabold text-xs sm:text-base md:text-lg text-white tracking-tight">
-                  Mercados <span className="text-[#00D09C]">San Miguelito</span> <span className="text-slate-300 font-mono text-[10px] sm:text-xs font-bold px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700">{BUILD_INFO.tag}</span>
+                  Mercados Nacionales <span className="text-[#00D09C]">Delivery</span> <span className="text-slate-300 font-mono text-[10px] sm:text-xs font-bold px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700">{BUILD_INFO.tag}</span>
                 </h1>
               </div>
-              <p className="text-[10px] sm:text-xs text-[#00D09C]/90 font-mono tracking-wide">sanmiguelito.demiempresa.online</p>
+              <p className="text-[10px] sm:text-xs text-[#00D09C]/90 font-mono tracking-wide">San Miguelito • sanmiguelito.demiempresa.online</p>
             </div>
           </div>
 
@@ -79,20 +81,20 @@ export default function LandingPage({ onOpenPWA, onOpenLogin }) {
 
         <div className="max-w-4xl mx-auto text-center space-y-4 relative z-10">
           
-          {/* Official Style Badge */}
+          {/* Trademark-Safe Badge */}
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-900/90 border border-[#00D09C]/30 text-white text-[10px] sm:text-xs font-bold shadow-inner">
-            <span className="bg-[#00D09C] text-[#0A1120] font-black px-2 py-0.5 rounded text-[9px] uppercase tracking-wider">RED DE</span>
-            <span>Mercados Nacionales de El Salvador</span>
+            <span className="bg-[#00D09C] text-[#0A1120] font-black px-2 py-0.5 rounded text-[9px] uppercase tracking-wider">PLATAFORMA</span>
+            <span>Mercados Nacionales Delivery</span>
           </div>
 
-          {/* Official Style Heading */}
+          {/* Trademark-Safe Heading */}
           <h1 className="text-2xl sm:text-5xl md:text-6xl font-black text-white tracking-tight leading-snug sm:leading-tight max-w-3xl mx-auto">
-            Mercados <span className="text-[#00D09C]">Nacionales</span> <br />
-            de El Salvador <span className="text-slate-300 font-mono text-base sm:text-2xl font-bold">{BUILD_INFO.tag}</span>
+            Mercados Nacionales <br />
+            <span className="text-[#00D09C]">Delivery</span> <span className="text-slate-300 font-mono text-base sm:text-2xl font-bold">{BUILD_INFO.tag}</span>
           </h1>
 
           <p className="text-xs sm:text-base text-slate-300 max-w-xl mx-auto leading-relaxed font-normal">
-            Plataforma oficial de encargo y delivery centralizado para el <strong>Mercado San Miguelito</strong>. Pupusas, sopas, verduras y carnes en una sola orden con rastreo GPS.
+            Plataforma de encargo y delivery centralizado para el <strong>Mercado San Miguelito</strong>. Pupusas, sopas, verduras y carnes en una sola orden con rastreo GPS.
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-3">
@@ -210,18 +212,20 @@ export default function LandingPage({ onOpenPWA, onOpenLogin }) {
       {/* FOOTER */}
       <footer className="border-t border-slate-800 py-8 px-4 text-center text-xs text-slate-500 space-y-2 bg-[#0A1120]">
         <div className="flex justify-center items-center gap-2">
-          <div className="w-6 h-6 rounded-lg bg-slate-900 border border-slate-700 flex items-center justify-center p-1">
-            <svg viewBox="0 0 100 80" className="w-full h-full">
-              <path d="M10 70 L35 25 C42 12, 58 12, 65 25 L65 70 Z" fill="#00D09C" />
-              <path d="M45 70 L65 35 C72 22, 88 22, 95 35 L95 70 Z" fill="#CBD5E1" />
+          <div className="w-6 h-6 rounded-lg bg-slate-900 border border-slate-700 flex items-center justify-center p-0.5">
+            <svg viewBox="0 0 100 100" className="w-full h-full" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M15 82 L38 32 C43 21 54 21 58 32 L58 82 Z" fill="#00D09C" />
+              <path d="M48 82 L65 42 C70 31 82 31 87 42 L95 82 Z" fill="#CBD5E1" />
+              <path d="M45 22 C45 16 50 12 56 12 C62 12 67 16 67 22 C67 30 56 38 56 38 C56 38 45 30 45 22 Z" fill="#00D09C" />
+              <circle cx="56" cy="21" r="3" fill="#0A1120" />
             </svg>
           </div>
-          <span className="font-extrabold text-white text-xs sm:text-sm">Mercados <span className="text-[#00D09C]">Nacionales</span> - San Miguelito <span className="text-slate-400 font-mono text-xs">{BUILD_INFO.tag}</span></span>
+          <span className="font-extrabold text-white text-xs sm:text-sm">Mercados Nacionales <span className="text-[#00D09C]">Delivery</span> - San Miguelito <span className="text-slate-400 font-mono text-xs">{BUILD_INFO.tag}</span></span>
         </div>
         <p className="font-mono text-[11px] text-[#00D09C]">sanmiguelito.demiempresa.online</p>
 
         <p className="text-[11px] text-slate-400 max-w-lg mx-auto">
-          Servicio de logística y encargo centralizado de Mercados Nacionales de El Salvador. Cobertura 5 km en San Salvador.
+          Servicio de logística y encargo centralizado de Mercados Nacionales Delivery. Cobertura 5 km en San Salvador.
         </p>
         <p className="text-[10px] text-slate-600 pt-2 border-t border-slate-900">
           © 2026 Operado por Demiempresa. Todos los derechos reservados.
