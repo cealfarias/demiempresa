@@ -12,6 +12,30 @@ export const MercadoProvider = ({ children }) => {
   const [paymentMethod, setPaymentMethod] = useState('transfer365');
   const [customerAddress, setCustomerAddress] = useState('Colonia Layco, Pasaje 2, Casa #14, San Salvador');
   
+  // Theme state: 'dark' (noche) | 'light' (día)
+  const [theme, setTheme] = useState(() => {
+    return localStorage.getItem('msm_theme') || 'dark';
+  });
+
+  const toggleTheme = () => {
+    setTheme((prev) => {
+      const nextTheme = prev === 'dark' ? 'light' : 'dark';
+      localStorage.setItem('msm_theme', nextTheme);
+      return nextTheme;
+    });
+  };
+
+  useEffect(() => {
+    const root = document.documentElement;
+    if (theme === 'dark') {
+      root.classList.add('dark');
+      root.classList.remove('light');
+    } else {
+      root.classList.add('light');
+      root.classList.remove('dark');
+    }
+  }, [theme]);
+
   // Drivers registry
   const [repartidores, setRepartidores] = useState(REPARTIDORES_INICIALES);
 
@@ -23,7 +47,7 @@ export const MercadoProvider = ({ children }) => {
     {
       id: 'MSM-1001',
       date: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      status: 'En Camino', // 'Pago Confirmado' | 'En Recolección' | 'En Centro Acopio' | 'En Camino' | 'Entregado' | 'Cancelado'
+      status: 'En Camino',
       paymentMethod: 'Transfer365 Móvil (Davivienda 6989-3101)',
       deliveryType: 'domicilio',
       qrCode: 'QR-MSM-1001-XYZ',
@@ -119,15 +143,13 @@ export const MercadoProvider = ({ children }) => {
 
   const clearCart = () => setCart([]);
 
-  // Calculate cart totals with 10% App Commission
   const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
-  const appCommission = Number((subtotal * 0.10).toFixed(2)); // 10% App Commission
+  const appCommission = Number((subtotal * 0.10).toFixed(2));
   const deliveryFee = deliveryType === 'domicilio' ? (subtotal > 0 ? 1.75 : 0) : 0;
   const tipCollector = Number((tipAmount / 2).toFixed(2));
   const tipDispatcher = Number((tipAmount - tipCollector).toFixed(2));
   const grandTotal = subtotal + appCommission + deliveryFee + tipAmount;
 
-  // Create new Order
   const createOrder = () => {
     if (cart.length === 0) return null;
 
@@ -173,17 +195,15 @@ export const MercadoProvider = ({ children }) => {
     return newOrder;
   };
 
-  // Cancel order logic with 20% admin fee
   const cancelOrder = (orderId) => {
     setOrders((prev) =>
       prev.map((order) => {
         if (order.id === orderId) {
-          // Cancellation only allowed if runner hasn't collected items yet
           const canCancel = order.status === 'Pago Confirmado' || order.status === 'En Recolección';
           if (!canCancel) return order;
 
-          const penaltyFee = Number((order.total * 0.20).toFixed(2)); // 20% Fee
-          const refundAmount = Number((order.total * 0.80).toFixed(2)); // 80% Refund
+          const penaltyFee = Number((order.total * 0.20).toFixed(2));
+          const refundAmount = Number((order.total * 0.80).toFixed(2));
 
           return {
             ...order,
@@ -198,7 +218,6 @@ export const MercadoProvider = ({ children }) => {
     );
   };
 
-  // Emergency Incident Protocol
   const reportIncident = (orderId, note) => {
     setOrders((prev) =>
       prev.map((order) => {
@@ -219,7 +238,6 @@ export const MercadoProvider = ({ children }) => {
     );
   };
 
-  // Collector actions
   const toggleItemCollected = (orderId, productId) => {
     setOrders((prev) =>
       prev.map((order) => {
@@ -239,7 +257,6 @@ export const MercadoProvider = ({ children }) => {
     );
   };
 
-  // Status transitions
   const updateOrderStatus = (orderId, newStatus) => {
     setOrders((prev) =>
       prev.map((order) => (order.id === orderId ? { ...order, status: newStatus } : order))
@@ -249,6 +266,8 @@ export const MercadoProvider = ({ children }) => {
   return (
     <MercadoContext.Provider
       value={{
+        theme,
+        toggleTheme,
         currentRole,
         setCurrentRole,
         selectedMarket,
