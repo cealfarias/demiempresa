@@ -1,6 +1,12 @@
 {
   "headers": [
     {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "Cross-Origin-Opener-Policy", "value": "same-origin-allow-popups" }
+      ]
+    },
+    {
       "source": "/(.*\\.md)",
       "headers": [
         { "key": "Access-Control-Allow-Origin", "value": "*" }
