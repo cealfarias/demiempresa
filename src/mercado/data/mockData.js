@@ -1,8 +1,8 @@
 export const BUILD_INFO = {
   version: '1.0.0',
-  commit: 'd8e83f2',
-  tag: '[Build v1.0.0-d8e83f2]',
-  fullTitle: 'Mercados Nacionales Delivery [Build v1.0.0-d8e83f2]'
+  commit: '3e98ab3',
+  tag: '[Build v1.0.0-3e98ab3]',
+  fullTitle: 'Mercados Nacionales Delivery [Build v1.0.0-3e98ab3]'
 };
 
 export const MERCADOS_DISPONIBLES = [
