@@ -2,9 +2,9 @@ import { AGROMERCADOS_MAG_OFICIALES } from './agromercadosData';
 
 export const BUILD_INFO = {
   version: '1.0.0',
-  commit: '6bc7f58',
-  tag: '[Build v1.0.0-6bc7f58]',
-  fullTitle: 'Mercados Nacionales Delivery [Build v1.0.0-6bc7f58]'
+  commit: '02080f2',
+  tag: '[Build v1.0.0-02080f2]',
+  fullTitle: 'Mercados Nacionales Delivery [Build v1.0.0-02080f2]'
 };
 
 export const MERCADOS_MUNICIPALES = [
