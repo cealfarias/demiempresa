@@ -5,15 +5,63 @@ import { apiService } from '../services/apiService';
 const MercadoContext = createContext();
 
 export const MercadoProvider = ({ children }) => {
-  const [currentRole, setCurrentRole] = useState('cliente'); // 'cliente' | 'recolector' | 'despachador' | 'admin'
+  const [currentUser, setCurrentUser] = useState(() => {
+    const saved = localStorage.getItem('msm_user_session');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {}
+    }
+    return null;
+  });
+
+  const [currentRole, setCurrentRole] = useState(() => {
+    const saved = localStorage.getItem('msm_user_session');
+    if (saved) {
+      try {
+        const u = JSON.parse(saved);
+        if (u.role) return u.role;
+      } catch (e) {}
+    }
+    return 'cliente';
+  });
+
+  const loginUser = (userData) => {
+    const userObj = {
+      id: userData.id || `usr-${Date.now()}`,
+      name: userData.name || (userData.email ? userData.email.split('@')[0] : 'Usuario'),
+      email: userData.email || '',
+      role: userData.role || 'cliente',
+      phone: userData.phone || '',
+      provider: userData.provider || 'email',
+      loggedInAt: new Date().toISOString()
+    };
+    setCurrentUser(userObj);
+    setCurrentRole(userObj.role);
+    if (userObj.name) setCustomerName(userObj.name);
+    if (userObj.phone) setCustomerPhone(userObj.phone);
+    localStorage.setItem('msm_user_session', JSON.stringify(userObj));
+    return userObj;
+  };
+
+  const registerUser = (userData) => {
+    return loginUser(userData);
+  };
+
+  const logoutUser = () => {
+    setCurrentUser(null);
+    setCurrentRole('cliente');
+    localStorage.removeItem('msm_user_session');
+  };
+
   const [selectedMarket, setSelectedMarket] = useState('sanmiguelito');
   const [deliveryType, setDeliveryType] = useState('domicilio'); // 'domicilio' | 'pickup'
   const [cart, setCart] = useState([]);
   const [tipAmount, setTipAmount] = useState(1.00); // Default tip $1.00
   const [paymentMethod, setPaymentMethod] = useState('transfer365');
   const [customerAddress, setCustomerAddress] = useState('Colonia Layco, Pasaje 2, Casa #14, San Salvador');
-  const [customerName, setCustomerName] = useState('Cliente San Miguelito');
-  const [customerPhone, setCustomerPhone] = useState('7700-9900');
+  const [customerName, setCustomerName] = useState(currentUser?.name || 'Cliente San Miguelito');
+  const [customerPhone, setCustomerPhone] = useState(currentUser?.phone || '7700-9900');
   const [paymentTxRef, setPaymentTxRef] = useState('');
 
   // Products state backed by apiService (real data persistence)
@@ -311,6 +359,10 @@ export const MercadoProvider = ({ children }) => {
       value={{
         theme,
         toggleTheme,
+        currentUser,
+        loginUser,
+        registerUser,
+        logoutUser,
         currentRole,
         setCurrentRole,
         selectedMarket,

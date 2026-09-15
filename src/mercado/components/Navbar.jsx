@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import { useMercado } from '../context/MercadoContext';
 import { BUILD_INFO } from '../data/mockData';
-import { ShoppingCart, Sparkles, Navigation, UserPlus, Home, User, Sun, Moon } from 'lucide-react';
+import { ShoppingCart, Sparkles, Navigation, UserPlus, Home, User, Sun, Moon, LogOut } from 'lucide-react';
 import DriverRegistrationModal from './DriverRegistrationModal';
 
 export default function Navbar({ onOpenCart, onOpenTracking, onGoHome, onOpenLogin }) {
-  const { currentRole, setCurrentRole, cart, theme, toggleTheme } = useMercado();
+  const { currentRole, setCurrentRole, cart, theme, toggleTheme, currentUser, logoutUser } = useMercado();
   const [isDriverModalOpen, setIsDriverModalOpen] = useState(false);
 
   const totalCartCount = cart.reduce((sum, i) => sum + i.quantity, 0);
@@ -119,12 +119,30 @@ export default function Navbar({ onOpenCart, onOpenTracking, onGoHome, onOpenLog
               <Home className="w-3 h-3 text-[#00D09C]" /> <span className="hidden sm:inline">Inicio</span>
             </button>
 
-            <button
-              onClick={onOpenLogin}
-              className="px-2 py-1 sm:px-2.5 sm:py-1.5 bg-slate-900/80 dark:bg-slate-900/80 light:bg-slate-100 text-slate-300 dark:text-slate-300 light:text-slate-700 border border-slate-800 dark:border-slate-800 light:border-slate-300 rounded-lg text-[11px] sm:text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-1 hover:border-cyan-500"
-            >
-              <User className="w-3 h-3 text-cyan-400" /> Login
-            </button>
+            {currentUser ? (
+              <div className="flex items-center gap-1.5 bg-[#111C2E] border border-[#00D09C]/40 px-2.5 py-1 rounded-lg text-xs font-bold text-slate-100">
+                <div className="w-5 h-5 rounded-full bg-[#00D09C] text-[#0A1120] flex items-center justify-center font-black text-[10px]">
+                  {currentUser.name ? currentUser.name.charAt(0).toUpperCase() : 'U'}
+                </div>
+                <span className="truncate max-w-[90px] sm:max-w-[120px] text-[11px] text-[#00D09C]">
+                  {currentUser.name}
+                </span>
+                <button
+                  onClick={logoutUser}
+                  title="Cerrar Sesión"
+                  className="p-1 hover:bg-slate-800 text-slate-400 hover:text-rose-400 rounded transition-colors ml-1"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={onOpenLogin}
+                className="px-2 py-1 sm:px-2.5 sm:py-1.5 bg-[#00D09C]/15 hover:bg-[#00D09C]/25 text-[#00D09C] border border-[#00D09C]/30 rounded-lg text-[11px] sm:text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1"
+              >
+                <User className="w-3 h-3 text-[#00D09C]" /> Acceder / Registro
+              </button>
+            )}
 
             <button
               onClick={() => setIsDriverModalOpen(true)}
