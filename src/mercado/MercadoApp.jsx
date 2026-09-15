@@ -12,30 +12,13 @@ import OrderTrackingView from './pages/OrderTrackingView';
 
 function MercadoContent() {
   const { currentRole } = useMercado();
-  const [viewState, setViewState] = useState('landing'); // 'landing' | 'pwa' | 'tracking'
+  const [viewState, setViewState] = useState('pwa'); // 'pwa' (instant store) | 'tracking'
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isLoginOpen, setIsLoginOpen] = useState(false);
 
   useEffect(() => {
     document.title = "Mercados Nacionales Delivery | Mercado San Miguelito - De tu mercado a tu puerta";
   }, []);
-
-  // If user opens landing, show LandingPage
-  if (viewState === 'landing') {
-    return (
-      <>
-        <LandingPage
-          onOpenPWA={() => setViewState('pwa')}
-          onOpenLogin={() => setIsLoginOpen(true)}
-        />
-        <LoginModal
-          isOpen={isLoginOpen}
-          onClose={() => setIsLoginOpen(false)}
-          onLoginSuccess={() => setViewState('pwa')}
-        />
-      </>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] dark:bg-[#0A1120] text-slate-900 dark:text-slate-100 font-sans transition-colors selection:bg-[#00D09C] selection:text-[#0A1120]">
