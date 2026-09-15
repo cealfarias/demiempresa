@@ -1,8 +1,8 @@
 export const BUILD_INFO = {
   version: '1.0.0',
-  commit: 'f94dc94',
-  tag: '[Build v1.0.0-f94dc94]',
-  fullTitle: 'Mercados Nacionales Delivery [Build v1.0.0-f94dc94]'
+  commit: '3af8d72',
+  tag: '[Build v1.0.0-3af8d72]',
+  fullTitle: 'Mercados Nacionales Delivery [Build v1.0.0-3af8d72]'
 };
 
 export const MERCADOS_DISPONIBLES = [
@@ -21,6 +21,7 @@ export const MERCADOS_DISPONIBLES = [
   { id: 'agromercado-lourdes', name: '🟢 AgroMercado MAG (Lourdes / Colón)', ciudad: 'La Libertad', departamentoId: 'la-libertad', distrito: 'Colón (Lourdes)', coor: '13.7220, -89.3610', activo: true, tipo: 'mag', badge: 'Precios Justos $1.00' },
   { id: 'agromercado-santaana', name: '🟢 AgroMercado MAG (Santa Ana Centro)', ciudad: 'Santa Ana', departamentoId: 'santa-ana', distrito: 'Santa Ana Centro', coor: '13.9942, -89.5597', activo: true, tipo: 'mag', badge: 'Precios Justos $1.00' },
   { id: 'agromercado-sanmiguel', name: '🟢 AgroMercado MAG (San Miguel Centro)', ciudad: 'San Miguel', departamentoId: 'san-miguel', distrito: 'San Miguel Centro', coor: '13.4833, -88.1833', activo: true, tipo: 'mag', badge: 'Precios Justos $1.00' },
+  { id: 'sagradocorazon', name: 'Mercado Sagrado Corazón', ciudad: 'San Salvador', departamentoId: 'san-salvador', distrito: 'San Salvador Centro (Distritos 1-6)', coor: '13.6955, -89.1912', activo: true, tipo: 'municipal', badge: 'El Calvario' },
   { id: 'tinetti', name: 'Mercado Tinetti', ciudad: 'San Salvador', departamentoId: 'san-salvador', distrito: 'San Salvador Centro (Distritos 1-6)', coor: '13.6991, -89.1840', activo: true, tipo: 'municipal' },
   { id: 'cuscatlan', name: 'Mercado Cuscatlán', ciudad: 'San Salvador', departamentoId: 'san-salvador', distrito: 'San Salvador Centro (Distritos 1-6)', coor: '13.6980, -89.2020', activo: true, tipo: 'municipal' },
 ];
