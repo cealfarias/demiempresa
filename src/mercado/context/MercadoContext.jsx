@@ -54,6 +54,27 @@ export const MercadoProvider = ({ children }) => {
     localStorage.removeItem('msm_user_session');
   };
 
+  const [userLocation, setUserLocationState] = useState(() => {
+    const saved = localStorage.getItem('msm_user_location');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {}
+    }
+    return {
+      departamentoId: 'san-salvador',
+      departamentoName: 'San Salvador',
+      distrito: 'San Salvador Centro (Distritos 1-6)'
+    };
+  });
+
+  const [isLocationModalOpen, setIsLocationModalOpen] = useState(false);
+
+  const setUserLocation = (locationObj) => {
+    setUserLocationState(locationObj);
+    localStorage.setItem('msm_user_location', JSON.stringify(locationObj));
+  };
+
   const [selectedMarket, setSelectedMarket] = useState('sanmiguelito');
   const [deliveryType, setDeliveryType] = useState('domicilio'); // 'domicilio' | 'pickup'
   const [cart, setCart] = useState([]);
@@ -406,7 +427,11 @@ export const MercadoProvider = ({ children }) => {
         repartidores,
         registrarRepartidor,
         activeTrackingOrderId,
-        setActiveTrackingOrderId
+        setActiveTrackingOrderId,
+        userLocation,
+        setUserLocation,
+        isLocationModalOpen,
+        setIsLocationModalOpen
       }}
     >
       {children}

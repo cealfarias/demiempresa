@@ -1,22 +1,22 @@
 export const BUILD_INFO = {
   version: '1.0.0',
-  commit: '1f591ab',
-  tag: '[Build v1.0.0-1f591ab]',
-  fullTitle: 'Mercados Nacionales Delivery [Build v1.0.0-1f591ab]'
+  commit: '3f26608',
+  tag: '[Build v1.0.0-3f26608]',
+  fullTitle: 'Mercados Nacionales Delivery [Build v1.0.0-3f26608]'
 };
 
 export const MERCADOS_DISPONIBLES = [
-  { id: 'todos', name: '🇸🇻 Todos los Mercados Nacionales', ciudad: 'El Salvador', coor: '13.7000, -89.2000', activo: true, tipo: 'red' },
-  { id: 'sanmiguelito', name: 'Mercado San Miguelito', ciudad: 'San Salvador', coor: '13.7042, -89.1915', activo: true, tipo: 'municipal' },
-  { id: 'agromercado-zacamil', name: '🟢 AgroMercado MAG (Mejicanos / Zacamil)', ciudad: 'San Salvador', coor: '13.7310, -89.2150', activo: true, tipo: 'mag', badge: 'Precios Justos $1.00' },
-  { id: 'agromercado-lourdes', name: '🟢 AgroMercado MAG (Lourdes / Colón)', ciudad: 'La Libertad', coor: '13.7220, -89.3610', activo: true, tipo: 'mag', badge: 'Precios Justos $1.00' },
-  { id: 'agromercado-santaana', name: '🟢 AgroMercado MAG (Santa Ana Centro)', ciudad: 'Santa Ana', coor: '13.9942, -89.5597', activo: true, tipo: 'mag', badge: 'Precios Justos $1.00' },
-  { id: 'agromercado-sanmiguel', name: '🟢 AgroMercado MAG (San Miguel Centro)', ciudad: 'San Miguel', coor: '13.4833, -88.1833', activo: true, tipo: 'mag', badge: 'Precios Justos $1.00' },
-  { id: 'hulahula', name: 'Mercado Hula Hula', ciudad: 'San Salvador (Centro Histórico)', coor: '13.6980, -89.1910', activo: true, tipo: 'municipal' },
-  { id: 'central', name: 'Mercado Central', ciudad: 'San Salvador', coor: '13.6967, -89.1950', activo: true, tipo: 'municipal' },
-  { id: 'latiendona', name: 'Mercado Mayorista La Tiendona', ciudad: 'San Salvador', coor: '13.7089, -89.1722', activo: true, tipo: 'mayorista' },
-  { id: 'tinetti', name: 'Mercado Tinetti', ciudad: 'San Salvador', coor: '13.6991, -89.1840', activo: true, tipo: 'municipal' },
-  { id: 'cuscatlan', name: 'Mercado Cuscatlán', ciudad: 'San Salvador', coor: '13.6980, -89.2020', activo: true, tipo: 'municipal' },
+  { id: 'todos', name: '🇸🇻 Todos los Mercados Nacionales', ciudad: 'El Salvador', departamentoId: 'todos', distrito: 'Todos', coor: '13.7000, -89.2000', activo: true, tipo: 'red' },
+  { id: 'sanmiguelito', name: 'Mercado San Miguelito', ciudad: 'San Salvador', departamentoId: 'san-salvador', distrito: 'San Salvador Centro (Distritos 1-6)', coor: '13.7042, -89.1915', activo: true, tipo: 'municipal' },
+  { id: 'agromercado-zacamil', name: '🟢 AgroMercado MAG (Mejicanos / Zacamil)', ciudad: 'San Salvador', departamentoId: 'san-salvador', distrito: 'Mejicanos', coor: '13.7310, -89.2150', activo: true, tipo: 'mag', badge: 'Precios Justos $1.00' },
+  { id: 'agromercado-lourdes', name: '🟢 AgroMercado MAG (Lourdes / Colón)', ciudad: 'La Libertad', departamentoId: 'la-libertad', distrito: 'Colón (Lourdes)', coor: '13.7220, -89.3610', activo: true, tipo: 'mag', badge: 'Precios Justos $1.00' },
+  { id: 'agromercado-santaana', name: '🟢 AgroMercado MAG (Santa Ana Centro)', ciudad: 'Santa Ana', departamentoId: 'santa-ana', distrito: 'Santa Ana Centro', coor: '13.9942, -89.5597', activo: true, tipo: 'mag', badge: 'Precios Justos $1.00' },
+  { id: 'agromercado-sanmiguel', name: '🟢 AgroMercado MAG (San Miguel Centro)', ciudad: 'San Miguel', departamentoId: 'san-miguel', distrito: 'San Miguel Centro', coor: '13.4833, -88.1833', activo: true, tipo: 'mag', badge: 'Precios Justos $1.00' },
+  { id: 'hulahula', name: 'Mercado Hula Hula', ciudad: 'San Salvador', departamentoId: 'san-salvador', distrito: 'San Salvador Centro (Distritos 1-6)', coor: '13.6980, -89.1910', activo: true, tipo: 'municipal' },
+  { id: 'central', name: 'Mercado Central', ciudad: 'San Salvador', departamentoId: 'san-salvador', distrito: 'San Salvador Centro (Distritos 1-6)', coor: '13.6967, -89.1950', activo: true, tipo: 'municipal' },
+  { id: 'latiendona', name: 'Mercado Mayorista La Tiendona', ciudad: 'San Salvador', departamentoId: 'san-salvador', distrito: 'San Salvador Centro (Distritos 1-6)', coor: '13.7089, -89.1722', activo: true, tipo: 'mayorista' },
+  { id: 'tinetti', name: 'Mercado Tinetti', ciudad: 'San Salvador', departamentoId: 'san-salvador', distrito: 'San Salvador Centro (Distritos 1-6)', coor: '13.6991, -89.1840', activo: true, tipo: 'municipal' },
+  { id: 'cuscatlan', name: 'Mercado Cuscatlán', ciudad: 'San Salvador', departamentoId: 'san-salvador', distrito: 'San Salvador Centro (Distritos 1-6)', coor: '13.6980, -89.2020', activo: true, tipo: 'municipal' },
 ];
 
 export const DEPARTAMENTOS = [
