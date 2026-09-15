@@ -1,7 +1,7 @@
 import { PRODUCTOS as MOCK_PRODUCTS, REPARTIDORES_INICIALES as MOCK_DRIVERS } from '../data/mockData';
 
 const STORAGE_KEYS = {
-  PRODUCTS: 'msm_products_v2',
+  PRODUCTS: 'msm_products_v3',
   ORDERS: 'msm_orders_v1',
   DRIVERS: 'msm_drivers_v1',
   CONFIG: 'msm_api_config_v1'

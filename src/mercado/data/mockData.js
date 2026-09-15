@@ -1,20 +1,26 @@
 export const BUILD_INFO = {
   version: '1.0.0',
-  commit: '533f823',
-  tag: '[Build v1.0.0-533f823]',
-  fullTitle: 'Mercados Nacionales Delivery [Build v1.0.0-533f823]'
+  commit: '7f7be93',
+  tag: '[Build v1.0.0-7f7be93]',
+  fullTitle: 'Mercados Nacionales Delivery [Build v1.0.0-7f7be93]'
 };
 
 export const MERCADOS_DISPONIBLES = [
   { id: 'todos', name: '🇸🇻 Todos los Mercados Nacionales', ciudad: 'El Salvador', departamentoId: 'todos', distrito: 'Todos', coor: '13.7000, -89.2000', activo: true, tipo: 'red' },
   { id: 'sanmiguelito', name: 'Mercado San Miguelito', ciudad: 'San Salvador', departamentoId: 'san-salvador', distrito: 'San Salvador Centro (Distritos 1-6)', coor: '13.7042, -89.1915', activo: true, tipo: 'municipal' },
+  { id: 'excuartel', name: 'Mercado Ex-Cuartel', ciudad: 'San Salvador', departamentoId: 'san-salvador', distrito: 'San Salvador Centro (Distritos 1-6)', coor: '13.6985, -89.1870', activo: true, tipo: 'municipal', badge: 'Artesanías & Calzado' },
+  { id: 'hulahula', name: 'Mercado Hula Hula', ciudad: 'San Salvador', departamentoId: 'san-salvador', distrito: 'San Salvador Centro (Distritos 1-6)', coor: '13.6980, -89.1910', activo: true, tipo: 'municipal' },
+  { id: 'central', name: 'Mercado Central', ciudad: 'San Salvador', departamentoId: 'san-salvador', distrito: 'San Salvador Centro (Distritos 1-6)', coor: '13.6967, -89.1950', activo: true, tipo: 'municipal' },
+  { id: 'latiendona', name: 'Mercado Mayorista La Tiendona', ciudad: 'San Salvador', departamentoId: 'san-salvador', distrito: 'San Salvador Centro (Distritos 1-6)', coor: '13.7089, -89.1722', activo: true, tipo: 'mayorista' },
+  { id: 'sanmarcos', name: 'Mercado Municipal de San Marcos', ciudad: 'San Salvador', departamentoId: 'san-salvador', distrito: 'San Marcos', coor: '13.6580, -89.1810', activo: true, tipo: 'municipal' },
+  { id: 'mejicanos', name: 'Mercado Municipal de Mejicanos', ciudad: 'San Salvador', departamentoId: 'san-salvador', distrito: 'Mejicanos', coor: '13.7340, -89.2130', activo: true, tipo: 'municipal' },
+  { id: 'soyapango', name: 'Mercado Central de Soyapango', ciudad: 'San Salvador', departamentoId: 'san-salvador', distrito: 'Soyapango', coor: '13.7120, -89.1410', activo: true, tipo: 'municipal' },
+  { id: 'apopa', name: 'Mercado Municipal de Apopa', ciudad: 'San Salvador', departamentoId: 'san-salvador', distrito: 'Apopa', coor: '13.8060, -89.1790', activo: true, tipo: 'municipal' },
+  { id: 'santatecla', name: 'Mercado Municipal de Santa Tecla', ciudad: 'La Libertad', departamentoId: 'la-libertad', distrito: 'Santa Tecla', coor: '13.6769, -89.2797', activo: true, tipo: 'municipal' },
   { id: 'agromercado-zacamil', name: '🟢 AgroMercado MAG (Mejicanos / Zacamil)', ciudad: 'San Salvador', departamentoId: 'san-salvador', distrito: 'Mejicanos', coor: '13.7310, -89.2150', activo: true, tipo: 'mag', badge: 'Precios Justos $1.00' },
   { id: 'agromercado-lourdes', name: '🟢 AgroMercado MAG (Lourdes / Colón)', ciudad: 'La Libertad', departamentoId: 'la-libertad', distrito: 'Colón (Lourdes)', coor: '13.7220, -89.3610', activo: true, tipo: 'mag', badge: 'Precios Justos $1.00' },
   { id: 'agromercado-santaana', name: '🟢 AgroMercado MAG (Santa Ana Centro)', ciudad: 'Santa Ana', departamentoId: 'santa-ana', distrito: 'Santa Ana Centro', coor: '13.9942, -89.5597', activo: true, tipo: 'mag', badge: 'Precios Justos $1.00' },
   { id: 'agromercado-sanmiguel', name: '🟢 AgroMercado MAG (San Miguel Centro)', ciudad: 'San Miguel', departamentoId: 'san-miguel', distrito: 'San Miguel Centro', coor: '13.4833, -88.1833', activo: true, tipo: 'mag', badge: 'Precios Justos $1.00' },
-  { id: 'hulahula', name: 'Mercado Hula Hula', ciudad: 'San Salvador', departamentoId: 'san-salvador', distrito: 'San Salvador Centro (Distritos 1-6)', coor: '13.6980, -89.1910', activo: true, tipo: 'municipal' },
-  { id: 'central', name: 'Mercado Central', ciudad: 'San Salvador', departamentoId: 'san-salvador', distrito: 'San Salvador Centro (Distritos 1-6)', coor: '13.6967, -89.1950', activo: true, tipo: 'municipal' },
-  { id: 'latiendona', name: 'Mercado Mayorista La Tiendona', ciudad: 'San Salvador', departamentoId: 'san-salvador', distrito: 'San Salvador Centro (Distritos 1-6)', coor: '13.7089, -89.1722', activo: true, tipo: 'mayorista' },
   { id: 'tinetti', name: 'Mercado Tinetti', ciudad: 'San Salvador', departamentoId: 'san-salvador', distrito: 'San Salvador Centro (Distritos 1-6)', coor: '13.6991, -89.1840', activo: true, tipo: 'municipal' },
   { id: 'cuscatlan', name: 'Mercado Cuscatlán', ciudad: 'San Salvador', departamentoId: 'san-salvador', distrito: 'San Salvador Centro (Distritos 1-6)', coor: '13.6980, -89.2020', activo: true, tipo: 'municipal' },
 ];
@@ -25,7 +31,7 @@ export const DEPARTAMENTOS = [
   { id: 'frutas-verduras', name: 'Frutas y Verduras', icon: 'Apple', color: 'bg-emerald-500' },
   { id: 'carnes-mariscos', name: 'Carnes y Mariscos', icon: 'Beef', color: 'bg-rose-500' },
   { id: 'abarrotes', name: 'Abarrotes y Lácteos', icon: 'ShoppingBag', color: 'bg-blue-500' },
-  { id: 'tecnologia-ropa', name: 'Tecnología y Bazares', icon: 'Smartphone', color: 'bg-indigo-600' },
+  { id: 'tecnologia-ropa', name: 'Tecnología, Artesanías y Calzado', icon: 'Smartphone', color: 'bg-indigo-600' },
 ];
 
 export const LINEAS_POR_DEPTO = {
@@ -56,6 +62,8 @@ export const LINEAS_POR_DEPTO = {
     { id: 'semillas', name: 'Frutos Secos y Semillas' },
   ],
   'tecnologia-ropa': [
+    { id: 'artesanias', name: 'Artesanías y Recuerdos' },
+    { id: 'calzado', name: 'Calzado y Cuero' },
     { id: 'tecnologia', name: 'Accesorios Celulares' },
     { id: 'ropa', name: 'Ropa y Calzado' }
   ]
@@ -70,6 +78,8 @@ export const PUESTOS = [
   { id: 'p5', name: 'Verdulería La Bendición', pasillo: 'Pasillo 1, Puesto #12', rating: 4.5, contacto: '7233-4455' },
   { id: 'p6', name: 'Carnicería San José', pasillo: 'Pasillo 5, Puesto #88', rating: 4.9, contacto: '7511-2233' },
   { id: 'p7', name: 'Lácteos Petacones y Mas', pasillo: 'Pasillo 4, Puesto #60', rating: 4.8, contacto: '7400-9988' },
+  { id: 'exc-1', name: 'Artesanías y Calzado El Salvador Ex-Cuartel', pasillo: 'Sector A, Local #108', rating: 4.9, contacto: '7899-2211' },
+  { id: 'sm-1', name: 'Pollo y Carnes San Marcos', pasillo: 'Sector Central #15', rating: 4.8, contacto: '7744-3322' },
   { id: 'hh-1', name: 'Novedades y Tecnología Hula Hula', pasillo: 'Nivel 2, Local #204', rating: 4.9, contacto: '7300-1122' },
   { id: 'mc-1', name: 'Distribuidora Lácteos y Abarrotes Central', pasillo: 'Edificio 4, Local #12', rating: 4.8, contacto: '7655-4433' },
 ];
@@ -118,6 +128,61 @@ export const REPARTIDORES_INICIALES = [
 ];
 
 export const PRODUCTOS = [
+  // --- MERCADO EX-CUARTEL (ARTESANÍAS, CALZADO, ROPA) ---
+  {
+    id: 'exc-prod-1',
+    name: 'Hamaca Salvadoreña Matrimonial Tejida de Algodón',
+    departamentoId: 'tecnologia-ropa',
+    lineaId: 'artesanias',
+    puestoId: 'exc-1',
+    puestoName: 'Artesanías y Calzado El Salvador Ex-Cuartel',
+    pasillo: 'Sector A, Local #108',
+    price: 22.00,
+    unit: 'unidad',
+    mercadoId: 'excuartel',
+    mercadoName: 'Mercado Ex-Cuartel',
+    mercadoType: 'municipal',
+    badge: '🏺 Mercado Ex-Cuartel',
+    image: 'https://images.unsplash.com/photo-1584100936595-c0654b55a2e2?auto=format&fit=crop&w=400&q=80',
+    description: 'Hamaca artesanal salvadoreña tejida a mano con hilos de algodón multicolor resistente.'
+  },
+  {
+    id: 'exc-prod-2',
+    name: 'Zapato de Cuero Artesanal Cosido a Mano',
+    departamentoId: 'tecnologia-ropa',
+    lineaId: 'calzado',
+    puestoId: 'exc-1',
+    puestoName: 'Artesanías y Calzado El Salvador Ex-Cuartel',
+    pasillo: 'Sector A, Local #108',
+    price: 16.50,
+    unit: 'par',
+    mercadoId: 'excuartel',
+    mercadoName: 'Mercado Ex-Cuartel',
+    mercadoType: 'municipal',
+    badge: '👞 Mercado Ex-Cuartel',
+    image: 'https://images.unsplash.com/photo-1549298916-b41d501d3772?auto=format&fit=crop&w=400&q=80',
+    description: 'Calzado formal/casual 100% cuero vacuno fabricado por artesanos salvadoreños.'
+  },
+
+  // --- MERCADO DE SAN MARCOS ---
+  {
+    id: 'sm-prod-1',
+    name: 'Pollo Entero de Granja San Marcos',
+    departamentoId: 'carnes-mariscos',
+    lineaId: 'pollo',
+    puestoId: 'sm-1',
+    puestoName: 'Pollo y Carnes San Marcos',
+    pasillo: 'Sector Central #15',
+    price: 1.45,
+    unit: 'libra',
+    mercadoId: 'sanmarcos',
+    mercadoName: 'Mercado Municipal de San Marcos',
+    mercadoType: 'municipal',
+    badge: '🏬 San Marcos',
+    image: 'https://images.unsplash.com/photo-1587593810167-a84920ea0781?auto=format&fit=crop&w=400&q=80',
+    description: 'Pollo fresco entero amarillo de granja, limpio y listo para cocinar.'
+  },
+
   // --- AGROMERCADO MAG (PRODUCTOR DIRECTO / PRECIOS JUSTOS $1.00) ---
   {
     id: 'mag-prod-1',
