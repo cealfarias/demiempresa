@@ -1,7 +1,7 @@
 import { PRODUCTOS as MOCK_PRODUCTS, REPARTIDORES_INICIALES as MOCK_DRIVERS } from '../data/mockData';
 
 const STORAGE_KEYS = {
-  PRODUCTS: 'msm_products_v1',
+  PRODUCTS: 'msm_products_v2',
   ORDERS: 'msm_orders_v1',
   DRIVERS: 'msm_drivers_v1',
   CONFIG: 'msm_api_config_v1'
@@ -38,12 +38,23 @@ export const apiService = {
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          // Merge missing mock products
+          const existingIds = new Set(parsed.map(p => p.id));
+          const missing = MOCK_PRODUCTS.filter(p => !existingIds.has(p.id));
+          if (missing.length > 0) {
+            const merged = [...parsed, ...missing];
+            localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(merged));
+            return merged;
+          }
+          return parsed;
+        }
       } catch (e) {
         console.error('Error reading saved products:', e);
       }
     }
     // Default initial mock products
+    localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(MOCK_PRODUCTS));
     return MOCK_PRODUCTS;
   },
 
