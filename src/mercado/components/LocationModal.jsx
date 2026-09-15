@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useMercado } from '../context/MercadoContext';
 import { DEPARTAMENTOS_ELSALVADOR } from '../data/locationData';
 import { MERCADOS_DISPONIBLES } from '../data/mockData';
-import { MapPin, X, Check, Store, Sprout, Navigation, Compass } from 'lucide-react';
+import { MapPin, X, Check, Store, Sprout, Compass } from 'lucide-react';
 
 export default function LocationModal({ isOpen, onClose }) {
   const { userLocation, setUserLocation, selectedMarket, setSelectedMarket } = useMercado();
@@ -17,8 +17,18 @@ export default function LocationModal({ isOpen, onClose }) {
   // Filter markets matching the selected department or general national markets
   const nearbyMarkets = MERCADOS_DISPONIBLES.filter(m => {
     if (m.id === 'todos') return true;
-    if (m.departamentoId === selectedDeptId) return true;
+    if (m.departamentoId === selectedDeptId) {
+      return true;
+    }
     return false;
+  }).sort((a, b) => {
+    // Sort district matches first
+    const distClean = (selectedDistrito || '').toLowerCase();
+    const aMatch = (a.distrito || '').toLowerCase().includes(distClean) || distClean.includes((a.distrito || '').toLowerCase());
+    const bMatch = (b.distrito || '').toLowerCase().includes(distClean) || distClean.includes((b.distrito || '').toLowerCase());
+    if (aMatch && !bMatch) return -1;
+    if (!aMatch && bMatch) return 1;
+    return 0;
   });
 
   // Handle department change -> reset district to first available
@@ -37,7 +47,7 @@ export default function LocationModal({ isOpen, onClose }) {
     if (!match && nearbyMarkets.length > 0) {
       setChosenMarketId(nearbyMarkets[0].id);
     }
-  }, [selectedDeptId]);
+  }, [selectedDeptId, selectedDistrito]);
 
   if (!isOpen) return null;
 
@@ -66,7 +76,7 @@ export default function LocationModal({ isOpen, onClose }) {
                 Selecciona tu Ubicación en El Salvador
               </h3>
               <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
-                Te mostraremos los mercados y AgroMercados más cercanos
+                Puntos de Venta Directos MAG y Mercados Municipales
               </p>
             </div>
           </div>
@@ -127,20 +137,20 @@ export default function LocationModal({ isOpen, onClose }) {
             </div>
           </div>
 
-          {/* STEP 2: Mercados Cercanos Disponibles */}
+          {/* STEP 2: Mercados y AgroMercados Cercanos Disponibles */}
           <div className="space-y-2.5">
             <div className="flex items-center justify-between">
               <h4 className="text-xs font-black text-slate-800 dark:text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
-                <Store className="w-4 h-4 text-[#00D09C]" /> 2. Mercados Cercanos a tu Ubicación
+                <Store className="w-4 h-4 text-[#00D09C]" /> 2. Mercados & AgroMercados MAG Cercanos
               </h4>
               <span className="text-[10px] font-mono text-[#00D09C] bg-[#00D09C]/10 px-2 py-0.5 rounded border border-[#00D09C]/30">
-                {nearbyMarkets.length} en la zona
+                {nearbyMarkets.length} disponibles
               </span>
             </div>
 
             {nearbyMarkets.length === 0 ? (
               <div className="p-4 bg-slate-50 dark:bg-[#111C2E] rounded-xl border border-slate-200 dark:border-slate-800 text-center text-xs text-slate-500">
-                No hay un mercado municipal o AgroMercado específico registrado directamente en este distrito, pero puedes seleccionar la <strong>Red Nacional Completa</strong>.
+                No hay un mercado registrado directamente en este distrito, pero puedes seleccionar la <strong>Red Nacional Completa</strong>.
               </div>
             ) : (
               <div className="space-y-2">
@@ -168,7 +178,7 @@ export default function LocationModal({ isOpen, onClose }) {
                             {m.name}
                           </h5>
                           <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
-                            {m.ciudad} • {m.distrito}
+                            {m.ubicacion ? `📍 ${m.ubicacion} (${m.distrito})` : `${m.ciudad || m.departamento} • ${m.distrito}`}
                           </p>
                         </div>
                       </div>

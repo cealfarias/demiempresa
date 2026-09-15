@@ -10,29 +10,30 @@ export const DEPARTAMENTOS_ELSALVADOR = [
       'Delgado',
       'Apopa',
       'San Marcos',
-      'Cuscatancingo',
       'Ayutuxtepeque',
+      'San Martín',
+      'Aguilares',
+      'Cuscatancingo',
       'Panchimalco',
       'Nejapa',
-      'Tonacatepeque',
-      'San Martín'
+      'Tonacatepeque'
     ]
   },
   {
     id: 'la-libertad',
     name: 'La Libertad',
     distritos: [
-      'Colón (Lourdes)',
       'Santa Tecla',
+      'Colón (Lourdes)',
+      'San Juan Opico',
+      'Ciudad Arce',
+      'Quezaltepeque',
+      'La Libertad (Puerto)',
+      'Zaragoza',
       'Antiguo Cuscatlán',
       'Nuevo Cuscatlán',
-      'Zaragoza',
-      'La Libertad (Puerto)',
       'San José Villanueva',
-      'San Juan Opico',
-      'Quezaltepeque',
-      'Huizúcar',
-      'Sacacoyo'
+      'Huizúcar'
     ]
   },
   {
@@ -40,24 +41,11 @@ export const DEPARTAMENTOS_ELSALVADOR = [
     name: 'Santa Ana',
     distritos: [
       'Santa Ana Centro',
-      'Chalchuapa',
       'Metapán',
+      'Chalchuapa',
       'El Congo',
       'Coatepeque',
       'Candelaria de la Frontera'
-    ]
-  },
-  {
-    id: 'san-miguel',
-    name: 'San Miguel',
-    distritos: [
-      'San Miguel Centro',
-      'Ciudad Barrios',
-      'Moncagua',
-      'Chinameca',
-      'El Tránsito',
-      'Lolotique',
-      'Uluazapa'
     ]
   },
   {
@@ -66,18 +54,40 @@ export const DEPARTAMENTOS_ELSALVADOR = [
     distritos: [
       'Sonsonate Centro',
       'Acajutla',
+      'Armenia',
       'Izalco',
       'Nahuizalco',
-      'Armenia',
       'Sonsonate Oeste'
+    ]
+  },
+  {
+    id: 'chalatenango',
+    name: 'Chalatenango',
+    distritos: [
+      'Chalatenango Centro',
+      'Nueva Concepción',
+      'El Paraíso',
+      'La Palma',
+      'Tejutla',
+      'Dulce Nombre de María'
+    ]
+  },
+  {
+    id: 'cuscatlan',
+    name: 'Cuscatlán',
+    distritos: [
+      'Cojutepeque',
+      'San Rafael Cedros',
+      'Suchitoto',
+      'San Pedro Perulapán'
     ]
   },
   {
     id: 'la-paz',
     name: 'La Paz',
     distritos: [
-      'Olocuilta',
       'Zacatecoluca',
+      'Olocuilta',
       'San Luis Talpa',
       'San Pedro Masahuat',
       'Santiago Nonualco'
@@ -89,10 +99,22 @@ export const DEPARTAMENTOS_ELSALVADOR = [
     distritos: [
       'Usulután Centro',
       'Jiquilisco',
+      'El Triunfo',
       'Berlín',
       'Santiago de María',
-      'El Triunfo',
       'Puerto El Triunfo'
+    ]
+  },
+  {
+    id: 'san-miguel',
+    name: 'San Miguel',
+    distritos: [
+      'San Miguel Centro',
+      'Chinameca',
+      'Ciudad Barrios',
+      'Moncagua',
+      'El Tránsito',
+      'Lolotique'
     ]
   },
   {
@@ -100,20 +122,10 @@ export const DEPARTAMENTOS_ELSALVADOR = [
     name: 'Ahuachapán',
     distritos: [
       'Ahuachapán Centro',
+      'San Francisco Menéndez (Cara Sucia)',
       'Concepción de Ataco',
       'Apaneca',
-      'Tacuba',
-      'Cara Sucia / San Francisco Menéndez'
-    ]
-  },
-  {
-    id: 'cuscatlan',
-    name: 'Cuscatlán',
-    distritos: [
-      'Cojutepeque',
-      'San Pedro Perulapán',
-      'San Rafael Cedros',
-      'Suchitoto'
+      'Tacuba'
     ]
   },
   {
@@ -122,9 +134,8 @@ export const DEPARTAMENTOS_ELSALVADOR = [
     distritos: [
       'Chalatenango Centro',
       'Nueva Concepción',
-      'La Palma',
-      'Tejutla',
-      'Dulce Nombre de María'
+      'El Paraíso',
+      'La Palma'
     ]
   },
   {
@@ -132,8 +143,8 @@ export const DEPARTAMENTOS_ELSALVADOR = [
     name: 'Morazán',
     distritos: [
       'San Francisco Gotera',
-      'Guatajiagua',
       'Jocoaitique',
+      'Guatajiagua',
       'Corinto'
     ]
   },
@@ -142,8 +153,8 @@ export const DEPARTAMENTOS_ELSALVADOR = [
     name: 'La Unión',
     distritos: [
       'La Unión Centro',
-      'Conchagua',
       'Santa Rosa de Lima',
+      'Conchagua',
       'Intipucá'
     ]
   },

@@ -1,29 +1,32 @@
+import { AGROMERCADOS_MAG_OFICIALES } from './agromercadosData';
+
 export const BUILD_INFO = {
   version: '1.0.0',
-  commit: '35ee852',
-  tag: '[Build v1.0.0-35ee852]',
-  fullTitle: 'Mercados Nacionales Delivery [Build v1.0.0-35ee852]'
+  commit: '6bc7f58',
+  tag: '[Build v1.0.0-6bc7f58]',
+  fullTitle: 'Mercados Nacionales Delivery [Build v1.0.0-6bc7f58]'
 };
 
-export const MERCADOS_DISPONIBLES = [
+export const MERCADOS_MUNICIPALES = [
   { id: 'todos', name: '🇸🇻 Todos los Mercados Nacionales', ciudad: 'El Salvador', departamentoId: 'todos', distrito: 'Todos', coor: '13.7000, -89.2000', activo: true, tipo: 'red' },
   { id: 'sanmiguelito', name: 'Mercado San Miguelito', ciudad: 'San Salvador', departamentoId: 'san-salvador', distrito: 'San Salvador Centro (Distritos 1-6)', coor: '13.7042, -89.1915', activo: true, tipo: 'municipal' },
   { id: 'excuartel', name: 'Mercado Ex-Cuartel', ciudad: 'San Salvador', departamentoId: 'san-salvador', distrito: 'San Salvador Centro (Distritos 1-6)', coor: '13.6985, -89.1870', activo: true, tipo: 'municipal', badge: 'Artesanías & Calzado' },
   { id: 'hulahula', name: 'Mercado Hula Hula', ciudad: 'San Salvador', departamentoId: 'san-salvador', distrito: 'San Salvador Centro (Distritos 1-6)', coor: '13.6980, -89.1910', activo: true, tipo: 'municipal' },
   { id: 'central', name: 'Mercado Central', ciudad: 'San Salvador', departamentoId: 'san-salvador', distrito: 'San Salvador Centro (Distritos 1-6)', coor: '13.6967, -89.1950', activo: true, tipo: 'municipal' },
   { id: 'latiendona', name: 'Mercado Mayorista La Tiendona', ciudad: 'San Salvador', departamentoId: 'san-salvador', distrito: 'San Salvador Centro (Distritos 1-6)', coor: '13.7089, -89.1722', activo: true, tipo: 'mayorista' },
+  { id: 'sagradocorazon', name: 'Mercado Sagrado Corazón', ciudad: 'San Salvador', departamentoId: 'san-salvador', distrito: 'San Salvador Centro (Distritos 1-6)', coor: '13.6955, -89.1912', activo: true, tipo: 'municipal', badge: 'El Calvario' },
   { id: 'sanmarcos', name: 'Mercado Municipal de San Marcos', ciudad: 'San Salvador', departamentoId: 'san-salvador', distrito: 'San Marcos', coor: '13.6580, -89.1810', activo: true, tipo: 'municipal' },
   { id: 'mejicanos', name: 'Mercado Municipal de Mejicanos', ciudad: 'San Salvador', departamentoId: 'san-salvador', distrito: 'Mejicanos', coor: '13.7340, -89.2130', activo: true, tipo: 'municipal' },
   { id: 'soyapango', name: 'Mercado Central de Soyapango', ciudad: 'San Salvador', departamentoId: 'san-salvador', distrito: 'Soyapango', coor: '13.7120, -89.1410', activo: true, tipo: 'municipal' },
   { id: 'apopa', name: 'Mercado Municipal de Apopa', ciudad: 'San Salvador', departamentoId: 'san-salvador', distrito: 'Apopa', coor: '13.8060, -89.1790', activo: true, tipo: 'municipal' },
   { id: 'santatecla', name: 'Mercado Municipal de Santa Tecla', ciudad: 'La Libertad', departamentoId: 'la-libertad', distrito: 'Santa Tecla', coor: '13.6769, -89.2797', activo: true, tipo: 'municipal' },
-  { id: 'agromercado-zacamil', name: '🟢 AgroMercado MAG (Mejicanos / Zacamil)', ciudad: 'San Salvador', departamentoId: 'san-salvador', distrito: 'Mejicanos', coor: '13.7310, -89.2150', activo: true, tipo: 'mag', badge: 'Precios Justos $1.00' },
-  { id: 'agromercado-lourdes', name: '🟢 AgroMercado MAG (Lourdes / Colón)', ciudad: 'La Libertad', departamentoId: 'la-libertad', distrito: 'Colón (Lourdes)', coor: '13.7220, -89.3610', activo: true, tipo: 'mag', badge: 'Precios Justos $1.00' },
-  { id: 'agromercado-santaana', name: '🟢 AgroMercado MAG (Santa Ana Centro)', ciudad: 'Santa Ana', departamentoId: 'santa-ana', distrito: 'Santa Ana Centro', coor: '13.9942, -89.5597', activo: true, tipo: 'mag', badge: 'Precios Justos $1.00' },
-  { id: 'agromercado-sanmiguel', name: '🟢 AgroMercado MAG (San Miguel Centro)', ciudad: 'San Miguel', departamentoId: 'san-miguel', distrito: 'San Miguel Centro', coor: '13.4833, -88.1833', activo: true, tipo: 'mag', badge: 'Precios Justos $1.00' },
-  { id: 'sagradocorazon', name: 'Mercado Sagrado Corazón', ciudad: 'San Salvador', departamentoId: 'san-salvador', distrito: 'San Salvador Centro (Distritos 1-6)', coor: '13.6955, -89.1912', activo: true, tipo: 'municipal', badge: 'El Calvario' },
   { id: 'tinetti', name: 'Mercado Tinetti', ciudad: 'San Salvador', departamentoId: 'san-salvador', distrito: 'San Salvador Centro (Distritos 1-6)', coor: '13.6991, -89.1840', activo: true, tipo: 'municipal' },
   { id: 'cuscatlan', name: 'Mercado Cuscatlán', ciudad: 'San Salvador', departamentoId: 'san-salvador', distrito: 'San Salvador Centro (Distritos 1-6)', coor: '13.6980, -89.2020', activo: true, tipo: 'municipal' },
+];
+
+export const MERCADOS_DISPONIBLES = [
+  ...MERCADOS_MUNICIPALES,
+  ...AGROMERCADOS_MAG_OFICIALES
 ];
 
 export const DEPARTAMENTOS = [
