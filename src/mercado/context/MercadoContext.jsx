@@ -88,9 +88,9 @@ export const MercadoProvider = ({ children }) => {
     setOrders(apiService.getOrders());
   };
   
-  // Theme state: 'dark' (noche) | 'light' (día)
+  // Theme state: 'light' (día/blanco) | 'dark' (noche)
   const [theme, setTheme] = useState(() => {
-    return localStorage.getItem('msm_theme') || 'dark';
+    return localStorage.getItem('msm_theme') || 'light';
   });
 
   const toggleTheme = () => {

@@ -38,7 +38,7 @@ function MercadoContent() {
   }
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100 font-sans selection:bg-amber-500 selection:text-zinc-950">
+    <div className="min-h-screen bg-[#F8FAFC] dark:bg-[#0A1120] text-slate-900 dark:text-slate-100 font-sans transition-colors selection:bg-[#00D09C] selection:text-[#0A1120]">
       {/* Navigation */}
       <Navbar
         onOpenCart={() => setIsCartOpen(true)}
