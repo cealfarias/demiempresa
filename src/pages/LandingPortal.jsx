@@ -102,6 +102,15 @@ export default function LandingPortal() {
       badgeColor: 'rgba(249, 115, 22, 0.1)',
       apps: [
         {
+          id: 'dteoficial_op',
+          nombre: 'Facturación Oficial DTE (Grado A+)',
+          descripcion: 'Infraestructura Tributaria Oficial (Nivel 5) para emisión, pre-validación (svfe-json-schemas), firma JWS RS256 y resguardo legal por 10 años.',
+          icon: <FileText size={28} color="#10B981" />,
+          url: 'https://ventas.demiempresa.online',
+          internalRoute: '/facturacion-dte',
+          badge: 'CERTIFICACIÓN MH A+'
+        },
+        {
           id: 'logistica',
           nombre: 'Logística e Inventarios',
           descripcion: 'Gestión de múltiples bodegas, entradas, salidas y actualización del kardex en tiempo real.',
@@ -256,7 +265,18 @@ export default function LandingPortal() {
           </div>
         </div>
         
-        <div style={{ display: 'flex', gap: '1rem' }}>
+        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+          <button 
+            onClick={() => navigate('/facturacion-dte')}
+            style={{
+              padding: '0.6rem 1.2rem', backgroundColor: 'rgba(16, 185, 129, 0.15)', color: '#10B981',
+              border: '1px solid rgba(16, 185, 129, 0.4)', borderRadius: '8px', fontWeight: '700', fontSize: '0.875rem',
+              display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', transition: 'all 0.2s'
+            }}
+          >
+            <ShieldCheck size={16} color="#10B981" /> DTE Oficial (Grado A+)
+          </button>
+
           <a href="https://planilla.demiempresa.online/login" style={{
             padding: '0.6rem 1.2rem', backgroundColor: '#FAFAFA', color: '#09090B',
             textDecoration: 'none', borderRadius: '8px', fontWeight: '600', fontSize: '0.875rem',
@@ -270,6 +290,44 @@ export default function LandingPortal() {
       {/* HERO / HUB INTRO */}
       <main style={{ paddingTop: '8rem', paddingBottom: '4rem', paddingLeft: '2rem', paddingRight: '2rem', maxWidth: '1280px', margin: '0 auto' }}>
         
+        {/* BANNER DESTACADO DTE CERTIFICADO */}
+        <div 
+          onClick={() => navigate('/facturacion-dte')}
+          style={{
+            backgroundColor: '#121214', border: '1px solid rgba(16, 185, 129, 0.4)', borderRadius: '20px',
+            padding: '1.75rem 2rem', marginBottom: '3.5rem', cursor: 'pointer',
+            background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.12) 0%, rgba(9, 9, 11, 0.9) 100%)',
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1.5rem', flexWrap: 'wrap',
+            boxShadow: '0 8px 30px rgba(16, 185, 129, 0.15)'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
+            <div style={{ backgroundColor: '#10B981', padding: '0.85rem', borderRadius: '14px', color: '#09090B' }}>
+              <FileText size={32} />
+            </div>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.3rem' }}>
+                <span style={{ backgroundColor: '#10B981', color: '#09090B', fontSize: '0.7rem', fontWeight: '900', padding: '0.2rem 0.6rem', borderRadius: '4px' }}>
+                  GRADO A+ / NIVEL 5
+                </span>
+                <span style={{ fontSize: '0.85rem', color: '#10B981', fontWeight: '700' }}>
+                  Plataforma Empresarial DTE Certificada (DGII V1.1)
+                </span>
+              </div>
+              <h3 style={{ margin: 0, fontSize: '1.35rem', fontWeight: '800', color: '#FAFAFA' }}>
+                Sistema de Facturación Electrónica Oficial Ministerio de Hacienda
+              </h3>
+              <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.92rem', color: '#A1A1AA' }}>
+                Construido como infraestructura tributaria con pre-validación de esquemas (svfe-json-schemas), firma RS256 y resguardo legal por 10 años.
+              </p>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#10B981', fontWeight: '800', fontSize: '0.95rem' }}>
+            Ver Ficha y Acceder <ChevronRight size={20} />
+          </div>
+        </div>
+
         <div style={{ textAlign: 'center', maxWidth: '800px', margin: '0 auto 4rem auto' }}>
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', backgroundColor: '#18181B', padding: '0.4rem 1rem', borderRadius: '2rem', border: '1px solid #27272A', marginBottom: '1.5rem' }}>
             <ShieldCheck size={16} color="#10B981" />
