@@ -139,10 +139,12 @@ export default function LandingPortal() {
         },
         {
           id: 'dteoficial',
-          nombre: 'Facturación Oficial (DTE)',
-          descripcion: 'Emisión, validación y resguardo de Documentos Tributarios Electrónicos bajo lineamientos del Ministerio de Hacienda.',
+          nombre: 'Facturación Oficial DTE (Grado A+)',
+          descripcion: 'Infraestructura de Grado Tributario Oficial (Nivel 5) para emisión, pre-validación de esquemas (svfe-json-schemas), firma JWS RS256 y resguardo legal auditable bajo normas del MH El Salvador.',
           icon: <FileText size={28} color="#10B981" />,
-          url: 'https://ventas.demiempresa.online'
+          url: 'https://ventas.demiempresa.online',
+          internalRoute: '/facturacion-dte',
+          badge: 'GRADO TRIBUTARIO A+'
         },
         {
           id: 'activofijo',
@@ -311,13 +313,24 @@ export default function LandingPortal() {
                       opacity: app.url === '#' ? 0.6 : 1
                     }}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1rem' }}>
-                      <div style={{ backgroundColor: area.badgeColor, padding: '0.75rem', borderRadius: '12px' }}>
-                        {app.icon}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                        <div style={{ backgroundColor: area.badgeColor, padding: '0.75rem', borderRadius: '12px' }}>
+                          {app.icon}
+                        </div>
+                        <h4 style={{ fontSize: '1.15rem', fontWeight: '700', margin: 0, color: '#FAFAFA' }}>
+                          {app.nombre}
+                        </h4>
                       </div>
-                      <h4 style={{ fontSize: '1.15rem', fontWeight: '700', margin: 0, color: '#FAFAFA' }}>
-                        {app.nombre}
-                      </h4>
+                      {app.badge && (
+                        <span style={{ 
+                          backgroundColor: 'rgba(16, 185, 129, 0.15)', border: '1px solid rgba(16, 185, 129, 0.4)',
+                          color: '#10B981', padding: '0.25rem 0.6rem', borderRadius: '2rem', 
+                          fontSize: '0.7rem', fontWeight: '800', letterSpacing: '0.5px', whiteSpace: 'nowrap' 
+                        }}>
+                          {app.badge}
+                        </span>
+                      )}
                     </div>
                     
                     <p style={{ fontSize: '0.9rem', color: '#A1A1AA', lineHeight: '1.5', margin: '0 0 1.25rem 0', flexGrow: 1 }}>
