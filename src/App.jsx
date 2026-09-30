@@ -3,13 +3,24 @@ import MercadoApp from './mercado/MercadoApp';
 import LandingPortal from './pages/LandingPortal';
 import AsesoriaCreacionEmpresa from './pages/AsesoriaCreacionEmpresa';
 import FacturacionDTEPage from './pages/FacturacionDTEPage';
+import ViajesApp from './viajes/ViajesApp';
+import DriverApp from './viajes/DriverApp';
 
 function App() {
   const isSanMiguelito = typeof window !== 'undefined' && window.location.hostname.includes('sanmiguelito');
+  const isViajes = typeof window !== 'undefined' && window.location.hostname.includes('viajes');
+
+  const getDefaultRoute = () => {
+    if (isViajes) return <ViajesApp />;
+    if (isSanMiguelito) return <MercadoApp />;
+    return <LandingPortal />;
+  };
 
   return (
     <Routes>
-      <Route path="/" element={isSanMiguelito ? <MercadoApp /> : <LandingPortal />} />
+      <Route path="/" element={getDefaultRoute()} />
+      <Route path="/viajes" element={<ViajesApp />} />
+      <Route path="/conductor" element={<DriverApp />} />
       <Route path="/portal" element={<LandingPortal />} />
       <Route path="/mercado" element={<MercadoApp />} />
       <Route path="/facturacion-dte" element={<FacturacionDTEPage />} />

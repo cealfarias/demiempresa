@@ -1,151 +1,206 @@
 import express from 'express';
+import http from 'http';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import { pool } from './db.js';
+import { initializeWebSockets } from './sockets.js';
+import { ReferralService } from './services/referralService.js';
+import { AdService, AD_PRICING_PLANS } from './services/adService.js';
 
 dotenv.config();
 
 const app = express();
+const server = http.createServer(app);
 const PORT = process.env.PORT || 10000;
 
-app.use(cors());
+const allowedOrigins = [
+  'https://viajes.demiempresa.online',
+  'https://demiempresa.online',
+  'http://localhost:5173',
+  'http://localhost:3000'
+];
+
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin) || origin.endsWith('.demiempresa.online') || origin.endsWith('.vercel.app')) {
+      callback(null, true);
+    } else {
+      callback(null, true);
+    }
+  },
+  credentials: true
+}));
+
 app.use(express.json());
 
-// Health Check Endpoint
+const io = initializeWebSockets(server);
+
+// 1. HEALTH CHECK
 app.get('/api/health', (req, res) => {
   res.json({
-    status: 'OK',
-    service: 'Mercado San Miguelito Delivery API',
-    domain: 'sanmiguelito.demiempresa.online',
-    daviviendaPhone: '6989-3101',
-    appCommissionRate: '10%',
-    coverageRadiusKm: 5,
+    status: 'ONLINE',
+    service: 'demiempresa.online Rides & B2B Commercial Hub API',
+    infrastructure: 'Render Always-On + Redis + PostgreSQL',
+    tablePrefix: 'viajes_',
+    domains: {
+      pwa: 'viajes.demiempresa.online',
+      api: 'api.demiempresa.online'
+    },
+    geoRadiusKm: 1.0,
+    offerTTLSeconds: 10,
+    driverWeeklySubscription: '$10.00 USD',
+    driverBonusCapWeekly: 10,
+    referralPressureDays: '7+7 Días',
     timestamp: new Date().toISOString()
   });
 });
 
-// GET /api/productos
-app.get('/api/productos', async (req, res) => {
-  try {
-    const result = await pool.query(
-      `SELECT p.*, pu.nombre as puesto_nombre, pu.pasillo 
-       FROM productos p 
-       JOIN puestos pu ON p.puesto_id = pu.id 
-       WHERE p.activo = true 
-       ORDER BY p.nombre ASC`
-    );
-    res.json(result.rows);
-  } catch (err) {
-    console.error('Error al consultar productos:', err);
-    res.status(500).json({ error: 'Error de base de datos' });
+// 2. REGISTRO & VALIDACIÓN (DUI SALVADOREÑO)
+function isValidSalvadoranDUI(dui) {
+  return /^\d{8}-\d{1}$/.test(dui);
+}
+
+app.post('/api/users/register', async (req, res) => {
+  const { fullName, phone, dui, role = 'PASSENGER', referrerCode } = req.body;
+
+  if (!fullName || !phone || !dui) {
+    return res.status(400).json({ error: 'Nombre, teléfono y DUI son obligatorios' });
   }
-});
 
-// GET /api/ordenes
-app.get('/api/ordenes', async (req, res) => {
-  try {
-    const result = await pool.query('SELECT * FROM ordenes ORDER BY creado_en DESC');
-    res.json(result.rows);
-  } catch (err) {
-    console.error('Error al consultar órdenes:', err);
-    res.status(500).json({ error: 'Error de base de datos' });
+  if (!isValidSalvadoranDUI(dui)) {
+    return res.status(400).json({ error: 'El DUI no tiene un formato válido (ej. 01234567-8)' });
   }
-});
-
-// POST /api/ordenes (Crear Pedido con Pago Anticipado, 10% Comisión App y Pickup QR)
-app.post('/api/ordenes', async (req, res) => {
-  const { cliente_nombre, telefono, direccion, metodo_pago, tipo_entrega, subtotal, envio, propina_total, total, items } = req.body;
-  
-  const id = `MSM-${Math.floor(1000 + Math.random() * 9000)}`;
-  const comision_app = Number((subtotal * 0.10).toFixed(2)); // 10% Commission
-  const propina_recolector = Number((propina_total / 2).toFixed(2));
-  const propina_despachador = Number((propina_total - propina_recolector).toFixed(2));
-  const codigo_qr = `QR-${id}`;
 
   try {
-    await pool.query(
-      `INSERT INTO ordenes 
-       (id, cliente_nombre, telefono, direccion, tipo_entrega, codigo_qr, metodo_pago, subtotal, comision_app, envio, propina_total, propina_recolector, propina_despachador, total)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
-      [id, cliente_nombre, telefono, direccion, tipo_entrega || 'domicilio', codigo_qr, metodo_pago, subtotal, comision_app, envio || 1.75, propina_total, propina_recolector, propina_despachador, total]
-    );
+    const userRes = await pool.query(`
+      INSERT INTO viajes_users (full_name, phone, dui, role)
+      VALUES ($1, $2, $3, $4)
+      ON CONFLICT (dui) DO UPDATE SET phone = EXCLUDED.phone
+      RETURNING *;
+    `, [fullName, phone, dui, role]);
 
-    if (items && items.length > 0) {
-      for (const item of items) {
-        await pool.query(
-          `INSERT INTO orden_items (orden_id, producto_id, puesto_name, pasillo, cantidad, precio_unitario)
-           VALUES ($1, $2, $3, $4, $5, $6)`,
-          [id, item.id, item.puestoName, item.pasillo, item.quantity, item.price]
-        );
+    const user = userRes.rows[0];
+
+    if (referrerCode && referrerCode !== dui) {
+      try {
+        const referrerRes = await pool.query('SELECT id FROM viajes_users WHERE dui = $1 OR id::text = $1', [referrerCode]);
+        if (referrerRes.rows.length > 0) {
+          await ReferralService.createReferral({
+            referrerUserId: referrerRes.rows[0].id,
+            referredUserId: user.id,
+            referralType: 'PASSENGER_TO_PASSENGER'
+          });
+        }
+      } catch (refErr) {
+        console.warn('No se pudo registrar la referencia:', refErr.message);
       }
     }
 
-    res.status(201).json({ success: true, orderId: id, codigoQr: codigo_qr });
+    res.json({ success: true, user });
   } catch (err) {
-    console.error('Error al crear orden:', err);
-    res.status(500).json({ error: 'Error al procesar la orden' });
+    console.error('Error al registrar usuario:', err);
+    res.status(500).json({ error: 'Error al registrar el usuario en base de datos' });
   }
 });
 
-// POST /api/ordenes/:id/cancel (Cancelación con 20% de cargo administrativo)
-app.post('/api/ordenes/:id/cancel', async (req, res) => {
-  const { id } = req.params;
-
+// 3. PROGRAMA DE REFERIDOS & CRÉDITOS
+app.get('/api/referrals/user/:userId', async (req, res) => {
   try {
-    const checkResult = await pool.query('SELECT * FROM ordenes WHERE id = $1', [id]);
-    if (checkResult.rows.length === 0) {
-      return res.status(404).json({ error: 'Orden no encontrada' });
-    }
-
-    const order = checkResult.rows[0];
-    if (order.estado !== 'Pago Confirmado' && order.estado !== 'En Recolección') {
-      return res.status(400).json({ error: 'La orden ya está siendo procesada por el runner o despachador y no se puede cancelar.' });
-    }
-
-    const penaltyFee = Number((order.total * 0.20).toFixed(2)); // 20% Fee
-    const refundAmount = Number((order.total * 0.80).toFixed(2)); // 80% Refund
-
-    await pool.query(
-      `UPDATE ordenes SET estado = 'Cancelado', cargo_cancelacion = $1 WHERE id = $2`,
-      [penaltyFee, id]
+    const { userId } = req.params;
+    const credit = await ReferralService.getAvailableCredit(userId);
+    const referralsRes = await pool.query(
+      'SELECT * FROM viajes_referrals WHERE referrer_user_id = $1 ORDER BY registered_at DESC',
+      [userId]
     );
 
     res.json({
-      success: true,
-      message: 'Orden cancelada',
-      penaltyFee,
-      refundAmount
+      availableCredit: credit,
+      referrals: referralsRes.rows
     });
   } catch (err) {
-    console.error('Error al cancelar orden:', err);
-    res.status(500).json({ error: 'Error al cancelar la orden' });
+    res.status(500).json({ error: err.message });
   }
 });
 
-// POST /api/qr/verify (Verificación de Pickup QR en Acopio)
-app.post('/api/qr/verify', async (req, res) => {
-  const { codigo_qr } = req.body;
+// 4. MÓDULO B2B: CAPTACIÓN Y PAUTAS
+app.get('/api/b2b/pricing', (req, res) => {
+  res.json({
+    plans: AD_PRICING_PLANS,
+    creativeSupport: 'Edición gráfica y de guión express incluida a partir de 2-3 fotos de celular por WhatsApp',
+    contactSupport: 'demiempresa.online'
+  });
+});
+
+app.post('/api/b2b/leads', async (req, res) => {
+  const { businessName, whatsapp, municipality } = req.body;
+  if (!businessName || !whatsapp || !municipality) {
+    return res.status(400).json({ error: 'Todos los campos son obligatorios (Nombre, WhatsApp, Municipio)' });
+  }
 
   try {
-    const result = await pool.query(
-      `SELECT * FROM ordenes WHERE codigo_qr = $1 OR id = $1`,
-      [codigo_qr]
-    );
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ success: false, message: 'Código QR no encontrado o inválido.' });
-    }
-
-    const order = result.rows[0];
-    await pool.query(`UPDATE ordenes SET estado = 'Entregado (Pickup Validado)' WHERE id = $1`, [order.id]);
-
-    res.json({ success: true, message: 'Retiro en punto verificado exitosamente', order });
+    const result = await AdService.captureHotLead({ businessName, whatsapp, municipality });
+    res.json({
+      success: true,
+      message: 'Lead registrado exitosamente',
+      ...result
+    });
   } catch (err) {
-    console.error('Error al verificar QR:', err);
-    res.status(500).json({ error: 'Error interno de verificación' });
+    console.error('Error al capturar lead B2B:', err);
+    res.status(500).json({ error: err.message });
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`🚀 API Mercado San Miguelito escuchando en el puerto ${PORT}`);
+app.get('/api/b2b/feed/:municipality', async (req, res) => {
+  try {
+    const { municipality } = req.params;
+    const feed = await AdService.getFeedForDestination(municipality);
+    res.json(feed);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 5. CONDUCTORES: PERFIL Y CUOTA SEMANAL (CAP 10)
+app.get('/api/drivers/:driverProfileId/subscription', async (req, res) => {
+  try {
+    const { driverProfileId } = req.params;
+    const profileRes = await pool.query('SELECT * FROM viajes_driver_profiles WHERE id = $1', [driverProfileId]);
+    if (profileRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Conductor no encontrado' });
+    }
+
+    const profile = profileRes.rows[0];
+    const bonusesCount = profile.current_week_bonuses_count;
+    const netFee = Math.max(0.00, 10.00 - bonusesCount * 1.00);
+
+    res.json({
+      driverProfileId,
+      vehiclePlate: profile.vehicle_plate,
+      currentWeekBonuses: bonusesCount,
+      bonusCap: 10,
+      baseFeeWeekly: 10.00,
+      netFeeToPay: netFee,
+      isBonusCapReached: bonusesCount >= 10,
+      trialEndsAt: profile.trial_ends_at
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 6. CRON WORKER AUTOMÁTICO PARA EXPIRACIÓN 7+7
+setInterval(async () => {
+  try {
+    const sweepResult = await ReferralService.runTTLExpirationSweep();
+    if (sweepResult.expiredReferrals > 0 || sweepResult.expiredCredits > 0) {
+      console.log(`🧹 Barrido TTL 7+7 ejecutado: ${sweepResult.expiredReferrals} referencias y ${sweepResult.expiredCredits} créditos expirados.`);
+    }
+  } catch (err) {
+    console.error('Error en tarea programada TTL:', err.message);
+  }
+}, 1000 * 60 * 60);
+
+server.listen(PORT, () => {
+  console.log(`🚀 Servidor demiempresa.online corriendo en http://localhost:${PORT}`);
+  console.log(`📡 Tablas aisladas con prefijo: viajes_*`);
 });
