@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Car,
   Navigation,
@@ -11,12 +11,19 @@ import {
   Clock,
   Shield,
   MapPin,
-  ChevronRight
+  ChevronRight,
+  Radio,
+  Loader2
 } from 'lucide-react';
+import {
+  socket,
+  fetchDriverSubscriptionApi
+} from './api';
 
 export default function DriverApp() {
   const [driverOnline, setDriverOnline] = useState(true);
-  const [weeklyBonuses, setWeeklyBonuses] = useState(3); // Cap de 10
+  const [driverProfileId] = useState('drv-sv-1');
+  const [weeklyBonuses, setWeeklyBonuses] = useState(3);
   const bonusCap = 10;
   const baseWeeklyFee = 10.00;
   const netWeeklyFee = Math.max(0, baseWeeklyFee - weeklyBonuses * 1.00);
@@ -30,41 +37,155 @@ export default function DriverApp() {
     distanceKm: 0.45,
     offeredFare: '3.50',
     hasBonusDiscount: true,
-    timeLeft: 15
+    timeLeft: 10
   });
 
   // Viaje Asignado
   const [activeTrip, setActiveTrip] = useState(null);
   const [tripState, setTripState] = useState('EN_ROUTE_TO_PICKUP'); // 'EN_ROUTE_TO_PICKUP' | 'ARRIVED' | 'IN_TRANSIT' | 'COLLECTING' | 'DONE'
+  const [gpsActive, setGpsActive] = useState(false);
 
   // Establecer título dinámico de la pestaña para la consola del conductor
-  React.useEffect(() => {
+  useEffect(() => {
     document.title = "App Conductor | demiempresa.online";
   }, []);
 
-  // Conductor responde a solicitud
+  // Inicializar WebSockets para el Chofer y Foreground GPS
+  useEffect(() => {
+    socket.emit('client:register', {
+      userId: 'driver-user-1',
+      role: 'DRIVER',
+      driverProfileId
+    });
+
+    // Cargar cuota semanal del backend
+    fetchDriverSubscriptionApi(driverProfileId).then((data) => {
+      if (data) {
+        setWeeklyBonuses(data.currentWeekBonuses || 0);
+      }
+    });
+
+    // Escuchar nuevas solicitudes entrantes a 1 km
+    socket.on('trip:new_request', (reqData) => {
+      setIncomingRequest({
+        id: reqData.tripId,
+        serviceType: reqData.serviceType,
+        origin: reqData.originAddress,
+        destination: reqData.destinationAddress,
+        distanceKm: reqData.distanceToPickupKm || 0.5,
+        offeredFare: reqData.proposedFare,
+        hasBonusDiscount: false,
+        timeLeft: 10
+      });
+    });
+
+    // Escuchar asignación de viaje ganada
+    socket.on('trip:assigned', (assignedData) => {
+      setActiveTrip({
+        id: assignedData.tripId,
+        passengerName: assignedData.passengerName,
+        passengerPhone: assignedData.passengerPhone,
+        origin: assignedData.originAddress,
+        originLat: assignedData.originLat || 13.7013,
+        originLng: assignedData.originLng || -89.2244,
+        destination: assignedData.destinationAddress,
+        agreedFare: assignedData.agreedFare,
+        cashToCollect: assignedData.cashToCollect,
+        creditApplied: assignedData.creditApplied || '0.00'
+      });
+      setIncomingRequest(null);
+      setTripState('EN_ROUTE_TO_PICKUP');
+    });
+
+    return () => {
+      socket.off('trip:new_request');
+      socket.off('trip:assigned');
+    };
+  }, [driverProfileId]);
+
+  // Transmisión continua de posición GPS cada 4 segundos (Simulando Foreground Service de Android)
+  useEffect(() => {
+    if (!driverOnline) {
+      setGpsActive(false);
+      return;
+    }
+
+    setGpsActive(true);
+    let mockLng = -89.2244;
+    let mockLat = 13.7013;
+
+    const gpsInterval = setInterval(() => {
+      // Si el navegador tiene GPS real lo consulta, de lo contrario simula avance
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            socket.emit('driver:location_update', {
+              driverProfileId,
+              lng: pos.coords.longitude,
+              lat: pos.coords.latitude
+            });
+          },
+          () => {
+            mockLng += (Math.random() - 0.5) * 0.0005;
+            mockLat += (Math.random() - 0.5) * 0.0005;
+            socket.emit('driver:location_update', {
+              driverProfileId,
+              lng: mockLng,
+              lat: mockLat
+            });
+          },
+          { timeout: 3000 }
+        );
+      }
+    }, 4000);
+
+    return () => clearInterval(gpsInterval);
+  }, [driverOnline, driverProfileId]);
+
+  // Conductor responde a solicitud (acepta tarifa o contraoferta)
   const handleAcceptFare = (fare) => {
+    if (incomingRequest) {
+      // Emitir oferta a través de WebSockets hacia el pasajero
+      socket.emit('driver:offer', {
+        tripId: incomingRequest.id,
+        driverProfileId,
+        proposedFare: fare
+      });
+    }
+
+    // Estado local para control en pantalla
     setActiveTrip({
-      id: 'active-trip-902',
+      id: incomingRequest?.id || 'active-trip-902',
       passengerName: 'Andrea Martínez',
       passengerPhone: '7123-4567',
-      origin: incomingRequest.origin,
+      origin: incomingRequest?.origin || 'Metrocentro San Salvador',
       originLat: 13.7013,
       originLng: -89.2244,
-      destination: incomingRequest.destination,
+      destination: incomingRequest?.destination || 'Plaza Merliot, Santa Tecla',
       agreedFare: fare,
-      cashToCollect: (parseFloat(fare) - (incomingRequest.hasBonusDiscount ? 1.00 : 0.00)).toFixed(2),
-      creditApplied: incomingRequest.hasBonusDiscount ? '1.00' : '0.00'
+      cashToCollect: (parseFloat(fare) - (incomingRequest?.hasBonusDiscount ? 1.00 : 0.00)).toFixed(2),
+      creditApplied: incomingRequest?.hasBonusDiscount ? '1.00' : '0.00'
     });
     setIncomingRequest(null);
     setTripState('EN_ROUTE_TO_PICKUP');
   };
 
-  const handleFinishTrip = () => {
-    if (weeklyBonuses < bonusCap && activeTrip.creditApplied === '1.00') {
-      setWeeklyBonuses((prev) => Math.min(bonusCap, prev + 1));
+  // Controles de estado del viaje
+  const handleUpdateStatus = (newStatus) => {
+    setTripState(newStatus);
+    if (activeTrip?.id) {
+      socket.emit('trip:update_status', {
+        tripId: activeTrip.id,
+        newStatus,
+        driverProfileId
+      });
     }
-    setTripState('DONE');
+
+    if (newStatus === 'DONE') {
+      if (weeklyBonuses < bonusCap && activeTrip?.creditApplied === '1.00') {
+        setWeeklyBonuses((prev) => Math.min(bonusCap, prev + 1));
+      }
+    }
   };
 
   return (
@@ -79,8 +200,9 @@ export default function DriverApp() {
           <div>
             <div className="font-extrabold text-sm text-white flex items-center gap-1.5">
               <span>App Conductor</span>
-              <span className="text-[10px] px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-400 font-bold border border-emerald-500/30">
-                Foreground GPS 3-5s
+              <span className="text-[10px] px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-400 font-bold border border-emerald-500/30 flex items-center gap-1">
+                <Radio className={`w-2.5 h-2.5 ${gpsActive ? 'animate-pulse text-emerald-400' : 'text-slate-500'}`} />
+                <span>GPS Continuo (3-5s)</span>
               </span>
             </div>
             <div className="text-[11px] text-slate-400">Placa: P-584-912 • Toyota Corolla</div>
@@ -182,7 +304,7 @@ export default function DriverApp() {
             <div className="grid grid-cols-3 gap-2">
               <button
                 onClick={() => handleAcceptFare(incomingRequest.offeredFare)}
-                className="py-3 px-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs flex flex-col items-center justify-center gap-0.5 shadow-lg"
+                className="py-3 px-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs flex flex-col items-center justify-center gap-0.5 shadow-lg cursor-pointer"
               >
                 <span>ACEPTAR</span>
                 <span className="text-emerald-200">${incomingRequest.offeredFare}</span>
@@ -190,7 +312,7 @@ export default function DriverApp() {
 
               <button
                 onClick={() => handleAcceptFare((parseFloat(incomingRequest.offeredFare) + 0.50).toFixed(2))}
-                className="py-3 px-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-700 font-bold text-xs flex flex-col items-center justify-center gap-0.5"
+                className="py-3 px-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-700 font-bold text-xs flex flex-col items-center justify-center gap-0.5 cursor-pointer"
               >
                 <span>+$0.50</span>
                 <span className="text-slate-300">${(parseFloat(incomingRequest.offeredFare) + 0.50).toFixed(2)}</span>
@@ -198,7 +320,7 @@ export default function DriverApp() {
 
               <button
                 onClick={() => handleAcceptFare((parseFloat(incomingRequest.offeredFare) + 1.00).toFixed(2))}
-                className="py-3 px-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-700 font-bold text-xs flex flex-col items-center justify-center gap-0.5"
+                className="py-3 px-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-700 font-bold text-xs flex flex-col items-center justify-center gap-0.5 cursor-pointer"
               >
                 <span>+$1.00</span>
                 <span className="text-slate-300">${(parseFloat(incomingRequest.offeredFare) + 1.00).toFixed(2)}</span>
@@ -224,7 +346,7 @@ export default function DriverApp() {
               </div>
               {activeTrip.creditApplied === '1.00' && (
                 <div className="text-[11px] text-slate-300 pt-1 border-t border-emerald-500/30 mt-2">
-                  (Tarifa total ${activeTrip.agreedFare} - $1.00 bono ya acreditado a tu cuota)
+                  (Tarifa acordada ${activeTrip.agreedFare} - $1.00 bono ya acreditado a tu cuota)
                 </div>
               )}
             </div>
@@ -297,7 +419,7 @@ export default function DriverApp() {
             <div className="pt-2 space-y-2">
               {tripState === 'EN_ROUTE_TO_PICKUP' && (
                 <button
-                  onClick={() => setTripState('ARRIVED')}
+                  onClick={() => handleUpdateStatus('ARRIVED')}
                   className="w-full py-3.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-xl text-sm shadow-lg flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <CheckCircle className="w-5 h-5" />
@@ -307,7 +429,7 @@ export default function DriverApp() {
 
               {tripState === 'ARRIVED' && (
                 <button
-                  onClick={() => setTripState('IN_TRANSIT')}
+                  onClick={() => handleUpdateStatus('IN_TRANSIT')}
                   className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-500 text-white font-black rounded-xl text-sm shadow-lg flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <Car className="w-5 h-5" />
@@ -317,7 +439,7 @@ export default function DriverApp() {
 
               {tripState === 'IN_TRANSIT' && (
                 <button
-                  onClick={handleFinishTrip}
+                  onClick={() => handleUpdateStatus('DONE')}
                   className="w-full py-4 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black rounded-xl text-base shadow-xl flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <DollarSign className="w-6 h-6" />

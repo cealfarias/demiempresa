@@ -18,25 +18,36 @@ import {
   Volume2,
   VolumeX,
   Sparkles,
-  ArrowRight
+  ArrowRight,
+  Loader2,
+  Play,
+  Pause
 } from 'lucide-react';
 import AdModal from './AdModal';
+import {
+  socket,
+  registerUserApi,
+  fetchUserCreditsApi,
+  fetchAdFeedApi
+} from './api';
 
 export default function ViajesApp() {
-  // Estado de la Máquina de Estados
-  // 'DECOY_FORM' | 'AUCTION' | 'IN_TRIP_HUB'
+  // Máquina de Estados: 'DECOY_FORM' | 'AUCTION' | 'IN_TRIP_HUB'
   const [appState, setAppState] = useState('DECOY_FORM');
   const [serviceType, setServiceType] = useState('PASSENGER'); // 'PASSENGER' | 'PACKAGE'
 
   // Datos del Viaje
   const [origin, setOrigin] = useState('Metrocentro San Salvador');
+  const [originCoords, setOriginCoords] = useState({ lat: 13.7013, lng: -89.2244 });
   const [destination, setDestination] = useState('Plaza Merliot, Santa Tecla');
+  const [destinationCoords, setDestinationCoords] = useState({ lat: 13.6738, lng: -89.2789 });
   const [destinationMunicipality, setDestinationMunicipality] = useState('Santa Tecla');
   const [proposedFare, setProposedFare] = useState('3.50');
   const [packageDetails, setPackageDetails] = useState('');
   const [paymentTiming, setPaymentTiming] = useState('AT_ORIGIN');
+  const [isGettingGps, setIsGettingGps] = useState(false);
 
-  // Punto de Inflexión: Datos de Usuario
+  // Perfil del Pasajero & Punto de Inflexión
   const [userProfile, setUserProfile] = useState(() => {
     const saved = localStorage.getItem('demiempresa_passenger');
     return saved ? JSON.parse(saved) : null;
@@ -47,24 +58,79 @@ export default function ViajesApp() {
   const [regPhone, setRegPhone] = useState('');
   const [referrerCode, setReferrerCode] = useState('');
   const [duiError, setDuiError] = useState('');
+  const [registering, setRegistering] = useState(false);
 
   // Subasta y Ofertas (TTL 10s)
   const [activeOffers, setActiveOffers] = useState([]);
   const [pendingAcceptOffer, setPendingAcceptOffer] = useState(null);
+  const [tripId, setTripId] = useState(null);
 
   // Viaje Asignado / Hub Comercial
   const [assignedTrip, setAssignedTrip] = useState(null);
-  const [tripStatus, setTripStatus] = useState('DRIVER_EN_ROUTE'); // 'DRIVER_EN_ROUTE' | 'DRIVER_ARRIVED' | 'IN_TRANSIT' | 'COMPLETED'
+  const [tripStatus, setTripStatus] = useState('DRIVER_EN_ROUTE');
   const [creditDiscountApplied, setCreditDiscountApplied] = useState(false);
+  const [driverEtaMinutes, setDriverEtaMinutes] = useState(4);
 
-  // Modal Publicidad B2B
+  // Feed Publicitario B2B
+  const [adFeed, setAdFeed] = useState([]);
   const [showAdModal, setShowAdModal] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
+  const [isPlayingReel, setIsPlayingReel] = useState(true);
+  const [copiedLink, setCopiedLink] = useState(false);
 
   // Establecer título dinámico de la pestaña del navegador para viajes
   useEffect(() => {
     document.title = "demiempresa.online | Viajes Directos & Envíos 100% Efectivo";
   }, []);
+
+  // Inicializar Socket y Eventos
+  useEffect(() => {
+    if (userProfile?.id) {
+      socket.emit('client:register', { userId: userProfile.id, role: 'PASSENGER' });
+    }
+
+    // Escuchar ofertas entrantes de conductores en tiempo real
+    socket.on('passenger:offer_received', (offer) => {
+      setActiveOffers((prev) => {
+        const exists = prev.find((o) => o.driverProfileId === offer.driverProfileId);
+        if (exists) return prev;
+        return [...prev, { ...offer, timeLeft: offer.expiresInSeconds || 10 }];
+      });
+    });
+
+    // Escuchar confirmación de viaje asignado
+    socket.on('trip:confirmed', (data) => {
+      setAssignedTrip((prev) => ({
+        ...prev,
+        ...data
+      }));
+      setAppState('IN_TRIP_HUB');
+    });
+
+    // Escuchar cambios de estado del viaje
+    socket.on('trip:status_changed', ({ status }) => {
+      if (status === 'ARRIVED') setTripStatus('DRIVER_ARRIVED');
+      if (status === 'IN_TRANSIT') setTripStatus('IN_TRANSIT');
+      if (status === 'COMPLETED') setTripStatus('COMPLETED');
+    });
+
+    return () => {
+      socket.off('passenger:offer_received');
+      socket.off('trip:confirmed');
+      socket.off('trip:status_changed');
+    };
+  }, [userProfile]);
+
+  // Cargar feed publicitario según municipio de destino
+  useEffect(() => {
+    if (appState === 'IN_TRIP_HUB') {
+      fetchAdFeedApi(destinationMunicipality).then((creatives) => {
+        if (creatives && creatives.length > 0) {
+          setAdFeed(creatives);
+        }
+      });
+    }
+  }, [appState, destinationMunicipality]);
 
   // Formato estricto para DUI salvadoreño (00000000-0)
   const handleDuiChange = (e) => {
@@ -79,41 +145,85 @@ export default function ViajesApp() {
     }
   };
 
-  // 1. Iniciar Búsqueda (Fase Señuelo -> Subasta)
+  // Obtener geolocalización GPS real del dispositivo
+  const handleGetGpsLocation = () => {
+    if (!navigator.geolocation) {
+      alert('Tu navegador no soporta geolocalización GPS.');
+      return;
+    }
+    setIsGettingGps(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const { latitude, longitude } = pos.coords;
+        setOriginCoords({ lat: latitude, lng: longitude });
+        setOrigin(`GPS: ${latitude.toFixed(4)}, ${longitude.toFixed(4)}`);
+        setIsGettingGps(false);
+      },
+      (err) => {
+        console.warn('Error GPS:', err.message);
+        setOrigin('Mi Ubicación Actual');
+        setIsGettingGps(false);
+      },
+      { timeout: 10000, enableHighAccuracy: true }
+    );
+  };
+
+  // 1. Iniciar Búsqueda (Fase Señuelo -> Subasta en 1 km)
   const handleSearchDrivers = (e) => {
     e.preventDefault();
     if (!origin || !destination) return;
 
     setAppState('AUCTION');
 
-    // Simular recepción de ofertas de choferes dentro de 1 km con TTL de 10s
+    const generatedTripId = `trip-${Date.now()}`;
+    setTripId(generatedTripId);
+
+    // Emitir solicitud al WebSocket Gateway
+    socket.emit('trip:request', {
+      passengerId: userProfile?.id || 'guest-passenger',
+      serviceType,
+      originAddress: origin,
+      originLat: originCoords.lat,
+      originLng: originCoords.lng,
+      destinationAddress: destination,
+      destinationLat: destinationCoords.lat,
+      destinationLng: destinationCoords.lng,
+      destinationMunicipality,
+      proposedFare: parseFloat(proposedFare).toFixed(2),
+      packageDetails,
+      paymentTiming
+    });
+
+    // Simulación complementaria de recepción de choferes dentro de 1 km
     setTimeout(() => {
-      const initialOffers = [
-        {
-          id: 'driver-1',
-          name: 'Carlos Mendoza',
-          photo: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
-          vehiclePlate: 'P-584-912',
-          vehicleModel: 'Toyota Corolla 2021',
-          vehicleColor: 'Gris Metálico',
-          distanceMeters: 380,
-          proposedFare: parseFloat(proposedFare).toFixed(2),
-          timeLeft: 10
-        },
-        {
-          id: 'driver-2',
-          name: 'Roberto Henríquez',
-          photo: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80',
-          vehiclePlate: 'P-910-334',
-          vehicleModel: 'Nissan Versa 2020',
-          vehicleColor: 'Blanco',
-          distanceMeters: 750,
-          proposedFare: (parseFloat(proposedFare) + 0.50).toFixed(2),
-          timeLeft: 10
-        }
-      ];
-      setActiveOffers(initialOffers);
-    }, 1500);
+      setActiveOffers((current) => {
+        if (current.length > 0) return current;
+        return [
+          {
+            driverProfileId: 'drv-sv-1',
+            driverName: 'Carlos Mendoza',
+            photoUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
+            vehiclePlate: 'P-584-912',
+            vehicleModel: 'Toyota Corolla 2021',
+            vehicleColor: 'Gris Plata',
+            distanceMeters: 380,
+            proposedFare: parseFloat(proposedFare).toFixed(2),
+            timeLeft: 10
+          },
+          {
+            driverProfileId: 'drv-sv-2',
+            driverName: 'Roberto Henríquez',
+            photoUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80',
+            vehiclePlate: 'P-910-334',
+            vehicleModel: 'Nissan Versa 2020',
+            vehicleColor: 'Blanco',
+            distanceMeters: 620,
+            proposedFare: (parseFloat(proposedFare) + 0.50).toFixed(2),
+            timeLeft: 10
+          }
+        ];
+      });
+    }, 1800);
   };
 
   // Contador de TTL de 10 segundos para cada oferta activa
@@ -127,7 +237,7 @@ export default function ViajesApp() {
             ...offer,
             timeLeft: offer.timeLeft - 1
           }))
-          .filter((offer) => offer.timeLeft > 0) // Regla de expiración: desaparece al llegar a 0s
+          .filter((offer) => offer.timeLeft > 0)
       );
     }, 1000);
 
@@ -147,13 +257,20 @@ export default function ViajesApp() {
   // Confirmar Asignación Atómica
   const confirmOfferAssignment = (offer) => {
     const fare = parseFloat(offer.proposedFare);
-    const hasCredit = true; // Simulación: crédito de $1.00 disponible de referidos
+    const hasCredit = true; // Crédito de $1.00 USD
     const discount = hasCredit ? 1.00 : 0.00;
     const cashToPay = Math.max(0.00, fare - discount);
 
     setCreditDiscountApplied(hasCredit);
     setAssignedTrip({
-      driver: offer,
+      driver: {
+        name: offer.driverName,
+        photo: offer.photoUrl,
+        vehiclePlate: offer.vehiclePlate,
+        vehicleModel: offer.vehicleModel,
+        vehicleColor: offer.vehicleColor,
+        phone: '7123-4567'
+      },
       agreedFare: fare.toFixed(2),
       cashToPay: cashToPay.toFixed(2),
       origin,
@@ -162,42 +279,102 @@ export default function ViajesApp() {
       serviceType
     });
 
+    // Enviar evento de aceptación atómica al servidor
+    socket.emit('passenger:accept_offer', {
+      tripId: tripId || 'trip-1',
+      driverProfileId: offer.driverProfileId,
+      agreedFare: fare.toFixed(2)
+    });
+
     setAppState('IN_TRIP_HUB');
     setShowRegisterModal(false);
   };
 
-  // Guardar datos en modal de inflexión
-  const handleSaveProfileAndAccept = (e) => {
+  // Guardar datos en modal de inflexión (Registro con API)
+  const handleSaveProfileAndAccept = async (e) => {
     e.preventDefault();
     if (!/^\d{8}-\d{1}$/.test(regDui)) {
-      setDuiError('DUI inválido. Debe tener el formato 00000000-0');
+      setDuiError('DUI inválido. Debe tener el formato estricto 00000000-0');
       return;
     }
-    const profile = {
-      fullName: regFullName,
-      dui: regDui,
-      phone: regPhone,
-      referrerCode
-    };
-    setUserProfile(profile);
-    localStorage.setItem('demiempresa_passenger', JSON.stringify(profile));
 
-    if (pendingAcceptOffer) {
-      confirmOfferAssignment(pendingAcceptOffer);
+    setRegistering(true);
+    setDuiError('');
+
+    try {
+      const data = await registerUserApi({
+        fullName: regFullName,
+        phone: regPhone,
+        dui: regDui,
+        role: 'PASSENGER',
+        referrerCode
+      });
+
+      const profile = {
+        id: data.user?.id || `usr-${Date.now()}`,
+        fullName: regFullName,
+        dui: regDui,
+        phone: regPhone,
+        referrerCode
+      };
+
+      setUserProfile(profile);
+      localStorage.setItem('demiempresa_passenger', JSON.stringify(profile));
+
+      if (pendingAcceptOffer) {
+        confirmOfferAssignment(pendingAcceptOffer);
+      }
+    } catch (err) {
+      console.warn('Fallback local al registrar:', err.message);
+      const fallbackProfile = {
+        id: `usr-${Date.now()}`,
+        fullName: regFullName,
+        dui: regDui,
+        phone: regPhone
+      };
+      setUserProfile(fallbackProfile);
+      localStorage.setItem('demiempresa_passenger', JSON.stringify(fallbackProfile));
+      if (pendingAcceptOffer) {
+        confirmOfferAssignment(pendingAcceptOffer);
+      }
+    } finally {
+      setRegistering(false);
     }
   };
 
-  // Simulación del ciclo de vida del viaje
+  // Simulación del trayecto y ETA
   useEffect(() => {
     if (appState !== 'IN_TRIP_HUB') return;
 
-    const t1 = setTimeout(() => setTripStatus('DRIVER_ARRIVED'), 6000);
-    const t2 = setTimeout(() => setTripStatus('IN_TRANSIT'), 12000);
+    const tEta = setInterval(() => {
+      setDriverEtaMinutes((prev) => (prev > 1 ? prev - 1 : 1));
+    }, 25000);
+
+    const tArrived = setTimeout(() => setTripStatus('DRIVER_ARRIVED'), 7000);
+    const tTransit = setTimeout(() => setTripStatus('IN_TRANSIT'), 14000);
+
     return () => {
-      clearTimeout(t1);
-      clearTimeout(t2);
+      clearInterval(tEta);
+      clearTimeout(tArrived);
+      clearTimeout(tTransit);
     };
   }, [appState]);
+
+  // Compartir viaje en tiempo real
+  const handleShareTrip = () => {
+    const shareUrl = `https://viajes.demiempresa.online/track/${tripId || 'demo'}`;
+    if (navigator.share) {
+      navigator.share({
+        title: 'Mi viaje en tiempo real - demiempresa.online',
+        text: `Sigue mi viaje hacia ${destination} en el auto placa ${assignedTrip?.driver?.vehiclePlate}:`,
+        url: shareUrl
+      }).catch(() => {});
+    } else {
+      navigator.clipboard.writeText(shareUrl);
+      setCopiedLink(true);
+      setTimeout(() => setCopiedLink(false), 3000);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
@@ -263,7 +440,7 @@ export default function ViajesApp() {
 
             <form onSubmit={handleSearchDrivers} className="space-y-4">
               
-              {/* Origen */}
+              {/* Origen con botón GPS real */}
               <div>
                 <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1 flex items-center gap-1.5">
                   <MapPin className="w-3.5 h-3.5 text-emerald-400" />
@@ -280,11 +457,16 @@ export default function ViajesApp() {
                   />
                   <button
                     type="button"
-                    title="Usar GPS actual"
-                    onClick={() => setOrigin('Mi Ubicación Actual (GPS)')}
-                    className="absolute right-2.5 top-2.5 p-1 rounded-lg text-slate-400 hover:text-amber-400 hover:bg-slate-700 transition-colors"
+                    title="Obtener ubicación GPS actual"
+                    disabled={isGettingGps}
+                    onClick={handleGetGpsLocation}
+                    className="absolute right-2.5 top-2.5 p-1.5 rounded-lg text-slate-400 hover:text-amber-400 hover:bg-slate-700 transition-colors disabled:opacity-50"
                   >
-                    <Navigation className="w-4 h-4" />
+                    {isGettingGps ? (
+                      <Loader2 className="w-4 h-4 animate-spin text-amber-400" />
+                    ) : (
+                      <Navigation className="w-4 h-4" />
+                    )}
                   </button>
                 </div>
               </div>
@@ -315,6 +497,7 @@ export default function ViajesApp() {
                   <option value="Antiguo Cuscatlán">Municipio: Antiguo Cuscatlán</option>
                   <option value="Soyapango">Municipio: Soyapango</option>
                   <option value="Mejicanos">Municipio: Mejicanos</option>
+                  <option value="Apopa">Municipio: Apopa</option>
                 </select>
               </div>
 
@@ -330,7 +513,7 @@ export default function ViajesApp() {
                       required
                       value={packageDetails}
                       onChange={(e) => setPackageDetails(e.target.value)}
-                      placeholder="Ej. Caja de zapatos, sobre de documentos, repuesto"
+                      placeholder="Ej. Caja de zapatos, sobre con documentos, repuesto"
                       className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-xs placeholder-slate-500 focus:outline-none"
                     />
                   </div>
@@ -390,7 +573,6 @@ export default function ViajesApp() {
                   />
                 </div>
 
-                {/* Accesos rápidos de monto */}
                 <div className="flex gap-2 mt-2">
                   {['2.50', '3.00', '3.50', '4.50'].map((amt) => (
                     <button
@@ -439,13 +621,16 @@ export default function ViajesApp() {
           
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex items-center justify-between">
             <div>
-              <div className="text-xs text-slate-400 font-semibold">Buscando a 1 km a la redonda...</div>
+              <div className="text-xs text-slate-400 font-semibold">Buscando choferes a 1 km a la redonda...</div>
               <div className="text-sm font-bold text-white flex items-center gap-2">
                 <span>Tu oferta inicial: <strong>${proposedFare} USD</strong></span>
               </div>
             </div>
             <button
-              onClick={() => setAppState('DECOY_FORM')}
+              onClick={() => {
+                setActiveOffers([]);
+                setAppState('DECOY_FORM');
+              }}
               className="text-xs px-3 py-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-white"
             >
               Cancelar
@@ -454,7 +639,7 @@ export default function ViajesApp() {
 
           <div className="space-y-3">
             <div className="flex items-center justify-between text-xs text-slate-400 px-1">
-              <span>Ofertas entrantes de choferes</span>
+              <span>Ofertas de choferes en tiempo real</span>
               <span className="flex items-center gap-1 text-amber-400 font-semibold">
                 <Clock className="w-3.5 h-3.5" />
                 TTL 10s por tarjeta
@@ -468,13 +653,13 @@ export default function ViajesApp() {
                   Notificando a choferes activos dentro de 1 km...
                 </p>
                 <p className="text-xs text-slate-500">
-                  Las ofertas aparecerán aquí y tendrán una vigencia de 10 segundos exactos.
+                  Las ofertas de los conductores aparecerán aquí con una vigencia de 10 segundos exactos.
                 </p>
               </div>
             ) : (
               activeOffers.map((offer) => (
                 <div
-                  key={offer.id}
+                  key={offer.driverProfileId}
                   className="bg-slate-900 border border-amber-500/30 rounded-2xl p-4 shadow-xl space-y-3 relative overflow-hidden transition-all"
                 >
                   {/* Barra de progreso de TTL (10s exactos) */}
@@ -488,17 +673,17 @@ export default function ViajesApp() {
                   <div className="flex items-center justify-between pt-1">
                     <div className="flex items-center gap-3">
                       <img
-                        src={offer.photo}
-                        alt={offer.name}
+                        src={offer.photoUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80'}
+                        alt={offer.driverName}
                         className="w-12 h-12 rounded-xl object-cover border border-slate-700"
                       />
                       <div>
-                        <h4 className="font-bold text-white text-sm">{offer.name}</h4>
+                        <h4 className="font-bold text-white text-sm">{offer.driverName}</h4>
                         <div className="text-xs text-slate-400">
                           {offer.vehicleModel} • <span className="text-amber-300 font-bold">{offer.vehiclePlate}</span>
                         </div>
                         <div className="text-[11px] text-emerald-400">
-                          A {offer.distanceMeters} m de recogida
+                          A {offer.distanceMeters || '400'} m de recogida
                         </div>
                       </div>
                     </div>
@@ -538,7 +723,7 @@ export default function ViajesApp() {
           <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl text-slate-100 space-y-4">
             <div className="flex items-center gap-2 text-amber-400 font-bold">
               <ShieldCheck className="w-5 h-5" />
-              <h3 className="text-lg font-bold text-white">Confirmación Obligatoria</h3>
+              <h3 className="text-lg font-bold text-white">Confirmación de Seguridad</h3>
             </div>
             <p className="text-xs text-slate-400">
               Para garantizar seguridad y el pago directo en efectivo, requerimos tus datos oficiales una única vez.
@@ -616,9 +801,17 @@ export default function ViajesApp() {
                 </button>
                 <button
                   type="submit"
-                  className="w-2/3 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-sm"
+                  disabled={registering}
+                  className="w-2/3 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-sm flex items-center justify-center gap-2"
                 >
-                  Confirmar y Viajar
+                  {registering ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Validando...</span>
+                    </>
+                  ) : (
+                    <span>Confirmar y Viajar</span>
+                  )}
                 </button>
               </div>
             </form>
@@ -635,24 +828,24 @@ export default function ViajesApp() {
           {/* BARRA SUPERIOR DE CONTROL OPERATIVO */}
           <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 shadow-2xl space-y-4">
             
-            {/* Estado del Conductor */}
+            {/* Estado del Conductor & ETA */}
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <div className="flex items-center gap-2">
                 <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping"></span>
                 <span className="text-xs font-bold uppercase tracking-wider text-emerald-400">
-                  {tripStatus === 'DRIVER_EN_ROUTE' && 'Conductor en camino'}
-                  {tripStatus === 'DRIVER_ARRIVED' && '¡El conductor ha llegado!'}
-                  {tripStatus === 'IN_TRANSIT' && 'En trayecto al destino'}
+                  {tripStatus === 'DRIVER_EN_ROUTE' && `Conductor en camino • ETA: ~${driverEtaMinutes} min`}
+                  {tripStatus === 'DRIVER_ARRIVED' && '¡El conductor ha llegado al punto!'}
+                  {tripStatus === 'IN_TRANSIT' && 'En trayecto hacia el destino'}
                   {tripStatus === 'COMPLETED' && 'Viaje Finalizado'}
                 </span>
               </div>
 
               <button
-                onClick={() => alert(`Enlace seguro de rastreo en vivo: https://viajes.demiempresa.online/track/${assignedTrip.driver.id}`)}
+                onClick={handleShareTrip}
                 className="text-xs px-2.5 py-1 rounded-lg bg-slate-800 text-slate-300 hover:text-white flex items-center gap-1.5"
               >
                 <Share2 className="w-3.5 h-3.5 text-amber-400" />
-                <span>Compartir</span>
+                <span>{copiedLink ? '¡Enlace copiado!' : 'Compartir'}</span>
               </button>
             </div>
 
@@ -661,21 +854,21 @@ export default function ViajesApp() {
               <div>
                 <div className="text-[11px] text-slate-400 font-semibold uppercase tracking-wider">Placa del Vehículo</div>
                 <div className="text-3xl font-black text-white tracking-widest bg-slate-950 px-3 py-1 rounded-xl border border-slate-800 inline-block font-mono text-amber-400">
-                  {assignedTrip.driver.vehiclePlate}
+                  {assignedTrip.driver?.vehiclePlate || 'P-584-912'}
                 </div>
                 <div className="text-xs text-slate-300 mt-1">
-                  {assignedTrip.driver.vehicleModel} • {assignedTrip.driver.vehicleColor}
+                  {assignedTrip.driver?.vehicleModel || 'Toyota Corolla'} • {assignedTrip.driver?.vehicleColor || 'Gris'}
                 </div>
               </div>
 
               <div className="text-right">
                 <img
-                  src={assignedTrip.driver.photo}
-                  alt={assignedTrip.driver.name}
+                  src={assignedTrip.driver?.photo || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80'}
+                  alt={assignedTrip.driver?.name}
                   className="w-14 h-14 rounded-2xl object-cover border-2 border-amber-500 shadow-md ml-auto"
                 />
                 <div className="text-xs font-bold text-white mt-1">
-                  {assignedTrip.driver.name}
+                  {assignedTrip.driver?.name || 'Carlos Mendoza'}
                 </div>
               </div>
             </div>
@@ -683,29 +876,29 @@ export default function ViajesApp() {
             {/* MONTO EN EFECTIVO GIGANTE */}
             <div className="p-3.5 bg-gradient-to-r from-amber-500/15 to-orange-500/15 border border-amber-500/40 rounded-2xl flex items-center justify-between">
               <div>
-                <div className="text-xs font-bold text-amber-300">TOTAL EN EFECTIVO</div>
+                <div className="text-xs font-bold text-amber-300">TOTAL EN EFECTIVO A PAGAR</div>
                 {creditDiscountApplied && (
                   <div className="text-[10px] text-emerald-400">
-                    Bono de referido de $1.00 USD aplicado
+                    Bono de referido de $1.00 USD aplicado con éxito
                   </div>
                 )}
               </div>
-              <div className="text-3xl font-black text-white">
-                ${assignedTrip.cashToPay} <span className="text-xs font-medium text-slate-400">USD</span>
+              <div className="text-3xl font-black text-white font-mono">
+                ${assignedTrip.cashToPay} <span className="text-xs font-medium text-slate-400 font-sans">USD</span>
               </div>
             </div>
 
             {/* Botones de Contacto Directo */}
             <div className="grid grid-cols-2 gap-2">
               <a
-                href="tel:70000000"
+                href={`tel:${assignedTrip.driver?.phone || '70000000'}`}
                 className="py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 border border-slate-700"
               >
                 <Phone className="w-4 h-4 text-emerald-400" />
                 <span>Llamar al Chofer</span>
               </a>
               <a
-                href="https://wa.me/50370000000"
+                href={`https://wa.me/503${(assignedTrip.driver?.phone || '70000000').replace(/\D/g, '')}?text=Hola,%20soy%20tu%20pasajero%20de%20demiempresa.online`}
                 target="_blank"
                 rel="noreferrer"
                 className="py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2"
@@ -728,37 +921,56 @@ export default function ViajesApp() {
                   Comercios Locales en {destinationMunicipality}
                 </h3>
               </div>
-              <button
-                onClick={() => setIsMuted(!isMuted)}
-                className="p-1 text-slate-400 hover:text-white"
-              >
-                {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
-              </button>
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() => setIsPlayingReel(!isPlayingReel)}
+                  className="p-1 text-slate-400 hover:text-white"
+                  title={isPlayingReel ? 'Pausar video' : 'Reproducir'}
+                >
+                  {isPlayingReel ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
+                </button>
+                <button
+                  onClick={() => setIsMuted(!isMuted)}
+                  className="p-1 text-slate-400 hover:text-white"
+                  title={isMuted ? 'Activar sonido' : 'Silenciar'}
+                >
+                  {isMuted ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
+                </button>
+              </div>
             </div>
 
-            {/* Reel Vertical 10-15s en Trayecto (Simulado con Banner Animado interactivo) */}
+            {/* Reel Vertical 10-15s en Trayecto */}
             <div className="relative rounded-2xl overflow-hidden bg-gradient-to-b from-slate-800 to-slate-950 border border-amber-500/30 aspect-[16/10] flex flex-col justify-end p-4 shadow-lg group">
               <img
                 src="https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=600&q=80"
                 alt="Comercio local"
-                className="absolute inset-0 w-full h-full object-cover opacity-40 group-hover:scale-105 transition-transform duration-700"
+                className={`absolute inset-0 w-full h-full object-cover transition-all duration-700 ${
+                  isPlayingReel ? 'opacity-40 scale-105' : 'opacity-25'
+                }`}
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/40 to-transparent"></div>
+              <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/50 to-transparent"></div>
 
               <div className="relative z-10 space-y-2">
-                <span className="px-2 py-0.5 rounded-full bg-amber-500 text-slate-950 text-[10px] font-black uppercase tracking-wider">
-                  Reel Patrocinado en Trayecto
-                </span>
+                <div className="flex items-center justify-between">
+                  <span className="px-2 py-0.5 rounded-full bg-amber-500 text-slate-950 text-[10px] font-black uppercase tracking-wider">
+                    Reel Patrocinado en Trayecto
+                  </span>
+                  <span className="text-[10px] text-slate-400 flex items-center gap-1">
+                    <Clock className="w-3 h-3 text-amber-400" />
+                    12s
+                  </span>
+                </div>
+
                 <h4 className="font-black text-lg text-white leading-tight">
                   Tacos & Pupusas Don Toño
                 </h4>
                 <p className="text-xs text-slate-300 line-clamp-2">
-                  ¡Haz tu pedido para recoger al llegar a Santa Tecla! 2x1 en combos especiales mostrando tu viaje en demiempresa.online.
+                  ¡Haz tu pedido para recoger al llegar a {destinationMunicipality}! 2x1 en combos especiales mostrando tu viaje en demiempresa.online.
                 </p>
 
                 <div className="flex gap-2 pt-1">
                   <a
-                    href="https://wa.me/50370000000?text=Hola,%20vi%20su%20promoción%20en%20demiempresa.online%20mientras%20viajaba"
+                    href={`https://wa.me/50369893101?text=Hola,%20vi%20su%20promoción%20en%20demiempresa.online%20mientras%20viajaba%20hacia%20${encodeURIComponent(destinationMunicipality)}.`}
                     target="_blank"
                     rel="noreferrer"
                     className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 shadow"
@@ -777,7 +989,7 @@ export default function ViajesApp() {
               </div>
             </div>
 
-            {/* Banner Estático (Plan Vitrina) */}
+            {/* Banners Adicionales (Plan Vitrina) */}
             <div className="p-3.5 bg-slate-950 rounded-2xl border border-slate-800 flex items-center justify-between gap-3">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 font-black text-sm">
@@ -785,11 +997,11 @@ export default function ViajesApp() {
                 </div>
                 <div>
                   <h5 className="font-bold text-white text-xs">Taller González & Asociados</h5>
-                  <p className="text-[11px] text-slate-400">Mantenimiento preventivo en Santa Tecla</p>
+                  <p className="text-[11px] text-slate-400">Mantenimiento preventivo en {destinationMunicipality}</p>
                 </div>
               </div>
               <a
-                href="https://wa.me/50370000000"
+                href="https://wa.me/50369893101?text=Hola,%20vi%20su%20banner%20en%20demiempresa.online."
                 target="_blank"
                 rel="noreferrer"
                 className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-semibold border border-slate-700 whitespace-nowrap"
