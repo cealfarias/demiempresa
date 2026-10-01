@@ -29,13 +29,16 @@ import {
   Users,
   Briefcase,
   Sun,
-  Moon
+  Moon,
+  AlertTriangle,
+  MapPinOff
 } from 'lucide-react';
 import RumboLogo from './RumboLogo';
 import AdModal from './AdModal';
 import PickupMapModal from './PickupMapModal';
 import DestinationMapModal from './DestinationMapModal';
 import TripPreferencesModal from './TripPreferencesModal';
+import LocationPermissionModal from './LocationPermissionModal';
 import { calculateRoadDistance, calculateSuggestedFare, PASSENGER_WEIGHT_PROFILES } from './fuelService';
 import {
   socket,
@@ -69,6 +72,8 @@ export default function ViajesApp() {
   const [packageDetails, setPackageDetails] = useState('');
   const [paymentTiming, setPaymentTiming] = useState('AT_ORIGIN');
   const [isGettingGps, setIsGettingGps] = useState(false);
+  const [locationPermissionDenied, setLocationPermissionDenied] = useState(false);
+  const [showLocationPermissionModal, setShowLocationPermissionModal] = useState(false);
   const [showMapModal, setShowMapModal] = useState(false);
   const [showDestMapModal, setShowDestMapModal] = useState(false);
   const [cashBill, setCashBill] = useState('10'); // 'EXACT' | '5' | '10' | '20' | '50+'
@@ -277,6 +282,28 @@ export default function ViajesApp() {
     return `Ubicación GPS (${lat.toFixed(4)}, ${lng.toFixed(4)})`;
   };
 
+  // Escuchar reactivamente permisos del navegador para ubicación
+  useEffect(() => {
+    if (typeof navigator !== 'undefined' && navigator.permissions?.query) {
+      navigator.permissions.query({ name: 'geolocation' }).then((status) => {
+        if (status.state === 'denied') {
+          setLocationPermissionDenied(true);
+        } else if (status.state === 'granted') {
+          setLocationPermissionDenied(false);
+        }
+        status.onchange = () => {
+          if (status.state === 'granted') {
+            setLocationPermissionDenied(false);
+            setShowLocationPermissionModal(false);
+            handleGetGpsLocation();
+          } else if (status.state === 'denied') {
+            setLocationPermissionDenied(true);
+          }
+        };
+      }).catch(() => {});
+    }
+  }, []);
+
   // Solicitar ubicación interactiva del pasajero cada vez que entra a la app
   useEffect(() => {
     if (navigator.geolocation) {
@@ -287,9 +314,16 @@ export default function ViajesApp() {
           setOriginCoords({ lat: latitude, lng: longitude });
           const addr = await reverseGeocodeAddress(latitude, longitude);
           setOrigin(addr);
+          setLocationPermissionDenied(false);
+          setShowLocationPermissionModal(false);
           setIsGettingGps(false);
         },
-        () => {
+        (err) => {
+          if (err && err.code === 1) {
+            // PERMISSION_DENIED
+            setLocationPermissionDenied(true);
+            setShowLocationPermissionModal(true);
+          }
           setOrigin('Mi Ubicación');
           setOriginCoords({ lat: 13.7013, lng: -89.2244 });
           setIsGettingGps(false);
@@ -299,7 +333,7 @@ export default function ViajesApp() {
     }
   }, []);
 
-  // Obtener geolocalización GPS real del dispositivo al pulsar botón de mira
+  // Obtener geolocalización GPS real del dispositivo al pulsar botón de mira o reintentar
   const handleGetGpsLocation = () => {
     if (!navigator.geolocation) {
       alert('Tu navegador no soporta geolocalización GPS.');
@@ -312,11 +346,18 @@ export default function ViajesApp() {
         setOriginCoords({ lat: latitude, lng: longitude });
         const addr = await reverseGeocodeAddress(latitude, longitude);
         setOrigin(addr);
+        setLocationPermissionDenied(false);
+        setShowLocationPermissionModal(false);
         setIsGettingGps(false);
       },
       (err) => {
         console.warn('Error GPS:', err.message);
-        setOrigin('Mi Ubicación Actual');
+        if (err && err.code === 1) {
+          // Permiso bloqueado explícitamente por el usuario o navegador
+          setLocationPermissionDenied(true);
+          setShowLocationPermissionModal(true);
+        }
+        setOrigin((prev) => prev || 'Mi Ubicación Actual');
         setIsGettingGps(false);
       },
       { timeout: 10000, enableHighAccuracy: true }
@@ -326,6 +367,10 @@ export default function ViajesApp() {
   // 1. Iniciar Búsqueda (Fase Señuelo -> Subasta en 1 km)
   const handleSearchDrivers = (e) => {
     e.preventDefault();
+    if (locationPermissionDenied || !originCoords) {
+      setShowLocationPermissionModal(true);
+      return;
+    }
     if (!origin || !destination) return;
 
     setAppState('AUCTION');
@@ -637,6 +682,25 @@ export default function ViajesApp() {
 
             <form onSubmit={handleSearchDrivers} className="space-y-4">
               
+              {/* Alerta Inteligente de Ubicación Bloqueada */}
+              {locationPermissionDenied && (
+                <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex items-center justify-between gap-2.5 text-xs text-amber-300 animate-fade-in">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className="w-4 h-4 text-amber-400 flex-shrink-0" />
+                    <span className="leading-tight text-[11px] sm:text-xs">
+                      Permiso de ubicación bloqueado. Se requiere para que el conductor no se pierda.
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowLocationPermissionModal(true)}
+                    className="px-2.5 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-lg text-[11px] whitespace-nowrap cursor-pointer transition-colors"
+                  >
+                    Activar
+                  </button>
+                </div>
+              )}
+
               {/* Origen con botón GPS real y Mapa Interactivo */}
               <div>
                 <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1 flex items-center justify-between">
@@ -1517,6 +1581,15 @@ export default function ViajesApp() {
         onClose={() => setShowPreferencesModal(false)}
         preferences={tripPreferences}
         onChange={setTripPreferences}
+      />
+
+      {/* Modal de Permiso de Ubicación Inteligente Rumbo */}
+      <LocationPermissionModal
+        isOpen={showLocationPermissionModal}
+        onClose={() => setShowLocationPermissionModal(false)}
+        onRetry={handleGetGpsLocation}
+        onOpenMap={() => setShowMapModal(true)}
+        isRetrying={isGettingGps}
       />
 
     </div>
