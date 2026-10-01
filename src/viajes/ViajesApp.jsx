@@ -21,9 +21,11 @@ import {
   ArrowRight,
   Loader2,
   Play,
-  Pause
+  Pause,
+  Map
 } from 'lucide-react';
 import AdModal from './AdModal';
+import PickupMapModal from './PickupMapModal';
 import {
   socket,
   registerUserApi,
@@ -46,6 +48,7 @@ export default function ViajesApp() {
   const [packageDetails, setPackageDetails] = useState('');
   const [paymentTiming, setPaymentTiming] = useState('AT_ORIGIN');
   const [isGettingGps, setIsGettingGps] = useState(false);
+  const [showMapModal, setShowMapModal] = useState(false);
 
   // Perfil del Pasajero & Punto de Inflexión
   const [userProfile, setUserProfile] = useState(() => {
@@ -440,34 +443,68 @@ export default function ViajesApp() {
 
             <form onSubmit={handleSearchDrivers} className="space-y-4">
               
-              {/* Origen con botón GPS real */}
+              {/* Origen con botón GPS real y Mapa Interactivo */}
               <div>
-                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1 flex items-center gap-1.5">
-                  <MapPin className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>Punto de Recogida (Origen)</span>
+                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1 flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <MapPin className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Punto de Recogida (Origen)</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setShowMapModal(true)}
+                    className="text-[11px] text-amber-400 hover:text-amber-300 font-bold flex items-center gap-1 cursor-pointer transition-colors"
+                  >
+                    <Map className="w-3.5 h-3.5" />
+                    <span>Abrir Mapa</span>
+                  </button>
                 </label>
+                
                 <div className="relative">
                   <input
                     type="text"
                     required
                     value={origin}
                     onChange={(e) => setOrigin(e.target.value)}
-                    placeholder="¿Dónde te recogen?"
-                    className="w-full pl-3 pr-10 py-3 bg-slate-800/80 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-amber-400 text-sm"
+                    placeholder="¿Dónde te recogen? (Ej. Metrocentro, Casa)"
+                    className="w-full pl-3 pr-20 py-3 bg-slate-800/80 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-amber-400 text-sm"
                   />
+                  <div className="absolute right-2 top-2 flex items-center gap-1">
+                    <button
+                      type="button"
+                      title="Obtener ubicación GPS actual"
+                      disabled={isGettingGps}
+                      onClick={handleGetGpsLocation}
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-amber-400 hover:bg-slate-700 transition-colors disabled:opacity-50"
+                    >
+                      {isGettingGps ? (
+                        <Loader2 className="w-4 h-4 animate-spin text-amber-400" />
+                      ) : (
+                        <Navigation className="w-4 h-4" />
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      title="Fijar en mapa con pin arrastrable"
+                      onClick={() => setShowMapModal(true)}
+                      className="p-1.5 rounded-lg text-amber-400 hover:text-amber-300 hover:bg-slate-700 transition-colors"
+                    >
+                      <Map className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between mt-1 px-1 text-[11px]">
                   <button
                     type="button"
-                    title="Obtener ubicación GPS actual"
-                    disabled={isGettingGps}
-                    onClick={handleGetGpsLocation}
-                    className="absolute right-2.5 top-2.5 p-1.5 rounded-lg text-slate-400 hover:text-amber-400 hover:bg-slate-700 transition-colors disabled:opacity-50"
+                    onClick={() => setShowMapModal(true)}
+                    className="text-amber-400 hover:underline flex items-center gap-1 font-medium cursor-pointer"
                   >
-                    {isGettingGps ? (
-                      <Loader2 className="w-4 h-4 animate-spin text-amber-400" />
-                    ) : (
-                      <Navigation className="w-4 h-4" />
-                    )}
+                    <span>Mover pin en el mapa para ubicar tu puerta</span>
                   </button>
+                  <span className="text-slate-500 font-mono text-[10px]">
+                    Radio 1 km
+                  </span>
                 </div>
               </div>
 
@@ -1028,6 +1065,18 @@ export default function ViajesApp() {
 
       {/* Modal B2B Captación en Caliente */}
       <AdModal isOpen={showAdModal} onClose={() => setShowAdModal(false)} />
+
+      {/* Modal Interactivo de Mapa Leaflet con Pin y Radio 1 km */}
+      <PickupMapModal
+        isOpen={showMapModal}
+        onClose={() => setShowMapModal(false)}
+        initialCoords={originCoords}
+        initialAddress={origin}
+        onConfirm={({ address, lat, lng }) => {
+          setOrigin(address);
+          setOriginCoords({ lat, lng });
+        }}
+      />
 
     </div>
   );
