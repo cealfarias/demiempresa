@@ -53,6 +53,11 @@ import {
   classifyUserVoiceIntent,
   parseNumberFromSpanish
 } from './voiceAssistantService';
+import {
+  triggerButtonFeedback,
+  triggerSelectionFeedback,
+  triggerSearchLaunchFeedback
+} from './soundFeedbackService';
 import { calculateRoadDistance, calculateSuggestedFare, PASSENGER_WEIGHT_PROFILES } from './fuelService';
 import {
   socket,
@@ -424,46 +429,78 @@ export default function ViajesApp() {
     }
   }, []);
 
+  // Feedback psicológico auditivo y táctil para TODOS los botones de la app
+  useEffect(() => {
+    const handleGlobalButtonClick = (e) => {
+      const btn = e.target.closest('button');
+      if (!btn) return;
+
+      const btnText = (btn.innerText || btn.textContent || '').trim().toLowerCase();
+      // Si es el botón principal de buscar conductor
+      if (btnText.includes('buscar conductor') || (btn.type === 'submit' && btnText.includes('buscar'))) {
+        triggerSearchLaunchFeedback();
+        return;
+      }
+
+      // Si es botón de selección (Auto/Moto, Billetes, Tarifas rápidas, Mapa, Pasajeros, etc.)
+      if (
+        btn.dataset?.role === 'selection' ||
+        btnText.includes('$') ||
+        btnText.includes('auto') ||
+        btnText.includes('moto')
+      ) {
+        triggerSelectionFeedback();
+      } else {
+        triggerButtonFeedback();
+      }
+    };
+
+    document.addEventListener('click', handleGlobalButtonClick, true);
+    return () => {
+      document.removeEventListener('click', handleGlobalButtonClick, true);
+    };
+  }, []);
+
   // Solicitar ubicación interactiva del pasajero cada vez que entra a la app (si ya completó la bienvenida)
   useEffect(() => {
     const isWelcomeCompleted = typeof window !== 'undefined' && localStorage.getItem('rumbo_welcome_completed');
-    const savedMode = typeof window !== 'undefined' && localStorage.getItem('rumbo_assistant_mode');
     if (!isWelcomeCompleted) return; // Se delega al User Gesture de WelcomeVoiceModal
 
     // Iniciar flujo inmediato por voz para usuarios recurrentes con permisos ya otorgados
-    if (savedMode === 'voice') {
-      let hasTriggered = false;
-      const startReturningVoiceGreeting = () => {
-        if (hasTriggered) return;
-        hasTriggered = true;
-        unlockAudioAndSpeech();
-        setVoiceDialogueStep('AWAITING_DESTINATION');
-        speakAndThenListen('Hola, dime ¿cuál es tu rumbo?', {
-          onListeningChange: (listening) => setIsListeningVoice(listening),
-          onResult: (spokenText) => processVoiceDestination(spokenText),
-          onError: (err) => {
-            console.warn('Returning voice dialogue err:', err);
-            setIsListeningVoice(false);
-            setVoiceDialogueStep('IDLE');
-          }
-        });
-      };
+    let speechActuallyStarted = false;
 
-      // Disparar desde el primer milisegundo que el usuario llega
-      const timer = setTimeout(() => {
-        startReturningVoiceGreeting();
-      }, 500);
+    const startReturningVoiceGreeting = () => {
+      if (speechActuallyStarted) return;
+      unlockAudioAndSpeech();
+      setVoiceDialogueStep('AWAITING_DESTINATION');
+      speakAndThenListen('Hola, dime ¿cuál es tu rumbo?', {
+        onStart: () => {
+          speechActuallyStarted = true;
+        },
+        onListeningChange: (listening) => setIsListeningVoice(listening),
+        onResult: (spokenText) => processVoiceDestination(spokenText),
+        onError: (err) => {
+          console.warn('Returning voice dialogue err:', err);
+          setIsListeningVoice(false);
+          setVoiceDialogueStep('IDLE');
+        }
+      });
+    };
 
-      // Resiliencia para políticas de autoplay en navegadores móviles (iOS Safari / Android Chrome):
-      // Si el navegador bloqueó el audio sin interacción previa, el primer tap en la pantalla lo dispara de inmediato
-      const handleFirstInteraction = () => {
+    // Disparar desde el primer milisegundo que el usuario llega
+    const timer = setTimeout(() => {
+      startReturningVoiceGreeting();
+    }, 400);
+
+    // Resiliencia para políticas de autoplay en navegadores móviles (iOS Safari / Android Chrome):
+    // Si el navegador bloqueó el audio sin interacción previa, el primer tap en la pantalla lo dispara de inmediato
+    const handleFirstInteraction = () => {
+      if (!speechActuallyStarted) {
         startReturningVoiceGreeting();
-        window.removeEventListener('click', handleFirstInteraction);
-        window.removeEventListener('touchstart', handleFirstInteraction);
-      };
-      window.addEventListener('click', handleFirstInteraction, { once: true });
-      window.addEventListener('touchstart', handleFirstInteraction, { once: true });
-    }
+      }
+    };
+    window.addEventListener('click', handleFirstInteraction, { once: true, capture: true });
+    window.addEventListener('touchstart', handleFirstInteraction, { once: true, capture: true });
 
     if (navigator.geolocation) {
       setIsGettingGps(true);
@@ -490,6 +527,12 @@ export default function ViajesApp() {
         { timeout: 7000, enableHighAccuracy: true }
       );
     }
+
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('click', handleFirstInteraction, { capture: true });
+      window.removeEventListener('touchstart', handleFirstInteraction, { capture: true });
+    };
   }, []);
 
   // Completar Onboarding Unificado de Bienvenida y Permisos (Addendum 14, 15, 16)
@@ -504,18 +547,16 @@ export default function ViajesApp() {
     if (address) {
       setOrigin(address);
     }
-    if (startVoiceDialogue) {
-      setTimeout(() => {
-        initiateVoiceDialogue(activeCoords);
-      }, 400);
-    }
+    setTimeout(() => {
+      initiateVoiceDialogue(activeCoords);
+    }, 350);
   };
 
   // 1. Iniciar Diálogo Conversacional por Voz
   const initiateVoiceDialogue = (coords) => {
     setVoiceDialogueStep('AWAITING_DESTINATION');
     speakAndThenListen(
-      'Hola, te saluda tu asistente de viaje de Rumbo. ¿A dónde deseas viajar hoy?',
+      'Hola, dime ¿cuál es tu rumbo?',
       {
         onListeningChange: (listening) => setIsListeningVoice(listening),
         onResult: (spokenText) => processVoiceDestination(spokenText, coords || originCoords),
@@ -865,6 +906,7 @@ export default function ViajesApp() {
   // 1. Iniciar Búsqueda (Fase Señuelo -> Subasta en 1 km)
   const handleSearchDrivers = (e) => {
     if (e && e.preventDefault) e.preventDefault();
+    triggerSearchLaunchFeedback();
     if (locationPermissionDenied || !originCoords) {
       setShowLocationPermissionModal(true);
       return;

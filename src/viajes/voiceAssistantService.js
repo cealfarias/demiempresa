@@ -56,7 +56,7 @@ export const stopVoiceDictation = () => {
  * Reproduce el mensaje del Asistente de Viaje y ejecuta onEnd al terminar.
  * IMPORTANTE: Apaga el micrófono mientras habla para evitar retroalimentación (eco).
  */
-export const speakAssistantMessage = (message, onEnd) => {
+export const speakAssistantMessage = (message, onEnd, onStart) => {
   if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
     if (onEnd) onEnd();
     return;
@@ -66,37 +66,102 @@ export const speakAssistantMessage = (message, onEnd) => {
     // 1. Apagar micrófono para que no se auto-escuche
     stopVoiceDictation();
 
-    // 2. Cancelar habla previa
+    // 2. Destrabar sintetizador si está en pausa (bug común de Chrome/Edge)
+    if (window.speechSynthesis.paused) {
+      window.speechSynthesis.resume();
+    }
     window.speechSynthesis.cancel();
 
-    const utterance = new SpeechSynthesisUtterance(message);
-    utterance.lang = 'es-419';
-    utterance.rate = 1.02;
-    utterance.pitch = 1.0;
-    utterance.volume = 1.0;
+    const doSpeak = () => {
+      try {
+        if (window.speechSynthesis.paused) {
+          window.speechSynthesis.resume();
+        }
 
-    const voices = window.speechSynthesis.getVoices();
-    const esVoice = voices.find(v => v.lang.startsWith('es') || v.lang.includes('es-'));
-    if (esVoice) {
-      utterance.voice = esVoice;
-    }
+        const utterance = new SpeechSynthesisUtterance(message);
+        utterance.lang = 'es-SV';
+        utterance.rate = 1.0;
+        utterance.pitch = 1.0;
+        utterance.volume = 1.0;
 
-    let hasEnded = false;
-    const handleDone = () => {
-      if (hasEnded) return;
-      hasEnded = true;
-      if (onEnd) {
-        // Breve pausa para asegurar que el parlante finalice antes de abrir el micrófono
-        setTimeout(() => {
-          onEnd();
+        const voices = window.speechSynthesis.getVoices();
+        const esVoice = voices.find(
+          v => v.lang === 'es-SV' || v.lang === 'es_SV' || v.lang.startsWith('es-419') || v.lang.startsWith('es-MX') || v.lang.startsWith('es')
+        );
+        if (esVoice) {
+          utterance.voice = esVoice;
+        }
+
+        let hasEnded = false;
+        utterance.onstart = () => {
+          if (onStart) onStart();
+        };
+        const handleDone = () => {
+          if (hasEnded) return;
+          hasEnded = true;
+          if (onEnd) {
+            setTimeout(() => {
+              onEnd();
+            }, 250);
+          }
+        };
+
+        utterance.onend = handleDone;
+        utterance.onerror = (e) => {
+          console.warn('[SpeechSynthesis] Error en locución:', e);
+          handleDone();
+        };
+
+        // Resguardo temporal contra congelamiento de síntesis en Chromium
+        const safetyTimer = setTimeout(() => {
+          if (!hasEnded) {
+            handleDone();
+          }
+        }, Math.max(message.length * 85, 2500));
+
+        let keepAliveTimer = setInterval(() => {
+          if (!window.speechSynthesis.speaking) {
+            clearInterval(keepAliveTimer);
+          } else {
+            window.speechSynthesis.resume();
+          }
         }, 300);
+
+        const originalHandleDone = handleDone;
+        utterance.onend = () => {
+          clearInterval(keepAliveTimer);
+          clearTimeout(safetyTimer);
+          originalHandleDone();
+        };
+
+        window.speechSynthesis.speak(utterance);
+
+        if (window.speechSynthesis.paused) {
+          window.speechSynthesis.resume();
+        }
+      } catch (innerErr) {
+        console.warn('[SpeechSynthesis] Error al emitir:', innerErr);
+        if (onEnd) onEnd();
       }
     };
 
-    utterance.onend = handleDone;
-    utterance.onerror = handleDone;
+    let hasSpoken = false;
+    const triggerOnce = () => {
+      if (hasSpoken) return;
+      hasSpoken = true;
+      doSpeak();
+    };
 
-    window.speechSynthesis.speak(utterance);
+    const currentVoices = window.speechSynthesis.getVoices();
+    if (currentVoices.length === 0 && 'onvoiceschanged' in window.speechSynthesis) {
+      window.speechSynthesis.onvoiceschanged = () => {
+        window.speechSynthesis.onvoiceschanged = null;
+        triggerOnce();
+      };
+      setTimeout(triggerOnce, 180);
+    } else {
+      triggerOnce();
+    }
   } catch (err) {
     console.warn('[SpeechSynthesis] Error al reproducir voz:', err);
     if (onEnd) onEnd();
@@ -177,15 +242,19 @@ export const startVoiceDictation = ({ onResult, onListeningChange, onError }) =>
  * Función compuesta: Habla un mensaje y, al terminar de hablar,
  * enciende automáticamente el micrófono para escuchar la respuesta del pasajero.
  */
-export const speakAndThenListen = (message, { onResult, onListeningChange, onError }) => {
+export const speakAndThenListen = (message, { onResult, onListeningChange, onError, onStart }) => {
   unlockAudioAndSpeech();
-  speakAssistantMessage(message, () => {
-    startVoiceDictation({
-      onResult,
-      onListeningChange,
-      onError
-    });
-  });
+  speakAssistantMessage(
+    message,
+    () => {
+      startVoiceDictation({
+        onResult,
+        onListeningChange,
+        onError
+      });
+    },
+    onStart
+  );
 };
 
 /**
