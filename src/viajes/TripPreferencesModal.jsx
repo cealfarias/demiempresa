@@ -9,7 +9,8 @@ import {
   Sparkles,
   Info,
   Scale,
-  Bike
+  Bike,
+  RotateCcw
 } from 'lucide-react';
 import { PASSENGER_WEIGHT_PROFILES, calculateCabinWeight } from './fuelService';
 
@@ -30,7 +31,9 @@ export default function TripPreferencesModal({
     petFriendly = false,
     passengers = 1, // 1 a 4 o 5+
     weightProfile = 'NORMAL',
-    extraLuggage = false
+    extraLuggage = false,
+    isRoundTrip = false,
+    roundTripWaitMinutes = 0
   } = preferences;
 
   const isMoto = transportType === 'MOTO';
@@ -348,6 +351,67 @@ export default function TripPreferencesModal({
             }`}>
               {petFriendly && <Check className="w-4 h-4 stroke-[3]" />}
             </div>
+          </div>
+
+          {/* Opción 6: Modalidad Ida y Vuelta (Viaje Redondo) */}
+          <div className={`p-3.5 rounded-2xl border transition-all space-y-3 ${
+            isRoundTrip ? 'bg-amber-950/25 border-amber-500/50 text-white' : 'bg-slate-950 border-slate-800 text-slate-400'
+          }`}>
+            <div
+              onClick={() => onChange({ ...preferences, isRoundTrip: !isRoundTrip })}
+              className="flex items-center justify-between cursor-pointer"
+            >
+              <div className="flex items-center gap-3">
+                <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${
+                  isRoundTrip ? 'bg-amber-500/20 text-amber-400' : 'bg-slate-900 text-slate-500'
+                }`}>
+                  <RotateCcw className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="font-bold text-white text-xs flex items-center gap-1.5">
+                    <span>Modalidad Ida y Vuelta (Viaje Redondo)</span>
+                    <span className="text-[10px] text-amber-400 font-normal">(-15% retorno)</span>
+                  </div>
+                  <div className="text-[11px] text-slate-400">El conductor te lleva y te regresa a tu punto de origen</div>
+                </div>
+              </div>
+
+              <div className={`w-6 h-6 rounded-lg flex items-center justify-center border transition-all ${
+                isRoundTrip ? 'bg-amber-500 border-amber-400 text-slate-950 font-black' : 'border-slate-700 bg-slate-900'
+              }`}>
+                {isRoundTrip && <Check className="w-4 h-4 stroke-[3]" />}
+              </div>
+            </div>
+
+            {isRoundTrip && (
+              <div className="pt-2 border-t border-slate-800/80 space-y-2 animate-fade-in text-xs">
+                <div className="flex items-center justify-between text-amber-300 font-semibold text-[11px]">
+                  <span>Tiempo de espera en destino antes del retorno:</span>
+                  <span className="font-mono text-amber-400">+$0.05/min</span>
+                </div>
+                <div className="grid grid-cols-4 gap-1.5 text-[11px] font-bold">
+                  {[
+                    { min: 0, label: 'Inmediato' },
+                    { min: 15, label: '15 min' },
+                    { min: 30, label: '30 min' },
+                    { min: 60, label: '1 hora' }
+                  ].map((opt) => (
+                    <button
+                      key={opt.min}
+                      type="button"
+                      onClick={() => onChange({ ...preferences, roundTripWaitMinutes: opt.min })}
+                      className={`py-1.5 px-2 rounded-lg border text-center transition-all cursor-pointer ${
+                        roundTripWaitMinutes === opt.min
+                          ? 'bg-amber-500 border-amber-400 text-slate-950 font-black'
+                          : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
         </div>

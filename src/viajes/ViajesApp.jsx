@@ -34,7 +34,8 @@ import {
   MapPinOff,
   Mic,
   MicOff,
-  Bike
+  Bike,
+  RotateCcw
 } from 'lucide-react';
 import RumboLogo from './RumboLogo';
 import AdModal from './AdModal';
@@ -221,14 +222,16 @@ export default function ViajesApp() {
     setIsSearchingDest(false);
   };
 
-  // Preferencias Especiales del Viaje (A/C, Mascotas, Pasajeros, Equipaje, Contextura/Peso)
+  // Preferencias Especiales del Viaje (A/C, Mascotas, Pasajeros, Equipaje, Contextura/Peso, Ida y Vuelta)
   const [tripPreferences, setTripPreferences] = useState({
     airConditioning: true,
     petFriendly: false,
     passengers: 1,
     weightProfile: 'NORMAL',
     needsVanOrMicrobus: false,
-    extraLuggage: false
+    extraLuggage: false,
+    isRoundTrip: false,
+    roundTripWaitMinutes: 0
   });
   const [showPreferencesModal, setShowPreferencesModal] = useState(false);
 
@@ -920,6 +923,16 @@ export default function ViajesApp() {
       return;
     }
 
+    if (intent.type === 'CHANGE_ROUND_TRIP') {
+      setTripPreferences((prev) => ({
+        ...prev,
+        isRoundTrip: intent.enabled
+      }));
+      const roundStatus = intent.enabled ? 'activado' : 'desactivado';
+      askConfirmationAfterAdjustment(`Viaje de ida y vuelta ${roundStatus}.`);
+      return;
+    }
+
     // Comando no reconocido: re-confirmar búsqueda
     askConfirmationAfterAdjustment('Entendido.');
   };
@@ -1034,6 +1047,8 @@ export default function ViajesApp() {
       cashBill,
       changeNeeded: calculateChange(),
       preferences: tripPreferences,
+      isRoundTrip: Boolean(tripPreferences.isRoundTrip),
+      roundTripWaitMinutes: parseInt(tripPreferences.roundTripWaitMinutes) || 0,
       packageDetails,
       paymentTiming
     });
@@ -1600,6 +1615,73 @@ export default function ViajesApp() {
                       <span>Envío Paquete</span>
                     </button>
                   </div>
+
+                  {/* Selector de Modalidad: Solo Ida vs Ida y Vuelta */}
+                  <div className="grid grid-cols-2 p-1 bg-slate-950/80 rounded-2xl border border-slate-800 text-xs font-bold gap-1">
+                    <button
+                      type="button"
+                      data-role="selection"
+                      onClick={() => setTripPreferences((prev) => ({ ...prev, isRoundTrip: false }))}
+                      className={`py-2 px-3 rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                        !tripPreferences.isRoundTrip
+                          ? 'bg-amber-500 text-slate-950 font-black shadow-md'
+                          : 'text-slate-400 hover:text-white hover:bg-slate-800/40'
+                      }`}
+                    >
+                      <ArrowRight className="w-3.5 h-3.5" />
+                      <span>Solo Ida</span>
+                    </button>
+                    <button
+                      type="button"
+                      data-role="selection"
+                      onClick={() => setTripPreferences((prev) => ({ ...prev, isRoundTrip: true }))}
+                      className={`py-2 px-3 rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                        tripPreferences.isRoundTrip
+                          ? 'bg-gradient-to-r from-amber-500 to-amber-400 text-slate-950 font-black shadow-md'
+                          : 'text-slate-400 hover:text-white hover:bg-slate-800/40'
+                      }`}
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      <span>Ida y Vuelta</span>
+                    </button>
+                  </div>
+
+                  {/* Selector de Tiempo de Espera en Destino para Ida y Vuelta */}
+                  {tripPreferences.isRoundTrip && (
+                    <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-2xl space-y-2 animate-fade-in text-xs">
+                      <div className="flex items-center justify-between text-amber-300 font-bold">
+                        <span className="flex items-center gap-1.5">
+                          <RotateCcw className="w-3.5 h-3.5 text-amber-400" />
+                          <span>Espera en destino para el retorno:</span>
+                        </span>
+                        <span className="text-[10px] text-amber-400/90 bg-amber-500/20 px-2 py-0.5 rounded-full font-mono">
+                          +$0.05/min
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-4 gap-1.5 text-[11px] font-bold">
+                        {[
+                          { min: 0, label: 'Inmediato' },
+                          { min: 15, label: '15 min' },
+                          { min: 30, label: '30 min' },
+                          { min: 60, label: '1 hora' }
+                        ].map((opt) => (
+                          <button
+                            key={opt.min}
+                            type="button"
+                            data-role="selection"
+                            onClick={() => setTripPreferences((prev) => ({ ...prev, roundTripWaitMinutes: opt.min }))}
+                            className={`py-1.5 px-2 rounded-lg border text-center transition-all cursor-pointer ${
+                              tripPreferences.roundTripWaitMinutes === opt.min
+                                ? 'bg-amber-500 border-amber-400 text-slate-950 font-black'
+                                : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
+                            }`}
+                          >
+                            {opt.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
               {serviceType === 'PACKAGE' && (
                 <div className="p-3 bg-amber-500/5 border border-amber-500/20 rounded-xl space-y-2.5 animate-fade-in">
                   <div>

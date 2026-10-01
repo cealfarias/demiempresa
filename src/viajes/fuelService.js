@@ -373,28 +373,41 @@ export function calculateSuggestedFare(
   // Recargo por equipaje voluminoso en baúl (en moto no aplica baúl grande)
   const luggageSurcharge = isMoto ? 0.00 : (extraLuggage ? 0.40 : 0.00);
 
+  // Soporte de Ida y Vuelta (Viaje Redondo) y tiempo de espera en destino
+  const isRoundTrip = Boolean(options.isRoundTrip);
+  const roundTripWaitMinutes = Math.max(0, parseInt(options.roundTripWaitMinutes) || 0);
+  const roundTripWaitSurcharge = roundTripWaitMinutes * 0.05; // $0.05 por minuto de espera ($1.50 por cada 30 min)
+
+  // Factor de retorno para ida y vuelta: 1.85x (15% de descuento en el tramo de retorno para premiar fidelidad)
+  const distanceMultiplier = isRoundTrip ? 1.85 : 1.0;
+
   // Total bruto
-  const rawTotal = baseFare + kmCost + (fuelComponent * 0.85) + trafficSurcharge + acSurcharge + weightSurcharge + luggageSurcharge;
+  const rawTripKmAndFuel = (kmCost + (fuelComponent * 0.85) + trafficSurcharge + acSurcharge) * distanceMultiplier;
+  const rawTotal = baseFare + rawTripKmAndFuel + weightSurcharge + luggageSurcharge + roundTripWaitSurcharge;
 
   // Redondear a múltiplos de $0.25 para pagos en efectivo limpios
-  // Mínimo Moto: $1.50 | Mínimo Auto: $2.50 | Mínimo Van: $4.50
+  // Mínimo Moto: $1.50 (o $2.75 ida y vuelta) | Mínimo Auto: $2.50 (o $4.50 ida y vuelta) | Mínimo Van: $4.50
+  const minBaseFare = isMoto ? (isRoundTrip ? 2.75 : 1.50) : (isLargeGroup ? (isRoundTrip ? 8.00 : 4.50) : (isRoundTrip ? 4.50 : 2.50));
   const roundedSuggested = Math.max(
-    isMoto ? 1.50 : (isLargeGroup ? 4.50 : 2.50),
+    minBaseFare,
     Math.round(rawTotal * 4) / 4
   ).toFixed(2);
 
   const minimumRecommended = Math.max(
-    isMoto ? 1.25 : (isLargeGroup ? 3.75 : 2.00),
+    minBaseFare * 0.85,
     Math.round((rawTotal * 0.85) * 4) / 4
   ).toFixed(2);
 
   return {
     isMoto,
+    isRoundTrip,
+    roundTripWaitMinutes,
+    roundTripWaitSurcharge: +roundTripWaitSurcharge.toFixed(2),
     suggestedFare: roundedSuggested,
     minimumRecommended,
-    fuelCostUsd: fuelComponent,
+    fuelCostUsd: fuelComponent * distanceMultiplier,
     trafficSurcharge: +trafficSurcharge.toFixed(2),
-    acSurcharge,
+    acSurcharge: acSurcharge * distanceMultiplier,
     weightSurcharge: +(weightSurcharge + luggageSurcharge).toFixed(2),
     weightAnalysis: weightData,
     fuelMetrics

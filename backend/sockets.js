@@ -110,10 +110,19 @@ export function initializeWebSockets(httpServer) {
 
           const targetSocketId = driverSockets.get(nearby.driverId);
           if (targetSocketId) {
+            // Ofuscación perimetral a 2 decimales (~1.1 km) en el canal de subasta público
+            const obfLat = Number(parseFloat(originLat).toFixed(2));
+            const obfLng = Number(parseFloat(originLng).toFixed(2));
+
             io.to(targetSocketId).emit('trip:new_request', {
               tripId: newTrip.id,
               serviceType: newTrip.service_type,
+              transportType: tripData.transportType || 'CAR',
+              isRoundTrip: Boolean(tripData.isRoundTrip),
+              roundTripWaitMinutes: parseInt(tripData.roundTripWaitMinutes) || 0,
               originAddress: newTrip.origin_address,
+              originLatObfuscated: obfLat,
+              originLngObfuscated: obfLng,
               destinationAddress: newTrip.destination_address,
               destinationMunicipality: newTrip.destination_municipality,
               proposedFare: newTrip.proposed_fare,

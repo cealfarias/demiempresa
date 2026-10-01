@@ -364,6 +364,12 @@ export const classifyUserVoiceIntent = (text) => {
     return { type: 'CHANGE_TRANSPORT', transportType: 'CAR', raw: text };
   }
 
+  // Ajuste de Ida y Vuelta / Viaje Redondo
+  if (/\b(ida y vuelta|viaje redondo|con regreso|de regreso|redondo|y vuelta|con vuelta|vuelta)\b/i.test(lower)) {
+    const enabled = !/\b(solo ida|sin regreso|quitar vuelta|no redondo|sin vuelta)\b/i.test(lower);
+    return { type: 'CHANGE_ROUND_TRIP', enabled, raw: text };
+  }
+
   // Si dice directamente una cifra: ej. "3 dólares", "4", "2.50"
   const standaloneAmount = parseNumberFromSpanish(lower);
   if (standaloneAmount !== null && standaloneAmount > 0) {
