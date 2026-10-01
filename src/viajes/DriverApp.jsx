@@ -134,6 +134,12 @@ export default function DriverApp() {
         distanceKm: reqData.distanceToPickupKm || 0.5,
         roadDistanceKm: reqData.distanceKm || 7.8,
         offeredFare: reqData.proposedFare,
+        suggestedFare: reqData.suggestedFare,
+        delayMinutes: reqData.delayMinutes || 0,
+        trafficLevel: reqData.trafficLevel,
+        trafficLabel: reqData.trafficLabel,
+        trafficColor: reqData.trafficColor,
+        preferences: reqData.preferences || {},
         cashBill: reqData.cashBill || '10',
         changeNeeded: reqData.changeNeeded || '6.50',
         hasBonusDiscount: false,
@@ -153,6 +159,7 @@ export default function DriverApp() {
         destination: assignedData.destinationAddress,
         roadDistanceKm: assignedData.distanceKm || 7.8,
         delayMinutes: assignedData.delayMinutes || 0,
+        suggestedFare: assignedData.suggestedFare,
         preferences: assignedData.preferences || {},
         cashBill: assignedData.cashBill || '10',
         changeNeeded: assignedData.changeNeeded || '6.50',
@@ -239,6 +246,7 @@ export default function DriverApp() {
       destination: incomingRequest?.destination || 'Plaza Merliot, Santa Tecla',
       roadDistanceKm: incomingRequest?.roadDistanceKm || 7.8,
       delayMinutes: incomingRequest?.delayMinutes || 0,
+      suggestedFare: incomingRequest?.suggestedFare,
       preferences: incomingRequest?.preferences || {},
       cashBill: incomingRequest?.cashBill || '10',
       changeNeeded: incomingRequest?.changeNeeded || '6.50',
@@ -447,6 +455,38 @@ export default function DriverApp() {
                 )}
               </div>
 
+              {/* Comparador de Tarifa Ofrecida vs Cuota Sugerida */}
+              {(() => {
+                const offered = parseFloat(incomingRequest.offeredFare) || 0;
+                const suggested = parseFloat(incomingRequest.suggestedFare) || 0;
+                if (!suggested || suggested <= 0) return null;
+                const diff = +(offered - suggested).toFixed(2);
+                return (
+                  <div className="pt-0.5 flex items-center">
+                    {diff < -0.01 ? (
+                      <span className="text-[11px] px-2.5 py-1 rounded-xl bg-rose-500/20 text-rose-300 border border-rose-500/40 font-bold flex items-center gap-1.5 shadow-sm">
+                        <span>⚠️</span>
+                        <span>
+                          <strong>-${Math.abs(diff).toFixed(2)} USD</strong> por debajo de la cuota sugerida (${suggested.toFixed(2)})
+                        </span>
+                      </span>
+                    ) : diff > 0.01 ? (
+                      <span className="text-[11px] px-2.5 py-1 rounded-xl bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-bold flex items-center gap-1.5 shadow-sm">
+                        <span>🔥</span>
+                        <span>
+                          <strong>+${diff.toFixed(2)} USD</strong> por arriba de la cuota sugerida (${suggested.toFixed(2)})
+                        </span>
+                      </span>
+                    ) : (
+                      <span className="text-[11px] px-2.5 py-1 rounded-xl bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-bold flex items-center gap-1.5 shadow-sm">
+                        <span>✅</span>
+                        <span>Cuota sugerida exacta (${suggested.toFixed(2)})</span>
+                      </span>
+                    )}
+                  </div>
+                );
+              })()}
+
               {/* DIAMANTE ROJO: Aviso de Billete y Vuelto */}
               <div className="pt-2 border-t border-slate-800 flex items-center justify-between text-xs bg-rose-950/20 px-2.5 py-1.5 rounded-xl border border-rose-500/20">
                 <span className="text-rose-300 font-bold flex items-center gap-1">
@@ -565,6 +605,31 @@ export default function DriverApp() {
                   (Tarifa acordada ${activeTrip.agreedFare} - $1.00 bono ya acreditado a tu cuota)
                 </div>
               )}
+
+              {/* Comparador de Tarifa Acordada vs Cuota Sugerida */}
+              {(() => {
+                const agreed = parseFloat(activeTrip.agreedFare) || 0;
+                const suggested = parseFloat(activeTrip.suggestedFare) || 0;
+                if (!suggested || suggested <= 0) return null;
+                const diff = +(agreed - suggested).toFixed(2);
+                return (
+                  <div className="pt-2 flex items-center justify-center">
+                    {diff < -0.01 ? (
+                      <span className="text-[11px] px-2.5 py-1 rounded-xl bg-rose-500/20 text-rose-300 border border-rose-500/40 font-bold flex items-center gap-1.5 shadow-sm">
+                        <span>⚠️ Tarifa -${Math.abs(diff).toFixed(2)} USD debajo de cuota sugerida (${suggested.toFixed(2)})</span>
+                      </span>
+                    ) : diff > 0.01 ? (
+                      <span className="text-[11px] px-2.5 py-1 rounded-xl bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-bold flex items-center gap-1.5 shadow-sm">
+                        <span>🔥 Tarifa +${diff.toFixed(2)} USD sobre cuota sugerida (${suggested.toFixed(2)})</span>
+                      </span>
+                    ) : (
+                      <span className="text-[11px] px-2.5 py-1 rounded-xl bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-bold flex items-center gap-1.5 shadow-sm">
+                        <span>✅ Tarifa sugerida exacta (${suggested.toFixed(2)})</span>
+                      </span>
+                    )}
+                  </div>
+                );
+              })()}
 
               {/* DIAMANTE ROJO: Cuadro de Cambio/Vuelto Listo */}
               <div className="p-3 mt-3 bg-slate-950/90 border border-amber-500/40 rounded-xl text-xs flex items-center justify-between text-left">

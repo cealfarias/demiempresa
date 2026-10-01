@@ -27,7 +27,9 @@ import {
   Wind,
   Dog,
   Users,
-  Briefcase
+  Briefcase,
+  Sun,
+  Moon
 } from 'lucide-react';
 import RumboLogo from './RumboLogo';
 import AdModal from './AdModal';
@@ -47,6 +49,15 @@ export default function ViajesApp() {
   const [appState, setAppState] = useState('DECOY_FORM');
   const [serviceType, setServiceType] = useState('PASSENGER'); // 'PASSENGER' | 'PACKAGE'
 
+  // Tema de la Aplicación: 'dark' | 'light' (mutuamente excluyente)
+  const [theme, setTheme] = useState(() => localStorage.getItem('rumbo_theme') || 'dark');
+  const isLight = theme === 'light';
+
+  const toggleTheme = (newTheme) => {
+    setTheme(newTheme);
+    localStorage.setItem('rumbo_theme', newTheme);
+  };
+
   // Datos del Viaje
   const [origin, setOrigin] = useState('Metrocentro San Salvador');
   const [originCoords, setOriginCoords] = useState({ lat: 13.7013, lng: -89.2244 });
@@ -54,12 +65,13 @@ export default function ViajesApp() {
   const [destinationCoords, setDestinationCoords] = useState({ lat: 13.6738, lng: -89.2789 });
   const [destinationMunicipality, setDestinationMunicipality] = useState('Santa Tecla');
   const [proposedFare, setProposedFare] = useState('3.50');
+  const [hasCustomFare, setHasCustomFare] = useState(false);
   const [packageDetails, setPackageDetails] = useState('');
   const [paymentTiming, setPaymentTiming] = useState('AT_ORIGIN');
   const [isGettingGps, setIsGettingGps] = useState(false);
   const [showMapModal, setShowMapModal] = useState(false);
   const [showDestMapModal, setShowDestMapModal] = useState(false);
-  const [cashBill, setCashBill] = useState('10'); // 'EXACT' | '5' | '10' | '20'
+  const [cashBill, setCashBill] = useState('10'); // 'EXACT' | '5' | '10' | '20' | '50+'
 
   // Preferencias Especiales del Viaje (A/C, Mascotas, Pasajeros, Equipaje, Contextura/Peso)
   const [tripPreferences, setTripPreferences] = useState({
@@ -104,13 +116,6 @@ export default function ViajesApp() {
     }
   }, [originCoords, destinationCoords]);
 
-  const calculateChange = (fare = proposedFare) => {
-    if (cashBill === 'EXACT') return '0.00';
-    const billVal = parseFloat(cashBill);
-    const fareVal = parseFloat(fare) || 0;
-    return Math.max(0, billVal - fareVal).toFixed(2);
-  };
-
   // Algoritmo de Tarifa Sugerida en Tiempo Real (Gasolina + Tráfico + A/C + Peso)
   const suggestedFareInfo = calculateSuggestedFare(
     roadDistanceKm,
@@ -119,6 +124,41 @@ export default function ViajesApp() {
     trafficInfo.delayMinutes,
     tripPreferences
   );
+
+  // Sincronizar dinámicamente la tarifa sugerida cuando cambia la ruta o preferencias
+  useEffect(() => {
+    if (suggestedFareInfo?.suggestedFare) {
+      setProposedFare(suggestedFareInfo.suggestedFare);
+      setHasCustomFare(false);
+    }
+  }, [roadDistanceKm, trafficInfo.delayMinutes, tripPreferences]);
+
+  const calculateChange = (fare = proposedFare) => {
+    if (cashBill === 'EXACT') return '0.00';
+    if (cashBill === '50+') {
+      const fareVal = parseFloat(fare) || 0;
+      return Math.max(0, 50 - fareVal).toFixed(2);
+    }
+    const billVal = parseFloat(cashBill);
+    const fareVal = parseFloat(fare) || 0;
+    return Math.max(0, billVal - fareVal).toFixed(2);
+  };
+
+  // Lista de precios sugeridos ordenados hacia arriba (iniciando por la mínima recomendada)
+  const quickFareOptions = (() => {
+    const minVal = parseFloat(suggestedFareInfo?.minimumRecommended) || 2.50;
+    const sugVal = parseFloat(suggestedFareInfo?.suggestedFare) || 3.00;
+    const opts = [minVal];
+    if (sugVal > minVal) {
+      opts.push(sugVal);
+    }
+    let nextVal = Math.round((opts[opts.length - 1] + 0.50) * 4) / 4;
+    while (opts.length < 4) {
+      opts.push(nextVal);
+      nextVal = Math.round((nextVal + 0.50) * 4) / 4;
+    }
+    return opts.map((n) => n.toFixed(2));
+  })();
 
   // Perfil del Pasajero & Punto de Inflexión
   const [userProfile, setUserProfile] = useState(() => {
@@ -462,13 +502,47 @@ export default function ViajesApp() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
+    <div className={`min-h-screen flex flex-col font-sans transition-colors duration-200 ${
+      isLight ? 'bg-slate-100 text-slate-800' : 'bg-slate-950 text-slate-100'
+    }`}>
       
       {/* Barra Superior Oficial Rumbo */}
-      <header className="border-b border-slate-800 bg-slate-900/90 backdrop-blur sticky top-0 z-40 px-4 py-3 flex items-center justify-between">
+      <header className={`border-b backdrop-blur sticky top-0 z-40 px-4 py-3 flex items-center justify-between transition-colors ${
+        isLight ? 'bg-white/95 border-slate-200' : 'bg-slate-900/90 border-slate-800'
+      }`}>
         <RumboLogo />
 
         <div className="flex items-center gap-2">
+          {/* Selector Mutuamente Excluyente de Tema: Solecito / Media Luna */}
+          <div className={`flex items-center p-0.5 rounded-full border transition-all ${
+            isLight ? 'bg-slate-200/80 border-slate-300' : 'bg-slate-800/90 border-slate-700'
+          }`}>
+            <button
+              type="button"
+              onClick={() => toggleTheme('light')}
+              title="Tema Claro"
+              className={`p-1.5 rounded-full transition-all cursor-pointer ${
+                theme === 'light'
+                  ? 'bg-amber-400 text-slate-950 shadow-md font-black scale-105'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <Sun className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => toggleTheme('dark')}
+              title="Tema Oscuro"
+              className={`p-1.5 rounded-full transition-all cursor-pointer ${
+                theme === 'dark'
+                  ? 'bg-lime-500 text-slate-950 shadow-md font-black scale-105'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <Moon className="w-4 h-4" />
+            </button>
+          </div>
+
           <span className="text-[11px] font-bold text-lime-400 bg-lime-500/10 border border-lime-500/30 px-2.5 py-1 rounded-full flex items-center gap-1.5 shadow-sm">
             <span className="w-1.5 h-1.5 rounded-full bg-lime-400 animate-pulse"></span>
             <span>100% Efectivo</span>
@@ -482,7 +556,9 @@ export default function ViajesApp() {
       {appState === 'DECOY_FORM' && (
         <main className="flex-1 max-w-lg mx-auto w-full p-4 flex flex-col justify-center animate-fade-in">
           
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl space-y-5">
+          <div className={`border rounded-3xl p-5 sm:p-6 shadow-2xl space-y-4 transition-colors ${
+            isLight ? 'bg-white border-slate-200 shadow-slate-200/60 text-slate-900' : 'bg-slate-900 border-slate-800 text-slate-100'
+          }`}>
             
             {/* Selector de Servicio: Pasajero vs Encomienda */}
             <div className="grid grid-cols-2 p-1 bg-slate-950 rounded-2xl border border-slate-800 text-xs font-bold">
@@ -617,7 +693,7 @@ export default function ViajesApp() {
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between mt-1 mb-2 px-1 text-[11px]">
+                <div className="flex items-center justify-between mt-1 px-1 text-[11px]">
                   <button
                     type="button"
                     onClick={() => setShowDestMapModal(true)}
@@ -625,25 +701,7 @@ export default function ViajesApp() {
                   >
                     <span>Mover pin en el mapa para ubicar destino exacto</span>
                   </button>
-                  <span className="text-slate-500 font-mono text-[10px]">
-                    {destinationMunicipality}
-                  </span>
                 </div>
-
-                {/* Municipio para geocerca publicitaria de destino */}
-                <select
-                  value={destinationMunicipality}
-                  onChange={(e) => setDestinationMunicipality(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-xs text-slate-300 focus:outline-none focus:border-rose-400"
-                >
-                  <option value="Santa Tecla">Municipio: Santa Tecla</option>
-                  <option value="San Salvador">Municipio: San Salvador</option>
-                  <option value="Antiguo Cuscatlán">Municipio: Antiguo Cuscatlán</option>
-                  <option value="Soyapango">Municipio: Soyapango</option>
-                  <option value="Mejicanos">Municipio: Mejicanos</option>
-                  <option value="Apopa">Municipio: Apopa</option>
-                  <option value="Ilopango">Municipio: Ilopango</option>
-                </select>
               </div>
 
               {/* Campos específicos si es envío de paquete */}
@@ -797,7 +855,10 @@ export default function ViajesApp() {
                     <span className="text-[11px] text-slate-400">Sugerida:</span>
                     <button
                       type="button"
-                      onClick={() => setProposedFare(suggestedFareInfo.suggestedFare)}
+                      onClick={() => {
+                        setProposedFare(suggestedFareInfo.suggestedFare);
+                        setHasCustomFare(false);
+                      }}
                       className="px-2 py-0.5 rounded-lg bg-lime-500/15 border border-lime-500/40 text-lime-300 font-extrabold text-xs flex items-center gap-1 hover:bg-lime-500/25 transition-all cursor-pointer shadow-sm group"
                       title="Tarifa calculada por consumo de gasolina, tráfico, A/C y carga de pasajeros"
                     >
@@ -817,75 +878,58 @@ export default function ViajesApp() {
                     min="1.50"
                     required
                     value={proposedFare}
-                    onChange={(e) => setProposedFare(e.target.value)}
+                    onChange={(e) => {
+                      setProposedFare(e.target.value);
+                      setHasCustomFare(true);
+                    }}
                     className="w-full pl-8 pr-4 py-3 bg-slate-800/80 border border-slate-700 rounded-xl text-white font-extrabold text-xl focus:outline-none focus:border-amber-400 font-mono"
                   />
                 </div>
 
-                {/* Desglose Científico y Transparente */}
-                <div className="mt-2 p-2.5 rounded-xl bg-slate-950/80 border border-slate-800/80 text-[11px] text-slate-400 flex flex-wrap items-center justify-between gap-y-1">
-                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                    <span>⛽ Gas: <strong className="text-slate-200 font-mono">${suggestedFareInfo.fuelCostUsd}</strong></span>
-                    {trafficInfo.delayMinutes > 0 && (
-                      <span className="text-amber-400 font-semibold font-mono">
-                        🚦 Tráfico: +${suggestedFareInfo.trafficSurcharge}
-                      </span>
-                    )}
-                    {tripPreferences.airConditioning && (
-                      <span className="text-cyan-400 font-semibold font-mono">
-                        ❄️ Clima: +${suggestedFareInfo.acSurcharge}
-                      </span>
-                    )}
-                    {suggestedFareInfo.weightSurcharge > 0 && (
-                      <span className="text-emerald-400 font-semibold font-mono">
-                        ⚖️ Carga: +${suggestedFareInfo.weightSurcharge}
-                      </span>
-                    )}
-                  </div>
-                  <span className="text-slate-500 text-[10px] font-mono">
-                    Mínimo: ${suggestedFareInfo.minimumRecommended}
-                  </span>
-                </div>
-
-                {/* Botones de Selección Rápida Adaptados */}
+                {/* Botones de Selección Rápida: Mínima recomendada y siguientes tarifas hacia arriba */}
                 <div className="flex gap-2 mt-2">
-                  {[
-                    suggestedFareInfo.minimumRecommended,
-                    suggestedFareInfo.suggestedFare,
-                    (parseFloat(suggestedFareInfo.suggestedFare) + 0.50).toFixed(2),
-                    (parseFloat(suggestedFareInfo.suggestedFare) + 1.00).toFixed(2)
-                  ].map((amt, idx) => (
+                  {quickFareOptions.map((amt, idx) => (
                     <button
                       key={`${amt}-${idx}`}
                       type="button"
-                      onClick={() => setProposedFare(amt)}
-                      className={`flex-1 py-1 rounded-lg text-xs font-semibold border font-mono transition-all cursor-pointer ${
+                      onClick={() => {
+                        setProposedFare(amt);
+                        setHasCustomFare(true);
+                      }}
+                      className={`flex-1 py-1.5 rounded-lg text-xs font-semibold border font-mono transition-all cursor-pointer ${
                         proposedFare === amt
                           ? 'bg-amber-500/20 border-amber-400 text-amber-300 font-bold'
                           : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-white'
                       }`}
                     >
                       ${amt}
+                      {idx === 0 && <span className="block text-[9px] font-sans opacity-70">mínimo</span>}
                     </button>
                   ))}
                 </div>
               </div>
 
-              {/* DIAMANTE ROJO: Denominación de Billete y Vuelto para el Chofer */}
+              {/* DIAMANTE ROJO: ¿Necesitas cambio? */}
               <div className="p-3.5 bg-gradient-to-r from-rose-950/30 via-slate-900 to-amber-950/20 border border-rose-500/30 rounded-2xl space-y-2.5">
                 <div className="flex items-center justify-between">
-                  <label className="text-xs font-bold text-rose-300 uppercase tracking-wider flex items-center gap-1.5">
-                    <span>💎 ¿Con cuánto billete pagarás?</span>
-                  </label>
-                  <span className="text-[10px] text-slate-400">Chofer sabrá llevar cambio listo</span>
+                  <div>
+                    <div className="text-xs font-black text-rose-300 uppercase tracking-wider flex items-center gap-1.5">
+                      <span>💎 ¿Necesitas cambio?</span>
+                    </div>
+                    <div className="text-[11px] text-slate-400">
+                      ¿Con qué billete pagarás?
+                    </div>
+                  </div>
+                  <span className="text-[10px] text-slate-500">Chofer sabrá llevar cambio listo</span>
                 </div>
 
-                <div className="grid grid-cols-4 gap-1.5 text-xs font-bold">
+                <div className="grid grid-cols-5 gap-1.5 text-xs font-bold">
                   {[
                     { id: 'EXACT', label: 'Exacto' },
-                    { id: '5', label: '$5.00' },
-                    { id: '10', label: '$10.00' },
-                    { id: '20', label: '$20.00' }
+                    { id: '5', label: '$5' },
+                    { id: '10', label: '$10' },
+                    { id: '20', label: '$20' },
+                    { id: '50+', label: '$50+' }
                   ].map((bill) => (
                     <button
                       key={bill.id}
@@ -908,6 +952,15 @@ export default function ViajesApp() {
                     <span className="text-emerald-400 font-medium">
                       ✅ Pagarás la tarifa exacta en efectivo (no requieres cambio).
                     </span>
+                  ) : cashBill === '50+' ? (
+                    <>
+                      <span>
+                        Pagas con: <strong className="text-white">Billete grande ($50 / $100)</strong>
+                      </span>
+                      <span className="font-bold text-amber-300">
+                        👉 Chofer llevará cambio para billete grande
+                      </span>
+                    </>
                   ) : (
                     <>
                       <span>
@@ -929,14 +982,19 @@ export default function ViajesApp() {
                 </span>
               </div>
 
-              {/* Botón de Despacho (1 KM) */}
-              <button
-                type="submit"
-                className="w-full py-4 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-black text-base rounded-2xl shadow-xl shadow-amber-500/20 flex items-center justify-center gap-2 transition-all cursor-pointer"
-              >
-                <span>BUSCAR CONDUCTORES (RADIO 1 KM)</span>
-                <ArrowRight className="w-5 h-5" />
-              </button>
+              {/* Botón de Despacho */}
+              <div>
+                <button
+                  type="submit"
+                  className="w-full py-4 bg-gradient-to-r from-lime-500 to-emerald-500 hover:from-lime-400 hover:to-emerald-400 text-slate-950 font-black text-base rounded-2xl shadow-xl shadow-lime-500/20 flex items-center justify-center gap-2 transition-all cursor-pointer"
+                >
+                  <span>Buscar Conductor</span>
+                  <ArrowRight className="w-5 h-5" />
+                </button>
+                <p className="text-center text-[11px] text-slate-400 mt-2">
+                  Conexión directa con conductores en un radio de 1 km • 100% Efectivo
+                </p>
+              </div>
 
             </form>
           </div>
