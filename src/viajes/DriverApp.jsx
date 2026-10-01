@@ -152,6 +152,8 @@ export default function DriverApp() {
         originLng: assignedData.originLng || -89.2244,
         destination: assignedData.destinationAddress,
         roadDistanceKm: assignedData.distanceKm || 7.8,
+        delayMinutes: assignedData.delayMinutes || 0,
+        preferences: assignedData.preferences || {},
         cashBill: assignedData.cashBill || '10',
         changeNeeded: assignedData.changeNeeded || '6.50',
         agreedFare: assignedData.agreedFare,
@@ -235,6 +237,11 @@ export default function DriverApp() {
       originLat: 13.7013,
       originLng: -89.2244,
       destination: incomingRequest?.destination || 'Plaza Merliot, Santa Tecla',
+      roadDistanceKm: incomingRequest?.roadDistanceKm || 7.8,
+      delayMinutes: incomingRequest?.delayMinutes || 0,
+      preferences: incomingRequest?.preferences || {},
+      cashBill: incomingRequest?.cashBill || '10',
+      changeNeeded: incomingRequest?.changeNeeded || '6.50',
       agreedFare: fare,
       cashToCollect: (parseFloat(fare) - (incomingRequest?.hasBonusDiscount ? 1.00 : 0.00)).toFixed(2),
       creditApplied: incomingRequest?.hasBonusDiscount ? '1.00' : '0.00'
@@ -399,11 +406,6 @@ export default function DriverApp() {
                   ❄️ Desea A/C
                 </span>
               )}
-              {incomingRequest.preferences?.petFriendly && (
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30 font-bold flex items-center gap-1">
-                  🐾 Lleva Mascota
-                </span>
-              )}
               {incomingRequest.preferences?.passengers > 4 ? (
                 <span className="text-[10px] px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-300 border border-orange-500/40 font-bold flex items-center gap-1 animate-pulse">
                   🚐 5+ Pasajeros (Camioneta/Microbús)
@@ -413,9 +415,19 @@ export default function DriverApp() {
                   👥 {incomingRequest.preferences?.passengers || 1} Pasajeros
                 </span>
               )}
+              {incomingRequest.preferences?.weightProfile && incomingRequest.preferences?.weightProfile !== 'NORMAL' && (
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-bold flex items-center gap-1">
+                  {incomingRequest.preferences.weightProfile === 'LIGHT' ? '🏃 Delgada (~58 kg)' : incomingRequest.preferences.weightProfile === 'HEAVY' ? '🏋️ Robusta (~100 kg)' : '⚖️ Pesada (~125 kg)'}
+                </span>
+              )}
               {incomingRequest.preferences?.extraLuggage && (
                 <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-500/15 text-purple-300 border border-purple-500/30 font-bold flex items-center gap-1">
                   🧳 Equipaje Extra
+                </span>
+              )}
+              {incomingRequest.preferences?.petFriendly && (
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30 font-bold flex items-center gap-1">
+                  🐾 Lleva Mascota
                 </span>
               )}
             </div>
@@ -455,7 +467,8 @@ export default function DriverApp() {
                 kmPerGallon,
                 fuelPrice,
                 incomingRequest.offeredFare,
-                delayMins
+                delayMins,
+                incomingRequest.preferences || {}
               );
               const trafLabel = incomingRequest.trafficLabel || 'Tráfico Moderado';
               const trafColor = incomingRequest.trafficColor || '#F59E0B';
@@ -479,9 +492,14 @@ export default function DriverApp() {
                       <Fuel className="w-3.5 h-3.5 text-amber-400" />
                       <span>Gasto Gasolina ({vehicleYear} • {fuelType}):</span>
                     </span>
-                    <span className="text-amber-300 font-mono font-bold">
-                      -${fuelCalc.fuelCostUsd} USD <span className="text-[10px] text-slate-500">({fuelCalc.gallonsConsumed} gal{fuelCalc.idlingGallons > 0 ? ' incl. ralentí' : ''})</span>
-                    </span>
+                    <div className="text-right">
+                      <span className="text-amber-300 font-mono font-bold">
+                        -${fuelCalc.fuelCostUsd} USD
+                      </span>
+                      <span className="block text-[10px] text-slate-500">
+                        ({fuelCalc.gallonsConsumed} gal{fuelCalc.weightAnalysis?.totalWeightKg ? ` • peso ~${fuelCalc.weightAnalysis.totalWeightKg}kg` : ''})
+                      </span>
+                    </div>
                   </div>
 
                   <div className="pt-2 border-t border-slate-800 flex items-center justify-between font-bold">
@@ -568,6 +586,41 @@ export default function DriverApp() {
                 </div>
               </div>
 
+              {/* Requisitos y Preferencias del Viaje Asignado */}
+              {activeTrip.preferences && (
+                <div className="flex flex-wrap gap-1.5 pt-1 text-left">
+                  {activeTrip.preferences.airConditioning !== false && (
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 font-bold flex items-center gap-1">
+                      ❄️ Con A/C
+                    </span>
+                  )}
+                  {activeTrip.preferences.passengers > 4 ? (
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-300 border border-orange-500/40 font-bold flex items-center gap-1 animate-pulse">
+                      🚐 5+ Pasajeros (Camioneta/Microbús)
+                    </span>
+                  ) : (
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700 font-bold flex items-center gap-1">
+                      👥 {activeTrip.preferences.passengers || 1} Pasajeros
+                    </span>
+                  )}
+                  {activeTrip.preferences.weightProfile && activeTrip.preferences.weightProfile !== 'NORMAL' && (
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-bold flex items-center gap-1">
+                      {activeTrip.preferences.weightProfile === 'LIGHT' ? '🏃 Delgada (~58 kg)' : activeTrip.preferences.weightProfile === 'HEAVY' ? '🏋️ Robusta (~100 kg)' : '⚖️ Pesada (~125 kg)'}
+                    </span>
+                  )}
+                  {activeTrip.preferences.extraLuggage && (
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-500/15 text-purple-300 border border-purple-500/30 font-bold flex items-center gap-1">
+                      🧳 Equipaje Extra
+                    </span>
+                  )}
+                  {activeTrip.preferences.petFriendly && (
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30 font-bold flex items-center gap-1">
+                      🐾 Lleva Mascota
+                    </span>
+                  )}
+                </div>
+              )}
+
               {/* BALANCE DE COMBUSTIBLE Y GANANCIA NETA EN BOLSILLO */}
               {(() => {
                 const tripFuel = calculateTripFuelCost(
@@ -575,7 +628,8 @@ export default function DriverApp() {
                   kmPerGallon,
                   fuelPrice,
                   activeTrip.cashToCollect,
-                  activeTrip.delayMinutes || 0
+                  activeTrip.delayMinutes || 0,
+                  activeTrip.preferences || {}
                 );
                 return (
                   <div className="p-3 bg-slate-950/80 rounded-xl border border-slate-800 text-xs space-y-1.5 text-left">
@@ -591,9 +645,14 @@ export default function DriverApp() {
                         <Fuel className="w-3.5 h-3.5 text-amber-400" />
                         <span>Gasto Gasolina ({vehicleYear} • {fuelType}):</span>
                       </span>
-                      <span className="text-amber-300 font-mono font-bold">
-                        -${tripFuel.fuelCostUsd} USD <span className="text-[10px] text-slate-500">({tripFuel.gallonsConsumed} gal{tripFuel.idlingGallons > 0 ? ' incl. ralentí' : ''})</span>
-                      </span>
+                      <div className="text-right">
+                        <span className="text-amber-300 font-mono font-bold">
+                          -${tripFuel.fuelCostUsd} USD
+                        </span>
+                        <span className="block text-[10px] text-slate-500">
+                          ({tripFuel.gallonsConsumed} gal{tripFuel.weightAnalysis?.totalWeightKg ? ` • peso ~${tripFuel.weightAnalysis.totalWeightKg}kg` : ''})
+                        </span>
+                      </div>
                     </div>
                     <div className="pt-1.5 border-t border-slate-800 flex items-center justify-between font-bold">
                       <span className="text-emerald-400 flex items-center gap-1">

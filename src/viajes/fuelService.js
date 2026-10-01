@@ -212,38 +212,181 @@ export function estimateFuelEconomy(year = 2018, vehicleCategory = 'SEDAN_COMPAC
   return +calculated.toFixed(1);
 }
 
-// 4. CÁLCULO DE COSTO DE GASOLINA, PENALIZACIÓN POR TRÁFICO (RALENTÍ) Y MARGEN NETO
+// 4. MODELO DE PESO Y CARGA DE PASAJEROS
+export const PASSENGER_WEIGHT_PROFILES = {
+  LIGHT:  { label: 'Delgada / Ligero', avgKg: 58, icon: '🏃', desc: '~58 kg por persona' },
+  NORMAL: { label: 'Peso Normal / Estándar', avgKg: 75, icon: '🚶', desc: '~75 kg por persona' },
+  HEAVY:  { label: 'Robusta / Fuerte', avgKg: 100, icon: '🏋️', desc: '~100 kg por persona' },
+  OBESE:  { label: 'Carga Pesada / Obeso', avgKg: 125, icon: '⚖️', desc: '~125 kg por persona' }
+};
+
+export function calculateCabinWeight(passengersCount = 1, weightProfile = 'NORMAL', extraLuggage = false) {
+  const pCount = Math.max(1, parseInt(passengersCount) || 1);
+  const profile = PASSENGER_WEIGHT_PROFILES[weightProfile] || PASSENGER_WEIGHT_PROFILES.NORMAL;
+  const luggageKg = extraLuggage ? 35 : 0;
+  const totalWeightKg = (pCount * profile.avgKg) + luggageKg;
+
+  // Peso de referencia base (1 pasajero estándar = 75 kg)
+  const excessWeightKg = Math.max(0, totalWeightKg - 75);
+  // Cada 100 kg extra incrementa el consumo del motor un 3.5% (fricción, masa inercial y pendientes)
+  const weightConsumptionFactor = 1 + (excessWeightKg / 100) * 0.035;
+
+  return {
+    passengersCount: pCount,
+    weightProfile,
+    avgKgPerPerson: profile.avgKg,
+    totalWeightKg,
+    luggageKg,
+    excessWeightKg,
+    weightConsumptionFactor: +weightConsumptionFactor.toFixed(3)
+  };
+}
+
+// 5. CÁLCULO CIENTÍFICO DE COSTO DE GASOLINA (DISTANCIA + TRÁFICO + A/C + PESO DE PASAJEROS)
 export function calculateTripFuelCost(
   distanceKm,
   kmPerGallon = 42.0,
   fuelPricePerGallon = 3.80,
   agreedFare = 3.50,
-  delayMinutes = 0
+  delayMinutes = 0,
+  options = {}
 ) {
   const dist = parseFloat(distanceKm) || 1.0;
   const kpg = Math.max(10.0, parseFloat(kmPerGallon) || 42.0);
   const price = parseFloat(fuelPricePerGallon) || 3.80;
   const fare = parseFloat(agreedFare) || 0.0;
 
-  // Consumo por rodaje
-  const drivingGallons = dist / kpg;
+  const {
+    airConditioning = true,
+    passengers = 1,
+    weightProfile = 'NORMAL',
+    extraLuggage = false
+  } = options;
 
-  // Penalización por trabazón/ralentí: un motor sedán 1.6L gasta ~0.22 galones por hora detenido con A/C
+  // 1. Análisis de peso y factor de sobreconsumo
+  const weightAnalysis = calculateCabinWeight(passengers, weightProfile, extraLuggage);
+  const weightFactor = weightAnalysis.weightConsumptionFactor;
+
+  // 2. Factor de Aire Acondicionado (+15% de consumo en el motor con compresor activo)
+  const acFactor = airConditioning ? 1.15 : 1.0;
+
+  // 3. Consumo de rodaje afectado por peso y A/C
+  const baseDrivingGallons = dist / kpg;
+  const drivingGallons = baseDrivingGallons * weightFactor * acFactor;
+
+  // 4. Consumo por trabazón / ralentí (motor encendido detenido)
   const idlingHours = Math.max(0, parseFloat(delayMinutes) || 0) / 60;
-  const idlingGallons = idlingHours * 0.22;
+  // A ralentí el A/C gasta ~0.24 gal/h vs ~0.15 gal/h sin A/C
+  const idlingBurnRate = airConditioning ? 0.24 : 0.16;
+  const idlingGallons = idlingHours * idlingBurnRate;
 
-  const totalGallons = drivingGallons + idlingGallons;
+  // Total de galones y costo en USD
+  const totalGallons = +(drivingGallons + idlingGallons).toFixed(3);
   const fuelCostUsd = +(totalGallons * price).toFixed(2);
   const netEarningsUsd = +(Math.max(0, fare - fuelCostUsd)).toFixed(2);
   const profitMarginPercent = fare > 0 ? Math.round((netEarningsUsd / fare) * 100) : 0;
 
   return {
     distanceKm: dist,
-    gallonsConsumed: +totalGallons.toFixed(3),
+    gallonsConsumed: totalGallons,
+    drivingGallons: +drivingGallons.toFixed(3),
     idlingGallons: +idlingGallons.toFixed(3),
     fuelCostUsd,
     netEarningsUsd,
-    profitMarginPercent
+    profitMarginPercent,
+    weightAnalysis,
+    acFactor,
+    airConditioning
+  };
+}
+
+// 6. ALGORITMO DE TARIFA SUGERIDA PONDERADA (DISTANCIA + TRÁFICO + A/C + PESO DE PASAJEROS)
+export function calculateSuggestedFare(
+  distanceKm,
+  kmPerGallon = 42.0,
+  fuelPricePerGallon = 3.80,
+  delayMinutes = 0,
+  options = {}
+) {
+  const {
+    airConditioning = true,
+    passengers = 1,
+    weightProfile = 'NORMAL',
+    extraLuggage = false
+  } = options;
+
+  const dist = parseFloat(distanceKm) || 1.0;
+  const isLargeGroup = passengers > 4;
+
+  // 1. Banderazo base operativo (arranque, desgaste de llantas y salida del conductor)
+  // Si son 5+ pasajeros requiere camioneta/microbús ($3.00 base vs $1.60 auto normal)
+  const baseFare = isLargeGroup ? 3.00 : 1.60;
+
+  // 2. Costo por kilómetro recorrido (amortización + conducción)
+  const kmRate = isLargeGroup ? 0.45 : 0.32;
+  const kmCost = dist * kmRate;
+
+  // 3. Costo real de combustible (incluyendo A/C y peso)
+  const fuelMetrics = calculateTripFuelCost(
+    dist,
+    kmPerGallon,
+    fuelPricePerGallon,
+    0,
+    delayMinutes,
+    options
+  );
+  const fuelComponent = fuelMetrics.fuelCostUsd;
+
+  // 4. Recargo por congestión y tiempo de tráfico (5 centavos por cada minuto de trabazón)
+  const trafficSurcharge = Math.min(2.50, Math.max(0, parseFloat(delayMinutes) || 0) * 0.06);
+
+  // 5. Recargo por Aire Acondicionado
+  const acSurcharge = airConditioning ? (dist > 10 ? 0.50 : 0.35) : 0.00;
+
+  // 6. Recargo ponderado por peso y número de pasajeros
+  const weightData = fuelMetrics.weightAnalysis;
+  let weightSurcharge = 0.00;
+  if (isLargeGroup) {
+    weightSurcharge = 1.75;
+  } else if (weightData.totalWeightKg >= 350) {
+    // 3-4 personas obesas o carga pesada
+    weightSurcharge = 1.00;
+  } else if (weightData.totalWeightKg >= 260) {
+    // 3-4 personas robustas o peso normal
+    weightSurcharge = 0.60;
+  } else if (weightData.totalWeightKg >= 180) {
+    // 2-3 personas normales
+    weightSurcharge = 0.35;
+  } else if (weightData.totalWeightKg >= 130) {
+    weightSurcharge = 0.20;
+  }
+
+  // Recargo por equipaje voluminoso en baúl
+  const luggageSurcharge = extraLuggage ? 0.40 : 0.00;
+
+  // Total bruto
+  const rawTotal = baseFare + kmCost + (fuelComponent * 0.85) + trafficSurcharge + acSurcharge + weightSurcharge + luggageSurcharge;
+
+  // Redondear a múltiplos de $0.25 para pagos en efectivo limpios (sin centavos sueltos difíciles)
+  const roundedSuggested = Math.max(
+    isLargeGroup ? 4.50 : 2.50,
+    Math.round(rawTotal * 4) / 4
+  ).toFixed(2);
+
+  const minimumRecommended = Math.max(
+    isLargeGroup ? 3.75 : 2.00,
+    Math.round((rawTotal * 0.85) * 4) / 4
+  ).toFixed(2);
+
+  return {
+    suggestedFare: roundedSuggested,
+    minimumRecommended,
+    fuelCostUsd: fuelComponent,
+    trafficSurcharge: +trafficSurcharge.toFixed(2),
+    acSurcharge,
+    weightSurcharge: +(weightSurcharge + luggageSurcharge).toFixed(2),
+    weightAnalysis: weightData,
+    fuelMetrics
   };
 }
 

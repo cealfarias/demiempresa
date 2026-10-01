@@ -7,8 +7,10 @@ import {
   Briefcase,
   Check,
   Sparkles,
-  Info
+  Info,
+  Scale
 } from 'lucide-react';
+import { PASSENGER_WEIGHT_PROFILES, calculateCabinWeight } from './fuelService';
 
 export default function TripPreferencesModal({
   isOpen,
@@ -22,10 +24,12 @@ export default function TripPreferencesModal({
     airConditioning = true,
     petFriendly = false,
     passengers = 1, // 1 a 4 o 5+
+    weightProfile = 'NORMAL',
     extraLuggage = false
   } = preferences;
 
   const isMoreThan4 = passengers > 4;
+  const cabinWeight = calculateCabinWeight(passengers, weightProfile, extraLuggage);
 
   const handleToggleAc = () => {
     onChange({ ...preferences, airConditioning: !airConditioning });
@@ -43,23 +47,30 @@ export default function TripPreferencesModal({
     });
   };
 
+  const handleSetWeightProfile = (profileKey) => {
+    onChange({
+      ...preferences,
+      weightProfile: profileKey
+    });
+  };
+
   const handleToggleLuggage = () => {
     onChange({ ...preferences, extraLuggage: !extraLuggage });
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
-      <div className="relative w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-5 shadow-2xl text-slate-100 space-y-4">
+      <div className="relative w-full max-w-md max-h-[90vh] overflow-y-auto bg-slate-900 border border-slate-800 rounded-3xl p-5 shadow-2xl text-slate-100 space-y-4">
         
         {/* Cabecera */}
-        <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+        <div className="flex items-center justify-between pb-3 border-b border-slate-800 sticky top-0 bg-slate-900/95 backdrop-blur z-10">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-xl bg-lime-500/10 border border-lime-500/30 flex items-center justify-center text-lime-400 font-bold">
               <Sparkles className="w-4 h-4" />
             </div>
             <div>
               <h3 className="font-extrabold text-base text-white">Preferencias del Viaje</h3>
-              <p className="text-[11px] text-slate-400">Personaliza tu viaje sin costo oculto</p>
+              <p className="text-[11px] text-slate-400">Calibración justa para chofer y pasajero</p>
             </div>
           </div>
           <button
@@ -89,7 +100,10 @@ export default function TripPreferencesModal({
                 <Wind className="w-5 h-5" />
               </div>
               <div>
-                <div className="font-bold text-white text-xs">Aire Acondicionado (A/C)</div>
+                <div className="font-bold text-white text-xs flex items-center gap-1.5">
+                  <span>Aire Acondicionado (A/C)</span>
+                  <span className="text-[10px] text-cyan-400 font-normal">(+15% motor)</span>
+                </div>
                 <div className="text-[11px] text-slate-400">Viaje fresco con ventilación/clima encendido</div>
               </div>
             </div>
@@ -101,35 +115,7 @@ export default function TripPreferencesModal({
             </div>
           </div>
 
-          {/* Opción 2: Mascota (Pet Friendly) */}
-          <div
-            onClick={handleTogglePet}
-            className={`p-3.5 rounded-2xl border transition-all cursor-pointer flex items-center justify-between ${
-              petFriendly
-                ? 'bg-amber-950/30 border-amber-500/50 text-white'
-                : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
-            }`}
-          >
-            <div className="flex items-center gap-3">
-              <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${
-                petFriendly ? 'bg-amber-500/20 text-amber-400' : 'bg-slate-900 text-slate-500'
-              }`}>
-                <Dog className="w-5 h-5" />
-              </div>
-              <div>
-                <div className="font-bold text-white text-xs">Viajo con Mascota (Pet Friendly)</div>
-                <div className="text-[11px] text-slate-400">Perro o gato en transportadora o en falda</div>
-              </div>
-            </div>
-
-            <div className={`w-6 h-6 rounded-lg flex items-center justify-center border transition-all ${
-              petFriendly ? 'bg-amber-500 border-amber-400 text-slate-950 font-black' : 'border-slate-700 bg-slate-900'
-            }`}>
-              {petFriendly && <Check className="w-4 h-4 stroke-[3]" />}
-            </div>
-          </div>
-
-          {/* Opción 3: Cantidad de Pasajeros (>4 requiere Camioneta o Microbús) */}
+          {/* Opción 2: Cantidad de Pasajeros (>4 requiere Camioneta o Microbús) */}
           <div className="p-3.5 bg-slate-950 rounded-2xl border border-slate-800 space-y-2.5">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -184,6 +170,60 @@ export default function TripPreferencesModal({
             )}
           </div>
 
+          {/* Opción 3: Contextura / Peso Promedio de los Pasajeros */}
+          <div className="p-3.5 bg-slate-950 rounded-2xl border border-slate-800 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Scale className="w-4 h-4 text-emerald-400" />
+                <span className="font-bold text-white text-xs">Contextura de Pasajeros</span>
+              </div>
+              <span className="text-[10px] text-emerald-400 font-mono font-bold">
+                {PASSENGER_WEIGHT_PROFILES[weightProfile]?.label || 'Estándar'}
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-400 leading-tight">
+              Permite calcular el esfuerzo del motor en pendientes y la gasolina exacta.
+            </p>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 text-center">
+              {[
+                { key: 'LIGHT', label: 'Delgada', sub: '~58 kg', icon: '🏃' },
+                { key: 'NORMAL', label: 'Normal', sub: '~75 kg', icon: '🚶' },
+                { key: 'HEAVY', label: 'Robusta', sub: '~100 kg', icon: '🏋️' },
+                { key: 'OBESE', label: 'Pesada', sub: '~125 kg', icon: '⚖️' }
+              ].map((opt) => (
+                <button
+                  key={opt.key}
+                  type="button"
+                  onClick={() => handleSetWeightProfile(opt.key)}
+                  className={`p-2 rounded-xl transition-all cursor-pointer border text-left flex flex-col justify-between ${
+                    weightProfile === opt.key
+                      ? 'bg-emerald-500/20 border-emerald-400 text-white font-bold ring-1 ring-emerald-500'
+                      : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white hover:border-slate-700'
+                  }`}
+                >
+                  <div className="text-base mb-1">{opt.icon}</div>
+                  <div className="text-xs font-bold leading-tight">{opt.label}</div>
+                  <div className="text-[10px] text-slate-500">{opt.sub}</div>
+                </button>
+              ))}
+            </div>
+
+            {/* Píldora de Carga Total Estimada */}
+            <div className="p-2 rounded-xl bg-slate-900/90 border border-slate-800 flex items-center justify-between text-[11px]">
+              <span className="text-slate-400 flex items-center gap-1.5">
+                <span>⚖️ Carga estimada:</span>
+                <strong className="text-white font-mono">~{cabinWeight.totalWeightKg} kg</strong>
+                {extraLuggage && <span className="text-purple-400">(incluye baúl)</span>}
+              </span>
+              <span className={`font-mono font-bold ${cabinWeight.excessWeightKg > 0 ? 'text-amber-400' : 'text-emerald-400'}`}>
+                {cabinWeight.excessWeightKg > 0
+                  ? `+${((cabinWeight.weightConsumptionFactor - 1) * 100).toFixed(1)}% gas`
+                  : 'Carga estándar'}
+              </span>
+            </div>
+          </div>
+
           {/* Opción 4: Equipaje o Cargas Extras */}
           <div
             onClick={handleToggleLuggage}
@@ -200,8 +240,8 @@ export default function TripPreferencesModal({
                 <Briefcase className="w-5 h-5" />
               </div>
               <div>
-                <div className="font-bold text-white text-xs">Equipaje Extra o Baúl Lleno</div>
-                <div className="text-[11px] text-slate-400">Maletas grandes, compras o bultos volumétricos</div>
+                <div className="font-bold text-white text-xs">Equipaje Extra o Baúl Lleno (+35 kg)</div>
+                <div className="text-[11px] text-slate-400">Maletas grandes, compras o bultos pesados</div>
               </div>
             </div>
 
@@ -209,6 +249,34 @@ export default function TripPreferencesModal({
               extraLuggage ? 'bg-purple-500 border-purple-400 text-slate-950 font-black' : 'border-slate-700 bg-slate-900'
             }`}>
               {extraLuggage && <Check className="w-4 h-4 stroke-[3]" />}
+            </div>
+          </div>
+
+          {/* Opción 5: Mascota (Pet Friendly) */}
+          <div
+            onClick={handleTogglePet}
+            className={`p-3.5 rounded-2xl border transition-all cursor-pointer flex items-center justify-between ${
+              petFriendly
+                ? 'bg-amber-950/30 border-amber-500/50 text-white'
+                : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
+            }`}
+          >
+            <div className="flex items-center gap-3">
+              <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${
+                petFriendly ? 'bg-amber-500/20 text-amber-400' : 'bg-slate-900 text-slate-500'
+              }`}>
+                <Dog className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="font-bold text-white text-xs">Viajo con Mascota (Pet Friendly)</div>
+                <div className="text-[11px] text-slate-400">Perro o gato en transportadora o en falda</div>
+              </div>
+            </div>
+
+            <div className={`w-6 h-6 rounded-lg flex items-center justify-center border transition-all ${
+              petFriendly ? 'bg-amber-500 border-amber-400 text-slate-950 font-black' : 'border-slate-700 bg-slate-900'
+            }`}>
+              {petFriendly && <Check className="w-4 h-4 stroke-[3]" />}
             </div>
           </div>
 

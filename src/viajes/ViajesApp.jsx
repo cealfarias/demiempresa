@@ -34,7 +34,7 @@ import AdModal from './AdModal';
 import PickupMapModal from './PickupMapModal';
 import DestinationMapModal from './DestinationMapModal';
 import TripPreferencesModal from './TripPreferencesModal';
-import { calculateRoadDistance } from './fuelService';
+import { calculateRoadDistance, calculateSuggestedFare, PASSENGER_WEIGHT_PROFILES } from './fuelService';
 import {
   socket,
   registerUserApi,
@@ -61,11 +61,12 @@ export default function ViajesApp() {
   const [showDestMapModal, setShowDestMapModal] = useState(false);
   const [cashBill, setCashBill] = useState('10'); // 'EXACT' | '5' | '10' | '20'
 
-  // Preferencias Especiales del Viaje (A/C, Mascotas, Pasajeros, Equipaje)
+  // Preferencias Especiales del Viaje (A/C, Mascotas, Pasajeros, Equipaje, Contextura/Peso)
   const [tripPreferences, setTripPreferences] = useState({
     airConditioning: true,
     petFriendly: false,
     passengers: 1,
+    weightProfile: 'NORMAL',
     needsVanOrMicrobus: false,
     extraLuggage: false
   });
@@ -109,6 +110,15 @@ export default function ViajesApp() {
     const fareVal = parseFloat(fare) || 0;
     return Math.max(0, billVal - fareVal).toFixed(2);
   };
+
+  // Algoritmo de Tarifa Sugerida en Tiempo Real (Gasolina + Tráfico + A/C + Peso)
+  const suggestedFareInfo = calculateSuggestedFare(
+    roadDistanceKm,
+    42.0,
+    3.80,
+    trafficInfo.delayMinutes,
+    tripPreferences
+  );
 
   // Perfil del Pasajero & Punto de Inflexión
   const [userProfile, setUserProfile] = useState(() => {
@@ -255,6 +265,11 @@ export default function ViajesApp() {
       distanceKm: roadDistanceKm,
       durationMinutes: estimatedDurationMin,
       proposedFare: parseFloat(proposedFare).toFixed(2),
+      suggestedFare: suggestedFareInfo.suggestedFare,
+      delayMinutes: trafficInfo.delayMinutes,
+      trafficLevel: trafficInfo.trafficLevel,
+      trafficLabel: trafficInfo.trafficLabel,
+      trafficColor: trafficInfo.trafficColor,
       cashBill,
       changeNeeded: calculateChange(),
       preferences: tripPreferences,
@@ -722,7 +737,7 @@ export default function ViajesApp() {
                 </div>
               </div>
 
-              {/* Botón Minimalista: Preferencias del Viaje (A/C, Mascotas, Pasajeros) */}
+              {/* Botón Minimalista: Preferencias del Viaje (A/C, Mascotas, Pasajeros, Peso) */}
               <button
                 type="button"
                 onClick={() => setShowPreferencesModal(true)}
@@ -737,11 +752,6 @@ export default function ViajesApp() {
                         ❄️ Con A/C
                       </span>
                     )}
-                    {tripPreferences.petFriendly && (
-                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30 font-semibold whitespace-nowrap">
-                        🐾 Mascota
-                      </span>
-                    )}
                     {tripPreferences.passengers > 4 ? (
                       <span className="text-[10px] px-2 py-0.5 rounded-full bg-orange-500/15 text-orange-300 border border-orange-500/30 font-semibold whitespace-nowrap">
                         🚐 Camioneta (+4)
@@ -751,9 +761,19 @@ export default function ViajesApp() {
                         👥 {tripPreferences.passengers} pers.
                       </span>
                     ) : null}
+                    {tripPreferences.weightProfile && tripPreferences.weightProfile !== 'NORMAL' && (
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-semibold whitespace-nowrap">
+                        {tripPreferences.weightProfile === 'LIGHT' ? '🏃 Delgada' : tripPreferences.weightProfile === 'HEAVY' ? '🏋️ Robusta' : '⚖️ Pesada'}
+                      </span>
+                    )}
                     {tripPreferences.extraLuggage && (
                       <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-500/15 text-purple-300 border border-purple-500/30 font-semibold whitespace-nowrap">
                         🧳 Maletas
+                      </span>
+                    )}
+                    {tripPreferences.petFriendly && (
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30 font-semibold whitespace-nowrap">
+                        🐾 Mascota
                       </span>
                     )}
                   </div>
@@ -764,15 +784,30 @@ export default function ViajesApp() {
                 </span>
               </button>
 
-              {/* Monto Ofrecido en Efectivo */}
+              {/* Monto Ofrecido en Efectivo con Tarifa Sugerida Inteligente */}
               <div>
-                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1 flex items-center justify-between">
-                  <span className="flex items-center gap-1">
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
                     <DollarSign className="w-3.5 h-3.5 text-amber-400" />
                     <span>Tu Oferta en Efectivo (USD)</span>
-                  </span>
-                  <span className="text-[11px] text-amber-400 font-normal">Tú propones la tarifa</span>
-                </label>
+                  </label>
+
+                  {/* Chip de Tarifa Sugerida Calculada en Vivo */}
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[11px] text-slate-400">Sugerida:</span>
+                    <button
+                      type="button"
+                      onClick={() => setProposedFare(suggestedFareInfo.suggestedFare)}
+                      className="px-2 py-0.5 rounded-lg bg-lime-500/15 border border-lime-500/40 text-lime-300 font-extrabold text-xs flex items-center gap-1 hover:bg-lime-500/25 transition-all cursor-pointer shadow-sm group"
+                      title="Tarifa calculada por consumo de gasolina, tráfico, A/C y carga de pasajeros"
+                    >
+                      <span className="font-mono">${suggestedFareInfo.suggestedFare}</span>
+                      <span className="text-[9px] uppercase tracking-wider bg-lime-500 text-slate-950 px-1 py-0.5 rounded font-black group-hover:scale-105 transition-transform">
+                        Usar
+                      </span>
+                    </button>
+                  </div>
+                </div>
 
                 <div className="relative">
                   <span className="absolute left-3.5 top-3 text-lg font-bold text-slate-400">$</span>
@@ -783,19 +818,50 @@ export default function ViajesApp() {
                     required
                     value={proposedFare}
                     onChange={(e) => setProposedFare(e.target.value)}
-                    className="w-full pl-8 pr-4 py-3 bg-slate-800/80 border border-slate-700 rounded-xl text-white font-extrabold text-xl focus:outline-none focus:border-amber-400"
+                    className="w-full pl-8 pr-4 py-3 bg-slate-800/80 border border-slate-700 rounded-xl text-white font-extrabold text-xl focus:outline-none focus:border-amber-400 font-mono"
                   />
                 </div>
 
+                {/* Desglose Científico y Transparente */}
+                <div className="mt-2 p-2.5 rounded-xl bg-slate-950/80 border border-slate-800/80 text-[11px] text-slate-400 flex flex-wrap items-center justify-between gap-y-1">
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                    <span>⛽ Gas: <strong className="text-slate-200 font-mono">${suggestedFareInfo.fuelCostUsd}</strong></span>
+                    {trafficInfo.delayMinutes > 0 && (
+                      <span className="text-amber-400 font-semibold font-mono">
+                        🚦 Tráfico: +${suggestedFareInfo.trafficSurcharge}
+                      </span>
+                    )}
+                    {tripPreferences.airConditioning && (
+                      <span className="text-cyan-400 font-semibold font-mono">
+                        ❄️ Clima: +${suggestedFareInfo.acSurcharge}
+                      </span>
+                    )}
+                    {suggestedFareInfo.weightSurcharge > 0 && (
+                      <span className="text-emerald-400 font-semibold font-mono">
+                        ⚖️ Carga: +${suggestedFareInfo.weightSurcharge}
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-slate-500 text-[10px] font-mono">
+                    Mínimo: ${suggestedFareInfo.minimumRecommended}
+                  </span>
+                </div>
+
+                {/* Botones de Selección Rápida Adaptados */}
                 <div className="flex gap-2 mt-2">
-                  {['2.50', '3.00', '3.50', '4.50'].map((amt) => (
+                  {[
+                    suggestedFareInfo.minimumRecommended,
+                    suggestedFareInfo.suggestedFare,
+                    (parseFloat(suggestedFareInfo.suggestedFare) + 0.50).toFixed(2),
+                    (parseFloat(suggestedFareInfo.suggestedFare) + 1.00).toFixed(2)
+                  ].map((amt, idx) => (
                     <button
-                      key={amt}
+                      key={`${amt}-${idx}`}
                       type="button"
                       onClick={() => setProposedFare(amt)}
-                      className={`flex-1 py-1 rounded-lg text-xs font-semibold border ${
+                      className={`flex-1 py-1 rounded-lg text-xs font-semibold border font-mono transition-all cursor-pointer ${
                         proposedFare === amt
-                          ? 'bg-amber-500/20 border-amber-400 text-amber-300'
+                          ? 'bg-amber-500/20 border-amber-400 text-amber-300 font-bold'
                           : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-white'
                       }`}
                     >
