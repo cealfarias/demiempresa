@@ -61,6 +61,11 @@ export default function ViajesApp() {
   const [showAdModal, setShowAdModal] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
 
+  // Establecer título dinámico de la pestaña del navegador para viajes
+  useEffect(() => {
+    document.title = "demiempresa.online | Viajes Directos & Envíos 100% Efectivo";
+  }, []);
+
   // Formato estricto para DUI salvadoreño (00000000-0)
   const handleDuiChange = (e) => {
     let val = e.target.value.replace(/[^\d]/g, '');

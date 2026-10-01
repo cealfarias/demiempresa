@@ -37,6 +37,11 @@ export default function DriverApp() {
   const [activeTrip, setActiveTrip] = useState(null);
   const [tripState, setTripState] = useState('EN_ROUTE_TO_PICKUP'); // 'EN_ROUTE_TO_PICKUP' | 'ARRIVED' | 'IN_TRANSIT' | 'COLLECTING' | 'DONE'
 
+  // Establecer título dinámico de la pestaña para la consola del conductor
+  React.useEffect(() => {
+    document.title = "App Conductor | demiempresa.online";
+  }, []);
+
   // Conductor responde a solicitud
   const handleAcceptFare = (fare) => {
     setActiveTrip({
