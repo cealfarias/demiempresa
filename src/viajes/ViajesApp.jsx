@@ -36,7 +36,8 @@ import {
   MicOff,
   Bike,
   RotateCcw,
-  User
+  User,
+  Gift
 } from 'lucide-react';
 import RumboLogo from './RumboLogo';
 import AdModal from './AdModal';
@@ -59,8 +60,10 @@ import {
   triggerButtonFeedback,
   triggerSelectionFeedback,
   triggerSearchLaunchFeedback,
+  triggerCashRewardFeedback,
   resumeAudioContext
 } from './soundFeedbackService';
+import confetti from 'canvas-confetti';
 import { calculateRoadDistance, calculateSuggestedFare, PASSENGER_WEIGHT_PROFILES } from './fuelService';
 import {
   socket,
@@ -368,11 +371,23 @@ export default function ViajesApp() {
   const [showGoogleAuthModal, setShowGoogleAuthModal] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [regFullName, setRegFullName] = useState('');
+  const [regEmail, setRegEmail] = useState('');
   const [regDui, setRegDui] = useState('');
   const [regPhone, setRegPhone] = useState('');
   const [referrerCode, setReferrerCode] = useState('');
   const [duiError, setDuiError] = useState('');
   const [registering, setRegistering] = useState(false);
+  const [googleDuiStep, setGoogleDuiStep] = useState(false);
+  const [googleTempUser, setGoogleTempUser] = useState(null);
+
+  // Celebración de Bienvenida, Confetti y Bonos ($1.00 por 7 días y Referidos)
+  const [showCelebrationModal, setShowCelebrationModal] = useState(false);
+  const [celebrationName, setCelebrationName] = useState('');
+  const [showMoreBonusesPrompt, setShowMoreBonusesPrompt] = useState(false);
+  const [showReferralModal, setShowReferralModal] = useState(false);
+  const [refContactName, setRefContactName] = useState('');
+  const [refContactPhone, setRefContactPhone] = useState('');
+  const [referralBonusAwarded, setReferralBonusAwarded] = useState(false);
 
   // Subasta y Ofertas (TTL 10s)
   const [activeOffers, setActiveOffers] = useState([]);
@@ -1190,7 +1205,92 @@ export default function ViajesApp() {
     setShowRegisterModal(false);
   };
 
-  // Guardar datos de seguridad (Registro opcional y calmado durante el trayecto)
+  // Explosión de fuegos artificiales y lluvia constante de papelitos de arriba hacia abajo
+  const triggerCelebrationConfetti = () => {
+    try {
+      // 1. Fuegos artificiales multidireccionales iniciales
+      confetti({
+        particleCount: 120,
+        spread: 90,
+        origin: { y: 0.6 },
+        zIndex: 99999
+      });
+      setTimeout(() => {
+        confetti({
+          particleCount: 80,
+          angle: 60,
+          spread: 80,
+          origin: { x: 0, y: 0.7 },
+          zIndex: 99999
+        });
+        confetti({
+          particleCount: 80,
+          angle: 120,
+          spread: 80,
+          origin: { x: 1, y: 0.7 },
+          zIndex: 99999
+        });
+      }, 250);
+
+      // 2. Lluvia constante de papelitos de arriba hacia abajo (5 segundos continuos)
+      const end = Date.now() + 5000;
+      const interval = setInterval(() => {
+        if (Date.now() > end) {
+          return clearInterval(interval);
+        }
+        confetti({
+          particleCount: 30,
+          startVelocity: 15,
+          ticks: 250,
+          origin: { x: Math.random(), y: -0.05 },
+          gravity: 0.9,
+          scalar: 1.25,
+          colors: ['#F59E0B', '#10B981', '#3B82F6', '#EF4444', '#EC4899', '#8B5CF6', '#FBBF24'],
+          zIndex: 99999
+        });
+      }, 200);
+    } catch (cErr) {
+      console.warn('Confetti error:', cErr);
+    }
+  };
+
+  // Completar inscripción con todos los datos (nombre, dui, email) y disparar celebración de bono
+  const handleCompleteRegistrationWithBonus = (profileData) => {
+    const fullProfile = {
+      ...profileData,
+      hasBonus: true,
+      bonusAmount: '1.00',
+      bonusExpiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+    };
+    setUserProfile(fullProfile);
+    localStorage.setItem('demiempresa_passenger', JSON.stringify(fullProfile));
+    setShowRegisterModal(false);
+    setShowGoogleAuthModal(false);
+    setGoogleDuiStep(false);
+
+    setCelebrationName(profileData.fullName || 'Pasajero');
+    setShowCelebrationModal(true);
+
+    // Disparar fuegos artificiales y papelitos volando
+    triggerCelebrationConfetti();
+
+    // Sonido de caja registradora / dólar acreditado
+    triggerCashRewardFeedback();
+
+    // Locución con tono de contenta anunciando bono de $1.00 válido por 7 días
+    speakAssistantMessage(
+      `¡Felicidades ${profileData.fullName}! Te has inscrito exitosamente a nuestra plataforma. Has recibido un bono de bienvenida de un dólar que será usado en tu próximo viaje, con una caducidad de 7 días.`
+    );
+
+    // Unos 10 segundos más tarde: "¿Quieres más bonos?"
+    setTimeout(() => {
+      setShowCelebrationModal(false);
+      setShowMoreBonusesPrompt(true);
+      speakAssistantMessage('¿Quieres más bonos?');
+    }, 10000);
+  };
+
+  // Guardar datos de seguridad (Registro opcional con todos los datos: nombre, dui, email)
   const handleSaveProfileAndAccept = async (e) => {
     e.preventDefault();
     if (!/^\d{8}-\d{1}$/.test(regDui)) {
@@ -1201,62 +1301,133 @@ export default function ViajesApp() {
     setRegistering(true);
     setDuiError('');
 
+    const emailToSave = regEmail || (googleTempUser ? googleTempUser.email : `${regDui.replace('-', '')}@demiempresa.online`);
+
     try {
-      const data = await registerUserApi({
+      await registerUserApi({
         fullName: regFullName,
-        phone: regPhone,
+        phone: regPhone || '7000-0000',
         dui: regDui,
         role: 'PASSENGER',
         referrerCode
       });
 
       const profile = {
-        id: data.user?.id || `usr-${Date.now()}`,
+        id: googleTempUser?.id || `usr-${Date.now()}`,
         fullName: regFullName,
+        email: emailToSave,
         dui: regDui,
-        phone: regPhone,
-        referrerCode
+        phone: regPhone || '7000-0000',
+        photoUrl: googleTempUser?.photoUrl || null,
+        provider: googleTempUser ? 'google' : 'manual',
+        isVerified: true
       };
 
-      setUserProfile(profile);
-      localStorage.setItem('demiempresa_passenger', JSON.stringify(profile));
-      setShowRegisterModal(false);
+      handleCompleteRegistrationWithBonus(profile);
     } catch (err) {
       console.warn('Fallback local al registrar:', err.message);
       const fallbackProfile = {
-        id: `usr-${Date.now()}`,
+        id: googleTempUser?.id || `usr-${Date.now()}`,
         fullName: regFullName,
+        email: emailToSave,
         dui: regDui,
-        phone: regPhone
+        phone: regPhone || '7000-0000',
+        photoUrl: googleTempUser?.photoUrl || null,
+        provider: googleTempUser ? 'google' : 'manual',
+        isVerified: true
       };
-      setUserProfile(fallbackProfile);
-      localStorage.setItem('demiempresa_passenger', JSON.stringify(fallbackProfile));
-      setShowRegisterModal(false);
+      handleCompleteRegistrationWithBonus(fallbackProfile);
     } finally {
       setRegistering(false);
     }
   };
 
-  // Manejar Autenticación con Google (Verificación instantánea y segura)
+  // Manejar Autenticación con Google (Obtener Nombre, Email y solicitar DUI)
   const handleSelectGoogleAccount = (account) => {
     setGoogleLoading(true);
     setTimeout(() => {
-      const profile = {
-        id: account.id || `google-${Date.now()}`,
-        fullName: account.name,
-        email: account.email,
-        photoUrl: account.photoUrl || null,
-        provider: 'google',
-        isVerified: true,
-        dui: 'Verificado con Google',
-        phone: 'Cuenta Google SV'
-      };
-      setUserProfile(profile);
-      localStorage.setItem('demiempresa_passenger', JSON.stringify(profile));
       setGoogleLoading(false);
       setShowGoogleAuthModal(false);
-      setShowRegisterModal(false);
-    }, 600);
+
+      // Guardamos datos de Google (Nombre y Email)
+      setRegFullName(account.name);
+      setRegEmail(account.email);
+      setGoogleTempUser(account);
+
+      // Como requerimos todos los datos completos (nombre, dui, email), solicitamos el DUI
+      setGoogleDuiStep(true);
+      setShowRegisterModal(true);
+    }, 500);
+  };
+
+  // Abrir Google Identity Services real o modal interactivo
+  const handleGoogleSignInClick = () => {
+    const gClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+    if (window.google?.accounts?.oauth2 && gClientId) {
+      try {
+        const tokenClient = window.google.accounts.oauth2.initTokenClient({
+          client_id: gClientId,
+          scope: 'email profile openid',
+          callback: async (tokenResponse) => {
+            if (tokenResponse?.access_token) {
+              try {
+                const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+                  headers: { Authorization: `Bearer ${tokenResponse.access_token}` }
+                });
+                if (res.ok) {
+                  const googleUser = await res.json();
+                  handleSelectGoogleAccount({
+                    id: googleUser.sub || `google-${Date.now()}`,
+                    name: googleUser.name || 'Usuario Google',
+                    email: googleUser.email,
+                    photoUrl: googleUser.picture
+                  });
+                  return;
+                }
+              } catch (err) {
+                console.warn('Error fetching google userinfo:', err);
+              }
+            }
+          }
+        });
+        tokenClient.requestAccessToken();
+        return;
+      } catch (err) {
+        console.warn('Error en Google tokenClient:', err);
+      }
+    }
+
+    // Modal oficial interactivo de Google
+    setShowGoogleAuthModal(true);
+  };
+
+  // Enviar invitación de referido por WhatsApp
+  const handleSendWhatsAppReferral = () => {
+    const cleanPhone = (refContactPhone || '70000000').replace(/\D/g, '');
+    const msg = "Te invito a utilizar la plataforma de Rumbo a tu destino: https://demiempresa.online/viajes";
+    const waUrl = `https://wa.me/503${cleanPhone}?text=${encodeURIComponent(msg)}`;
+    window.open(waUrl, '_blank');
+
+    // 1. Sonido de caja registradora ("Cha-Ching" / moneda)
+    triggerCashRewardFeedback();
+
+    // 2. Confetti de monedas doradas
+    try {
+      confetti({
+        particleCount: 80,
+        spread: 70,
+        origin: { y: 0.6 },
+        colors: ['#F59E0B', '#10B981', '#FBBF24'],
+        zIndex: 99999
+      });
+    } catch {}
+
+    setReferralBonusAwarded(true);
+
+    // 3. Locución del asistente
+    speakAssistantMessage(
+      '¡Excelente! Se ha abonado un dólar a tu cuenta con una vigencia de 7 días, siempre y cuando tu referido realice un viaje pagado por un mínimo de 3 dólares en los próximos 7 días.'
+    );
   };
 
   // Simulación del trayecto y ETA
@@ -2187,142 +2358,281 @@ export default function ViajesApp() {
               </div>
               <button
                 type="button"
-                onClick={() => setShowRegisterModal(false)}
+                onClick={() => {
+                  setShowRegisterModal(false);
+                  setGoogleDuiStep(false);
+                }}
                 className="text-slate-400 hover:text-white p-1 text-sm font-bold cursor-pointer"
               >
                 ✕
               </button>
             </div>
-            <p className="text-xs text-slate-400">
-              Ahora que tu viaje ya está asegurado y en camino, valida tu cuenta una única vez para activar tus créditos y viajar con máxima tranquilidad.
-            </p>
 
-            {/* BOTÓN DESTACADO: CONTINUAR CON GOOGLE */}
-            <div className="space-y-2 pt-1">
-              <button
-                type="button"
-                onClick={() => setShowGoogleAuthModal(true)}
-                className="w-full py-3 px-4 bg-white hover:bg-slate-100 text-slate-800 font-bold text-sm rounded-2xl shadow-lg flex items-center justify-center gap-3 transition-all cursor-pointer border border-slate-200 group"
-              >
-                <svg className="w-5 h-5 flex-shrink-0 transition-transform group-hover:scale-110" viewBox="0 0 24 24">
-                  <path
-                    fill="#EA4335"
-                    d="M12 5c1.6 0 3 .6 4.1 1.6l3.1-3.1C17.3 1.7 14.8 1 12 1 7.4 1 3.5 3.6 1.6 7.4l3.7 2.9C6.2 7.4 8.9 5 12 5z"
-                  />
-                  <path
-                    fill="#4285F4"
-                    d="M23.5 12.3c0-.8-.1-1.6-.2-2.3H12v4.6h6.5c-.3 1.5-1.1 2.8-2.4 3.7l3.7 2.9c2.2-2 3.7-5 3.7-8.9z"
-                  />
-                  <path
-                    fill="#FBBC05"
-                    d="M5.3 14.7c-.2-.7-.4-1.5-.4-2.3s.2-1.6.4-2.3L1.6 7.2C.6 9.2 0 11.5 0 14s.6 4.8 1.6 6.8l3.7-2.9 shadow-none"
-                  />
-                  <path
-                    fill="#34A853"
-                    d="M12 23c3.2 0 6-1.1 8-3l-3.7-2.9c-1.1.7-2.5 1.2-4.3 1.2-3.1 0-5.8-2.4-6.7-5.3L1.6 16c1.9 3.8 5.8 7 10.4 7z"
-                  />
-                </svg>
-                <span>Continuar con Google</span>
-              </button>
-              <div className="flex items-center justify-center gap-1.5 text-[10px] text-emerald-400 font-medium">
-                <ShieldCheck className="w-3.5 h-3.5 flex-shrink-0" />
-                <span>Validación oficial protegida por Google Security</span>
+            {googleDuiStep ? (
+              /* PASO 2 TRAS GOOGLE: COMPLETAR DUI Y TELÉFONO */
+              <div className="space-y-4">
+                <div className="bg-slate-800/80 border border-slate-700 rounded-2xl p-3.5 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    {googleTempUser?.photoUrl ? (
+                      <img src={googleTempUser.photoUrl} alt="" className="w-10 h-10 rounded-full object-cover border-2 border-emerald-400" />
+                    ) : (
+                      <div className="w-10 h-10 rounded-full bg-blue-600 text-white font-bold flex items-center justify-center text-sm shadow-sm">
+                        {regFullName ? regFullName[0].toUpperCase() : 'G'}
+                      </div>
+                    )}
+                    <div className="text-left">
+                      <div className="text-sm font-bold text-white flex items-center gap-1.5">
+                        <span>{regFullName}</span>
+                        <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-1.5 py-0.5 rounded-full font-semibold">Google</span>
+                      </div>
+                      <div className="text-xs text-slate-400">{regEmail}</div>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setGoogleDuiStep(false);
+                      setGoogleTempUser(null);
+                    }}
+                    className="text-[11px] text-amber-400 hover:text-amber-300 font-semibold underline cursor-pointer"
+                  >
+                    Cambiar
+                  </button>
+                </div>
+
+                <div className="bg-amber-500/10 border border-amber-400/20 rounded-xl p-3 text-xs text-amber-200/90 leading-relaxed">
+                  Para completar los 3 datos oficiales (<strong>Nombre</strong>, <strong>Email</strong> y <strong>DUI</strong>) y liberar de inmediato tu <strong>bono de bienvenida de $1.00 USD</strong>, ingresa tu documento salvadoreño:
+                </div>
+
+                <form onSubmit={handleSaveProfileAndAccept} className="space-y-3.5">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">
+                      DUI (El Salvador: 00000000-0)
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      autoFocus
+                      value={regDui}
+                      onChange={handleDuiChange}
+                      placeholder="01234567-8"
+                      className="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-sm text-white focus:outline-none focus:border-amber-400 font-mono tracking-wider text-center"
+                    />
+                    {duiError && (
+                      <p className="text-[11px] text-rose-400 mt-1 flex items-center justify-center gap-1">
+                        <AlertCircle className="w-3 h-3" />
+                        {duiError}
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-400 mb-1">
+                      Teléfono Móvil (WhatsApp)
+                    </label>
+                    <input
+                      type="tel"
+                      required
+                      value={regPhone}
+                      onChange={(e) => setRegPhone(e.target.value)}
+                      placeholder="7000-0000"
+                      className="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-sm text-white focus:outline-none focus:border-amber-400 text-center"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-400 mb-1">
+                      ¿Tienes código de referido? (Opcional)
+                    </label>
+                    <input
+                      type="text"
+                      value={referrerCode}
+                      onChange={(e) => setReferrerCode(e.target.value)}
+                      placeholder="DUI o código de quien te invitó"
+                      className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none"
+                    />
+                  </div>
+
+                  <div className="pt-2 flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowRegisterModal(false);
+                        setGoogleDuiStep(false);
+                      }}
+                      className="w-1/3 py-2.5 rounded-xl bg-slate-800 text-slate-300 text-xs font-bold hover:bg-slate-700 cursor-pointer"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={registering}
+                      className="w-2/3 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-sm flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-amber-500/20"
+                    >
+                      {registering ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          <span>Verificando...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="w-4 h-4" />
+                          <span>¡Completar y Ganar $1.00!</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </form>
               </div>
-            </div>
+            ) : (
+              /* PASO INICIAL: GOOGLE SIGN-IN O REGISTRO MANUAL COMPLETO */
+              <div className="space-y-4">
+                <p className="text-xs text-slate-400">
+                  Ahora que tu viaje ya está asegurado y en camino, valida tu cuenta una única vez para activar tus créditos y viajar con máxima tranquilidad.
+                </p>
 
-            {/* Separador */}
-            <div className="relative flex items-center justify-center my-2">
-              <div className="border-t border-slate-800 w-full"></div>
-              <span className="bg-slate-900 px-3 text-[10px] text-slate-500 uppercase font-bold tracking-wider">o ingresa con tu DUI</span>
-              <div className="border-t border-slate-800 w-full"></div>
-            </div>
+                {/* BOTÓN DESTACADO: CONTINUAR CON GOOGLE */}
+                <div className="space-y-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={handleGoogleSignInClick}
+                    className="w-full py-3 px-4 bg-white hover:bg-slate-100 text-slate-800 font-bold text-sm rounded-2xl shadow-lg flex items-center justify-center gap-3 transition-all cursor-pointer border border-slate-200 group"
+                  >
+                    <svg className="w-5 h-5 flex-shrink-0 transition-transform group-hover:scale-110" viewBox="0 0 24 24">
+                      <path
+                        fill="#EA4335"
+                        d="M12 5c1.6 0 3 .6 4.1 1.6l3.1-3.1C17.3 1.7 14.8 1 12 1 7.4 1 3.5 3.6 1.6 7.4l3.7 2.9C6.2 7.4 8.9 5 12 5z"
+                      />
+                      <path
+                        fill="#4285F4"
+                        d="M23.5 12.3c0-.8-.1-1.6-.2-2.3H12v4.6h6.5c-.3 1.5-1.1 2.8-2.4 3.7l3.7 2.9c2.2-2 3.7-5 3.7-8.9z"
+                      />
+                      <path
+                        fill="#FBBC05"
+                        d="M5.3 14.7c-.2-.7-.4-1.5-.4-2.3s.2-1.6.4-2.3L1.6 7.2C.6 9.2 0 11.5 0 14s.6 4.8 1.6 6.8l3.7-2.9 shadow-none"
+                      />
+                      <path
+                        fill="#34A853"
+                        d="M12 23c3.2 0 6-1.1 8-3l-3.7-2.9c-1.1.7-2.5 1.2-4.3 1.2-3.1 0-5.8-2.4-6.7-5.3L1.6 16c1.9 3.8 5.8 7 10.4 7z"
+                      />
+                    </svg>
+                    <span>Continuar con Google</span>
+                  </button>
+                  <div className="flex items-center justify-center gap-1.5 text-[10px] text-emerald-400 font-medium">
+                    <ShieldCheck className="w-3.5 h-3.5 flex-shrink-0" />
+                    <span>Validación oficial protegida por Google Security</span>
+                  </div>
+                </div>
 
-            <form onSubmit={handleSaveProfileAndAccept} className="space-y-3.5">
-              <div>
-                <label className="block text-xs font-semibold text-slate-400 mb-1">
-                  Nombre Completo
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={regFullName}
-                  onChange={(e) => setRegFullName(e.target.value)}
-                  placeholder="Ej. Juan Carlos García"
-                  className="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-sm text-white focus:outline-none focus:border-amber-400"
-                />
+                {/* Separador */}
+                <div className="relative flex items-center justify-center my-2">
+                  <div className="border-t border-slate-800 w-full"></div>
+                  <span className="bg-slate-900 px-3 text-[10px] text-slate-500 uppercase font-bold tracking-wider">o ingresa tus datos</span>
+                  <div className="border-t border-slate-800 w-full"></div>
+                </div>
+
+                <form onSubmit={handleSaveProfileAndAccept} className="space-y-3.5">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-400 mb-1">
+                      Nombre Completo
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={regFullName}
+                      onChange={(e) => setRegFullName(e.target.value)}
+                      placeholder="Ej. Juan Carlos García"
+                      className="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-sm text-white focus:outline-none focus:border-amber-400"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-400 mb-1">
+                      Correo Electrónico (Email)
+                    </label>
+                    <input
+                      type="email"
+                      required
+                      value={regEmail}
+                      onChange={(e) => setRegEmail(e.target.value)}
+                      placeholder="ejemplo@correo.com"
+                      className="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-sm text-white focus:outline-none focus:border-amber-400"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-400 mb-1">
+                      DUI (El Salvador: 00000000-0)
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={regDui}
+                      onChange={handleDuiChange}
+                      placeholder="01234567-8"
+                      className="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-sm text-white focus:outline-none focus:border-amber-400 font-mono tracking-wider"
+                    />
+                    {duiError && (
+                      <p className="text-[11px] text-rose-400 mt-1 flex items-center gap-1">
+                        <AlertCircle className="w-3 h-3" />
+                        {duiError}
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-400 mb-1">
+                      Teléfono Móvil
+                    </label>
+                    <input
+                      type="tel"
+                      required
+                      value={regPhone}
+                      onChange={(e) => setRegPhone(e.target.value)}
+                      placeholder="7000-0000"
+                      className="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-sm text-white focus:outline-none focus:border-amber-400"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-400 mb-1">
+                      ¿Tienes código de referido? (Opcional)
+                    </label>
+                    <input
+                      type="text"
+                      value={referrerCode}
+                      onChange={(e) => setReferrerCode(e.target.value)}
+                      placeholder="DUI o código de quien te invitó"
+                      className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none"
+                    />
+                  </div>
+
+                  <div className="pt-2 flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowRegisterModal(false)}
+                      className="w-1/3 py-2.5 rounded-xl bg-slate-800 text-slate-300 text-xs font-bold hover:bg-slate-700 cursor-pointer"
+                    >
+                      Completar Luego
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={registering}
+                      className="w-2/3 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-sm flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-amber-500/20"
+                    >
+                      {registering ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          <span>Guardando...</span>
+                        </>
+                      ) : (
+                        <span>Guardar y Ganar $1.00</span>
+                      )}
+                    </button>
+                  </div>
+                </form>
               </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-400 mb-1">
-                  DUI (El Salvador: 00000000-0)
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={regDui}
-                  onChange={handleDuiChange}
-                  placeholder="01234567-8"
-                  className="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-sm text-white focus:outline-none focus:border-amber-400"
-                />
-                {duiError && (
-                  <p className="text-[11px] text-rose-400 mt-1 flex items-center gap-1">
-                    <AlertCircle className="w-3 h-3" />
-                    {duiError}
-                  </p>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-400 mb-1">
-                  Teléfono Móvil
-                </label>
-                <input
-                  type="tel"
-                  required
-                  value={regPhone}
-                  onChange={(e) => setRegPhone(e.target.value)}
-                  placeholder="7000-0000"
-                  className="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-sm text-white focus:outline-none focus:border-amber-400"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-400 mb-1">
-                  ¿Tienes código de referido? (Opcional)
-                </label>
-                <input
-                  type="text"
-                  value={referrerCode}
-                  onChange={(e) => setReferrerCode(e.target.value)}
-                  placeholder="DUI o código de quien te invitó"
-                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none"
-                />
-              </div>
-
-              <div className="pt-2 flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowRegisterModal(false)}
-                  className="w-1/3 py-2.5 rounded-xl bg-slate-800 text-slate-300 text-xs font-bold hover:bg-slate-700 cursor-pointer"
-                >
-                  Completar Luego
-                </button>
-                <button
-                  type="submit"
-                  disabled={registering}
-                  className="w-2/3 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-sm flex items-center justify-center gap-2 cursor-pointer"
-                >
-                  {registering ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      <span>Guardando...</span>
-                    </>
-                  ) : (
-                    <span>Guardar con DUI</span>
-                  )}
-                </button>
-              </div>
-            </form>
+            )}
           </div>
         </div>
       )}
@@ -2432,6 +2742,239 @@ export default function ViajesApp() {
             >
               Cancelar
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* ============================================================== */}
+      {/* MODAL REBOTÓN: CELEBRACIÓN CON FUEGOS ARTIFICIALES Y BONO $1.00*/}
+      {/* ============================================================== */}
+      {showCelebrationModal && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in">
+          <div className="w-full max-w-sm bg-gradient-to-b from-slate-900 via-slate-900 to-amber-950/40 border-2 border-amber-400/60 rounded-3xl p-6 sm:p-7 shadow-2xl text-center space-y-4 animate-pop-bounce relative overflow-hidden">
+            {/* Resplandor decorativo */}
+            <div className="absolute -top-16 -left-16 w-36 h-36 bg-amber-500/20 rounded-full blur-2xl pointer-events-none" />
+            <div className="absolute -bottom-16 -right-16 w-36 h-36 bg-emerald-500/20 rounded-full blur-2xl pointer-events-none" />
+
+            {/* Ícono de celebración rebotón */}
+            <div className="relative inline-flex items-center justify-center">
+              <div className="w-20 h-20 rounded-full bg-gradient-to-tr from-amber-500 to-yellow-300 flex items-center justify-center shadow-lg shadow-amber-500/30">
+                <Sparkles className="w-10 h-10 text-slate-950" />
+              </div>
+              <span className="absolute -top-1 -right-1 text-2xl animate-bounce">🎉</span>
+              <span className="absolute -bottom-1 -left-1 text-2xl animate-pulse">✨</span>
+            </div>
+
+            <div className="space-y-1">
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 text-xs font-bold uppercase tracking-wider">
+                <CheckCircle className="w-3.5 h-3.5" />
+                <span>¡Inscripción Exitosa!</span>
+              </div>
+              <h3 className="text-2xl font-black text-white tracking-tight">
+                ¡Felicidades, {celebrationName}!
+              </h3>
+              <p className="text-xs text-slate-300 leading-relaxed">
+                Te has registrado exitosamente en la plataforma de <strong className="text-amber-400">Rumbo a tu destino</strong> con tus datos oficiales completos.
+              </p>
+            </div>
+
+            {/* Tarjeta del Bono de $1.00 USD */}
+            <div className="bg-slate-950/90 border border-amber-400/50 rounded-2xl p-4 space-y-2 shadow-inner">
+              <div className="text-[11px] font-semibold text-amber-300/90 uppercase tracking-wider">
+                Has recibido un bono de bienvenida
+              </div>
+              <div className="text-4xl font-black text-amber-400 font-mono tracking-wider drop-shadow-md">
+                +$1.00 <span className="text-lg font-bold text-amber-200">USD</span>
+              </div>
+              <p className="text-xs text-slate-300 font-medium">
+                Será usado automáticamente en tu próximo viaje
+              </p>
+              <div className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-rose-300 bg-rose-500/10 px-2.5 py-1 rounded-full border border-rose-500/20">
+                <Clock className="w-3.5 h-3.5 text-rose-400" />
+                <span>Caducidad: 7 días a partir de hoy</span>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setShowCelebrationModal(false)}
+              className="w-full py-3 rounded-2xl bg-gradient-to-r from-amber-500 to-yellow-400 hover:from-amber-400 hover:to-yellow-300 text-slate-950 font-black text-sm shadow-lg shadow-amber-500/25 cursor-pointer transition-transform active:scale-95"
+            >
+              ¡Excelente, gracias!
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ============================================================== */}
+      {/* PREGUNTA TRAS 10 SEGUNDOS: "¿QUIERES MÁS BONOS?"               */}
+      {/* ============================================================== */}
+      {showMoreBonusesPrompt && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in">
+          <div className="w-full max-w-sm bg-gradient-to-b from-slate-900 to-slate-950 border-2 border-amber-400 rounded-3xl p-6 shadow-2xl text-center space-y-4 animate-pop-bounce">
+            <div className="w-16 h-16 mx-auto rounded-full bg-amber-500/20 border border-amber-400/40 flex items-center justify-center">
+              <Gift className="w-8 h-8 text-amber-400 animate-bounce" />
+            </div>
+
+            <div className="space-y-1">
+              <h3 className="text-xl font-black text-white tracking-tight">
+                ¿Quieres más bonos?
+              </h3>
+              <p className="text-xs text-slate-300 leading-relaxed">
+                ¡Puedes ganar saldo adicional en dólares para tus próximos viajes en <strong className="text-amber-400">Rumbo a tu destino</strong> recomendando amigos!
+              </p>
+            </div>
+
+            <div className="flex gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowMoreBonusesPrompt(false)}
+                className="w-1/3 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition-all cursor-pointer"
+              >
+                Declinar
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowMoreBonusesPrompt(false);
+                  setReferralBonusAwarded(false);
+                  setShowReferralModal(true);
+                }}
+                className="w-2/3 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-sm flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-lg shadow-amber-500/20"
+              >
+                <Sparkles className="w-4 h-4" />
+                <span>Aceptar más bonos</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ============================================================== */}
+      {/* RECUADRO MÁGICO DE REFERIDOS POR WHATSAPP (REGLA 7 DÍAS / $3)  */}
+      {/* ============================================================== */}
+      {showReferralModal && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in">
+          <div className="w-full max-w-md bg-gradient-to-b from-slate-900 via-slate-900 to-emerald-950/30 border-2 border-emerald-400/50 rounded-3xl p-6 shadow-2xl text-slate-100 space-y-4 animate-pop-bounce relative overflow-hidden">
+            {/* Botón cerrar */}
+            <button
+              type="button"
+              onClick={() => setShowReferralModal(false)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-white p-1 text-sm font-bold cursor-pointer"
+            >
+              ✕
+            </button>
+
+            {/* Cabecera mágica */}
+            <div className="text-center space-y-1.5 pt-2">
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/20 border border-amber-400/40 text-amber-300 text-xs font-bold uppercase tracking-wider">
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>¡Bono por Referidos!</span>
+              </div>
+              <h3 className="text-xl font-black text-white">
+                Gana $1.00 por cada persona referida
+              </h3>
+              <p className="text-xs text-slate-300 leading-relaxed">
+                Obtén otro dólar de bonificación por cada persona que refieras a la app. Ingresa su nombre y número de WhatsApp para enviarle la invitación oficial.
+              </p>
+            </div>
+
+            {!referralBonusAwarded ? (
+              <div className="space-y-3.5 bg-slate-950/60 border border-slate-800 rounded-2xl p-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">
+                    Nombre de tu referido
+                  </label>
+                  <input
+                    type="text"
+                    value={refContactName}
+                    onChange={(e) => setRefContactName(e.target.value)}
+                    placeholder="Ej. María Santos"
+                    className="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-sm text-white focus:outline-none focus:border-amber-400"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">
+                    Número de WhatsApp
+                  </label>
+                  <input
+                    type="tel"
+                    value={refContactPhone}
+                    onChange={(e) => setRefContactPhone(e.target.value)}
+                    placeholder="7000-0000"
+                    className="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-sm text-white focus:outline-none focus:border-amber-400"
+                  />
+                </div>
+
+                {/* Mensaje oficial predeterminado */}
+                <div className="bg-emerald-950/40 border border-emerald-500/30 rounded-xl p-3 text-xs text-emerald-200 space-y-1">
+                  <div className="font-semibold text-emerald-300 flex items-center gap-1.5">
+                    <Share2 className="w-3.5 h-3.5" />
+                    <span>Mensaje que se enviará:</span>
+                  </div>
+                  <p className="italic text-[11px] text-emerald-100/90 bg-black/30 p-2 rounded-lg font-mono">
+                    "Te invito a utilizar la plataforma de Rumbo a tu destino: https://demiempresa.online/viajes"
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleSendWhatsAppReferral}
+                  className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm flex items-center justify-center gap-2 transition-all cursor-pointer shadow-lg shadow-emerald-600/30"
+                >
+                  <Phone className="w-4 h-4" />
+                  <span>Enviar por WhatsApp</span>
+                </button>
+              </div>
+            ) : (
+              /* Recuadro de confirmación y acreditación */
+              <div className="bg-slate-950/80 border border-emerald-400/50 rounded-2xl p-5 text-center space-y-3 animate-pop-bounce">
+                <div className="w-14 h-14 mx-auto rounded-full bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center">
+                  <CheckCircle className="w-8 h-8 text-emerald-400" />
+                </div>
+
+                <div className="space-y-1">
+                  <div className="text-2xl font-black text-emerald-400 font-mono tracking-tight">
+                    +$1.00 USD Abonado a tu cuenta
+                  </div>
+                  <p className="text-xs text-slate-200 font-medium">
+                    ¡Mensaje de invitación enviado con éxito a {refContactName || 'tu referido'}!
+                  </p>
+                </div>
+
+                <div className="bg-amber-500/10 border border-amber-400/30 rounded-xl p-3 text-left space-y-1.5 text-xs">
+                  <div className="font-bold text-amber-300 flex items-center gap-1.5">
+                    <Clock className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />
+                    <span>Regla de vigencia y canje:</span>
+                  </div>
+                  <p className="text-[11px] text-slate-300 leading-relaxed">
+                    Tiene una <strong>vigencia de 7 días</strong> para su uso, siempre y cuando el referido haya hecho un viaje pagado por un <strong>mínimo de $3.00 USD</strong> en los próximos 7 días.
+                  </p>
+                </div>
+
+                <div className="flex gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setReferralBonusAwarded(false);
+                      setRefContactName('');
+                      setRefContactPhone('');
+                    }}
+                    className="w-1/2 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold cursor-pointer"
+                  >
+                    Invitar a otro amigo
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowReferralModal(false)}
+                    className="w-1/2 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold cursor-pointer"
+                  >
+                    Entendido
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

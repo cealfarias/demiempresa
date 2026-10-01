@@ -203,3 +203,82 @@ export const triggerSearchLaunchFeedback = () => {
     console.warn('[SearchLaunchFeedback] err:', err);
   }
 };
+
+/**
+ * Sonido 4: Caja Registradora / Moneda de Dólar Abonado ("Cha-Ching")
+ * Sonido inconfundible de recompensa monetaria: gatillo mecánico + campana armónica metálica + tintineo de moneda
+ */
+export const playCashRegisterSound = () => {
+  try {
+    const ctx = getAudioContext();
+    if (!ctx) return;
+    if (ctx.state === 'suspended') {
+      ctx.resume().catch(() => {});
+    }
+
+    const now = ctx.currentTime;
+
+    // 1. Gatillo mecánico de apertura de caja
+    const click1 = ctx.createOscillator();
+    const clickGain1 = ctx.createGain();
+    click1.type = 'square';
+    click1.frequency.setValueAtTime(800, now);
+    click1.frequency.exponentialRampToValueAtTime(200, now + 0.04);
+    clickGain1.gain.setValueAtTime(0.45, now);
+    clickGain1.gain.exponentialRampToValueAtTime(0.001, now + 0.045);
+    click1.connect(clickGain1);
+    clickGain1.connect(ctx.destination);
+    click1.start(now);
+    click1.stop(now + 0.05);
+
+    // 2. Campana brillante metálica principal ("Ching" a 2093Hz - C7)
+    const bell = ctx.createOscillator();
+    const bellGain = ctx.createGain();
+    bell.type = 'sine';
+    const bellTime = now + 0.055;
+    bell.frequency.setValueAtTime(2093, bellTime);
+    bellGain.gain.setValueAtTime(0.75, bellTime);
+    bellGain.gain.exponentialRampToValueAtTime(0.001, bellTime + 0.85);
+    bell.connect(bellGain);
+    bellGain.connect(ctx.destination);
+    bell.start(bellTime);
+    bell.stop(bellTime + 0.9);
+
+    // 3. Armónico de campana superior (3136Hz - G7)
+    const harmonic = ctx.createOscillator();
+    const harmonicGain = ctx.createGain();
+    harmonic.type = 'sine';
+    harmonic.frequency.setValueAtTime(3136, bellTime);
+    harmonicGain.gain.setValueAtTime(0.4, bellTime);
+    harmonicGain.gain.exponentialRampToValueAtTime(0.001, bellTime + 0.55);
+    harmonic.connect(harmonicGain);
+    harmonicGain.connect(ctx.destination);
+    harmonic.start(bellTime);
+    harmonic.stop(bellTime + 0.6);
+
+    // 4. Tintineo de moneda cayendo en la bandeja metálica
+    const coin = ctx.createOscillator();
+    const coinGain = ctx.createGain();
+    coin.type = 'triangle';
+    const coinTime = now + 0.12;
+    coin.frequency.setValueAtTime(4186, coinTime); // C8
+    coinGain.gain.setValueAtTime(0.45, coinTime);
+    coinGain.gain.exponentialRampToValueAtTime(0.001, coinTime + 0.38);
+    coin.connect(coinGain);
+    coinGain.connect(ctx.destination);
+    coin.start(coinTime);
+    coin.stop(coinTime + 0.42);
+  } catch (err) {
+    console.warn('[CashRegisterSound] err:', err);
+  }
+};
+
+/**
+ * Feedback para acreditación de bonos y recompensas:
+ * Vibración rítmica [80ms, 40ms, 120ms] + Sonido de caja registradora ("Cha-Ching")
+ */
+export const triggerCashRewardFeedback = () => {
+  vibrate([80, 40, 120]);
+  playCashRegisterSound();
+};
+
