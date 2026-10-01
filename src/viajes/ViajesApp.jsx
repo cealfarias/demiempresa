@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import AdModal from './AdModal';
 import PickupMapModal from './PickupMapModal';
+import DestinationMapModal from './DestinationMapModal';
 import {
   socket,
   registerUserApi,
@@ -49,6 +50,7 @@ export default function ViajesApp() {
   const [paymentTiming, setPaymentTiming] = useState('AT_ORIGIN');
   const [isGettingGps, setIsGettingGps] = useState(false);
   const [showMapModal, setShowMapModal] = useState(false);
+  const [showDestMapModal, setShowDestMapModal] = useState(false);
   const [cashBill, setCashBill] = useState('10'); // 'EXACT' | '5' | '10' | '20'
 
   const calculateChange = (fare = proposedFare) => {
@@ -518,26 +520,62 @@ export default function ViajesApp() {
                 </div>
               </div>
 
-              {/* Destino */}
+              {/* Destino con botón de Mapa Interactivo */}
               <div>
-                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1 flex items-center gap-1.5">
-                  <MapPin className="w-3.5 h-3.5 text-rose-400" />
-                  <span>Destino</span>
+                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1 flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <MapPin className="w-3.5 h-3.5 text-rose-400" />
+                    <span>Destino</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setShowDestMapModal(true)}
+                    className="text-[11px] text-rose-400 hover:text-rose-300 font-bold flex items-center gap-1 cursor-pointer transition-colors"
+                  >
+                    <Map className="w-3.5 h-3.5" />
+                    <span>Abrir Mapa</span>
+                  </button>
                 </label>
-                <input
-                  type="text"
-                  required
-                  value={destination}
-                  onChange={(e) => setDestination(e.target.value)}
-                  placeholder="¿A dónde vas?"
-                  className="w-full px-3 py-3 bg-slate-800/80 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-amber-400 text-sm mb-2"
-                />
+
+                <div className="relative">
+                  <input
+                    type="text"
+                    required
+                    value={destination}
+                    onChange={(e) => setDestination(e.target.value)}
+                    placeholder="¿A dónde vas? (Ej. Metrocentro, Multiplaza, Colonia...)"
+                    className="w-full pl-3 pr-12 py-3 bg-slate-800/80 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-rose-400 text-sm"
+                  />
+                  <div className="absolute right-2 top-2 flex items-center gap-1">
+                    <button
+                      type="button"
+                      title="Fijar destino en el mapa"
+                      onClick={() => setShowDestMapModal(true)}
+                      className="p-1.5 rounded-lg text-rose-400 hover:text-rose-300 hover:bg-slate-700 transition-colors"
+                    >
+                      <Map className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between mt-1 mb-2 px-1 text-[11px]">
+                  <button
+                    type="button"
+                    onClick={() => setShowDestMapModal(true)}
+                    className="text-rose-400 hover:underline flex items-center gap-1 font-medium cursor-pointer"
+                  >
+                    <span>Mover pin en el mapa para ubicar destino exacto</span>
+                  </button>
+                  <span className="text-slate-500 font-mono text-[10px]">
+                    {destinationMunicipality}
+                  </span>
+                </div>
 
                 {/* Municipio para geocerca publicitaria de destino */}
                 <select
                   value={destinationMunicipality}
                   onChange={(e) => setDestinationMunicipality(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-xs text-slate-300 focus:outline-none focus:border-amber-400"
+                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-xs text-slate-300 focus:outline-none focus:border-rose-400"
                 >
                   <option value="Santa Tecla">Municipio: Santa Tecla</option>
                   <option value="San Salvador">Municipio: San Salvador</option>
@@ -545,6 +583,7 @@ export default function ViajesApp() {
                   <option value="Soyapango">Municipio: Soyapango</option>
                   <option value="Mejicanos">Municipio: Mejicanos</option>
                   <option value="Apopa">Municipio: Apopa</option>
+                  <option value="Ilopango">Municipio: Ilopango</option>
                 </select>
               </div>
 
@@ -1155,6 +1194,21 @@ export default function ViajesApp() {
         onConfirm={({ address, lat, lng }) => {
           setOrigin(address);
           setOriginCoords({ lat, lng });
+        }}
+      />
+
+      {/* Modal Interactivo de Destino con Pin Rojo y Detección de Municipio */}
+      <DestinationMapModal
+        isOpen={showDestMapModal}
+        onClose={() => setShowDestMapModal(false)}
+        initialCoords={destinationCoords}
+        initialAddress={destination}
+        onConfirm={({ address, lat, lng, municipality }) => {
+          setDestination(address);
+          setDestinationCoords({ lat, lng });
+          if (municipality) {
+            setDestinationMunicipality(municipality);
+          }
         }}
       />
 
