@@ -49,6 +49,14 @@ export default function ViajesApp() {
   const [paymentTiming, setPaymentTiming] = useState('AT_ORIGIN');
   const [isGettingGps, setIsGettingGps] = useState(false);
   const [showMapModal, setShowMapModal] = useState(false);
+  const [cashBill, setCashBill] = useState('10'); // 'EXACT' | '5' | '10' | '20'
+
+  const calculateChange = (fare = proposedFare) => {
+    if (cashBill === 'EXACT') return '0.00';
+    const billVal = parseFloat(cashBill);
+    const fareVal = parseFloat(fare) || 0;
+    return Math.max(0, billVal - fareVal).toFixed(2);
+  };
 
   // Perfil del Pasajero & Punto de Inflexión
   const [userProfile, setUserProfile] = useState(() => {
@@ -276,6 +284,8 @@ export default function ViajesApp() {
       },
       agreedFare: fare.toFixed(2),
       cashToPay: cashToPay.toFixed(2),
+      cashBill,
+      changeNeeded: calculateChange(fare),
       origin,
       destination,
       destinationMunicipality,
@@ -628,6 +638,56 @@ export default function ViajesApp() {
                 </div>
               </div>
 
+              {/* DIAMANTE ROJO: Denominación de Billete y Vuelto para el Chofer */}
+              <div className="p-3.5 bg-gradient-to-r from-rose-950/30 via-slate-900 to-amber-950/20 border border-rose-500/30 rounded-2xl space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-rose-300 uppercase tracking-wider flex items-center gap-1.5">
+                    <span>💎 ¿Con cuánto billete pagarás?</span>
+                  </label>
+                  <span className="text-[10px] text-slate-400">Chofer sabrá llevar cambio listo</span>
+                </div>
+
+                <div className="grid grid-cols-4 gap-1.5 text-xs font-bold">
+                  {[
+                    { id: 'EXACT', label: 'Exacto' },
+                    { id: '5', label: '$5.00' },
+                    { id: '10', label: '$10.00' },
+                    { id: '20', label: '$20.00' }
+                  ].map((bill) => (
+                    <button
+                      key={bill.id}
+                      type="button"
+                      onClick={() => setCashBill(bill.id)}
+                      className={`py-2 px-1 rounded-xl text-center transition-all cursor-pointer ${
+                        cashBill === bill.id
+                          ? 'bg-rose-500 text-white shadow-md shadow-rose-500/30 font-black'
+                          : 'bg-slate-800 text-slate-300 hover:text-white border border-slate-700'
+                      }`}
+                    >
+                      {bill.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Mensaje de cálculo en vivo */}
+                <div className="p-2 rounded-xl bg-slate-950/80 border border-slate-800 text-[11px] flex items-center justify-between text-slate-300">
+                  {cashBill === 'EXACT' ? (
+                    <span className="text-emerald-400 font-medium">
+                      ✅ Pagarás la tarifa exacta en efectivo (no requieres cambio).
+                    </span>
+                  ) : (
+                    <>
+                      <span>
+                        Pagas con: <strong className="text-white">${parseFloat(cashBill).toFixed(2)}</strong>
+                      </span>
+                      <span className="font-bold text-amber-300">
+                        👉 Chofer llevará <strong>${calculateChange()}</strong> de vuelto
+                      </span>
+                    </>
+                  )}
+                </div>
+              </div>
+
               {/* Beneficio de Referido 7+7 */}
               <div className="p-3 bg-slate-950/70 border border-slate-800 rounded-xl flex items-center gap-2.5 text-xs text-slate-400">
                 <Sparkles className="w-4 h-4 text-amber-400 flex-shrink-0" />
@@ -922,6 +982,26 @@ export default function ViajesApp() {
               </div>
               <div className="text-3xl font-black text-white font-mono">
                 ${assignedTrip.cashToPay} <span className="text-xs font-medium text-slate-400 font-sans">USD</span>
+              </div>
+            </div>
+
+            {/* DIAMANTE ROJO: Aviso de Billete y Vuelto */}
+            <div className="p-3 bg-gradient-to-r from-rose-950/40 to-slate-900 border border-rose-500/30 rounded-2xl flex items-center justify-between text-xs">
+              <div>
+                <span className="text-[10px] uppercase font-bold text-slate-400 block">💎 Tu forma de pago:</span>
+                <strong className="text-rose-300 font-bold">
+                  {assignedTrip.cashBill === 'EXACT' ? 'Efectivo exacto' : `Billete de $${parseFloat(assignedTrip.cashBill).toFixed(2)}`}
+                </strong>
+              </div>
+              <div className="text-right">
+                {assignedTrip.cashBill !== 'EXACT' ? (
+                  <>
+                    <span className="text-[10px] uppercase font-bold text-slate-400 block">👉 Chofer te entregará:</span>
+                    <strong className="text-amber-300 font-black text-sm">${assignedTrip.changeNeeded} de vuelto</strong>
+                  </>
+                ) : (
+                  <span className="text-emerald-400 font-medium">Pago exacto (sin vuelto)</span>
+                )}
               </div>
             </div>
 

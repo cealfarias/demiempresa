@@ -286,18 +286,31 @@ export default function DriverApp() {
               </div>
             </div>
 
-            <div className="p-3 bg-slate-950 rounded-2xl border border-slate-800 flex items-center justify-between">
-              <div>
-                <div className="text-xs text-slate-400">Oferta del Pasajero</div>
-                <div className="text-2xl font-black text-amber-400 font-mono">
-                  ${incomingRequest.offeredFare} <span className="text-xs font-normal text-slate-400">EFECTIVO</span>
+            <div className="p-3 bg-slate-950 rounded-2xl border border-slate-800 space-y-2">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-xs text-slate-400">Oferta del Pasajero</div>
+                  <div className="text-2xl font-black text-amber-400 font-mono">
+                    ${incomingRequest.offeredFare} <span className="text-xs font-normal text-slate-400">EFECTIVO</span>
+                  </div>
                 </div>
+                {incomingRequest.hasBonusDiscount && (
+                  <div className="text-right text-[11px] text-emerald-400 max-w-[130px]">
+                    Incluye $1.00 bono abonado a tu cuota semanal
+                  </div>
+                )}
               </div>
-              {incomingRequest.hasBonusDiscount && (
-                <div className="text-right text-[11px] text-emerald-400 max-w-[130px]">
-                  Incluye $1.00 bono abonado a tu cuota semanal
-                </div>
-              )}
+
+              {/* DIAMANTE ROJO: Aviso de Billete y Vuelto */}
+              <div className="pt-2 border-t border-slate-800 flex items-center justify-between text-xs bg-rose-950/20 px-2.5 py-1.5 rounded-xl border border-rose-500/20">
+                <span className="text-rose-300 font-bold flex items-center gap-1">
+                  <span>💎 Paga con:</span>
+                  <strong className="text-white">${incomingRequest.cashBill || '10.00'}</strong>
+                </span>
+                <span className="text-amber-300 font-bold">
+                  👉 Llevar vuelto: ${incomingRequest.changeNeeded || '6.50'}
+                </span>
+              </div>
             </div>
 
             {/* Opciones Rápidas: Aceptar tarifa o Contraofertar (+0.50, +1.00) */}
@@ -349,6 +362,26 @@ export default function DriverApp() {
                   (Tarifa acordada ${activeTrip.agreedFare} - $1.00 bono ya acreditado a tu cuota)
                 </div>
               )}
+
+              {/* DIAMANTE ROJO: Cuadro de Cambio/Vuelto Listo */}
+              <div className="p-3 mt-3 bg-slate-950/90 border border-amber-500/40 rounded-xl text-xs flex items-center justify-between text-left">
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-slate-400 block">💎 Pasajero paga con:</span>
+                  <strong className="text-rose-300 text-sm">
+                    {activeTrip.cashBill === 'EXACT' ? 'Efectivo exacto' : `Billete de $${parseFloat(activeTrip.cashBill || '10').toFixed(2)}`}
+                  </strong>
+                </div>
+                <div className="text-right">
+                  {activeTrip.cashBill !== 'EXACT' ? (
+                    <>
+                      <span className="text-[10px] uppercase font-bold text-slate-400 block">👉 Entregar de vuelto:</span>
+                      <strong className="text-amber-300 text-base font-black">${activeTrip.changeNeeded || '6.50'}</strong>
+                    </>
+                  ) : (
+                    <span className="text-emerald-400 font-bold">Sin vuelto necesario</span>
+                  )}
+                </div>
+              </div>
             </div>
 
             {/* Datos del Pasajero y Contacto Directo */}
