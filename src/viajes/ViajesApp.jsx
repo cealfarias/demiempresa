@@ -58,13 +58,13 @@ export default function ViajesApp() {
     localStorage.setItem('rumbo_theme', newTheme);
   };
 
-  // Datos del Viaje
-  const [origin, setOrigin] = useState('Metrocentro San Salvador');
-  const [originCoords, setOriginCoords] = useState({ lat: 13.7013, lng: -89.2244 });
-  const [destination, setDestination] = useState('Plaza Merliot, Santa Tecla');
-  const [destinationCoords, setDestinationCoords] = useState({ lat: 13.6738, lng: -89.2789 });
-  const [destinationMunicipality, setDestinationMunicipality] = useState('Santa Tecla');
-  const [proposedFare, setProposedFare] = useState('3.50');
+  // Datos del Viaje (interactivos por GPS al entrar a la app)
+  const [origin, setOrigin] = useState('');
+  const [originCoords, setOriginCoords] = useState(null);
+  const [destination, setDestination] = useState('');
+  const [destinationCoords, setDestinationCoords] = useState(null);
+  const [destinationMunicipality, setDestinationMunicipality] = useState('San Salvador');
+  const [proposedFare, setProposedFare] = useState('2.50');
   const [hasCustomFare, setHasCustomFare] = useState(false);
   const [packageDetails, setPackageDetails] = useState('');
   const [paymentTiming, setPaymentTiming] = useState('AT_ORIGIN');
@@ -258,7 +258,48 @@ export default function ViajesApp() {
     }
   };
 
-  // Obtener geolocalización GPS real del dispositivo
+  // Geocodificación inversa para obtener calle/colonia real en El Salvador
+  const reverseGeocodeAddress = async (lat, lng) => {
+    try {
+      const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`, {
+        headers: { 'Accept-Language': 'es' }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.display_name) {
+          const parts = data.display_name.split(',');
+          return parts.slice(0, 3).join(',').trim();
+        }
+      }
+    } catch {
+      // fallback
+    }
+    return `Ubicación GPS (${lat.toFixed(4)}, ${lng.toFixed(4)})`;
+  };
+
+  // Solicitar ubicación interactiva del pasajero cada vez que entra a la app
+  useEffect(() => {
+    if (navigator.geolocation) {
+      setIsGettingGps(true);
+      navigator.geolocation.getCurrentPosition(
+        async (pos) => {
+          const { latitude, longitude } = pos.coords;
+          setOriginCoords({ lat: latitude, lng: longitude });
+          const addr = await reverseGeocodeAddress(latitude, longitude);
+          setOrigin(addr);
+          setIsGettingGps(false);
+        },
+        () => {
+          setOrigin('Mi Ubicación');
+          setOriginCoords({ lat: 13.7013, lng: -89.2244 });
+          setIsGettingGps(false);
+        },
+        { timeout: 7000, enableHighAccuracy: true }
+      );
+    }
+  }, []);
+
+  // Obtener geolocalización GPS real del dispositivo al pulsar botón de mira
   const handleGetGpsLocation = () => {
     if (!navigator.geolocation) {
       alert('Tu navegador no soporta geolocalización GPS.');
@@ -266,10 +307,11 @@ export default function ViajesApp() {
     }
     setIsGettingGps(true);
     navigator.geolocation.getCurrentPosition(
-      (pos) => {
+      async (pos) => {
         const { latitude, longitude } = pos.coords;
         setOriginCoords({ lat: latitude, lng: longitude });
-        setOrigin(`GPS: ${latitude.toFixed(4)}, ${longitude.toFixed(4)}`);
+        const addr = await reverseGeocodeAddress(latitude, longitude);
+        setOrigin(addr);
         setIsGettingGps(false);
       },
       (err) => {
@@ -291,16 +333,21 @@ export default function ViajesApp() {
     const generatedTripId = `trip-${Date.now()}`;
     setTripId(generatedTripId);
 
+    const oLat = originCoords?.lat || 13.7013;
+    const oLng = originCoords?.lng || -89.2244;
+    const dLat = destinationCoords?.lat || 13.6738;
+    const dLng = destinationCoords?.lng || -89.2789;
+
     // Emitir solicitud al WebSocket Gateway
     socket.emit('trip:request', {
       passengerId: userProfile?.id || 'guest-passenger',
       serviceType,
       originAddress: origin,
-      originLat: originCoords.lat,
-      originLng: originCoords.lng,
+      originLat: oLat,
+      originLng: oLng,
       destinationAddress: destination,
-      destinationLat: destinationCoords.lat,
-      destinationLng: destinationCoords.lng,
+      destinationLat: dLat,
+      destinationLng: dLng,
       destinationMunicipality,
       distanceKm: roadDistanceKm,
       durationMinutes: estimatedDurationMin,
@@ -613,7 +660,7 @@ export default function ViajesApp() {
                     required
                     value={origin}
                     onChange={(e) => setOrigin(e.target.value)}
-                    placeholder="¿Dónde te recogen? (Ej. Metrocentro, Casa)"
+                    placeholder={isGettingGps ? "Detectando tu ubicación GPS..." : "¿Dónde te recogen? (o toca el mapa)"}
                     className="w-full pl-3 pr-20 py-3 bg-slate-800/80 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-amber-400 text-sm"
                   />
                   <div className="absolute right-2 top-2 flex items-center gap-1">
@@ -660,7 +707,7 @@ export default function ViajesApp() {
                 <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1 flex items-center justify-between">
                   <span className="flex items-center gap-1.5">
                     <MapPin className="w-3.5 h-3.5 text-rose-400" />
-                    <span>Destino</span>
+                    <span>Punto de Llegada (Escoge tu rumbo...)</span>
                   </span>
                   <button
                     type="button"
@@ -678,7 +725,7 @@ export default function ViajesApp() {
                     required
                     value={destination}
                     onChange={(e) => setDestination(e.target.value)}
-                    placeholder="¿A dónde vas? (Ej. Metrocentro, Multiplaza, Colonia...)"
+                    placeholder="Escoge tu rumbo... (Ej. Metrocentro, Multiplaza, Colonia...)"
                     className="w-full pl-3 pr-12 py-3 bg-slate-800/80 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-rose-400 text-sm"
                   />
                   <div className="absolute right-2 top-2 flex items-center gap-1">
@@ -764,7 +811,7 @@ export default function ViajesApp() {
                       Ruta por Carretera
                     </span>
                     <span className="font-black text-white text-sm font-mono">
-                      {isCalculatingRoute ? 'Calculando...' : `${roadDistanceKm} km`}
+                      {isCalculatingRoute ? 'Calculando...' : destination ? `${roadDistanceKm} km` : 'Escoge tu rumbo'}
                     </span>
                   </div>
                 </div>
@@ -784,9 +831,9 @@ export default function ViajesApp() {
                   </div>
                   <div className="flex items-baseline justify-end gap-1">
                     <span className="font-black text-white text-sm font-mono">
-                      {isCalculatingRoute ? '...' : `~${estimatedDurationMin} min`}
+                      {isCalculatingRoute ? '...' : destination ? `~${estimatedDurationMin} min` : '-- min'}
                     </span>
-                    {trafficInfo.delayMinutes > 0 && (
+                    {trafficInfo.delayMinutes > 0 && destination && (
                       <span className="text-[10px] text-rose-400 font-bold font-mono">
                         (+{trafficInfo.delayMinutes}m trabazón)
                       </span>
@@ -1441,7 +1488,7 @@ export default function ViajesApp() {
       <PickupMapModal
         isOpen={showMapModal}
         onClose={() => setShowMapModal(false)}
-        initialCoords={originCoords}
+        initialCoords={originCoords || { lat: 13.7013, lng: -89.2244 }}
         initialAddress={origin}
         onConfirm={({ address, lat, lng }) => {
           setOrigin(address);
@@ -1453,7 +1500,7 @@ export default function ViajesApp() {
       <DestinationMapModal
         isOpen={showDestMapModal}
         onClose={() => setShowDestMapModal(false)}
-        initialCoords={destinationCoords}
+        initialCoords={destinationCoords || { lat: 13.6738, lng: -89.2789 }}
         initialAddress={destination}
         onConfirm={({ address, lat, lng, municipality }) => {
           setDestination(address);
