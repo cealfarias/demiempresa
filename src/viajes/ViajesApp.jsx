@@ -66,6 +66,55 @@ import {
   fetchAdFeedApi
 } from './api';
 
+// Formatear destino resuelto por geocodificador para la cajita de punto de llegada
+export const formatResolvedDestination = (place) => {
+  if (!place) return '';
+
+  const addr = place.address || {};
+  const city = addr.city || addr.town || addr.municipality || addr.village || addr.county || '';
+  const state = addr.state || '';
+
+  const mainName = (place.name || '').trim();
+
+  if (place.display_name) {
+    const parts = place.display_name
+      .split(',')
+      .map((p) => p.trim())
+      .filter((p) => {
+        const lower = p.toLowerCase();
+        return lower !== 'el salvador' && !/^\d{4,5}$/.test(p);
+      });
+
+    if (mainName) {
+      const mentionsCity = city && mainName.toLowerCase().includes(city.toLowerCase());
+      const mentionsState = state && mainName.toLowerCase().includes(state.toLowerCase());
+      if (mentionsCity || mentionsState) {
+        return mainName;
+      }
+      if (city) {
+        return `${mainName}, ${city}`;
+      }
+      if (parts.length >= 2) {
+        return parts.slice(0, 2).join(', ');
+      }
+      return mainName;
+    }
+
+    if (parts.length >= 3) {
+      return parts.slice(0, 3).join(', ');
+    }
+    if (parts.length >= 1) {
+      return parts.join(', ');
+    }
+  }
+
+  if (mainName) {
+    return city ? `${mainName}, ${city}` : mainName;
+  }
+
+  return place.display_name || '';
+};
+
 export default function ViajesApp() {
   // Máquina de Estados: 'DECOY_FORM' | 'AUCTION' | 'IN_TRIP_HUB'
   const [appState, setAppState] = useState('DECOY_FORM');
@@ -132,10 +181,12 @@ export default function ViajesApp() {
     setDestinationError('');
 
     try {
+      const oCoords = originCoords || { lat: 13.7013, lng: -89.2244 };
+      const viewboxParam = `&viewbox=${oCoords.lng - 0.25},${oCoords.lat + 0.25},${oCoords.lng + 0.25},${oCoords.lat - 0.25}&bounded=0`;
       const res = await fetch(
         `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
           query + ', El Salvador'
-        )}&countrycodes=sv&limit=1&addressdetails=1`,
+        )}&countrycodes=sv&limit=1&addressdetails=1${viewboxParam}`,
         { headers: { 'Accept-Language': 'es' } }
       );
       if (res.ok) {
@@ -146,6 +197,13 @@ export default function ViajesApp() {
             lng: parseFloat(data[0].lon)
           };
           setDestinationCoords(dCoords);
+
+          // Actualizar inmediatamente la cajita de punto de llegada con el destino específico encontrado
+          const formattedDest = formatResolvedDestination(data[0]);
+          if (formattedDest) {
+            setDestination(formattedDest);
+          }
+
           if (data[0].address) {
             const mun = data[0].address.city || data[0].address.town || data[0].address.municipality;
             if (mun) setDestinationMunicipality(mun);
@@ -576,12 +634,16 @@ export default function ViajesApp() {
 
     let dCoords = null;
     let dMunicipality = 'San Salvador';
+    let resolvedDestinationText = spokenText;
+
+    const oCoords = currentOriginCoords || originCoords || { lat: 13.7013, lng: -89.2244 };
 
     try {
+      const viewboxParam = `&viewbox=${oCoords.lng - 0.25},${oCoords.lat + 0.25},${oCoords.lng + 0.25},${oCoords.lat - 0.25}&bounded=0`;
       const res = await fetch(
         `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
           spokenText + ', El Salvador'
-        )}&countrycodes=sv&limit=1&addressdetails=1`,
+        )}&countrycodes=sv&limit=1&addressdetails=1${viewboxParam}`,
         { headers: { 'Accept-Language': 'es' } }
       );
       if (res.ok) {
@@ -592,6 +654,14 @@ export default function ViajesApp() {
             lng: parseFloat(data[0].lon)
           };
           setDestinationCoords(dCoords);
+
+          // Actualizar inmediatamente la cajita de punto de llegada con el destino específico encontrado
+          const formattedDest = formatResolvedDestination(data[0]);
+          if (formattedDest) {
+            resolvedDestinationText = formattedDest;
+            setDestination(formattedDest);
+          }
+
           if (data[0].address) {
             const mun = data[0].address.city || data[0].address.town || data[0].address.municipality;
             if (mun) {
@@ -628,8 +698,6 @@ export default function ViajesApp() {
     // Destino encontrado exitosamente: limpiar cualquier error previo
     setDestinationError('');
 
-    const oCoords = currentOriginCoords || originCoords || { lat: 13.7013, lng: -89.2244 };
-
     // Calcular ruta real por carretera, tiempo y tráfico
     const routeRes = await calculateRoadDistance(oCoords, dCoords);
     const distKm = routeRes?.distanceKm || 5.0;
@@ -657,8 +725,8 @@ export default function ViajesApp() {
     const calculatedFare = fareData.suggestedFare;
     setProposedFare(calculatedFare);
 
-    // Locución obligatoria: Distancia, Tiempo, Tarifa y Pregunta de Búsqueda
-    const speechPrompt = `Tu destino está a ${distKm} kilómetros, aproximadamente ${durMin} minutos. La tarifa sugerida es de ${calculatedFare} dólares. ¿Deseas buscar conductor?`;
+    // Locución obligatoria: Destino detectado, Distancia, Tiempo, Tarifa y Pregunta de Búsqueda
+    const speechPrompt = `Tu destino en ${resolvedDestinationText} está a ${distKm} kilómetros, aproximadamente ${durMin} minutos. La tarifa sugerida es de ${calculatedFare} dólares. ¿Deseas buscar conductor?`;
 
     setVoiceDialogueStep('CONFIRMING_SEARCH');
     speakAndThenListen(speechPrompt, {
