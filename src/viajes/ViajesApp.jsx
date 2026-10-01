@@ -1092,7 +1092,7 @@ export default function ViajesApp() {
       paymentTiming
     });
 
-    // Simulación complementaria de recepción de choferes dentro de 1 km
+    // Simulación complementaria de recepción de choferes dentro de 1 km (Modo Demo / Prueba)
     setTimeout(() => {
       setActiveOffers((current) => {
         if (current.length > 0) return current;
@@ -1106,7 +1106,8 @@ export default function ViajesApp() {
             vehicleColor: 'Gris Plata',
             distanceMeters: 380,
             proposedFare: parseFloat(proposedFare).toFixed(2),
-            timeLeft: 10
+            timeLeft: 10,
+            isMock: true
           },
           {
             driverProfileId: 'drv-sv-2',
@@ -1117,7 +1118,8 @@ export default function ViajesApp() {
             vehicleColor: 'Blanco',
             distanceMeters: 620,
             proposedFare: (parseFloat(proposedFare) + 0.50).toFixed(2),
-            timeLeft: 10
+            timeLeft: 10,
+            isMock: true
           }
         ];
       });
@@ -1142,13 +1144,8 @@ export default function ViajesApp() {
     return () => clearInterval(interval);
   }, [appState, activeOffers.length]);
 
-  // Manejar Aceptación de Tarifa (Punto de Inflexión)
+  // Manejar Aceptación de Tarifa (Instantánea, sin fricción ni modales bloqueantes)
   const handleSelectOffer = (offer) => {
-    if (!userProfile) {
-      setPendingAcceptOffer(offer);
-      setShowRegisterModal(true);
-      return;
-    }
     confirmOfferAssignment(offer);
   };
 
@@ -1190,7 +1187,7 @@ export default function ViajesApp() {
     setShowRegisterModal(false);
   };
 
-  // Guardar datos en modal de inflexión (Registro con API)
+  // Guardar datos de seguridad (Registro opcional y calmado durante el trayecto)
   const handleSaveProfileAndAccept = async (e) => {
     e.preventDefault();
     if (!/^\d{8}-\d{1}$/.test(regDui)) {
@@ -1220,10 +1217,7 @@ export default function ViajesApp() {
 
       setUserProfile(profile);
       localStorage.setItem('demiempresa_passenger', JSON.stringify(profile));
-
-      if (pendingAcceptOffer) {
-        confirmOfferAssignment(pendingAcceptOffer);
-      }
+      setShowRegisterModal(false);
     } catch (err) {
       console.warn('Fallback local al registrar:', err.message);
       const fallbackProfile = {
@@ -1234,9 +1228,7 @@ export default function ViajesApp() {
       };
       setUserProfile(fallbackProfile);
       localStorage.setItem('demiempresa_passenger', JSON.stringify(fallbackProfile));
-      if (pendingAcceptOffer) {
-        confirmOfferAssignment(pendingAcceptOffer);
-      }
+      setShowRegisterModal(false);
     } finally {
       setRegistering(false);
     }
@@ -2085,7 +2077,9 @@ export default function ViajesApp() {
               activeOffers.map((offer) => (
                 <div
                   key={offer.driverProfileId}
-                  className="bg-slate-900 border border-amber-500/30 rounded-2xl p-4 shadow-xl space-y-3 relative overflow-hidden transition-all"
+                  className={`bg-slate-900 border ${
+                    offer.isMock ? 'border-amber-500/40' : 'border-emerald-500/60 ring-1 ring-emerald-500/30'
+                  } rounded-2xl p-4 shadow-xl space-y-3 relative overflow-hidden transition-all`}
                 >
                   {/* Barra de progreso de TTL (10s exactos) */}
                   <div className="absolute top-0 left-0 right-0 h-1 bg-slate-800">
@@ -2095,7 +2089,25 @@ export default function ViajesApp() {
                     ></div>
                   </div>
 
+                  {/* Viñeta Visual: Identificación de Prueba vs Chofer Real */}
                   <div className="flex items-center justify-between pt-1">
+                    {offer.isMock ? (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-500/20 text-amber-300 border border-amber-500/40 uppercase tracking-wider">
+                        <Sparkles className="w-3 h-3 text-amber-400" />
+                        <span>Simulación de Prueba</span>
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/50 uppercase tracking-wider">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+                        <span>Chofer Real en Línea</span>
+                      </span>
+                    )}
+                    <span className="text-[10px] text-rose-400 font-bold">
+                      Expira en {offer.timeLeft}s
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <img
                         src={offer.photoUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80'}
@@ -2115,12 +2127,9 @@ export default function ViajesApp() {
 
                     <div className="text-right">
                       <div className="text-xs text-slate-400">Tarifa</div>
-                      <div className="text-2xl font-black text-white">
+                      <div className="text-2xl font-black text-white font-mono">
                         ${offer.proposedFare}
                       </div>
-                      <span className="text-[10px] text-rose-400 font-semibold">
-                        Expira en {offer.timeLeft}s
-                      </span>
                     </div>
                   </div>
 
@@ -2141,17 +2150,26 @@ export default function ViajesApp() {
       )}
 
       {/* ============================================================== */}
-      {/* PUNTO DE INFLEXIÓN: MODAL DE VALIDACIÓN Y REGISTRO (DUI ÚNICO) */}
+      {/* MODAL TRANQUILO: PERFIL DE SEGURIDAD Y BONOS (EN TRAYECTO)     */}
       {/* ============================================================== */}
       {showRegisterModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
           <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl text-slate-100 space-y-4">
-            <div className="flex items-center gap-2 text-amber-400 font-bold">
-              <ShieldCheck className="w-5 h-5" />
-              <h3 className="text-lg font-bold text-white">Confirmación de Seguridad</h3>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-amber-400 font-bold">
+                <ShieldCheck className="w-5 h-5" />
+                <h3 className="text-lg font-bold text-white">Perfil de Seguridad y Bonos</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowRegisterModal(false)}
+                className="text-slate-400 hover:text-white p-1 text-sm font-bold cursor-pointer"
+              >
+                ✕
+              </button>
             </div>
             <p className="text-xs text-slate-400">
-              Para garantizar seguridad y el pago directo en efectivo, requerimos tus datos oficiales una única vez.
+              Ahora que tu viaje ya está asegurado y en camino, completa tus datos oficiales una única vez para validar tu cuenta y acumular futuros descuentos.
             </p>
 
             <form onSubmit={handleSaveProfileAndAccept} className="space-y-3.5">
@@ -2220,22 +2238,22 @@ export default function ViajesApp() {
                 <button
                   type="button"
                   onClick={() => setShowRegisterModal(false)}
-                  className="w-1/3 py-2.5 rounded-xl bg-slate-800 text-slate-300 text-xs font-bold hover:bg-slate-700"
+                  className="w-1/3 py-2.5 rounded-xl bg-slate-800 text-slate-300 text-xs font-bold hover:bg-slate-700 cursor-pointer"
                 >
-                  Regresar
+                  Completar Luego
                 </button>
                 <button
                   type="submit"
                   disabled={registering}
-                  className="w-2/3 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-sm flex items-center justify-center gap-2"
+                  className="w-2/3 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-sm flex items-center justify-center gap-2 cursor-pointer"
                 >
                   {registering ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin" />
-                      <span>Validando...</span>
+                      <span>Guardando...</span>
                     </>
                   ) : (
-                    <span>Confirmar y Viajar</span>
+                    <span>Guardar Perfil</span>
                   )}
                 </button>
               </div>
@@ -2353,6 +2371,32 @@ export default function ViajesApp() {
               </a>
             </div>
           </div>
+
+          {/* Perfil de Seguridad y Bono en Trayecto (Sin Prisa ni Estrés) */}
+          {!userProfile && (
+            <div className="bg-gradient-to-r from-amber-950/40 via-slate-900 to-slate-900 border border-amber-500/40 rounded-3xl p-4 shadow-xl space-y-2 animate-fade-in">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-start gap-2.5">
+                  <ShieldCheck className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <h4 className="text-xs font-bold text-white flex items-center gap-1.5">
+                      <span>Perfil de Seguridad y Bono de $1.00 USD</span>
+                    </h4>
+                    <p className="text-[11px] text-slate-400 mt-0.5">
+                      Ya vas seguro y en camino. Cuando gustes, completa tus datos oficiales para validar tus créditos y futuros descuentos.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowRegisterModal(true)}
+                  className="px-3 py-2 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-black text-xs rounded-xl whitespace-nowrap cursor-pointer transition-all shadow-md shadow-amber-500/20"
+                >
+                  Completar Datos
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* ============================================================== */}
           {/* FEED PUBLICITARIO COMERCIAL (REELS Y BANNERS EN TRAYECTO)     */}
