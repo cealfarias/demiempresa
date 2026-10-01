@@ -16,7 +16,10 @@ export default function TripPreferencesModal({
   isOpen,
   onClose,
   preferences,
-  onChange
+  onChange,
+  suggestedFare,
+  proposedFare,
+  onRequireSuggestedFare
 }) {
   if (!isOpen) return null;
 
@@ -32,7 +35,16 @@ export default function TripPreferencesModal({
   const cabinWeight = calculateCabinWeight(passengers, weightProfile, extraLuggage);
 
   const handleToggleAc = () => {
-    onChange({ ...preferences, airConditioning: !airConditioning });
+    const nextState = !airConditioning;
+    if (nextState) {
+      // Política: El A/C activa automáticamente la tarifa sugerida
+      if (onRequireSuggestedFare) {
+        onRequireSuggestedFare();
+      }
+      onChange({ ...preferences, airConditioning: true });
+    } else {
+      onChange({ ...preferences, airConditioning: false });
+    }
   };
 
   const handleTogglePet = () => {
@@ -84,34 +96,44 @@ export default function TripPreferencesModal({
         {/* Lista de Opciones */}
         <div className="space-y-3 text-xs">
           
-          {/* Opción 1: Aire Acondicionado */}
+          {/* Opción 1: Aire Acondicionado con Política Estricta */}
           <div
             onClick={handleToggleAc}
-            className={`p-3.5 rounded-2xl border transition-all cursor-pointer flex items-center justify-between ${
+            className={`p-3.5 rounded-2xl border transition-all cursor-pointer flex flex-col gap-2 ${
               airConditioning
                 ? 'bg-cyan-950/30 border-cyan-500/50 text-white'
                 : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
             }`}
           >
-            <div className="flex items-center gap-3">
-              <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${
-                airConditioning ? 'bg-cyan-500/20 text-cyan-400' : 'bg-slate-900 text-slate-500'
-              }`}>
-                <Wind className="w-5 h-5" />
-              </div>
-              <div>
-                <div className="font-bold text-white text-xs flex items-center gap-1.5">
-                  <span>Aire Acondicionado (A/C)</span>
-                  <span className="text-[10px] text-cyan-400 font-normal">(+15% motor)</span>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${
+                  airConditioning ? 'bg-cyan-500/20 text-cyan-400' : 'bg-slate-900 text-slate-500'
+                }`}>
+                  <Wind className="w-5 h-5" />
                 </div>
-                <div className="text-[11px] text-slate-400">Viaje fresco con ventilación/clima encendido</div>
+                <div>
+                  <div className="font-bold text-white text-xs flex items-center gap-1.5">
+                    <span>Aire Acondicionado (A/C)</span>
+                    <span className="text-[10px] text-cyan-400 font-normal">(+15% motor)</span>
+                  </div>
+                  <div className="text-[11px] text-slate-400">Viaje fresco con ventilación/clima encendido</div>
+                </div>
+              </div>
+
+              <div className={`w-6 h-6 rounded-lg flex items-center justify-center border transition-all ${
+                airConditioning ? 'bg-cyan-500 border-cyan-400 text-slate-950 font-black' : 'border-slate-700 bg-slate-900'
+              }`}>
+                {airConditioning && <Check className="w-4 h-4 stroke-[3]" />}
               </div>
             </div>
 
-            <div className={`w-6 h-6 rounded-lg flex items-center justify-center border transition-all ${
-              airConditioning ? 'bg-cyan-500 border-cyan-400 text-slate-950 font-black' : 'border-slate-700 bg-slate-900'
-            }`}>
-              {airConditioning && <Check className="w-4 h-4 stroke-[3]" />}
+            {/* Política Clara del A/C */}
+            <div className="pt-2 border-t border-slate-800/80 text-[10px] leading-tight flex items-start gap-1.5 text-cyan-300 font-medium">
+              <Info className="w-3.5 h-3.5 flex-shrink-0 text-cyan-400 mt-0.5" />
+              <span>
+                <strong>Política:</strong> El A/C solo aplica con tarifa sugerida (${suggestedFare || '2.50'}) o superior. Al activarlo, se habilita automáticamente la tarifa sugerida.
+              </span>
             </div>
           </div>
 

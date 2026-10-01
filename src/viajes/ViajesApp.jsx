@@ -190,6 +190,35 @@ export default function ViajesApp() {
     return opts.map((n) => n.toFixed(2));
   })();
 
+  // Política Estricta de Aire Acondicionado:
+  // Solo se activa si la tarifa es la sugerida o superior. Al activarlo, se habilita la sugerida.
+  const handleEnableAcWithSuggestedFare = () => {
+    const sugFare = suggestedFareInfo?.suggestedFare || '2.50';
+    setProposedFare(sugFare);
+    setHasCustomFare(false);
+    setTripPreferences((prev) => ({ ...prev, airConditioning: true }));
+  };
+
+  const handleFareInputChange = (val) => {
+    setProposedFare(val);
+    setHasCustomFare(true);
+    const numVal = parseFloat(val);
+    const sugVal = parseFloat(suggestedFareInfo?.suggestedFare);
+    if (numVal && sugVal && numVal < sugVal && tripPreferences.airConditioning) {
+      setTripPreferences((prev) => ({ ...prev, airConditioning: false }));
+    }
+  };
+
+  const handleSelectQuickFare = (amt) => {
+    setProposedFare(amt);
+    setHasCustomFare(true);
+    const numVal = parseFloat(amt);
+    const sugVal = parseFloat(suggestedFareInfo?.suggestedFare);
+    if (numVal && sugVal && numVal < sugVal && tripPreferences.airConditioning) {
+      setTripPreferences((prev) => ({ ...prev, airConditioning: false }));
+    }
+  };
+
   // Perfil del Pasajero & Punto de Inflexión
   const [userProfile, setUserProfile] = useState(() => {
     const saved = localStorage.getItem('demiempresa_passenger');
@@ -332,7 +361,43 @@ export default function ViajesApp() {
   // Solicitar ubicación interactiva del pasajero cada vez que entra a la app (si ya completó la bienvenida)
   useEffect(() => {
     const isWelcomeCompleted = typeof window !== 'undefined' && localStorage.getItem('rumbo_welcome_completed');
+    const savedMode = typeof window !== 'undefined' && localStorage.getItem('rumbo_assistant_mode');
     if (!isWelcomeCompleted) return; // Se delega al User Gesture de WelcomeVoiceModal
+
+    // Iniciar flujo inmediato por voz para usuarios recurrentes con permisos ya otorgados
+    if (savedMode === 'voice') {
+      let hasTriggered = false;
+      const startReturningVoiceGreeting = () => {
+        if (hasTriggered) return;
+        hasTriggered = true;
+        unlockAudioAndSpeech();
+        setVoiceDialogueStep('AWAITING_DESTINATION');
+        speakAndThenListen('Hola, dime ¿cuál es tu rumbo?', {
+          onListeningChange: (listening) => setIsListeningVoice(listening),
+          onResult: (spokenText) => processVoiceDestination(spokenText),
+          onError: (err) => {
+            console.warn('Returning voice dialogue err:', err);
+            setIsListeningVoice(false);
+            setVoiceDialogueStep('IDLE');
+          }
+        });
+      };
+
+      // Disparar desde el primer milisegundo que el usuario llega
+      const timer = setTimeout(() => {
+        startReturningVoiceGreeting();
+      }, 500);
+
+      // Resiliencia para políticas de autoplay en navegadores móviles (iOS Safari / Android Chrome):
+      // Si el navegador bloqueó el audio sin interacción previa, el primer tap en la pantalla lo dispara de inmediato
+      const handleFirstInteraction = () => {
+        startReturningVoiceGreeting();
+        window.removeEventListener('click', handleFirstInteraction);
+        window.removeEventListener('touchstart', handleFirstInteraction);
+      };
+      window.addEventListener('click', handleFirstInteraction, { once: true });
+      window.addEventListener('touchstart', handleFirstInteraction, { once: true });
+    }
 
     if (navigator.geolocation) {
       setIsGettingGps(true);
@@ -522,12 +587,24 @@ export default function ViajesApp() {
       return;
     }
 
+    const applyVoiceFareWithAcPolicy = (newFare) => {
+      setProposedFare(newFare);
+      setHasCustomFare(true);
+      const isBelowSuggested = parseFloat(newFare) < parseFloat(suggestedFareInfo?.suggestedFare);
+      if (isBelowSuggested && tripPreferences.airConditioning) {
+        setTripPreferences((prev) => ({ ...prev, airConditioning: false }));
+        askConfirmationAfterAdjustment(
+          `Tarifa ajustada a ${newFare} dólares. Por política, como es menor a la sugerida, el aire acondicionado no aplica y ha sido desactivado.`
+        );
+      } else {
+        askConfirmationAfterAdjustment(`Tarifa ajustada a ${newFare} dólares.`);
+      }
+    };
+
     if (intent.type === 'CHANGE_FARE') {
       if (intent.amount && intent.amount > 0) {
         const newFare = intent.amount.toFixed(2);
-        setProposedFare(newFare);
-        setHasCustomFare(true);
-        askConfirmationAfterAdjustment(`Tarifa ajustada a ${newFare} dólares.`);
+        applyVoiceFareWithAcPolicy(newFare);
       } else {
         setVoiceDialogueStep('AWAITING_FARE_INPUT');
         speakAndThenListen('¿Qué tarifa en dólares deseas proponer?', {
@@ -536,9 +613,7 @@ export default function ViajesApp() {
             const amount = parseNumberFromSpanish(fareAnswer);
             if (amount && amount > 0) {
               const newFare = amount.toFixed(2);
-              setProposedFare(newFare);
-              setHasCustomFare(true);
-              askConfirmationAfterAdjustment(`Tarifa ajustada a ${newFare} dólares.`);
+              applyVoiceFareWithAcPolicy(newFare);
             } else {
               askConfirmationAfterAdjustment('No alcancé a captar la cantidad.');
             }
@@ -551,9 +626,7 @@ export default function ViajesApp() {
 
     if (intent.type === 'STANDALONE_NUMBER') {
       const newFare = intent.amount.toFixed(2);
-      setProposedFare(newFare);
-      setHasCustomFare(true);
-      askConfirmationAfterAdjustment(`Tarifa ajustada a ${newFare} dólares.`);
+      applyVoiceFareWithAcPolicy(newFare);
       return;
     }
 
@@ -569,12 +642,25 @@ export default function ViajesApp() {
     }
 
     if (intent.type === 'CHANGE_AC') {
-      setTripPreferences((prev) => ({
-        ...prev,
-        airConditioning: intent.enabled
-      }));
-      const acStatus = intent.enabled ? 'activado' : 'desactivado';
-      askConfirmationAfterAdjustment(`Aire acondicionado ${acStatus}.`);
+      if (intent.enabled) {
+        // Política de Rumbo: A/C solo aplica con tarifa sugerida o superior. Al activarlo, se habilita automáticamente la tarifa sugerida.
+        setTripPreferences((prev) => ({
+          ...prev,
+          airConditioning: true
+        }));
+        const sugFare = suggestedFareInfo?.suggestedFare || '2.50';
+        setProposedFare(sugFare);
+        setHasCustomFare(false);
+        askConfirmationAfterAdjustment(
+          `Aire acondicionado activado. Por política, se habilitó la tarifa sugerida de ${sugFare} dólares.`
+        );
+      } else {
+        setTripPreferences((prev) => ({
+          ...prev,
+          airConditioning: false
+        }));
+        askConfirmationAfterAdjustment('Aire acondicionado desactivado.');
+      }
       return;
     }
 
@@ -1370,10 +1456,7 @@ export default function ViajesApp() {
                     min="1.50"
                     required
                     value={proposedFare}
-                    onChange={(e) => {
-                      setProposedFare(e.target.value);
-                      setHasCustomFare(true);
-                    }}
+                    onChange={(e) => handleFareInputChange(e.target.value)}
                     className="w-full pl-8 pr-4 py-3 bg-slate-800/80 border border-slate-700 rounded-xl text-white font-extrabold text-xl focus:outline-none focus:border-amber-400 font-mono"
                   />
                 </div>
@@ -1384,10 +1467,7 @@ export default function ViajesApp() {
                     <button
                       key={`${amt}-${idx}`}
                       type="button"
-                      onClick={() => {
-                        setProposedFare(amt);
-                        setHasCustomFare(true);
-                      }}
+                      onClick={() => handleSelectQuickFare(amt)}
                       className={`flex-1 py-1.5 rounded-lg text-xs font-semibold border font-mono transition-all cursor-pointer ${
                         proposedFare === amt
                           ? 'bg-amber-500/20 border-amber-400 text-amber-300 font-bold'
@@ -1399,6 +1479,25 @@ export default function ViajesApp() {
                     </button>
                   ))}
                 </div>
+
+                {/* Política Estricta de A/C: Si la tarifa actual es menor a la sugerida */}
+                {parseFloat(proposedFare) < parseFloat(suggestedFareInfo?.suggestedFare) && (
+                  <div className="mt-2.5 p-2.5 rounded-xl bg-cyan-950/20 border border-cyan-500/30 flex items-center justify-between gap-2 text-[11px] text-cyan-300 animate-fade-in">
+                    <div className="flex items-center gap-2">
+                      <Wind className="w-4 h-4 text-cyan-400/70 flex-shrink-0" />
+                      <span className="leading-tight text-[11px]">
+                        A/C no aplica con tarifa menor a la sugerida (${suggestedFareInfo.suggestedFare}).
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleEnableAcWithSuggestedFare}
+                      className="px-2.5 py-1 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black text-[10px] whitespace-nowrap cursor-pointer transition-all shadow-sm"
+                    >
+                      Activar con A/C (${suggestedFareInfo.suggestedFare})
+                    </button>
+                  </div>
+                )}
               </div>
 
               {/* DIAMANTE ROJO: ¿Necesitas cambio? */}
@@ -1961,7 +2060,16 @@ export default function ViajesApp() {
         isOpen={showPreferencesModal}
         onClose={() => setShowPreferencesModal(false)}
         preferences={tripPreferences}
-        onChange={setTripPreferences}
+        suggestedFare={suggestedFareInfo.suggestedFare}
+        proposedFare={proposedFare}
+        onRequireSuggestedFare={handleEnableAcWithSuggestedFare}
+        onChange={(newPrefs) => {
+          if (newPrefs.airConditioning && !tripPreferences.airConditioning) {
+            handleEnableAcWithSuggestedFare();
+          } else {
+            setTripPreferences(newPrefs);
+          }
+        }}
       />
 
       {/* Modal de Permiso de Ubicación Inteligente Rumbo */}
