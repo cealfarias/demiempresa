@@ -13,8 +13,20 @@ import {
   MapPin,
   ChevronRight,
   Radio,
-  Loader2
+  Loader2,
+  Fuel,
+  Settings,
+  Flame,
+  TrendingDown,
+  Sparkles
 } from 'lucide-react';
+import GasModal from './GasModal';
+import {
+  calculateTripFuelCost,
+  estimateFuelEconomy,
+  getNearbyGasStation,
+  DEFAULT_GAS_STATIONS
+} from './fuelService';
 import {
   socket,
   fetchDriverSubscriptionApi
@@ -33,12 +45,27 @@ export default function DriverApp() {
     id: 'trip-req-101',
     serviceType: 'PASSENGER',
     origin: 'Metrocentro San Salvador, 8a Etapa',
-    destination: 'Plaza Merliot, Santa Tecla',
     distanceKm: 0.45,
+    roadDistanceKm: 7.8,
     offeredFare: '3.50',
+    cashBill: '10',
+    changeNeeded: '6.50',
     hasBonusDiscount: true,
     timeLeft: 10
   });
+
+  // Configuración de Vehículo & Consumo Probabilístico de Gasolina
+  const [vehicleYear, setVehicleYear] = useState(2018);
+  const [vehicleCategory, setVehicleCategory] = useState('SEDAN_COMPACT');
+  const [fuelType, setFuelType] = useState('REGULAR');
+  const [fuelPrice, setFuelPrice] = useState(3.75); // Precio por galón verificado
+  const [kmPerGallon, setKmPerGallon] = useState(() => estimateFuelEconomy(2018, 'SEDAN_COMPACT'));
+  const [showVehicleSettings, setShowVehicleSettings] = useState(false);
+
+  // Radar de Gasolineras & HUD en Ruta
+  const [gasStations, setGasStations] = useState(DEFAULT_GAS_STATIONS);
+  const [showGasModal, setShowGasModal] = useState(false);
+  const [nearbyStationAlert, setNearbyStationAlert] = useState(null);
 
   // Viaje Asignado
   const [activeTrip, setActiveTrip] = useState(null);
@@ -48,6 +75,33 @@ export default function DriverApp() {
   // Establecer título dinámico de la pestaña para la consola del conductor
   useEffect(() => {
     document.title = "App Conductor | demiempresa.online";
+  }, []);
+
+  // Cargar gasolineras del backend
+  useEffect(() => {
+    fetch('https://api.demiempresa.online/api/gas/stations')
+      .then((r) => r.json())
+      .then((data) => {
+        if (data && data.stations && data.stations.length > 0) {
+          setGasStations(
+            data.stations.map((st) => ({
+              id: st.id,
+              brand: st.brand,
+              name: st.station_name,
+              address: st.address,
+              municipality: st.municipality,
+              lat: parseFloat(st.lat),
+              lng: parseFloat(st.lng),
+              regular: parseFloat(st.regular_price),
+              especial: parseFloat(st.especial_price),
+              diesel: parseFloat(st.diesel_price),
+              savingsRegular: parseFloat(st.savings_regular || 0.05),
+              reportsCount: st.verified_reports_count || 1
+            }))
+          );
+        }
+      })
+      .catch(() => {});
   }, []);
 
   // Inicializar WebSockets para el Chofer y Foreground GPS
@@ -65,7 +119,7 @@ export default function DriverApp() {
       }
     });
 
-    // Escuchar nuevas solicitudes entrantes a 1 km
+    // Escuchar nuevas solicitudes entrantes a 1 km con distancia de carretera
     socket.on('trip:new_request', (reqData) => {
       setIncomingRequest({
         id: reqData.tripId,
@@ -73,7 +127,10 @@ export default function DriverApp() {
         origin: reqData.originAddress,
         destination: reqData.destinationAddress,
         distanceKm: reqData.distanceToPickupKm || 0.5,
+        roadDistanceKm: reqData.distanceKm || 7.8,
         offeredFare: reqData.proposedFare,
+        cashBill: reqData.cashBill || '10',
+        changeNeeded: reqData.changeNeeded || '6.50',
         hasBonusDiscount: false,
         timeLeft: 10
       });
@@ -89,6 +146,9 @@ export default function DriverApp() {
         originLat: assignedData.originLat || 13.7013,
         originLng: assignedData.originLng || -89.2244,
         destination: assignedData.destinationAddress,
+        roadDistanceKm: assignedData.distanceKm || 7.8,
+        cashBill: assignedData.cashBill || '10',
+        changeNeeded: assignedData.changeNeeded || '6.50',
         agreedFare: assignedData.agreedFare,
         cashToCollect: assignedData.cashToCollect,
         creditApplied: assignedData.creditApplied || '0.00'
@@ -103,7 +163,7 @@ export default function DriverApp() {
     };
   }, [driverProfileId]);
 
-  // Transmisión continua de posición GPS cada 4 segundos (Simulando Foreground Service de Android)
+  // Transmisión continua de posición GPS cada 4 segundos & Detección de Gasolineras en Ruta
   useEffect(() => {
     if (!driverOnline) {
       setGpsActive(false);
@@ -111,19 +171,25 @@ export default function DriverApp() {
     }
 
     setGpsActive(true);
-    let mockLng = -89.2244;
-    let mockLat = 13.7013;
+    let mockLng = -89.2150;
+    let mockLat = 13.7025;
 
     const gpsInterval = setInterval(() => {
-      // Si el navegador tiene GPS real lo consulta, de lo contrario simula avance
       if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(
           (pos) => {
+            const currentCoords = {
+              lat: pos.coords.latitude,
+              lng: pos.coords.longitude
+            };
             socket.emit('driver:location_update', {
               driverProfileId,
-              lng: pos.coords.longitude,
-              lat: pos.coords.latitude
+              lng: currentCoords.lng,
+              lat: currentCoords.lat
             });
+            // Radar de gasolinera en ruta (alerta si pasa a menos de 800m de una estación)
+            const nearby = getNearbyGasStation(currentCoords, gasStations, 800);
+            setNearbyStationAlert(nearby);
           },
           () => {
             mockLng += (Math.random() - 0.5) * 0.0005;
@@ -133,6 +199,8 @@ export default function DriverApp() {
               lng: mockLng,
               lat: mockLat
             });
+            const nearby = getNearbyGasStation({ lat: mockLat, lng: mockLng }, gasStations, 800);
+            setNearbyStationAlert(nearby);
           },
           { timeout: 3000 }
         );
@@ -140,7 +208,7 @@ export default function DriverApp() {
     }, 4000);
 
     return () => clearInterval(gpsInterval);
-  }, [driverOnline, driverProfileId]);
+  }, [driverOnline, driverProfileId, gasStations]);
 
   // Conductor responde a solicitud (acepta tarifa o contraoferta)
   const handleAcceptFare = (fare) => {
@@ -209,19 +277,57 @@ export default function DriverApp() {
           </div>
         </div>
 
-        {/* Switch En Línea */}
-        <button
-          onClick={() => setDriverOnline(!driverOnline)}
-          className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 ${
-            driverOnline
-              ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20'
-              : 'bg-slate-800 text-slate-400'
-          }`}
-        >
-          <span className={`w-2 h-2 rounded-full ${driverOnline ? 'bg-slate-950 animate-pulse' : 'bg-slate-500'}`}></span>
-          <span>{driverOnline ? 'EN LÍNEA' : 'DESCONECTADO'}</span>
-        </button>
+        {/* Botones Rápidos: Radar Gasolina, Auto y Switch En Línea */}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowGasModal(true)}
+            title="Radar de Gasolina al centavo"
+            className="p-2 sm:px-2.5 sm:py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 hover:bg-amber-500/20 text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors"
+          >
+            <Fuel className="w-4 h-4 text-amber-400" />
+            <span className="hidden sm:inline">Radar Gasolina</span>
+          </button>
+
+          <button
+            onClick={() => setShowVehicleSettings(true)}
+            title="Configurar vehículo y rendimiento de gasolina"
+            className="p-2 sm:px-2.5 sm:py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors"
+          >
+            <Settings className="w-4 h-4 text-slate-400" />
+            <span className="hidden sm:inline">{vehicleYear} • {kmPerGallon} km/gal</span>
+          </button>
+
+          <button
+            onClick={() => setDriverOnline(!driverOnline)}
+            className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 ${
+              driverOnline
+                ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20'
+                : 'bg-slate-800 text-slate-400'
+            }`}
+          >
+            <span className={`w-2 h-2 rounded-full ${driverOnline ? 'bg-slate-950 animate-pulse' : 'bg-slate-500'}`}></span>
+            <span>{driverOnline ? 'EN LÍNEA' : 'DESCONECTADO'}</span>
+          </button>
+        </div>
       </header>
+
+      {/* ALERTA HUD EN RUTA: Gasolinera Económica Detectada Frente al Conductor */}
+      {nearbyStationAlert && (
+        <div className="bg-gradient-to-r from-amber-950/80 via-slate-900 to-amber-950/80 border-b border-amber-500/40 px-4 py-2 text-xs text-amber-200 flex items-center justify-between animate-pulse">
+          <div className="flex items-center gap-2 overflow-hidden">
+            <Fuel className="w-4 h-4 text-amber-400 flex-shrink-0 animate-bounce" />
+            <span className="truncate">
+              <strong>⛽ Estación en ruta:</strong> {nearbyStationAlert.name} • Regular: <strong className="text-white">${nearbyStationAlert.regular.toFixed(2)}/gal</strong> (-${nearbyStationAlert.savingsRegular.toFixed(2)} vs oficial)
+            </span>
+          </div>
+          <button
+            onClick={() => setShowGasModal(true)}
+            className="ml-2 px-2.5 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-lg text-[10px] whitespace-nowrap cursor-pointer transition-colors"
+          >
+            Ver Precios
+          </button>
+        </div>
+      )}
 
       {/* Widget de Blindaje Financiero: Cuota Semanal & Límite de 10 Bonos */}
       <div className="bg-slate-900/80 border-b border-slate-800 px-4 py-2.5 flex items-center justify-between text-xs">
@@ -313,6 +419,48 @@ export default function DriverApp() {
               </div>
             </div>
 
+            {/* CÁLCULO PROBABILÍSTICO DE GASOLINA Y GANANCIA NETA EN BOLSILLO */}
+            {(() => {
+              const fuelCalc = calculateTripFuelCost(
+                incomingRequest.roadDistanceKm || 7.8,
+                kmPerGallon,
+                fuelPrice,
+                incomingRequest.offeredFare
+              );
+              return (
+                <div className="p-3 bg-slate-950/90 rounded-2xl border border-slate-800 space-y-2 text-xs">
+                  <div className="flex items-center justify-between text-slate-400">
+                    <span className="flex items-center gap-1.5">
+                      <Navigation className="w-3.5 h-3.5 text-cyan-400" />
+                      <span>Ruta por Carretera:</span>
+                    </span>
+                    <strong className="text-white font-mono">{fuelCalc.distanceKm} km</strong>
+                  </div>
+
+                  <div className="flex items-center justify-between text-slate-400">
+                    <span className="flex items-center gap-1.5">
+                      <Fuel className="w-3.5 h-3.5 text-amber-400" />
+                      <span>Gasto Gasolina Est. ({vehicleYear}):</span>
+                    </span>
+                    <span className="text-amber-300 font-mono font-bold">
+                      -${fuelCalc.fuelCostUsd} USD <span className="text-[10px] text-slate-500">({fuelCalc.gallonsConsumed} gal)</span>
+                    </span>
+                  </div>
+
+                  <div className="pt-2 border-t border-slate-800 flex items-center justify-between font-bold">
+                    <span className="text-emerald-400 flex items-center gap-1">
+                      <Flame className="w-3.5 h-3.5" />
+                      <span>Tu Ganancia Limpia en Mano:</span>
+                    </span>
+                    <div className="text-right">
+                      <span className="text-emerald-400 text-base font-mono font-black">${fuelCalc.netEarningsUsd} USD</span>
+                      <span className="block text-[10px] text-slate-500">{fuelCalc.profitMarginPercent}% de margen</span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
             {/* Opciones Rápidas: Aceptar tarifa o Contraofertar (+0.50, +1.00) */}
             <div className="grid grid-cols-3 gap-2">
               <button
@@ -382,6 +530,45 @@ export default function DriverApp() {
                   )}
                 </div>
               </div>
+
+              {/* BALANCE DE COMBUSTIBLE Y GANANCIA NETA EN BOLSILLO */}
+              {(() => {
+                const tripFuel = calculateTripFuelCost(
+                  activeTrip.roadDistanceKm || 7.8,
+                  kmPerGallon,
+                  fuelPrice,
+                  activeTrip.cashToCollect
+                );
+                return (
+                  <div className="p-3 bg-slate-950/80 rounded-xl border border-slate-800 text-xs space-y-1.5 text-left">
+                    <div className="flex items-center justify-between text-slate-400">
+                      <span className="flex items-center gap-1.5">
+                        <Navigation className="w-3.5 h-3.5 text-cyan-400" />
+                        <span>Recorrido en Carretera:</span>
+                      </span>
+                      <strong className="text-white font-mono">{tripFuel.distanceKm} km</strong>
+                    </div>
+                    <div className="flex items-center justify-between text-slate-400">
+                      <span className="flex items-center gap-1.5">
+                        <Fuel className="w-3.5 h-3.5 text-amber-400" />
+                        <span>Gasto Gasolina ({vehicleYear} • {fuelType}):</span>
+                      </span>
+                      <span className="text-amber-300 font-mono font-bold">
+                        -${tripFuel.fuelCostUsd} USD <span className="text-[10px] text-slate-500">({tripFuel.gallonsConsumed} gal)</span>
+                      </span>
+                    </div>
+                    <div className="pt-1.5 border-t border-slate-800 flex items-center justify-between font-bold">
+                      <span className="text-emerald-400 flex items-center gap-1">
+                        <Flame className="w-3.5 h-3.5" />
+                        <span>Ganancia Neta en tu Bolsillo:</span>
+                      </span>
+                      <span className="text-emerald-400 text-base font-mono font-black">
+                        ${tripFuel.netEarningsUsd} USD
+                      </span>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
 
             {/* Datos del Pasajero y Contacto Directo */}
@@ -514,6 +701,141 @@ export default function DriverApp() {
         )}
 
       </main>
+
+      {/* Modal de Configuración de Vehículo y Rendimiento de Gasolina */}
+      {showVehicleSettings && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
+          <div className="relative w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-5 shadow-2xl text-slate-100 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <div className="flex items-center gap-2">
+                <Settings className="w-5 h-5 text-amber-400" />
+                <h3 className="font-bold text-base text-white">Mi Vehículo & Consumo</h3>
+              </div>
+              <button
+                onClick={() => setShowVehicleSettings(false)}
+                className="p-2 rounded-xl bg-slate-800 text-slate-400 hover:text-white"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="block text-slate-400 font-bold mb-1">Año del Vehículo:</label>
+                <select
+                  value={vehicleYear}
+                  onChange={(e) => {
+                    const yr = parseInt(e.target.value);
+                    setVehicleYear(yr);
+                    setKmPerGallon(estimateFuelEconomy(yr, vehicleCategory));
+                  }}
+                  className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-white font-bold"
+                >
+                  {Array.from({ length: 21 }, (_, i) => 2025 - i).map((yr) => (
+                    <option key={yr} value={yr}>
+                      {yr}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-slate-400 font-bold mb-1">Tipo de Vehículo:</label>
+                <select
+                  value={vehicleCategory}
+                  onChange={(e) => {
+                    const cat = e.target.value;
+                    setVehicleCategory(cat);
+                    setKmPerGallon(estimateFuelEconomy(vehicleYear, cat));
+                  }}
+                  className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-white font-bold"
+                >
+                  <option value="SEDAN_COMPACT">Sedán Compacto (Corolla, Sentra, Civic, Elantra, Yaris)</option>
+                  <option value="HATCHBACK">Hatchback / Económico (Spark, Rio, March, Picanto)</option>
+                  <option value="SUV_COMPACT">Camioneta / SUV (Rav4, CR-V, Tucson, Rogue)</option>
+                  <option value="PICKUP">Pickup de Trabajo (Hilux, D-Max, Frontier)</option>
+                  <option value="MOTO">Motocicleta (Mensajería y Encomiendas)</option>
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-slate-400 font-bold mb-1">Tipo Combustible:</label>
+                  <select
+                    value={fuelType}
+                    onChange={(e) => setFuelType(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-white font-bold"
+                  >
+                    <option value="REGULAR">Regular ($3.75)</option>
+                    <option value="ESPECIAL">Especial ($4.10)</option>
+                    <option value="DIESEL">Diésel ($3.45)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-slate-400 font-bold mb-1">Rendimiento (km/gal):</label>
+                  <input
+                    type="number"
+                    step="0.5"
+                    min="15"
+                    max="150"
+                    value={kmPerGallon}
+                    onChange={(e) => setKmPerGallon(parseFloat(e.target.value) || 42.0)}
+                    className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-white font-mono font-bold"
+                  />
+                </div>
+              </div>
+
+              <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 text-[11px] text-slate-400 space-y-1">
+                <span className="text-amber-300 font-bold block">💡 Cálculo Probabilístico:</span>
+                <p>
+                  Un vehículo <strong>{vehicleYear}</strong> de esta categoría rinde en promedio{' '}
+                  <strong className="text-white">{kmPerGallon} km por galón</strong> en el tráfico de El Salvador. Puedes calibrar este número según tu experiencia.
+                </p>
+              </div>
+
+              <button
+                onClick={() => {
+                  fetch('https://api.demiempresa.online/api/drivers/drv-sv-1/vehicle', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      vehicleYear,
+                      fuelType,
+                      fuelKmPerGallon: kmPerGallon
+                    })
+                  }).catch(() => {});
+                  setShowVehicleSettings(false);
+                }}
+                className="w-full py-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-xl text-xs transition-colors cursor-pointer"
+              >
+                GUARDAR CONFIGURACIÓN DE RENDIMIENTO
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Radar de Gasolineras & Precios Oficiales DGEHM */}
+      <GasModal
+        isOpen={showGasModal}
+        onClose={() => setShowGasModal(false)}
+        stations={gasStations}
+        onPriceReported={({ stationId, fuelType: fType, price }) => {
+          setGasStations((prev) =>
+            prev.map((s) => {
+              if (s.id === stationId) {
+                return {
+                  ...s,
+                  [fType.toLowerCase()]: price,
+                  reportsCount: s.reportsCount + 1
+                };
+              }
+              return s;
+            })
+          );
+        }}
+      />
 
     </div>
   );

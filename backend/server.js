@@ -188,6 +188,102 @@ app.get('/api/drivers/:driverProfileId/subscription', async (req, res) => {
   }
 });
 
+// 5.1 CONFIGURACIÓN DE VEHÍCULO Y RENDIMIENTO DE GASOLINA
+app.put('/api/drivers/:driverProfileId/vehicle', async (req, res) => {
+  try {
+    const { driverProfileId } = req.params;
+    const { vehicleYear, fuelType, fuelKmPerGallon } = req.body;
+
+    const updateRes = await pool.query(`
+      UPDATE viajes_driver_profiles 
+      SET vehicle_year = COALESCE($1, vehicle_year),
+          fuel_type = COALESCE($2, fuel_type),
+          fuel_km_per_gallon = COALESCE($3, fuel_km_per_gallon)
+      WHERE id = $4
+      RETURNING id, vehicle_brand, vehicle_model, vehicle_year, fuel_type, fuel_km_per_gallon;
+    `, [vehicleYear, fuelType, fuelKmPerGallon, driverProfileId]);
+
+    if (updateRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Conductor no encontrado' });
+    }
+
+    res.json({ success: true, vehicle: updateRes.rows[0] });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 5.2 GASOLINERAS, PRECIOS OFICIALES GOBIERNO DGEHM Y REPORTES DE CHOFERES
+app.get('/api/gas/stations', async (req, res) => {
+  try {
+    const stationsRes = await pool.query(`
+      SELECT 
+        id, brand, station_name, address, municipality, lat, lng,
+        regular_price, especial_price, diesel_price,
+        gov_regular_price, gov_especial_price, gov_diesel_price,
+        (gov_regular_price - regular_price) AS savings_regular,
+        (gov_especial_price - especial_price) AS savings_especial,
+        (gov_diesel_price - diesel_price) AS savings_diesel,
+        verified_reports_count, last_verified_at
+      FROM viajes_gas_stations
+      ORDER BY regular_price ASC;
+    `);
+
+    res.json({
+      stations: stationsRes.rows,
+      officialGovernmentPrices: {
+        zone: 'Zona Central (San Salvador / La Libertad)',
+        regular: 3.82,
+        especial: 4.18,
+        diesel: 3.52,
+        source: 'Dirección General de Energía, Hidrocarburos y Minas (DGEHM) El Salvador',
+        updatedPeriod: 'Quincena Vigente'
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/gas/report', async (req, res) => {
+  try {
+    const { stationId, driverProfileId, fuelType = 'REGULAR', reportedPrice, notes } = req.body;
+    if (!stationId || !reportedPrice) {
+      return res.status(400).json({ error: 'Estación y precio reportado son requeridos' });
+    }
+
+    const priceNum = parseFloat(reportedPrice);
+
+    // Registrar reporte individual del chofer
+    await pool.query(`
+      INSERT INTO viajes_gas_reports (station_id, driver_id, fuel_type, reported_price, notes)
+      VALUES ($1, $2, $3, $4, $5);
+    `, [stationId, driverProfileId || null, fuelType, priceNum, notes || 'Confirmado al recargar']);
+
+    // Actualizar precio verificado en la estación
+    let colToUpdate = 'regular_price';
+    if (fuelType === 'ESPECIAL') colToUpdate = 'especial_price';
+    if (fuelType === 'DIESEL') colToUpdate = 'diesel_price';
+
+    await pool.query(`
+      UPDATE viajes_gas_stations
+      SET ${colToUpdate} = $1,
+          verified_reports_count = verified_reports_count + 1,
+          last_verified_at = CURRENT_TIMESTAMP
+      WHERE id = $2;
+    `, [priceNum, stationId]);
+
+    res.json({
+      success: true,
+      message: '¡Gracias por confirmar el precio! Ayudas a toda la comunidad de conductores a ahorrar en gasolina.',
+      fuelType,
+      updatedPrice: priceNum
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // 6. INICIALIZACIÓN AUTOMÁTICA DE BASE DE DATOS Y ENDPOINT ADMIN
 async function initializeDatabase() {
   if (!process.env.DATABASE_URL) {

@@ -208,6 +208,39 @@ CREATE TABLE IF NOT EXISTS viajes_ad_impressions (
     displayed_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+-- 9.1 ESTACIONES DE GASOLINA Y MONITOREO DE PRECIOS EN EL SALVADOR
+ALTER TABLE viajes_driver_profiles ADD COLUMN IF NOT EXISTS vehicle_year INT DEFAULT 2018;
+ALTER TABLE viajes_driver_profiles ADD COLUMN IF NOT EXISTS fuel_type VARCHAR(20) DEFAULT 'REGULAR';
+ALTER TABLE viajes_driver_profiles ADD COLUMN IF NOT EXISTS fuel_km_per_gallon NUMERIC(5,2) DEFAULT 42.0;
+
+CREATE TABLE IF NOT EXISTS viajes_gas_stations (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    brand VARCHAR(50) NOT NULL, -- 'Puma', 'Texaco', 'Uno', 'DLC', 'Alba'
+    station_name VARCHAR(150) NOT NULL,
+    address VARCHAR(200) NOT NULL,
+    municipality VARCHAR(50) NOT NULL,
+    lat DOUBLE PRECISION NOT NULL,
+    lng DOUBLE PRECISION NOT NULL,
+    regular_price NUMERIC(4,2) NOT NULL DEFAULT 3.80,
+    especial_price NUMERIC(4,2) NOT NULL DEFAULT 4.15,
+    diesel_price NUMERIC(4,2) NOT NULL DEFAULT 3.48,
+    gov_regular_price NUMERIC(4,2) NOT NULL DEFAULT 3.82,
+    gov_especial_price NUMERIC(4,2) NOT NULL DEFAULT 4.18,
+    gov_diesel_price NUMERIC(4,2) NOT NULL DEFAULT 3.52,
+    verified_reports_count INT NOT NULL DEFAULT 1,
+    last_verified_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS viajes_gas_reports (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    station_id UUID NOT NULL REFERENCES viajes_gas_stations(id) ON DELETE CASCADE,
+    driver_id UUID REFERENCES viajes_driver_profiles(id) ON DELETE SET NULL,
+    fuel_type VARCHAR(20) NOT NULL,
+    reported_price NUMERIC(4,2) NOT NULL,
+    notes TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
 -- 10. ÍNDICES DE CONCURRENCIA Y RENDIMIENTO
 CREATE INDEX IF NOT EXISTS idx_viajes_users_phone ON viajes_users(phone);
 CREATE INDEX IF NOT EXISTS idx_viajes_driver_profiles_active ON viajes_driver_profiles(is_active, is_online);
@@ -272,5 +305,18 @@ BEGIN
             'Santa Tecla',
             TRUE
         );
+    END IF;
+
+    -- Gasolineras Semilla con Precios Oficiales de El Salvador y Precios Confirmados
+    IF NOT EXISTS (SELECT 1 FROM viajes_gas_stations LIMIT 1) THEN
+        INSERT INTO viajes_gas_stations (brand, station_name, address, municipality, lat, lng, regular_price, especial_price, diesel_price, gov_regular_price, gov_especial_price, gov_diesel_price, verified_reports_count)
+        VALUES
+        ('Puma', 'Puma Metrocentro Los Héroes', 'Boulevard de Los Héroes, San Salvador', 'San Salvador', 13.7025, -89.2150, 3.75, 4.10, 3.44, 3.82, 4.18, 3.52, 12),
+        ('Texaco', 'Texaco Los Héroes', 'Blvd. Los Héroes y Calle Gabriela Mistral', 'San Salvador', 13.7040, -89.2140, 3.78, 4.12, 3.47, 3.82, 4.18, 3.52, 8),
+        ('Uno', 'Uno Salvador del Mundo', 'Alameda Roosevelt y Plaza Las Américas', 'San Salvador', 13.7013, -89.2244, 3.79, 4.14, 3.48, 3.82, 4.18, 3.52, 6),
+        ('DLC', 'DLC Constitución', 'Boulevard Constitución y Calle Los Sisimiles', 'San Salvador', 13.7150, -89.2280, 3.72, 4.08, 3.42, 3.82, 4.18, 3.52, 19),
+        ('Puma', 'Puma Santa Tecla Panamericana', 'Carretera Panamericana frente a La Joya', 'Santa Tecla', 13.6738, -89.2789, 3.74, 4.09, 3.45, 3.82, 4.18, 3.52, 14),
+        ('Texaco', 'Texaco Las Delicias', 'Final 4a Calle Poniente, Las Delicias', 'Santa Tecla', 13.6680, -89.2920, 3.80, 4.16, 3.50, 3.82, 4.18, 3.52, 5),
+        ('Uno', 'Uno Soyapango Blvd. del Ejército', 'Boulevard del Ejército Km 4.5', 'Soyapango', 13.7080, -89.1550, 3.76, 4.11, 3.46, 3.82, 4.18, 3.52, 11);
     END IF;
 END $$;

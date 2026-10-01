@@ -27,6 +27,7 @@ import {
 import AdModal from './AdModal';
 import PickupMapModal from './PickupMapModal';
 import DestinationMapModal from './DestinationMapModal';
+import { calculateRoadDistance } from './fuelService';
 import {
   socket,
   registerUserApi,
@@ -52,6 +53,23 @@ export default function ViajesApp() {
   const [showMapModal, setShowMapModal] = useState(false);
   const [showDestMapModal, setShowDestMapModal] = useState(false);
   const [cashBill, setCashBill] = useState('10'); // 'EXACT' | '5' | '10' | '20'
+  const [roadDistanceKm, setRoadDistanceKm] = useState(8.4);
+  const [estimatedDurationMin, setEstimatedDurationMin] = useState(16);
+  const [isCalculatingRoute, setIsCalculatingRoute] = useState(false);
+
+  // Calcular distancia real por carretera y duración estimada cada vez que cambien origen o destino
+  useEffect(() => {
+    if (originCoords?.lat && destinationCoords?.lat) {
+      setIsCalculatingRoute(true);
+      calculateRoadDistance(originCoords, destinationCoords).then((res) => {
+        if (res && res.distanceKm) {
+          setRoadDistanceKm(res.distanceKm);
+          setEstimatedDurationMin(res.durationMinutes);
+        }
+        setIsCalculatingRoute(false);
+      });
+    }
+  }, [originCoords, destinationCoords]);
 
   const calculateChange = (fare = proposedFare) => {
     if (cashBill === 'EXACT') return '0.00';
@@ -202,7 +220,11 @@ export default function ViajesApp() {
       destinationLat: destinationCoords.lat,
       destinationLng: destinationCoords.lng,
       destinationMunicipality,
+      distanceKm: roadDistanceKm,
+      durationMinutes: estimatedDurationMin,
       proposedFare: parseFloat(proposedFare).toFixed(2),
+      cashBill,
+      changeNeeded: calculateChange(),
       packageDetails,
       paymentTiming
     });
@@ -635,6 +657,32 @@ export default function ViajesApp() {
                   </div>
                 </div>
               )}
+
+              {/* Distancia Real en Carretera & Tiempo Estimado de Viaje */}
+              <div className="p-3 bg-gradient-to-r from-slate-900 to-slate-950 rounded-2xl border border-slate-800 flex items-center justify-between text-xs shadow-inner">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400">
+                    <Navigation className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider block">
+                      Ruta por Carretera
+                    </span>
+                    <span className="font-black text-white text-sm font-mono">
+                      {isCalculatingRoute ? 'Calculando...' : `${roadDistanceKm} km`}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="text-right">
+                  <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider block">
+                    Tiempo Estimado
+                  </span>
+                  <span className="font-black text-amber-400 text-sm font-mono">
+                    {isCalculatingRoute ? '...' : `~${estimatedDurationMin} min`}
+                  </span>
+                </div>
+              </div>
 
               {/* Monto Ofrecido en Efectivo */}
               <div>
