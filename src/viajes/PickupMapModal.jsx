@@ -31,9 +31,9 @@ export default function PickupMapModal({
         zoomControl: false
       });
 
-      // Capa de mapa moderna CartoDB Voyager / OpenStreetMap
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-        attribution: '&copy; <a href="https://carto.com/">CARTO</a> &copy; OpenStreetMap',
+      // Capa de mapa oficial de OpenStreetMap (100% gratuita, sin API key)
+      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
         maxZoom: 19
       }).addTo(map);
 
