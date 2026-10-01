@@ -47,7 +47,10 @@ import {
   speakAssistantMessage,
   stopSpeaking,
   startVoiceDictation,
-  stopVoiceDictation
+  stopVoiceDictation,
+  speakAndThenListen,
+  classifyUserVoiceIntent,
+  parseNumberFromSpanish
 } from './voiceAssistantService';
 import { calculateRoadDistance, calculateSuggestedFare, PASSENGER_WEIGHT_PROFILES } from './fuelService';
 import {
@@ -98,6 +101,7 @@ export default function ViajesApp() {
     return localStorage.getItem('rumbo_assistant_mode') || 'visual';
   });
   const [isListeningVoice, setIsListeningVoice] = useState(false);
+  const [voiceDialogueStep, setVoiceDialogueStep] = useState('IDLE');
 
   // Preferencias Especiales del Viaje (A/C, Mascotas, Pasajeros, Equipaje, Contextura/Peso)
   const [tripPreferences, setTripPreferences] = useState({
@@ -358,57 +362,279 @@ export default function ViajesApp() {
   }, []);
 
   // Completar Onboarding Unificado de Bienvenida y Permisos (Addendum 14, 15, 16)
-  const handleWelcomeComplete = ({ voiceEnabled, coords, address }) => {
+  const handleWelcomeComplete = ({ voiceEnabled, coords, address, startVoiceDialogue }) => {
     setShowWelcomeModal(false);
     setVoiceAssistantMode(voiceEnabled ? 'voice' : 'visual');
+    let activeCoords = originCoords;
     if (coords) {
       setOriginCoords(coords);
+      activeCoords = coords;
     }
     if (address) {
       setOrigin(address);
     }
+    if (startVoiceDialogue) {
+      setTimeout(() => {
+        initiateVoiceDialogue(activeCoords);
+      }, 400);
+    }
   };
 
-  // Activar / Detener dictado por voz de destino (Accesibilidad Universal)
+  // 1. Iniciar Diálogo Conversacional por Voz
+  const initiateVoiceDialogue = (coords) => {
+    setVoiceDialogueStep('AWAITING_DESTINATION');
+    speakAndThenListen(
+      'Hola, te saluda tu asistente de viaje de Rumbo. ¿A dónde deseas viajar hoy?',
+      {
+        onListeningChange: (listening) => setIsListeningVoice(listening),
+        onResult: (spokenText) => processVoiceDestination(spokenText, coords || originCoords),
+        onError: (err) => {
+          console.warn('Voice dialogue error:', err);
+          setIsListeningVoice(false);
+          setVoiceDialogueStep('IDLE');
+        }
+      }
+    );
+  };
+
+  // 2. Procesar Destino Dictado, Geocodificar y Calcular Ruta y Tarifa
+  const processVoiceDestination = async (spokenText, currentOriginCoords) => {
+    setDestination(spokenText);
+    setVoiceDialogueStep('CALCULATING_ROUTE');
+
+    let dCoords = null;
+    let dMunicipality = 'San Salvador';
+
+    try {
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
+          spokenText + ', El Salvador'
+        )}&countrycodes=sv&limit=1&addressdetails=1`,
+        { headers: { 'Accept-Language': 'es' } }
+      );
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data[0]) {
+          dCoords = {
+            lat: parseFloat(data[0].lat),
+            lng: parseFloat(data[0].lon)
+          };
+          setDestinationCoords(dCoords);
+          if (data[0].address) {
+            const mun = data[0].address.city || data[0].address.town || data[0].address.municipality;
+            if (mun) {
+              setDestinationMunicipality(mun);
+              dMunicipality = mun;
+            }
+          }
+        }
+      }
+    } catch (geoErr) {
+      console.warn('Geocodificación voz:', geoErr);
+    }
+
+    if (!dCoords) {
+      dCoords = { lat: 13.6738, lng: -89.2789 };
+      setDestinationCoords(dCoords);
+    }
+
+    const oCoords = currentOriginCoords || originCoords || { lat: 13.7013, lng: -89.2244 };
+
+    // Calcular ruta real por carretera, tiempo y tráfico
+    const routeRes = await calculateRoadDistance(oCoords, dCoords);
+    const distKm = routeRes?.distanceKm || 5.0;
+    const durMin = routeRes?.durationMinutes || 14;
+    const delayMin = routeRes?.delayMinutes || 0;
+
+    setRoadDistanceKm(distKm);
+    setEstimatedDurationMin(durMin);
+    setTrafficInfo({
+      trafficLevel: routeRes?.trafficLevel || 'FLUID',
+      trafficColor: routeRes?.trafficColor || '#10B981',
+      trafficLabel: routeRes?.trafficLabel || 'Tráfico Fluido',
+      delayMinutes: delayMin,
+      rushHourContext: routeRes?.rushHourContext || 'Horario Normal'
+    });
+
+    // Calcular tarifa sugerida exacta
+    const fareData = calculateSuggestedFare(distKm, 42.0, 3.80, delayMin, tripPreferences);
+    const calculatedFare = fareData.suggestedFare;
+    setProposedFare(calculatedFare);
+
+    // Locución obligatoria: Distancia, Tiempo, Tarifa y Pregunta de Búsqueda
+    const speechPrompt = `Tu destino está a ${distKm} kilómetros, aproximadamente ${durMin} minutos. La tarifa sugerida es de ${calculatedFare} dólares. ¿Deseas buscar conductor?`;
+
+    setVoiceDialogueStep('CONFIRMING_SEARCH');
+    speakAndThenListen(speechPrompt, {
+      onListeningChange: (listening) => setIsListeningVoice(listening),
+      onResult: (answer) => handleVoiceAnswer(answer),
+      onError: (err) => {
+        console.warn('Error al escuchar respuesta:', err);
+        setIsListeningVoice(false);
+        setVoiceDialogueStep('IDLE');
+      }
+    });
+  };
+
+  // 3. Evaluar Respuesta del Pasajero sobre "¿Deseas buscar conductor?"
+  const handleVoiceAnswer = (answer) => {
+    const intent = classifyUserVoiceIntent(answer);
+
+    if (intent.type === 'CONFIRM_SEARCH') {
+      setVoiceDialogueStep('IDLE');
+      speakAssistantMessage('Excelente. Buscando conductor cercano.', () => {
+        setIsListeningVoice(false);
+        handleSearchDrivers();
+      });
+      return;
+    }
+
+    if (intent.type === 'DECLINE_SEARCH') {
+      setVoiceDialogueStep('AWAITING_ADJUSTMENT');
+      speakAndThenListen(
+        '¿Deseas cambiar la tarifa sugerida o ajustar detalles del viaje como aire acondicionado, pasajeros o mascotas?',
+        {
+          onListeningChange: (listening) => setIsListeningVoice(listening),
+          onResult: (adjustAnswer) => handleAdjustmentAnswer(adjustAnswer),
+          onError: () => {
+            setIsListeningVoice(false);
+            setVoiceDialogueStep('IDLE');
+          }
+        }
+      );
+      return;
+    }
+
+    // Si el pasajero dictó directamente el ajuste en lugar de sí/no
+    handleAdjustmentAnswer(answer);
+  };
+
+  // 4. Manejar Ajustes Conversacionales (Tarifa, Pasajeros, A/C, Mascotas, Equipaje)
+  const handleAdjustmentAnswer = (answer) => {
+    const intent = classifyUserVoiceIntent(answer);
+
+    if (intent.type === 'CONFIRM_SEARCH') {
+      setVoiceDialogueStep('IDLE');
+      speakAssistantMessage('Excelente. Buscando conductor cercano.', () => {
+        setIsListeningVoice(false);
+        handleSearchDrivers();
+      });
+      return;
+    }
+
+    if (intent.type === 'CHANGE_FARE') {
+      if (intent.amount && intent.amount > 0) {
+        const newFare = intent.amount.toFixed(2);
+        setProposedFare(newFare);
+        setHasCustomFare(true);
+        askConfirmationAfterAdjustment(`Tarifa ajustada a ${newFare} dólares.`);
+      } else {
+        setVoiceDialogueStep('AWAITING_FARE_INPUT');
+        speakAndThenListen('¿Qué tarifa en dólares deseas proponer?', {
+          onListeningChange: (listening) => setIsListeningVoice(listening),
+          onResult: (fareAnswer) => {
+            const amount = parseNumberFromSpanish(fareAnswer);
+            if (amount && amount > 0) {
+              const newFare = amount.toFixed(2);
+              setProposedFare(newFare);
+              setHasCustomFare(true);
+              askConfirmationAfterAdjustment(`Tarifa ajustada a ${newFare} dólares.`);
+            } else {
+              askConfirmationAfterAdjustment('No alcancé a captar la cantidad.');
+            }
+          },
+          onError: () => setIsListeningVoice(false)
+        });
+      }
+      return;
+    }
+
+    if (intent.type === 'STANDALONE_NUMBER') {
+      const newFare = intent.amount.toFixed(2);
+      setProposedFare(newFare);
+      setHasCustomFare(true);
+      askConfirmationAfterAdjustment(`Tarifa ajustada a ${newFare} dólares.`);
+      return;
+    }
+
+    if (intent.type === 'CHANGE_PASSENGERS') {
+      const count = intent.count;
+      setTripPreferences((prev) => ({
+        ...prev,
+        passengers: count,
+        needsVanOrMicrobus: count > 4
+      }));
+      askConfirmationAfterAdjustment(`Ajustado a ${count} ${count === 1 ? 'pasajero' : 'pasajeros'}.`);
+      return;
+    }
+
+    if (intent.type === 'CHANGE_AC') {
+      setTripPreferences((prev) => ({
+        ...prev,
+        airConditioning: intent.enabled
+      }));
+      const acStatus = intent.enabled ? 'activado' : 'desactivado';
+      askConfirmationAfterAdjustment(`Aire acondicionado ${acStatus}.`);
+      return;
+    }
+
+    if (intent.type === 'CHANGE_PETS') {
+      setTripPreferences((prev) => ({
+        ...prev,
+        petFriendly: intent.enabled
+      }));
+      const petStatus = intent.enabled ? 'activado' : 'desactivado';
+      askConfirmationAfterAdjustment(`Viaje con mascota ${petStatus}.`);
+      return;
+    }
+
+    if (intent.type === 'CHANGE_LUGGAGE') {
+      setTripPreferences((prev) => ({
+        ...prev,
+        extraLuggage: intent.enabled
+      }));
+      const lugStatus = intent.enabled ? 'agregado' : 'removido';
+      askConfirmationAfterAdjustment(`Equipaje extra ${lugStatus}.`);
+      return;
+    }
+
+    // Comando no reconocido: re-confirmar búsqueda
+    askConfirmationAfterAdjustment('Entendido.');
+  };
+
+  // Re-preguntar al pasajero si desea buscar conductor tras un ajuste
+  const askConfirmationAfterAdjustment = (prefixNotice) => {
+    setVoiceDialogueStep('CONFIRMING_SEARCH');
+    speakAndThenListen(`${prefixNotice} ¿Deseas buscar conductor ahora?`, {
+      onListeningChange: (listening) => setIsListeningVoice(listening),
+      onResult: (ans) => {
+        const reIntent = classifyUserVoiceIntent(ans);
+        if (reIntent.type === 'CONFIRM_SEARCH') {
+          setVoiceDialogueStep('IDLE');
+          speakAssistantMessage('Excelente. Buscando conductor cercano.', () => {
+            setIsListeningVoice(false);
+            handleSearchDrivers();
+          });
+        } else if (reIntent.type === 'DECLINE_SEARCH') {
+          handleVoiceAnswer('no');
+        } else {
+          handleAdjustmentAnswer(ans);
+        }
+      },
+      onError: () => setIsListeningVoice(false)
+    });
+  };
+
+  // Activar / Detener asistente conversacional por voz (Botón micrófono / cabecera)
   const handleToggleVoiceDictation = () => {
     if (isListeningVoice) {
       stopVoiceDictation();
+      stopSpeaking();
       setIsListeningVoice(false);
-      speakAssistantMessage('Micrófono pausado.');
+      setVoiceDialogueStep('IDLE');
     } else {
       unlockAudioAndSpeech();
-      speakAssistantMessage('Te escucho. Dime a dónde deseas viajar.', () => {
-        startVoiceDictation({
-          onListeningChange: (listening) => setIsListeningVoice(listening),
-          onResult: async (spokenText) => {
-            setDestination(spokenText);
-            speakAssistantMessage(`Destino establecido: ${spokenText}. Calculando ruta.`);
-            try {
-              const res = await fetch(
-                `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
-                  spokenText + ', El Salvador'
-                )}&countrycodes=sv&limit=1`,
-                { headers: { 'Accept-Language': 'es' } }
-              );
-              if (res.ok) {
-                const data = await res.json();
-                if (data && data[0]) {
-                  setDestinationCoords({
-                    lat: parseFloat(data[0].lat),
-                    lng: parseFloat(data[0].lon)
-                  });
-                }
-              }
-            } catch (geocodeErr) {
-              console.warn('Geocodificación de voz fallback:', geocodeErr);
-            }
-          },
-          onError: (err) => {
-            console.warn('Dictado por voz notice:', err);
-            setIsListeningVoice(false);
-          }
-        });
-      });
+      initiateVoiceDialogue();
     }
   };
 
@@ -445,7 +671,7 @@ export default function ViajesApp() {
 
   // 1. Iniciar Búsqueda (Fase Señuelo -> Subasta en 1 km)
   const handleSearchDrivers = (e) => {
-    e.preventDefault();
+    if (e && e.preventDefault) e.preventDefault();
     if (locationPermissionDenied || !originCoords) {
       setShowLocationPermissionModal(true);
       return;
@@ -806,6 +1032,39 @@ export default function ViajesApp() {
                     className="px-2.5 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-lg text-[11px] whitespace-nowrap cursor-pointer transition-colors"
                   >
                     Activar
+                  </button>
+                </div>
+              )}
+
+              {/* Asistente de Voz Activo en Tiempo Real */}
+              {(voiceDialogueStep !== 'IDLE' || isListeningVoice) && (
+                <div className="p-3 bg-gradient-to-r from-amber-500/20 via-lime-500/15 to-emerald-500/20 border border-amber-500/40 rounded-2xl flex items-center justify-between gap-3 text-xs text-amber-200 animate-fade-in shadow-lg">
+                  <div className="flex items-center gap-2.5">
+                    <div className="relative">
+                      <div className="w-8 h-8 rounded-full bg-amber-500/20 flex items-center justify-center text-amber-400 font-bold">
+                        <Mic className="w-4 h-4 animate-bounce" />
+                      </div>
+                      <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-rose-500 rounded-full animate-ping" />
+                    </div>
+                    <div>
+                      <p className="font-extrabold text-white text-xs">
+                        {isListeningVoice ? 'Asistente de Voz Escuchando...' : 'Asistente Procesando...'}
+                      </p>
+                      <p className="text-[11px] text-amber-300/80">
+                        {voiceDialogueStep === 'AWAITING_DESTINATION' && 'Dicta tu destino (ej. Metrocentro)...'}
+                        {voiceDialogueStep === 'CALCULATING_ROUTE' && 'Calculando distancia y tarifa...'}
+                        {voiceDialogueStep === 'CONFIRMING_SEARCH' && 'Responde: "Sí" para buscar o "No" para ajustar...'}
+                        {voiceDialogueStep === 'AWAITING_ADJUSTMENT' && 'Menciona qué deseas cambiar (tarifa, aire, pasajeros, mascotas)...'}
+                        {voiceDialogueStep === 'AWAITING_FARE_INPUT' && 'Di la tarifa en dólares (ej. 3 dólares)...'}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleToggleVoiceDictation}
+                    className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg text-[11px] font-semibold cursor-pointer transition-colors"
+                  >
+                    Pausar
                   </button>
                 </div>
               )}

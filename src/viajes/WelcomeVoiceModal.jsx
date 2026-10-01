@@ -87,19 +87,12 @@ export default function WelcomeVoiceModal({
       localStorage.setItem('rumbo_assistant_mode', micGranted ? 'voice' : 'visual');
     } catch {}
 
-    // 5. SALUDO DE VOZ DEL AVATAR (Addendum 15) SI SE CONCEDIÓ MICRÓFONO
-    if (micGranted) {
-      setStepStatus('Asistente de voz activado con éxito.');
-      speakAssistantMessage(
-        'Hola, te saluda tu asistente de viaje. Puedes decirme a dónde deseas ir o escribir tu destino.'
-      );
-    }
-
     setIsLoading(false);
     onComplete({
       voiceEnabled: micGranted,
       coords: obtainedCoords,
-      address: obtainedAddress
+      address: obtainedAddress,
+      startVoiceDialogue: micGranted
     });
   };
 
