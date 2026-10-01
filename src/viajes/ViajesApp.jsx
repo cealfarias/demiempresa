@@ -33,7 +33,8 @@ import {
   AlertTriangle,
   MapPinOff,
   Mic,
-  MicOff
+  MicOff,
+  Bike
 } from 'lucide-react';
 import RumboLogo from './RumboLogo';
 import AdModal from './AdModal';
@@ -64,6 +65,19 @@ export default function ViajesApp() {
   // Máquina de Estados: 'DECOY_FORM' | 'AUCTION' | 'IN_TRIP_HUB'
   const [appState, setAppState] = useState('DECOY_FORM');
   const [serviceType, setServiceType] = useState('PASSENGER'); // 'PASSENGER' | 'PACKAGE'
+  const [transportType, setTransportType] = useState('CAR'); // 'CAR' | 'MOTO'
+
+  const handleSelectTransportType = (type) => {
+    setTransportType(type);
+    if (type === 'MOTO') {
+      setTripPreferences((prev) => ({
+        ...prev,
+        airConditioning: false,
+        passengers: 1,
+        extraLuggage: false
+      }));
+    }
+  };
 
   // Tema de la Aplicación: 'dark' | 'light' (mutuamente excluyente)
   const [theme, setTheme] = useState(() => localStorage.getItem('rumbo_theme') || 'dark');
@@ -147,22 +161,23 @@ export default function ViajesApp() {
     }
   }, [originCoords, destinationCoords]);
 
-  // Algoritmo de Tarifa Sugerida en Tiempo Real (Gasolina + Tráfico + A/C + Peso)
+  // Algoritmo de Tarifa Sugerida en Tiempo Real (Gasolina + Tráfico + A/C + Peso + Auto/Moto)
+  const isMotoMode = transportType === 'MOTO';
   const suggestedFareInfo = calculateSuggestedFare(
     roadDistanceKm,
-    42.0,
+    isMotoMode ? 115.0 : 42.0,
     3.80,
     trafficInfo.delayMinutes,
-    tripPreferences
+    { ...tripPreferences, transportType }
   );
 
-  // Sincronizar dinámicamente la tarifa sugerida cuando cambia la ruta o preferencias
+  // Sincronizar dinámicamente la tarifa sugerida cuando cambia la ruta, preferencias o transporte
   useEffect(() => {
     if (suggestedFareInfo?.suggestedFare) {
       setProposedFare(suggestedFareInfo.suggestedFare);
       setHasCustomFare(false);
     }
-  }, [roadDistanceKm, trafficInfo.delayMinutes, tripPreferences]);
+  }, [roadDistanceKm, trafficInfo.delayMinutes, tripPreferences, transportType]);
 
   const calculateChange = (fare = proposedFare) => {
     if (cashBill === 'EXACT') return '0.00';
@@ -541,7 +556,13 @@ export default function ViajesApp() {
     });
 
     // Calcular tarifa sugerida exacta
-    const fareData = calculateSuggestedFare(distKm, 42.0, 3.80, delayMin, tripPreferences);
+    const fareData = calculateSuggestedFare(
+      distKm,
+      transportType === 'MOTO' ? 115.0 : 42.0,
+      3.80,
+      delayMin,
+      { ...tripPreferences, transportType }
+    );
     const calculatedFare = fareData.suggestedFare;
     setProposedFare(calculatedFare);
 
@@ -703,6 +724,23 @@ export default function ViajesApp() {
       return;
     }
 
+    if (intent.type === 'CHANGE_TRANSPORT') {
+      const isMoto = intent.transportType === 'MOTO';
+      setTransportType(intent.transportType);
+      if (isMoto) {
+        setTripPreferences((prev) => ({
+          ...prev,
+          airConditioning: false,
+          passengers: 1,
+          extraLuggage: false
+        }));
+        askConfirmationAfterAdjustment('Modo viaje en Moto seleccionado. Tarifa económica y filtro de tráfico aplicados.');
+      } else {
+        askConfirmationAfterAdjustment('Modo viaje en Carro seleccionado.');
+      }
+      return;
+    }
+
     // Comando no reconocido: re-confirmar búsqueda
     askConfirmationAfterAdjustment('Entendido.');
   };
@@ -797,6 +835,7 @@ export default function ViajesApp() {
     socket.emit('trip:request', {
       passengerId: userProfile?.id || 'guest-passenger',
       serviceType,
+      transportType,
       originAddress: origin,
       originLat: oLat,
       originLng: oLng,
@@ -1097,7 +1136,7 @@ export default function ViajesApp() {
               <button
                 type="button"
                 onClick={() => setServiceType('PASSENGER')}
-                className={`py-2.5 rounded-xl flex items-center justify-center gap-2 transition-all ${
+                className={`py-2.5 rounded-xl flex items-center justify-center gap-2 transition-all cursor-pointer ${
                   serviceType === 'PASSENGER'
                     ? 'bg-amber-500 text-slate-950 shadow-md font-black'
                     : 'text-slate-400 hover:text-white'
@@ -1109,7 +1148,7 @@ export default function ViajesApp() {
               <button
                 type="button"
                 onClick={() => setServiceType('PACKAGE')}
-                className={`py-2.5 rounded-xl flex items-center justify-center gap-2 transition-all ${
+                className={`py-2.5 rounded-xl flex items-center justify-center gap-2 transition-all cursor-pointer ${
                   serviceType === 'PACKAGE'
                     ? 'bg-amber-500 text-slate-950 shadow-md font-black'
                     : 'text-slate-400 hover:text-white'
@@ -1117,6 +1156,41 @@ export default function ViajesApp() {
               >
                 <Package className="w-4 h-4" />
                 <span>Envío Paquete</span>
+              </button>
+            </div>
+
+            {/* Selector de Tipo de Transporte: Auto / Carro vs Moto */}
+            <div className="grid grid-cols-2 p-1 bg-slate-950/80 rounded-2xl border border-slate-800 text-xs font-bold gap-1">
+              <button
+                type="button"
+                onClick={() => handleSelectTransportType('CAR')}
+                className={`py-2 px-3 rounded-xl flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                  transportType === 'CAR'
+                    ? 'bg-gradient-to-r from-amber-500 to-amber-400 text-slate-950 shadow-md font-black'
+                    : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
+                }`}
+              >
+                <Car className="w-4 h-4 flex-shrink-0" />
+                <div className="text-left leading-tight">
+                  <span className="block text-xs font-bold">Auto / Carro</span>
+                  <span className="block text-[10px] opacity-75 font-normal">Hasta 4 pax • Con A/C</span>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleSelectTransportType('MOTO')}
+                className={`py-2 px-3 rounded-xl flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                  transportType === 'MOTO'
+                    ? 'bg-gradient-to-r from-amber-500 to-amber-400 text-slate-950 shadow-md font-black'
+                    : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
+                }`}
+              >
+                <Bike className="w-4 h-4 flex-shrink-0" />
+                <div className="text-left leading-tight">
+                  <span className="block text-xs font-bold">Moto</span>
+                  <span className="block text-[10px] opacity-75 font-normal">Económico • Rápido</span>
+                </div>
               </button>
             </div>
 
@@ -2109,6 +2183,7 @@ export default function ViajesApp() {
         preferences={tripPreferences}
         suggestedFare={suggestedFareInfo.suggestedFare}
         proposedFare={proposedFare}
+        transportType={transportType}
         onRequireSuggestedFare={handleEnableAcWithSuggestedFare}
         onChange={(newPrefs) => {
           if (newPrefs.airConditioning && !tripPreferences.airConditioning) {

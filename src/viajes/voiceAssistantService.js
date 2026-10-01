@@ -287,6 +287,14 @@ export const classifyUserVoiceIntent = (text) => {
     return { type: 'CHANGE_LUGGAGE', enabled, raw: text };
   }
 
+  // Ajuste de Tipo de Transporte: Auto / Carro vs Moto
+  if (/\b(en moto|moto|motocicleta|mototaxi|en mototaxi)\b/i.test(lower)) {
+    return { type: 'CHANGE_TRANSPORT', transportType: 'MOTO', raw: text };
+  }
+  if (/\b(en carro|carro|en auto|auto|autom[oó]vil|veh[ií]culo)\b/i.test(lower)) {
+    return { type: 'CHANGE_TRANSPORT', transportType: 'CAR', raw: text };
+  }
+
   // Si dice directamente una cifra: ej. "3 dólares", "4", "2.50"
   const standaloneAmount = parseNumberFromSpanish(lower);
   if (standaloneAmount !== null && standaloneAmount > 0) {

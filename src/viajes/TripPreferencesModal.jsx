@@ -8,7 +8,8 @@ import {
   Check,
   Sparkles,
   Info,
-  Scale
+  Scale,
+  Bike
 } from 'lucide-react';
 import { PASSENGER_WEIGHT_PROFILES, calculateCabinWeight } from './fuelService';
 
@@ -19,6 +20,7 @@ export default function TripPreferencesModal({
   onChange,
   suggestedFare,
   proposedFare,
+  transportType = 'CAR',
   onRequireSuggestedFare
 }) {
   if (!isOpen) return null;
@@ -31,10 +33,12 @@ export default function TripPreferencesModal({
     extraLuggage = false
   } = preferences;
 
+  const isMoto = transportType === 'MOTO';
   const isMoreThan4 = passengers > 4;
   const cabinWeight = calculateCabinWeight(passengers, weightProfile, extraLuggage);
 
   const handleToggleAc = () => {
+    if (isMoto) return;
     const nextState = !airConditioning;
     if (nextState) {
       // Política: El A/C activa automáticamente la tarifa sugerida
@@ -52,6 +56,7 @@ export default function TripPreferencesModal({
   };
 
   const handleSetPassengers = (count) => {
+    if (isMoto && count > 1) return;
     onChange({
       ...preferences,
       passengers: count,
@@ -67,6 +72,7 @@ export default function TripPreferencesModal({
   };
 
   const handleToggleLuggage = () => {
+    if (isMoto) return;
     onChange({ ...preferences, extraLuggage: !extraLuggage });
   };
 
@@ -93,48 +99,67 @@ export default function TripPreferencesModal({
           </button>
         </div>
 
+        {/* Banner Informativo de Modalidad Moto */}
+        {isMoto && (
+          <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-300 flex items-center gap-2.5 text-xs animate-fade-in">
+            <Bike className="w-5 h-5 flex-shrink-0 text-amber-400" />
+            <div>
+              <p className="font-bold">Modalidad: Viaje en Moto</p>
+              <p className="text-[11px] text-amber-200/80">Máximo 1 pasajero, casco incluido y tarifa ultra económica.</p>
+            </div>
+          </div>
+        )}
+
         {/* Lista de Opciones */}
         <div className="space-y-3 text-xs">
           
           {/* Opción 1: Aire Acondicionado con Política Estricta */}
           <div
-            onClick={handleToggleAc}
-            className={`p-3.5 rounded-2xl border transition-all cursor-pointer flex flex-col gap-2 ${
-              airConditioning
-                ? 'bg-cyan-950/30 border-cyan-500/50 text-white'
-                : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
+            onClick={isMoto ? undefined : handleToggleAc}
+            className={`p-3.5 rounded-2xl border transition-all flex flex-col gap-2 ${
+              isMoto
+                ? 'bg-slate-950/60 border-slate-800 text-slate-500 opacity-60 cursor-not-allowed'
+                : 'cursor-pointer ' + (airConditioning
+                    ? 'bg-cyan-950/30 border-cyan-500/50 text-white'
+                    : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700')
             }`}
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${
-                  airConditioning ? 'bg-cyan-500/20 text-cyan-400' : 'bg-slate-900 text-slate-500'
+                  !isMoto && airConditioning ? 'bg-cyan-500/20 text-cyan-400' : 'bg-slate-900 text-slate-500'
                 }`}>
                   <Wind className="w-5 h-5" />
                 </div>
                 <div>
                   <div className="font-bold text-white text-xs flex items-center gap-1.5">
                     <span>Aire Acondicionado (A/C)</span>
-                    <span className="text-[10px] text-cyan-400 font-normal">(+15% motor)</span>
+                    <span className="text-[10px] text-cyan-400 font-normal">
+                      {isMoto ? '(No disponible en moto)' : '(+15% motor)'}
+                    </span>
                   </div>
-                  <div className="text-[11px] text-slate-400">Viaje fresco con ventilación/clima encendido</div>
+                  <div className="text-[11px] text-slate-400">
+                    {isMoto ? 'Ventilación natural durante el viaje en motocicleta' : 'Viaje fresco con ventilación/clima encendido'}
+                  </div>
                 </div>
               </div>
 
               <div className={`w-6 h-6 rounded-lg flex items-center justify-center border transition-all ${
-                airConditioning ? 'bg-cyan-500 border-cyan-400 text-slate-950 font-black' : 'border-slate-700 bg-slate-900'
+                !isMoto && airConditioning ? 'bg-cyan-500 border-cyan-400 text-slate-950 font-black' : 'border-slate-700 bg-slate-900'
               }`}>
-                {airConditioning && <Check className="w-4 h-4 stroke-[3]" />}
+                {!isMoto && airConditioning && <Check className="w-4 h-4 stroke-[3]" />}
               </div>
             </div>
 
             {/* Política Clara del A/C */}
-            <div className="pt-2 border-t border-slate-800/80 text-[10px] leading-tight flex items-start gap-1.5 text-cyan-300 font-medium">
-              <Info className="w-3.5 h-3.5 flex-shrink-0 text-cyan-400 mt-0.5" />
-              <span>
-                <strong>Política:</strong> El A/C solo aplica con tarifa sugerida (${suggestedFare || '2.50'}) o superior. Al activarlo, se habilita automáticamente la tarifa sugerida.
-              </span>
-            </div>
+            {!isMoto && (
+              <div className="pt-2 border-t border-slate-800/80 text-[10px] leading-tight flex items-start gap-1.5 text-cyan-300 font-medium">
+                <Info className="w-3.5 h-3.5 flex-shrink-0 text-cyan-400 mt-0.5" />
+                <span>
+                  <strong>Política:</strong> El A/C solo aplica con tarifa sugerida (${suggestedFare || '2.50'}) o superior. Al activarlo, se habilita automáticamente la tarifa sugerida.
+                </span>
+              </div>
+            )}
           </div>
 
           {/* Opción 2: Cantidad de Pasajeros (>4 requiere Camioneta o Microbús) */}
@@ -152,34 +177,50 @@ export default function TripPreferencesModal({
             </div>
 
             <div className="grid grid-cols-5 gap-1.5 text-center">
-              {[1, 2, 3, 4].map((num) => (
-                <button
-                  key={num}
-                  type="button"
-                  onClick={() => handleSetPassengers(num)}
-                  className={`py-2 rounded-xl font-bold transition-all text-xs cursor-pointer border ${
-                    passengers === num
-                      ? 'bg-lime-500 text-slate-950 border-lime-400 shadow-md font-black'
-                      : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
-                  }`}
-                >
-                  {num}
-                </button>
-              ))}
+              {[1, 2, 3, 4].map((num) => {
+                const disabled = isMoto && num > 1;
+                return (
+                  <button
+                    key={num}
+                    type="button"
+                    disabled={disabled}
+                    onClick={() => handleSetPassengers(num)}
+                    className={`py-2 rounded-xl font-bold transition-all text-xs border ${
+                      disabled
+                        ? 'opacity-30 cursor-not-allowed bg-slate-950 border-slate-900 text-slate-600'
+                        : passengers === num
+                        ? 'bg-lime-500 text-slate-950 border-lime-400 shadow-md font-black cursor-pointer'
+                        : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white cursor-pointer'
+                    }`}
+                  >
+                    {num}
+                  </button>
+                );
+              })}
 
               {/* Botón especial para más de 4 personas */}
               <button
                 type="button"
+                disabled={isMoto}
                 onClick={() => handleSetPassengers(5)}
-                className={`py-2 rounded-xl font-bold transition-all text-xs cursor-pointer border col-span-1 ${
-                  isMoreThan4
-                    ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-slate-950 border-amber-400 shadow-md font-black'
-                    : 'bg-slate-900 border-slate-800 text-amber-400 hover:border-amber-500/50'
+                className={`py-2 rounded-xl font-bold transition-all text-xs border col-span-1 ${
+                  isMoto
+                    ? 'opacity-30 cursor-not-allowed bg-slate-950 border-slate-900 text-slate-600'
+                    : isMoreThan4
+                    ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-slate-950 border-amber-400 shadow-md font-black cursor-pointer'
+                    : 'bg-slate-900 border-slate-800 text-amber-400 hover:border-amber-500/50 cursor-pointer'
                 }`}
               >
                 5+
               </button>
             </div>
+
+            {/* Aviso en Moto */}
+            {isMoto && (
+              <div className="p-2 bg-amber-500/10 border border-amber-500/20 rounded-xl text-[10px] text-amber-300">
+                Por seguridad vial, en motocicleta solo se permite transportar a 1 pasajero con casco reglamentario.
+              </div>
+            )}
 
             {/* Aviso especial cuando son más de 4 personas */}
             {isMoreThan4 && (
@@ -248,29 +289,36 @@ export default function TripPreferencesModal({
 
           {/* Opción 4: Equipaje o Cargas Extras */}
           <div
-            onClick={handleToggleLuggage}
-            className={`p-3.5 rounded-2xl border transition-all cursor-pointer flex items-center justify-between ${
-              extraLuggage
-                ? 'bg-purple-950/30 border-purple-500/50 text-white'
-                : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
+            onClick={isMoto ? undefined : handleToggleLuggage}
+            className={`p-3.5 rounded-2xl border transition-all flex items-center justify-between ${
+              isMoto
+                ? 'bg-slate-950/60 border-slate-800 text-slate-500 opacity-60 cursor-not-allowed'
+                : 'cursor-pointer ' + (extraLuggage
+                    ? 'bg-purple-950/30 border-purple-500/50 text-white'
+                    : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700')
             }`}
           >
             <div className="flex items-center gap-3">
               <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${
-                extraLuggage ? 'bg-purple-500/20 text-purple-400' : 'bg-slate-900 text-slate-500'
+                !isMoto && extraLuggage ? 'bg-purple-500/20 text-purple-400' : 'bg-slate-900 text-slate-500'
               }`}>
                 <Briefcase className="w-5 h-5" />
               </div>
               <div>
-                <div className="font-bold text-white text-xs">Equipaje Extra o Baúl Lleno (+35 kg)</div>
-                <div className="text-[11px] text-slate-400">Maletas grandes, compras o bultos pesados</div>
+                <div className="font-bold text-white text-xs flex items-center gap-1.5">
+                  <span>Equipaje Extra o Baúl Lleno</span>
+                  {isMoto && <span className="text-[10px] text-amber-400 font-normal">(En moto solo mochila de mano)</span>}
+                </div>
+                <div className="text-[11px] text-slate-400">
+                  {isMoto ? 'El conductor de moto solo puede llevar tu mochila' : 'Maletas grandes, compras o bultos pesados'}
+                </div>
               </div>
             </div>
 
             <div className={`w-6 h-6 rounded-lg flex items-center justify-center border transition-all ${
-              extraLuggage ? 'bg-purple-500 border-purple-400 text-slate-950 font-black' : 'border-slate-700 bg-slate-900'
+              !isMoto && extraLuggage ? 'bg-purple-500 border-purple-400 text-slate-950 font-black' : 'border-slate-700 bg-slate-900'
             }`}>
-              {extraLuggage && <Check className="w-4 h-4 stroke-[3]" />}
+              {!isMoto && extraLuggage && <Check className="w-4 h-4 stroke-[3]" />}
             </div>
           </div>
 

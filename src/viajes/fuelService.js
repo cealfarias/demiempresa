@@ -308,77 +308,88 @@ export function calculateSuggestedFare(
   delayMinutes = 0,
   options = {}
 ) {
+  const isMoto = options.transportType === 'MOTO' || options.vehicleType === 'MOTO';
+  const isLargeGroup = !isMoto && (options.passengers > 4);
+
   const {
     airConditioning = true,
     passengers = 1,
     weightProfile = 'NORMAL',
     extraLuggage = false
-  } = options;
+  } = isMoto ? { airConditioning: false, passengers: 1, weightProfile: options.weightProfile || 'NORMAL', extraLuggage: false } : options;
 
   const dist = parseFloat(distanceKm) || 1.0;
-  const isLargeGroup = passengers > 4;
 
-  // 1. Banderazo base operativo (arranque, desgaste de llantas y salida del conductor)
-  // Si son 5+ pasajeros requiere camioneta/microbús ($3.00 base vs $1.60 auto normal)
-  const baseFare = isLargeGroup ? 3.00 : 1.60;
+  // 1. Banderazo base operativo (arranque, llantas y salida)
+  // Moto: $0.90 | Auto normal: $1.60 | Camioneta/Van 5+: $3.00
+  const baseFare = isMoto ? 0.90 : (isLargeGroup ? 3.00 : 1.60);
 
-  // 2. Costo por kilómetro recorrido (amortización + conducción)
-  const kmRate = isLargeGroup ? 0.45 : 0.32;
+  // 2. Costo por kilómetro recorrido (amortización y operación)
+  // Moto: $0.18/km | Auto: $0.32/km | Van: $0.45/km
+  const kmRate = isMoto ? 0.18 : (isLargeGroup ? 0.45 : 0.32);
   const kmCost = dist * kmRate;
 
   // 3. Costo real de combustible (incluyendo A/C y peso)
+  // En moto el rendimiento es ~115 km/gal vs 42 km/gal en auto
+  const effectiveKpg = isMoto ? 115.0 : kmPerGallon;
+  // En moto la demora por trabazón se reduce un 65% porque filtra tráfico
+  const effectiveDelayMinutes = isMoto ? (parseFloat(delayMinutes) || 0) * 0.35 : (parseFloat(delayMinutes) || 0);
+
   const fuelMetrics = calculateTripFuelCost(
     dist,
-    kmPerGallon,
+    effectiveKpg,
     fuelPricePerGallon,
     0,
-    delayMinutes,
-    options
+    effectiveDelayMinutes,
+    isMoto ? { airConditioning: false, passengers: 1, weightProfile, extraLuggage: false } : options
   );
   const fuelComponent = fuelMetrics.fuelCostUsd;
 
-  // 4. Recargo por congestión y tiempo de tráfico (5 centavos por cada minuto de trabazón)
-  const trafficSurcharge = Math.min(2.50, Math.max(0, parseFloat(delayMinutes) || 0) * 0.06);
+  // 4. Recargo por congestión y tiempo de tráfico
+  const trafficSurcharge = isMoto
+    ? Math.min(0.75, effectiveDelayMinutes * 0.02)
+    : Math.min(2.50, Math.max(0, parseFloat(delayMinutes) || 0) * 0.06);
 
-  // 5. Recargo por Aire Acondicionado
-  const acSurcharge = airConditioning ? (dist > 10 ? 0.50 : 0.35) : 0.00;
+  // 5. Recargo por Aire Acondicionado (no aplica a moto)
+  const acSurcharge = isMoto ? 0.00 : (airConditioning ? (dist > 10 ? 0.50 : 0.35) : 0.00);
 
-  // 6. Recargo ponderado por peso y número de pasajeros
+  // 6. Recargo ponderado por peso y número de pasajeros (en moto solo 1 persona)
   const weightData = fuelMetrics.weightAnalysis;
   let weightSurcharge = 0.00;
-  if (isLargeGroup) {
-    weightSurcharge = 1.75;
-  } else if (weightData.totalWeightKg >= 350) {
-    // 3-4 personas obesas o carga pesada
-    weightSurcharge = 1.00;
-  } else if (weightData.totalWeightKg >= 260) {
-    // 3-4 personas robustas o peso normal
-    weightSurcharge = 0.60;
-  } else if (weightData.totalWeightKg >= 180) {
-    // 2-3 personas normales
-    weightSurcharge = 0.35;
-  } else if (weightData.totalWeightKg >= 130) {
-    weightSurcharge = 0.20;
+  if (!isMoto) {
+    if (isLargeGroup) {
+      weightSurcharge = 1.75;
+    } else if (weightData.totalWeightKg >= 350) {
+      weightSurcharge = 1.00;
+    } else if (weightData.totalWeightKg >= 260) {
+      weightSurcharge = 0.60;
+    } else if (weightData.totalWeightKg >= 180) {
+      weightSurcharge = 0.35;
+    } else if (weightData.totalWeightKg >= 130) {
+      weightSurcharge = 0.20;
+    }
   }
 
-  // Recargo por equipaje voluminoso en baúl
-  const luggageSurcharge = extraLuggage ? 0.40 : 0.00;
+  // Recargo por equipaje voluminoso en baúl (en moto no aplica baúl grande)
+  const luggageSurcharge = isMoto ? 0.00 : (extraLuggage ? 0.40 : 0.00);
 
   // Total bruto
   const rawTotal = baseFare + kmCost + (fuelComponent * 0.85) + trafficSurcharge + acSurcharge + weightSurcharge + luggageSurcharge;
 
-  // Redondear a múltiplos de $0.25 para pagos en efectivo limpios (sin centavos sueltos difíciles)
+  // Redondear a múltiplos de $0.25 para pagos en efectivo limpios
+  // Mínimo Moto: $1.50 | Mínimo Auto: $2.50 | Mínimo Van: $4.50
   const roundedSuggested = Math.max(
-    isLargeGroup ? 4.50 : 2.50,
+    isMoto ? 1.50 : (isLargeGroup ? 4.50 : 2.50),
     Math.round(rawTotal * 4) / 4
   ).toFixed(2);
 
   const minimumRecommended = Math.max(
-    isLargeGroup ? 3.75 : 2.00,
+    isMoto ? 1.25 : (isLargeGroup ? 3.75 : 2.00),
     Math.round((rawTotal * 0.85) * 4) / 4
   ).toFixed(2);
 
   return {
+    isMoto,
     suggestedFare: roundedSuggested,
     minimumRecommended,
     fuelCostUsd: fuelComponent,

@@ -129,6 +129,7 @@ export default function DriverApp() {
       setIncomingRequest({
         id: reqData.tripId,
         serviceType: reqData.serviceType,
+        transportType: reqData.transportType || 'CAR',
         origin: reqData.originAddress,
         destination: reqData.destinationAddress,
         distanceKm: reqData.distanceToPickupKm || 0.5,
@@ -409,7 +410,16 @@ export default function DriverApp() {
 
             {/* Requisitos y Preferencias del Pasajero */}
             <div className="flex flex-wrap gap-1.5 pt-0.5">
-              {incomingRequest.preferences?.airConditioning !== false && (
+              {/* Modalidad de Transporte: Auto vs Moto */}
+              <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold flex items-center gap-1 ${
+                incomingRequest.transportType === 'MOTO'
+                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                  : 'bg-blue-500/15 text-blue-300 border border-blue-500/30'
+              }`}>
+                {incomingRequest.transportType === 'MOTO' ? '🏍️ En Moto' : '🚗 En Auto'}
+              </span>
+
+              {incomingRequest.transportType !== 'MOTO' && incomingRequest.preferences?.airConditioning !== false && (
                 <span className="text-[10px] px-2 py-0.5 rounded-full bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 font-bold flex items-center gap-1">
                   ❄️ Desea A/C
                 </span>
@@ -501,14 +511,17 @@ export default function DriverApp() {
 
             {/* CÁLCULO PROBABILÍSTICO DE GASOLINA, TRÁFICO Y GANANCIA NETA EN BOLSILLO */}
             {(() => {
-              const delayMins = incomingRequest.delayMinutes || (incomingRequest.trafficLevel === 'SEVERE' ? 14 : incomingRequest.trafficLevel === 'HEAVY' ? 10 : 0);
+              const isReqMoto = incomingRequest.transportType === 'MOTO';
+              const rawDelayMins = incomingRequest.delayMinutes || (incomingRequest.trafficLevel === 'SEVERE' ? 14 : incomingRequest.trafficLevel === 'HEAVY' ? 10 : 0);
+              const delayMins = isReqMoto ? rawDelayMins * 0.35 : rawDelayMins;
+              const effectiveKpg = isReqMoto ? 115.0 : kmPerGallon;
               const fuelCalc = calculateTripFuelCost(
                 incomingRequest.roadDistanceKm || 7.8,
-                kmPerGallon,
+                effectiveKpg,
                 fuelPrice,
                 incomingRequest.offeredFare,
                 delayMins,
-                incomingRequest.preferences || {}
+                isReqMoto ? { ...incomingRequest.preferences, airConditioning: false, passengers: 1 } : (incomingRequest.preferences || {})
               );
               const trafLabel = incomingRequest.trafficLabel || 'Tráfico Moderado';
               const trafColor = incomingRequest.trafficColor || '#F59E0B';
