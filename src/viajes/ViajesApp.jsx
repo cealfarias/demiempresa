@@ -290,12 +290,15 @@ export default function ViajesApp() {
     const fareVal = parseFloat(proposedFare) || 0;
     if (cashBill === 'EXACT') return;
 
-    if (cashBill === '5' && fareVal >= 5) {
-      setCashBill(fareVal < 10 ? '10' : (fareVal < 20 ? '20' : '50+'));
-    } else if (cashBill === '10' && fareVal >= 10) {
-      setCashBill(fareVal < 20 ? '20' : '50+');
-    } else if (cashBill === '20' && fareVal >= 20) {
-      setCashBill('50+');
+    const currentVal = cashBill === '50+' ? 50 : (parseFloat(cashBill) || 0);
+    if (cashBill !== '50+' && currentVal <= fareVal) {
+      if (fareVal < 10) {
+        setCashBill('10');
+      } else if (fareVal < 20) {
+        setCashBill('20');
+      } else {
+        setCashBill('50+');
+      }
     }
   }, [proposedFare, cashBill]);
 
@@ -1958,7 +1961,7 @@ export default function ViajesApp() {
                     { id: '50+', label: '$50+', val: 50 }
                   ].map((bill) => {
                     const fareNum = parseFloat(proposedFare) || 0;
-                    const isDisabled = bill.val > 0 && bill.val <= fareNum;
+                    const isDisabled = bill.val > 0 && bill.id !== '50+' ? bill.val <= fareNum : (bill.id === '50+' ? fareNum >= 100 : false);
                     return (
                       <button
                         key={bill.id}
@@ -1966,7 +1969,7 @@ export default function ViajesApp() {
                         disabled={isDisabled}
                         onClick={() => {
                           if (!isDisabled) {
-                            playInteractionFeedback(false);
+                            triggerSelectionFeedback();
                             setCashBill(bill.id);
                           }
                         }}
