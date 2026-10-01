@@ -1,51 +1,198 @@
 /**
- * Servicio de Cálculo de Carretera, Consumo Probabilístico de Gasolina
- * y Radar de Gasolineras en El Salvador (DGEHM + Choferes Crowdsourcing)
+ * Servicio de Cálculo de Carretera, Motor de Tráfico Dinámico en El Salvador (ETA Ajustado),
+ * Consumo Probabilístico de Gasolina y Radar de Gasolineras (DGEHM + Choferes Crowdsourcing)
  */
 
-// 1. CÁLCULO DE DISTANCIA REAL EN CARRETERA (OSRM + FALLBACK HAVERSINE)
-export async function calculateRoadDistance(originCoords, destCoords) {
-  if (!originCoords?.lat || !destCoords?.lat) {
-    return { distanceKm: 5.0, durationMinutes: 12 };
-  }
+// 1. MOTOR DE EVALUACIÓN DE TRÁFICO EN TIEMPO REAL (EL SALVADOR UTC-6)
+export function evaluateSalvadoranTraffic(originCoords, destCoords, baseDurationMin) {
+  const now = new Date();
+  
+  // Extraer hora local de El Salvador (UTC-6)
+  let currentHour = 12.0;
+  let dayOfWeek = now.getDay(); // 0: Dom, 1: Lun... 6: Sáb
 
   try {
-    const url = `https://router.project-osrm.org/route/v1/driving/${originCoords.lng},${originCoords.lat};${destCoords.lng},${destCoords.lat}?overview=false`;
+    const svTimeString = now.toLocaleTimeString('en-US', {
+      timeZone: 'America/El_Salvador',
+      hour12: false,
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+    const [h, m] = svTimeString.split(':');
+    currentHour = parseInt(h, 10) + parseInt(m, 10) / 60;
+  } catch {
+    const localHour = now.getHours() + now.getMinutes() / 60;
+    currentHour = localHour;
+  }
+
+  const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+
+  let trafficMultiplier = 1.20; // Tráfico base urbano (semáforos y cruces)
+  let trafficLevel = 'FLUID';    // 'FLUID' | 'MODERATE' | 'HEAVY' | 'SEVERE'
+  let trafficColor = '#10B981';  // Verde esmeralda
+  let trafficLabel = 'Tráfico Fluido';
+  let rushHourContext = 'Horario Normal';
+
+  if (!isWeekend) {
+    // DÍAS LABORALES (Lunes a Viernes)
+    if (currentHour >= 6.5 && currentHour <= 8.75) {
+      // HORA PICO MATUTINA (6:30 AM - 8:45 AM)
+      trafficMultiplier = 2.10;
+      trafficLevel = 'HEAVY';
+      trafficColor = '#EF4444'; // Rojo
+      trafficLabel = 'Tráfico Pesado (Pico Mañana)';
+      rushHourContext = 'Hora Pico Matutina';
+    } else if (currentHour >= 11.5 && currentHour <= 13.5) {
+      // HORA DE ALMUERZO (11:30 AM - 1:30 PM)
+      trafficMultiplier = 1.45;
+      trafficLevel = 'MODERATE';
+      trafficColor = '#F59E0B'; // Ámbar
+      trafficLabel = 'Tráfico Moderado (Almuerzo)';
+      rushHourContext = 'Hora Almuerzo';
+    } else if (currentHour >= 16.5 && currentHour <= 19.5) {
+      // HORA PICO VESPERTINA (4:30 PM - 7:30 PM) - La más severa en San Salvador
+      trafficMultiplier = 2.45;
+      trafficLevel = 'SEVERE';
+      trafficColor = '#DC2626'; // Rojo Intenso / Trabazón
+      trafficLabel = 'Congestión Fuerte (Pico Tarde)';
+      rushHourContext = 'Hora Pico Vespertina';
+    } else if (currentHour >= 20.0 || currentHour <= 5.75) {
+      // NOCHE / MADRUGADA
+      trafficMultiplier = 1.05;
+      trafficLevel = 'FLUID';
+      trafficColor = '#10B981'; // Verde
+      trafficLabel = 'Vías Despejadas / Tráfico Libre';
+      rushHourContext = 'Horario Nocturno Fluido';
+    } else {
+      // HORAS VALLE (9:00 AM - 11:30 AM / 2:00 PM - 4:30 PM)
+      trafficMultiplier = 1.30;
+      trafficLevel = 'MODERATE';
+      trafficColor = '#F59E0B';
+      trafficLabel = 'Tráfico Moderado';
+      rushHourContext = 'Horario Valle';
+    }
+  } else {
+    // FINES DE SEMANA (Sábado y Domingo)
+    if (dayOfWeek === 6 && currentHour >= 11.0 && currentHour <= 15.0) {
+      // Sábado al mediodía (centros comerciales)
+      trafficMultiplier = 1.55;
+      trafficLevel = 'MODERATE';
+      trafficColor = '#F59E0B';
+      trafficLabel = 'Tráfico Comercial (Sábado)';
+      rushHourContext = 'Sábado Comercial';
+    } else {
+      trafficMultiplier = 1.10;
+      trafficLevel = 'FLUID';
+      trafficColor = '#10B981';
+      trafficLabel = 'Vías Libres Fin de Semana';
+      rushHourContext = 'Fin de Semana Despejado';
+    }
+  }
+
+  // Corredores de alto tráfico: Los Próceres, Panamericana (San Salvador <-> Santa Tecla / Antiguo Cuscatlán)
+  const isTeclaSanSalvador =
+    (destCoords?.lat < 13.69 && originCoords?.lat > 13.69) ||
+    (originCoords?.lat < 13.69 && destCoords?.lat > 13.69);
+  if (isTeclaSanSalvador && (trafficLevel === 'HEAVY' || trafficLevel === 'SEVERE')) {
+    trafficMultiplier += 0.25; // Trabazón adicional en Los Próceres / Panamericana
+  }
+
+  const baseMinutes = Math.max(1, baseDurationMin || 1);
+  const trafficDurationMin = Math.max(2, Math.round(baseMinutes * trafficMultiplier));
+  const delayMinutes = Math.max(0, trafficDurationMin - baseMinutes);
+
+  return {
+    trafficDurationMin,
+    delayMinutes,
+    trafficMultiplier,
+    trafficLevel,
+    trafficColor,
+    trafficLabel,
+    rushHourContext
+  };
+}
+
+// 2. CÁLCULO DE DISTANCIA REAL EN CARRETERA CON TRÁFICO Y GEOMETRÍA COMPLETA
+export async function calculateRoadDistance(originCoords, destCoords) {
+  if (!originCoords?.lat || !destCoords?.lat) {
+    return {
+      distanceKm: 5.0,
+      durationMinutes: 12,
+      baseDurationMinutes: 10,
+      delayMinutes: 2,
+      trafficLevel: 'FLUID',
+      trafficColor: '#10B981',
+      trafficLabel: 'Tráfico Fluido',
+      routeCoordinates: []
+    };
+  }
+
+  let routeCoordinates = [];
+  let baseDurationMinutes = 10;
+  let distanceKm = 5.0;
+
+  try {
+    const url = `https://router.project-osrm.org/route/v1/driving/${originCoords.lng},${originCoords.lat};${destCoords.lng},${destCoords.lat}?overview=full&geometries=geojson`;
     const res = await fetch(url);
     if (res.ok) {
       const data = await res.json();
       if (data.routes && data.routes.length > 0) {
         const route = data.routes[0];
-        const distanceKm = +(route.distance / 1000).toFixed(2);
-        const durationMinutes = Math.max(1, Math.round(route.duration / 60));
-        return { distanceKm, durationMinutes, isLiveRoute: true };
+        distanceKm = +(route.distance / 1000).toFixed(2);
+        baseDurationMinutes = Math.max(2, Math.round(route.duration / 60));
+
+        // Mapear coordenadas de OSRM [lon, lat] a Leaflet [lat, lon]
+        if (route.geometry?.coordinates) {
+          routeCoordinates = route.geometry.coordinates.map(([lon, lat]) => [lat, lon]);
+        }
       }
     }
   } catch (err) {
     console.warn('Fallback a cálculo geodésico:', err);
   }
 
-  // Fallback con fórmula de Haversine + Factor de curvatura urbana 1.28x
-  const R = 6371; // Radio de la Tierra en km
-  const dLat = ((destCoords.lat - originCoords.lat) * Math.PI) / 180;
-  const dLon = ((destCoords.lng - originCoords.lng) * Math.PI) / 180;
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos((originCoords.lat * Math.PI) / 180) *
-      Math.cos((destCoords.lat * Math.PI) / 180) *
-      Math.sin(dLon / 2) *
-      Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  const directKm = R * c;
-  
-  // Factor de calles de San Salvador (1.28x) y velocidad promedio urbana (26 km/h)
-  const distanceKm = +(directKm * 1.28).toFixed(2);
-  const durationMinutes = Math.max(2, Math.round((distanceKm / 26) * 60));
+  // Fallback si OSRM no respondió
+  if (routeCoordinates.length === 0) {
+    const R = 6371; // Radio de la Tierra en km
+    const dLat = ((destCoords.lat - originCoords.lat) * Math.PI) / 180;
+    const dLon = ((destCoords.lng - originCoords.lng) * Math.PI) / 180;
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos((originCoords.lat * Math.PI) / 180) *
+        Math.cos((destCoords.lat * Math.PI) / 180) *
+        Math.sin(dLon / 2) *
+        Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    const directKm = R * c;
 
-  return { distanceKm, durationMinutes, isLiveRoute: false };
+    // Curvatura urbana 1.28x y velocidad base urbana sin congestión (32 km/h)
+    distanceKm = +(directKm * 1.28).toFixed(2);
+    baseDurationMinutes = Math.max(2, Math.round((distanceKm / 32) * 60));
+    routeCoordinates = [
+      [originCoords.lat, originCoords.lng],
+      [destCoords.lat, destCoords.lng]
+    ];
+  }
+
+  // Evaluar tráfico en tiempo real según hora de El Salvador y corredor vial
+  const traffic = evaluateSalvadoranTraffic(originCoords, destCoords, baseDurationMinutes);
+
+  return {
+    distanceKm,
+    baseDurationMinutes,
+    durationMinutes: traffic.trafficDurationMin,
+    delayMinutes: traffic.delayMinutes,
+    trafficMultiplier: traffic.trafficMultiplier,
+    trafficLevel: traffic.trafficLevel,
+    trafficColor: traffic.trafficColor,
+    trafficLabel: traffic.trafficLabel,
+    rushHourContext: traffic.rushHourContext,
+    routeCoordinates,
+    isLiveRoute: true
+  };
 }
 
-// 2. MODELO PROBABILÍSTICO DE RENDIMIENTO SEGÚN VEHÍCULO Y AÑO
+// 3. MODELO PROBABILÍSTICO DE RENDIMIENTO SEGÚN VEHÍCULO Y AÑO
 export function estimateFuelEconomy(year = 2018, vehicleCategory = 'SEDAN_COMPACT') {
   const parsedYear = parseInt(year) || 2018;
 
@@ -65,21 +212,35 @@ export function estimateFuelEconomy(year = 2018, vehicleCategory = 'SEDAN_COMPAC
   return +calculated.toFixed(1);
 }
 
-// 3. CÁLCULO DE COSTO DE GASOLINA Y MARGEN NETO DEL CHOFER
-export function calculateTripFuelCost(distanceKm, kmPerGallon = 42.0, fuelPricePerGallon = 3.80, agreedFare = 3.50) {
+// 4. CÁLCULO DE COSTO DE GASOLINA, PENALIZACIÓN POR TRÁFICO (RALENTÍ) Y MARGEN NETO
+export function calculateTripFuelCost(
+  distanceKm,
+  kmPerGallon = 42.0,
+  fuelPricePerGallon = 3.80,
+  agreedFare = 3.50,
+  delayMinutes = 0
+) {
   const dist = parseFloat(distanceKm) || 1.0;
   const kpg = Math.max(10.0, parseFloat(kmPerGallon) || 42.0);
   const price = parseFloat(fuelPricePerGallon) || 3.80;
   const fare = parseFloat(agreedFare) || 0.0;
 
-  const gallonsConsumed = dist / kpg;
-  const fuelCostUsd = +(gallonsConsumed * price).toFixed(2);
+  // Consumo por rodaje
+  const drivingGallons = dist / kpg;
+
+  // Penalización por trabazón/ralentí: un motor sedán 1.6L gasta ~0.22 galones por hora detenido con A/C
+  const idlingHours = Math.max(0, parseFloat(delayMinutes) || 0) / 60;
+  const idlingGallons = idlingHours * 0.22;
+
+  const totalGallons = drivingGallons + idlingGallons;
+  const fuelCostUsd = +(totalGallons * price).toFixed(2);
   const netEarningsUsd = +(Math.max(0, fare - fuelCostUsd)).toFixed(2);
   const profitMarginPercent = fare > 0 ? Math.round((netEarningsUsd / fare) * 100) : 0;
 
   return {
     distanceKm: dist,
-    gallonsConsumed: +gallonsConsumed.toFixed(3),
+    gallonsConsumed: +totalGallons.toFixed(3),
+    idlingGallons: +idlingGallons.toFixed(3),
     fuelCostUsd,
     netEarningsUsd,
     profitMarginPercent

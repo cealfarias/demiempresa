@@ -56,8 +56,15 @@ export default function ViajesApp() {
   const [roadDistanceKm, setRoadDistanceKm] = useState(8.4);
   const [estimatedDurationMin, setEstimatedDurationMin] = useState(16);
   const [isCalculatingRoute, setIsCalculatingRoute] = useState(false);
+  const [trafficInfo, setTrafficInfo] = useState({
+    trafficLevel: 'FLUID',
+    trafficColor: '#10B981',
+    trafficLabel: 'Tráfico Fluido',
+    delayMinutes: 0,
+    rushHourContext: 'Horario Normal'
+  });
 
-  // Calcular distancia real por carretera y duración estimada cada vez que cambien origen o destino
+  // Calcular distancia real por carretera, tráfico dinámico y duración estimada
   useEffect(() => {
     if (originCoords?.lat && destinationCoords?.lat) {
       setIsCalculatingRoute(true);
@@ -65,6 +72,13 @@ export default function ViajesApp() {
         if (res && res.distanceKm) {
           setRoadDistanceKm(res.distanceKm);
           setEstimatedDurationMin(res.durationMinutes);
+          setTrafficInfo({
+            trafficLevel: res.trafficLevel || 'FLUID',
+            trafficColor: res.trafficColor || '#10B981',
+            trafficLabel: res.trafficLabel || 'Tráfico Fluido',
+            delayMinutes: res.delayMinutes || 0,
+            rushHourContext: res.rushHourContext || 'Horario Normal'
+          });
         }
         setIsCalculatingRoute(false);
       });
@@ -658,7 +672,7 @@ export default function ViajesApp() {
                 </div>
               )}
 
-              {/* Distancia Real en Carretera & Tiempo Estimado de Viaje */}
+              {/* Distancia Real en Carretera, Estado del Tráfico & Tiempo Estimado */}
               <div className="p-3 bg-gradient-to-r from-slate-900 to-slate-950 rounded-2xl border border-slate-800 flex items-center justify-between text-xs shadow-inner">
                 <div className="flex items-center gap-2.5">
                   <div className="w-8 h-8 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400">
@@ -675,12 +689,28 @@ export default function ViajesApp() {
                 </div>
 
                 <div className="text-right">
-                  <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider block">
-                    Tiempo Estimado
-                  </span>
-                  <span className="font-black text-amber-400 text-sm font-mono">
-                    {isCalculatingRoute ? '...' : `~${estimatedDurationMin} min`}
-                  </span>
+                  <div className="flex items-center justify-end gap-1.5">
+                    <span
+                      className="w-2 h-2 rounded-full animate-pulse"
+                      style={{ backgroundColor: trafficInfo.trafficColor }}
+                    />
+                    <span
+                      className="text-[10px] uppercase font-extrabold tracking-wider"
+                      style={{ color: trafficInfo.trafficColor }}
+                    >
+                      {trafficInfo.trafficLabel}
+                    </span>
+                  </div>
+                  <div className="flex items-baseline justify-end gap-1">
+                    <span className="font-black text-white text-sm font-mono">
+                      {isCalculatingRoute ? '...' : `~${estimatedDurationMin} min`}
+                    </span>
+                    {trafficInfo.delayMinutes > 0 && (
+                      <span className="text-[10px] text-rose-400 font-bold font-mono">
+                        (+{trafficInfo.delayMinutes}m trabazón)
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
 

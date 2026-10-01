@@ -419,31 +419,40 @@ export default function DriverApp() {
               </div>
             </div>
 
-            {/* CÁLCULO PROBABILÍSTICO DE GASOLINA Y GANANCIA NETA EN BOLSILLO */}
+            {/* CÁLCULO PROBABILÍSTICO DE GASOLINA, TRÁFICO Y GANANCIA NETA EN BOLSILLO */}
             {(() => {
+              const delayMins = incomingRequest.delayMinutes || (incomingRequest.trafficLevel === 'SEVERE' ? 14 : incomingRequest.trafficLevel === 'HEAVY' ? 10 : 0);
               const fuelCalc = calculateTripFuelCost(
                 incomingRequest.roadDistanceKm || 7.8,
                 kmPerGallon,
                 fuelPrice,
-                incomingRequest.offeredFare
+                incomingRequest.offeredFare,
+                delayMins
               );
+              const trafLabel = incomingRequest.trafficLabel || 'Tráfico Moderado';
+              const trafColor = incomingRequest.trafficColor || '#F59E0B';
               return (
                 <div className="p-3 bg-slate-950/90 rounded-2xl border border-slate-800 space-y-2 text-xs">
                   <div className="flex items-center justify-between text-slate-400">
                     <span className="flex items-center gap-1.5">
                       <Navigation className="w-3.5 h-3.5 text-cyan-400" />
-                      <span>Ruta por Carretera:</span>
+                      <span>Ruta y Tráfico Actual:</span>
                     </span>
-                    <strong className="text-white font-mono">{fuelCalc.distanceKm} km</strong>
+                    <div className="flex items-center gap-1.5">
+                      <strong className="text-white font-mono">{fuelCalc.distanceKm} km</strong>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded font-bold" style={{ backgroundColor: `${trafColor}20`, color: trafColor }}>
+                        {trafLabel}
+                      </span>
+                    </div>
                   </div>
 
                   <div className="flex items-center justify-between text-slate-400">
                     <span className="flex items-center gap-1.5">
                       <Fuel className="w-3.5 h-3.5 text-amber-400" />
-                      <span>Gasto Gasolina Est. ({vehicleYear}):</span>
+                      <span>Gasto Gasolina ({vehicleYear} • {fuelType}):</span>
                     </span>
                     <span className="text-amber-300 font-mono font-bold">
-                      -${fuelCalc.fuelCostUsd} USD <span className="text-[10px] text-slate-500">({fuelCalc.gallonsConsumed} gal)</span>
+                      -${fuelCalc.fuelCostUsd} USD <span className="text-[10px] text-slate-500">({fuelCalc.gallonsConsumed} gal{fuelCalc.idlingGallons > 0 ? ' incl. ralentí' : ''})</span>
                     </span>
                   </div>
 
@@ -537,7 +546,8 @@ export default function DriverApp() {
                   activeTrip.roadDistanceKm || 7.8,
                   kmPerGallon,
                   fuelPrice,
-                  activeTrip.cashToCollect
+                  activeTrip.cashToCollect,
+                  activeTrip.delayMinutes || 0
                 );
                 return (
                   <div className="p-3 bg-slate-950/80 rounded-xl border border-slate-800 text-xs space-y-1.5 text-left">
@@ -554,7 +564,7 @@ export default function DriverApp() {
                         <span>Gasto Gasolina ({vehicleYear} • {fuelType}):</span>
                       </span>
                       <span className="text-amber-300 font-mono font-bold">
-                        -${tripFuel.fuelCostUsd} USD <span className="text-[10px] text-slate-500">({tripFuel.gallonsConsumed} gal)</span>
+                        -${tripFuel.fuelCostUsd} USD <span className="text-[10px] text-slate-500">({tripFuel.gallonsConsumed} gal{tripFuel.idlingGallons > 0 ? ' incl. ralentí' : ''})</span>
                       </span>
                     </div>
                     <div className="pt-1.5 border-t border-slate-800 flex items-center justify-between font-bold">

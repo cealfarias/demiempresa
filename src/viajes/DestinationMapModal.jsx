@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { X, MapPin, Navigation, CheckCircle, Loader2, Search } from 'lucide-react';
+import { evaluateSalvadoranTraffic } from './fuelService';
 
 export default function DestinationMapModal({
   isOpen,
@@ -246,12 +247,20 @@ export default function DestinationMapModal({
           </button>
         </div>
 
-        {/* Barra Inferior de Confirmación */}
+        {/* Barra Inferior de Confirmación & Estado del Tráfico */}
         <div className="bg-slate-900 border-t border-slate-800 p-4 sm:p-5 z-[1000] space-y-2">
-          <div className="text-[11px] text-slate-400 flex items-center justify-between">
-            <span>Municipio asignado: <strong className="text-rose-400">{detectedMunicipality}</strong></span>
-            <span className="text-slate-500">Mueve el mapa para ajustar</span>
-          </div>
+          {(() => {
+            const trafficStatus = evaluateSalvadoranTraffic(null, currentCoords, 15);
+            return (
+              <div className="text-[11px] text-slate-400 flex items-center justify-between">
+                <span>Municipio: <strong className="text-rose-400">{detectedMunicipality}</strong></span>
+                <span className="flex items-center gap-1.5 font-bold" style={{ color: trafficStatus.trafficColor }}>
+                  <span className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: trafficStatus.trafficColor }} />
+                  <span>{trafficStatus.trafficLabel}</span>
+                </span>
+              </div>
+            );
+          })()}
 
           <button
             onClick={handleConfirm}
