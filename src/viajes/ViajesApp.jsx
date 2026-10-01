@@ -31,7 +31,9 @@ import {
   Sun,
   Moon,
   AlertTriangle,
-  MapPinOff
+  MapPinOff,
+  Mic,
+  MicOff
 } from 'lucide-react';
 import RumboLogo from './RumboLogo';
 import AdModal from './AdModal';
@@ -39,6 +41,14 @@ import PickupMapModal from './PickupMapModal';
 import DestinationMapModal from './DestinationMapModal';
 import TripPreferencesModal from './TripPreferencesModal';
 import LocationPermissionModal from './LocationPermissionModal';
+import WelcomeVoiceModal from './WelcomeVoiceModal';
+import {
+  unlockAudioAndSpeech,
+  speakAssistantMessage,
+  stopSpeaking,
+  startVoiceDictation,
+  stopVoiceDictation
+} from './voiceAssistantService';
 import { calculateRoadDistance, calculateSuggestedFare, PASSENGER_WEIGHT_PROFILES } from './fuelService';
 import {
   socket,
@@ -77,6 +87,17 @@ export default function ViajesApp() {
   const [showMapModal, setShowMapModal] = useState(false);
   const [showDestMapModal, setShowDestMapModal] = useState(false);
   const [cashBill, setCashBill] = useState('10'); // 'EXACT' | '5' | '10' | '20' | '50+'
+
+  // Modal Unificado de Bienvenida y Accesibilidad por Voz (Addendums 14, 15, 16)
+  const [showWelcomeModal, setShowWelcomeModal] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return !localStorage.getItem('rumbo_welcome_completed');
+  });
+  const [voiceAssistantMode, setVoiceAssistantMode] = useState(() => {
+    if (typeof window === 'undefined') return 'visual';
+    return localStorage.getItem('rumbo_assistant_mode') || 'visual';
+  });
+  const [isListeningVoice, setIsListeningVoice] = useState(false);
 
   // Preferencias Especiales del Viaje (A/C, Mascotas, Pasajeros, Equipaje, Contextura/Peso)
   const [tripPreferences, setTripPreferences] = useState({
@@ -304,8 +325,11 @@ export default function ViajesApp() {
     }
   }, []);
 
-  // Solicitar ubicación interactiva del pasajero cada vez que entra a la app
+  // Solicitar ubicación interactiva del pasajero cada vez que entra a la app (si ya completó la bienvenida)
   useEffect(() => {
+    const isWelcomeCompleted = typeof window !== 'undefined' && localStorage.getItem('rumbo_welcome_completed');
+    if (!isWelcomeCompleted) return; // Se delega al User Gesture de WelcomeVoiceModal
+
     if (navigator.geolocation) {
       setIsGettingGps(true);
       navigator.geolocation.getCurrentPosition(
@@ -332,6 +356,61 @@ export default function ViajesApp() {
       );
     }
   }, []);
+
+  // Completar Onboarding Unificado de Bienvenida y Permisos (Addendum 14, 15, 16)
+  const handleWelcomeComplete = ({ voiceEnabled, coords, address }) => {
+    setShowWelcomeModal(false);
+    setVoiceAssistantMode(voiceEnabled ? 'voice' : 'visual');
+    if (coords) {
+      setOriginCoords(coords);
+    }
+    if (address) {
+      setOrigin(address);
+    }
+  };
+
+  // Activar / Detener dictado por voz de destino (Accesibilidad Universal)
+  const handleToggleVoiceDictation = () => {
+    if (isListeningVoice) {
+      stopVoiceDictation();
+      setIsListeningVoice(false);
+      speakAssistantMessage('Micrófono pausado.');
+    } else {
+      unlockAudioAndSpeech();
+      speakAssistantMessage('Te escucho. Dime a dónde deseas viajar.', () => {
+        startVoiceDictation({
+          onListeningChange: (listening) => setIsListeningVoice(listening),
+          onResult: async (spokenText) => {
+            setDestination(spokenText);
+            speakAssistantMessage(`Destino establecido: ${spokenText}. Calculando ruta.`);
+            try {
+              const res = await fetch(
+                `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
+                  spokenText + ', El Salvador'
+                )}&countrycodes=sv&limit=1`,
+                { headers: { 'Accept-Language': 'es' } }
+              );
+              if (res.ok) {
+                const data = await res.json();
+                if (data && data[0]) {
+                  setDestinationCoords({
+                    lat: parseFloat(data[0].lat),
+                    lng: parseFloat(data[0].lon)
+                  });
+                }
+              }
+            } catch (geocodeErr) {
+              console.warn('Geocodificación de voz fallback:', geocodeErr);
+            }
+          },
+          onError: (err) => {
+            console.warn('Dictado por voz notice:', err);
+            setIsListeningVoice(false);
+          }
+        });
+      });
+    }
+  };
 
   // Obtener geolocalización GPS real del dispositivo al pulsar botón de mira o reintentar
   const handleGetGpsLocation = () => {
@@ -605,6 +684,36 @@ export default function ViajesApp() {
         <RumboLogo />
 
         <div className="flex items-center gap-2">
+          {/* Botón Accesible Asistente de Voz (WCAG / Dictado) */}
+          <button
+            type="button"
+            onClick={handleToggleVoiceDictation}
+            title={
+              isListeningVoice
+                ? 'Escuchando... Toca para pausar'
+                : voiceAssistantMode === 'voice'
+                ? 'Asistente de Voz Activo (Toca para dictar destino)'
+                : 'Activar dictado por voz'
+            }
+            aria-label={
+              isListeningVoice
+                ? 'Escuchando destino por voz, presiona para pausar'
+                : 'Activar asistente de voz o dictar destino'
+            }
+            className={`min-h-[36px] px-2.5 py-1 rounded-full border text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:outline-none ${
+              isListeningVoice
+                ? 'bg-rose-500/20 border-rose-500/60 text-rose-300 animate-pulse'
+                : voiceAssistantMode === 'voice'
+                ? 'bg-amber-500/15 border-amber-500/40 text-amber-300 hover:bg-amber-500/25'
+                : 'bg-slate-800/80 border-slate-700 text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Mic className={`w-3.5 h-3.5 ${isListeningVoice ? 'text-rose-400 animate-bounce' : 'text-amber-400'}`} />
+            <span className="hidden sm:inline">
+              {isListeningVoice ? 'Escuchando...' : 'Asistente'}
+            </span>
+          </button>
+
           {/* Selector Mutuamente Excluyente de Tema: Solecito / Media Luna */}
           <div className={`flex items-center p-0.5 rounded-full border transition-all ${
             isLight ? 'bg-slate-200/80 border-slate-300' : 'bg-slate-800/90 border-slate-700'
@@ -790,9 +899,22 @@ export default function ViajesApp() {
                     value={destination}
                     onChange={(e) => setDestination(e.target.value)}
                     placeholder="Escoge tu rumbo... (Ej. Metrocentro, Multiplaza, Colonia...)"
-                    className="w-full pl-3 pr-12 py-3 bg-slate-800/80 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-rose-400 text-sm"
+                    className="w-full pl-3 pr-20 py-3 bg-slate-800/80 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-rose-400 text-sm"
                   />
                   <div className="absolute right-2 top-2 flex items-center gap-1">
+                    <button
+                      type="button"
+                      aria-label={isListeningVoice ? "Escuchando tu destino... Toca para pausar" : "Dictar destino por voz"}
+                      title={isListeningVoice ? "Escuchando... Toca para pausar" : "Dictar destino con voz"}
+                      onClick={handleToggleVoiceDictation}
+                      className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                        isListeningVoice
+                          ? 'bg-rose-500/20 text-rose-400 border border-rose-500/50 animate-pulse'
+                          : 'text-amber-400 hover:text-amber-300 hover:bg-slate-700'
+                      }`}
+                    >
+                      <Mic className="w-4 h-4" />
+                    </button>
                     <button
                       type="button"
                       title="Fijar destino en el mapa"
@@ -1590,6 +1712,13 @@ export default function ViajesApp() {
         onRetry={handleGetGpsLocation}
         onOpenMap={() => setShowMapModal(true)}
         isRetrying={isGettingGps}
+      />
+
+      {/* Modal Unificado de Bienvenida y Accesibilidad por Voz (Addendums 14, 15, 16) */}
+      <WelcomeVoiceModal
+        isOpen={showWelcomeModal}
+        onComplete={handleWelcomeComplete}
+        reverseGeocodeAddress={reverseGeocodeAddress}
       />
 
     </div>
