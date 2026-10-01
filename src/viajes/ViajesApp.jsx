@@ -56,7 +56,8 @@ import {
 import {
   triggerButtonFeedback,
   triggerSelectionFeedback,
-  triggerSearchLaunchFeedback
+  triggerSearchLaunchFeedback,
+  resumeAudioContext
 } from './soundFeedbackService';
 import { calculateRoadDistance, calculateSuggestedFare, PASSENGER_WEIGHT_PROFILES } from './fuelService';
 import {
@@ -487,25 +488,39 @@ export default function ViajesApp() {
     }
   }, []);
 
-  // Feedback psicológico auditivo y táctil para TODOS los botones de la app
+  // Feedback psicológico auditivo y táctil accesible para TODOS los botones
   useEffect(() => {
-    const handleGlobalButtonClick = (e) => {
-      const btn = e.target.closest('button');
+    let lastFeedbackTimestamp = 0;
+
+    const handleFeedbackEvent = (e) => {
+      const btn = e.target.closest('button, [role="button"], input[type="submit"]');
       if (!btn) return;
 
-      const btnText = (btn.innerText || btn.textContent || '').trim().toLowerCase();
-      // Si es el botón principal de buscar conductor
+      const now = Date.now();
+      // Debounce para evitar doble disparo en dispositivos que emiten pointerdown y click sucesivamente
+      if (now - lastFeedbackTimestamp < 140) return;
+      lastFeedbackTimestamp = now;
+
+      // Asegurar desbloqueo activo de Web Audio API en el gesto
+      resumeAudioContext();
+
+      const btnText = (btn.innerText || btn.textContent || btn.getAttribute('aria-label') || '').trim().toLowerCase();
+
+      // 1. Botón principal de búsqueda de conductor
       if (btnText.includes('buscar conductor') || (btn.type === 'submit' && btnText.includes('buscar'))) {
         triggerSearchLaunchFeedback();
         return;
       }
 
-      // Si es botón de selección (Auto/Moto, Billetes, Tarifas rápidas, Mapa, Pasajeros, etc.)
+      // 2. Botones de selección (Auto/Moto, Billetes, Tarifas rápidas, Mapa, Pasajeros, etc.)
       if (
         btn.dataset?.role === 'selection' ||
         btnText.includes('$') ||
         btnText.includes('auto') ||
-        btnText.includes('moto')
+        btnText.includes('moto') ||
+        btnText.includes('mapa') ||
+        btn.getAttribute('role') === 'tab' ||
+        btn.getAttribute('role') === 'switch'
       ) {
         triggerSelectionFeedback();
       } else {
@@ -513,9 +528,14 @@ export default function ViajesApp() {
       }
     };
 
-    document.addEventListener('click', handleGlobalButtonClick, true);
+    // Usar pointerdown para respuesta táctil instantánea (0ms de latencia) al tocar la pantalla
+    document.addEventListener('pointerdown', handleFeedbackEvent, true);
+    // Fallback para clicks tradicionales
+    document.addEventListener('click', handleFeedbackEvent, true);
+
     return () => {
-      document.removeEventListener('click', handleGlobalButtonClick, true);
+      document.removeEventListener('pointerdown', handleFeedbackEvent, true);
+      document.removeEventListener('click', handleFeedbackEvent, true);
     };
   }, []);
 

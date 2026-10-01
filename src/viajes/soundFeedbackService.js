@@ -1,10 +1,11 @@
 // soundFeedbackService.js
-// Feedback psicológico sonoro y táctil (Web Audio API + navigator.vibrate) para Rumbo
-// Generación de audio sintetizado sin latencia y sin dependencias externas
+// Feedback psicológico y de accesibilidad sonoro y táctil para Rumbo (W3C / WCAG)
+// Diseñado para personas con discapacidad visual y respuesta táctil inmediata (0ms de latencia)
+// Generación mediante Web Audio API de alta presencia + Patrones de Vibración Háptica firmes
 
 let audioCtx = null;
 
-const getAudioContext = () => {
+export const getAudioContext = () => {
   if (typeof window === 'undefined') return null;
   const AudioContextClass = window.AudioContext || window.webkitAudioContext;
   if (!AudioContextClass) return null;
@@ -17,10 +18,17 @@ const getAudioContext = () => {
   return audioCtx;
 };
 
+export const resumeAudioContext = () => {
+  const ctx = getAudioContext();
+  if (ctx && ctx.state === 'suspended') {
+    ctx.resume().catch(() => {});
+  }
+};
+
 /**
- * Vibración táctil resiliente
+ * Vibración háptica contundente para máxima accesibilidad
  */
-export const vibrate = (pattern = 20) => {
+export const vibrate = (pattern = 70) => {
   if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
     try {
       navigator.vibrate(pattern);
@@ -29,98 +37,169 @@ export const vibrate = (pattern = 20) => {
 };
 
 /**
- * Sonido sutil de micro-tap para botones generales
+ * Sonido 1: Click/Pop mecánico nítido con presencia acústica real (Botones estándar)
+ * Escuchable claramente en parlantes de teléfonos móviles, tabletas y audífonos
  */
 export const playTapSound = () => {
   try {
     const ctx = getAudioContext();
     if (!ctx) return;
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
+    if (ctx.state === 'suspended') {
+      ctx.resume().catch(() => {});
+    }
 
-    osc.type = 'sine';
     const now = ctx.currentTime;
-    osc.frequency.setValueAtTime(650, now);
-    osc.frequency.exponentialRampToValueAtTime(320, now + 0.04);
 
-    gain.gain.setValueAtTime(0.12, now);
-    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.04);
+    // 1. Cuerpo principal: caída percusiva nítida (880Hz -> 300Hz)
+    const osc1 = ctx.createOscillator();
+    const gain1 = ctx.createGain();
+    osc1.type = 'triangle';
+    osc1.frequency.setValueAtTime(880, now);
+    osc1.frequency.exponentialRampToValueAtTime(300, now + 0.08);
 
-    osc.connect(gain);
-    gain.connect(ctx.destination);
+    gain1.gain.setValueAtTime(0.65, now);
+    gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.085);
 
-    osc.start(now);
-    osc.stop(now + 0.045);
-  } catch {}
+    osc1.connect(gain1);
+    gain1.connect(ctx.destination);
+
+    // 2. Transitorio de ataque de alta frecuencia para penetración acústica (1400Hz -> 500Hz)
+    const osc2 = ctx.createOscillator();
+    const gain2 = ctx.createGain();
+    osc2.type = 'sine';
+    osc2.frequency.setValueAtTime(1400, now);
+    osc2.frequency.exponentialRampToValueAtTime(500, now + 0.035);
+
+    gain2.gain.setValueAtTime(0.45, now);
+    gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.04);
+
+    osc2.connect(gain2);
+    gain2.connect(ctx.destination);
+
+    osc1.start(now);
+    osc1.stop(now + 0.09);
+    osc2.start(now);
+    osc2.stop(now + 0.045);
+  } catch (err) {
+    console.warn('[AudioFeedback] err:', err);
+  }
 };
 
 /**
- * Feedback estándar en cada botón: sonido táctil y micro-vibración
+ * Feedback para botones generales:
+ * Pulso háptico perceptible (70ms) + click audible
  */
 export const triggerButtonFeedback = () => {
-  vibrate(22);
+  vibrate(70);
   playTapSound();
 };
 
 /**
- * Feedback para botones de selección (Auto/Moto, Billetes, Tarifas rápidas, Mapa)
+ * Feedback para botones de selección (Auto/Moto, Billetes, Tarifas rápidas, Mapa, Pasajeros):
+ * Doble pulso háptico tipo trinquete [60ms, 40ms, 85ms] + doble tono musical ascendente ("bip-bip")
  */
 export const triggerSelectionFeedback = () => {
-  vibrate(30);
+  // Doble pulso háptico claramente palpable
+  vibrate([60, 40, 85]);
+
   try {
     const ctx = getAudioContext();
     if (!ctx) return;
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
+    if (ctx.state === 'suspended') {
+      ctx.resume().catch(() => {});
+    }
 
-    osc.type = 'triangle';
     const now = ctx.currentTime;
-    osc.frequency.setValueAtTime(540, now);
-    osc.frequency.exponentialRampToValueAtTime(820, now + 0.06);
 
-    gain.gain.setValueAtTime(0.15, now);
-    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
+    // Tono 1 (580Hz -> 760Hz)
+    const osc1 = ctx.createOscillator();
+    const gain1 = ctx.createGain();
+    osc1.type = 'triangle';
+    osc1.frequency.setValueAtTime(580, now);
+    osc1.frequency.exponentialRampToValueAtTime(760, now + 0.06);
 
-    osc.connect(gain);
-    gain.connect(ctx.destination);
+    gain1.gain.setValueAtTime(0.60, now);
+    gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.065);
 
-    osc.start(now);
-    osc.stop(now + 0.065);
-  } catch {}
+    osc1.connect(gain1);
+    gain1.connect(ctx.destination);
+    osc1.start(now);
+    osc1.stop(now + 0.07);
+
+    // Tono 2 (880Hz -> 1180Hz)
+    const osc2 = ctx.createOscillator();
+    const gain2 = ctx.createGain();
+    osc2.type = 'triangle';
+    const t2 = now + 0.075;
+    osc2.frequency.setValueAtTime(880, t2);
+    osc2.frequency.exponentialRampToValueAtTime(1180, t2 + 0.09);
+
+    gain2.gain.setValueAtTime(0.70, t2);
+    gain2.gain.exponentialRampToValueAtTime(0.001, t2 + 0.095);
+
+    osc2.connect(gain2);
+    gain2.connect(ctx.destination);
+    osc2.start(t2);
+    osc2.stop(t2 + 0.10);
+  } catch (err) {
+    console.warn('[SelectionFeedback] err:', err);
+  }
 };
 
 /**
- * Feedback psicológico extendido para el botón principal "Buscar Conductor":
- * Vibración más larga y contundente + acorde musical ascendente de despegue
+ * Feedback psicológico contundente para "Buscar Conductor":
+ * Vibración larga y rítmica reforzada [140ms vibración, 60ms pausa, 280ms vibración]
+ * + Impacto grave de confirmación (Punch) y acorde triunfal ascendente
  */
 export const triggerSearchLaunchFeedback = () => {
-  // Vibración más larga: patrón rítmico reforzado [80ms vibración, 40ms pausa, 140ms vibración]
-  vibrate([80, 40, 140]);
+  // Secuencia de vibración contundente imposible de pasar por alto
+  vibrate([140, 60, 280]);
 
   try {
     const ctx = getAudioContext();
     if (!ctx) return;
+    if (ctx.state === 'suspended') {
+      ctx.resume().catch(() => {});
+    }
+
     const now = ctx.currentTime;
 
-    // Arpegio armónico ascendente de despegue / conexión con conductores
-    const notes = [440, 554.37, 659.25, 880]; // A4, C#5, E5, A5
+    // 1. Golpe de bajos de confirmación (Sub-bass impact punch)
+    const bass = ctx.createOscillator();
+    const bassGain = ctx.createGain();
+    bass.type = 'sine';
+    bass.frequency.setValueAtTime(180, now);
+    bass.frequency.exponentialRampToValueAtTime(60, now + 0.30);
+
+    bassGain.gain.setValueAtTime(0.80, now);
+    bassGain.gain.exponentialRampToValueAtTime(0.001, now + 0.30);
+
+    bass.connect(bassGain);
+    bassGain.connect(ctx.destination);
+    bass.start(now);
+    bass.stop(now + 0.31);
+
+    // 2. Acorde armónico ascendente de despegue (A4: 440, C#5: 554, E5: 659, A5: 880)
+    const notes = [440, 554.37, 659.25, 880];
     notes.forEach((freq, idx) => {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
 
-      osc.type = 'sine';
-      const noteTime = now + (idx * 0.065);
+      osc.type = 'triangle';
+      const noteTime = now + (idx * 0.075);
       osc.frequency.setValueAtTime(freq, noteTime);
 
       gain.gain.setValueAtTime(0, noteTime);
-      gain.gain.linearRampToValueAtTime(0.22, noteTime + 0.02);
-      gain.gain.exponentialRampToValueAtTime(0.001, noteTime + 0.26);
+      gain.gain.linearRampToValueAtTime(0.75, noteTime + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001, noteTime + 0.30);
 
       osc.connect(gain);
       gain.connect(ctx.destination);
 
       osc.start(noteTime);
-      osc.stop(noteTime + 0.27);
+      osc.stop(noteTime + 0.32);
     });
-  } catch {}
+  } catch (err) {
+    console.warn('[SearchLaunchFeedback] err:', err);
+  }
 };
