@@ -188,7 +188,56 @@ app.get('/api/drivers/:driverProfileId/subscription', async (req, res) => {
   }
 });
 
-// 6. CRON WORKER AUTOMÁTICO PARA EXPIRACIÓN 7+7
+// 6. INICIALIZACIÓN AUTOMÁTICA DE BASE DE DATOS Y ENDPOINT ADMIN
+async function initializeDatabase() {
+  if (!process.env.DATABASE_URL) {
+    console.warn('⚠️ DATABASE_URL no definida. Saltando migración automática.');
+    return;
+  }
+  try {
+    const fs = await import('fs');
+    const path = await import('path');
+    const schemaPath = path.resolve('schema.sql');
+    if (fs.existsSync(schemaPath)) {
+      const sql = fs.readFileSync(schemaPath, 'utf8');
+      await pool.query(sql);
+      console.log('✅ Tablas viajes_* y datos semilla verificados e inicializados en PostgreSQL.');
+    }
+  } catch (err) {
+    console.error('⚠️ Error al inicializar esquema viajes_*:', err.message);
+  }
+}
+
+app.get('/api/admin/init-db', async (req, res) => {
+  try {
+    await initializeDatabase();
+    const tablesRes = await pool.query(`
+      SELECT table_name 
+      FROM information_schema.tables 
+      WHERE table_schema = 'public' AND table_name LIKE 'viajes_%'
+      ORDER BY table_name ASC;
+    `);
+
+    const driversCount = await pool.query('SELECT count(*) FROM viajes_driver_profiles;');
+    const merchantsCount = await pool.query('SELECT count(*) FROM viajes_merchants;');
+
+    res.json({
+      success: true,
+      message: 'Base de datos para demiempresa viajes inicializada con éxito.',
+      database: 'PostgreSQL Cloud',
+      tablesCreated: tablesRes.rows.map(r => r.table_name),
+      stats: {
+        drivers: parseInt(driversCount.rows[0].count),
+        merchants: parseInt(merchantsCount.rows[0].count)
+      }
+    });
+  } catch (err) {
+    console.error('Error en /api/admin/init-db:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 7. CRON WORKER AUTOMÁTICO PARA EXPIRACIÓN 7+7
 setInterval(async () => {
   try {
     const sweepResult = await ReferralService.runTTLExpirationSweep();
@@ -200,7 +249,8 @@ setInterval(async () => {
   }
 }, 1000 * 60 * 60);
 
-server.listen(PORT, () => {
+server.listen(PORT, async () => {
   console.log(`🚀 Servidor demiempresa.online corriendo en http://localhost:${PORT}`);
   console.log(`📡 Tablas aisladas con prefijo: viajes_*`);
+  await initializeDatabase();
 });

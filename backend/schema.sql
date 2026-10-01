@@ -217,3 +217,60 @@ CREATE INDEX IF NOT EXISTS idx_viajes_trip_offers_active ON viajes_trip_offers(t
 CREATE INDEX IF NOT EXISTS idx_viajes_referrals_deadline ON viajes_referrals(activation_deadline) WHERE status = 'PENDING_ACTIVATION';
 CREATE INDEX IF NOT EXISTS idx_viajes_user_credits_exp ON viajes_user_credits(credit_expires_at) WHERE status = 'AVAILABLE';
 CREATE INDEX IF NOT EXISTS idx_viajes_creatives_muni ON viajes_ad_creatives(target_municipality, is_active);
+
+-- 11. DATOS SEMILLA AUTOMÁTICOS (CHOFER DEMO Y CAMPAÑAS B2B INICIALES)
+DO $$
+DECLARE
+    v_driver_user_id UUID;
+    v_merchant_id UUID;
+    v_campaign_id UUID;
+BEGIN
+    -- Conductor oficial demo (Carlos Mendoza, Toyota Corolla, Placa P-584-912)
+    IF NOT EXISTS (SELECT 1 FROM viajes_users WHERE dui = '01234567-8') THEN
+        INSERT INTO viajes_users (full_name, phone, dui, role)
+        VALUES ('Carlos Mendoza', '7123-4567', '01234567-8', 'DRIVER')
+        RETURNING id INTO v_driver_user_id;
+
+        INSERT INTO viajes_driver_profiles (
+            user_id, vehicle_plate, vehicle_brand, vehicle_model, vehicle_color, photo_url, is_active, is_online, current_week_bonuses_count
+        ) VALUES (
+            v_driver_user_id,
+            'P-584-912',
+            'Toyota',
+            'Corolla 2021',
+            'Gris Plata',
+            'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
+            TRUE,
+            TRUE,
+            3
+        );
+    END IF;
+
+    -- Comercio B2B inicial demo (Tacos & Pupusas Don Toño)
+    IF NOT EXISTS (SELECT 1 FROM viajes_merchants WHERE business_name = 'Tacos & Pupusas Don Toño') THEN
+        INSERT INTO viajes_merchants (business_name, whatsapp, municipality, status)
+        VALUES ('Tacos & Pupusas Don Toño', '6989-3101', 'Santa Tecla', 'ACTIVE')
+        RETURNING id INTO v_merchant_id;
+
+        INSERT INTO viajes_ad_campaigns (merchant_id, plan_type, billing_frequency, price, starts_at, ends_at, status)
+        VALUES (
+            v_merchant_id,
+            'IMPACTO',
+            'MONTHLY',
+            45.00,
+            CURRENT_DATE,
+            CURRENT_DATE + INTERVAL '30 days',
+            'ACTIVE'
+        ) RETURNING id INTO v_campaign_id;
+
+        INSERT INTO viajes_ad_creatives (campaign_id, creative_type, media_url, target_link, target_municipality, is_active)
+        VALUES (
+            v_campaign_id,
+            'REEL_VIDEO',
+            'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=600&q=80',
+            'https://wa.me/50369893101?text=Hola,%20vi%20su%20promocion%20en%20demiempresa.online',
+            'Santa Tecla',
+            TRUE
+        );
+    END IF;
+END $$;
