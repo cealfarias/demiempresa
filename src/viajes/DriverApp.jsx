@@ -18,8 +18,13 @@ import {
   Settings,
   Flame,
   TrendingDown,
-  Sparkles
+  Sparkles,
+  Wind,
+  Dog,
+  Users,
+  Briefcase
 } from 'lucide-react';
+import RumboLogo from './RumboLogo';
 import GasModal from './GasModal';
 import {
   calculateTripFuelCost,
@@ -74,7 +79,7 @@ export default function DriverApp() {
 
   // Establecer título dinámico de la pestaña para la consola del conductor
   useEffect(() => {
-    document.title = "App Conductor | demiempresa.online";
+    document.title = "Rumbo Conductor | 100% Efectivo";
   }, []);
 
   // Cargar gasolineras del backend
@@ -261,19 +266,14 @@ export default function DriverApp() {
       
       {/* Barra Superior Conductor */}
       <header className="border-b border-slate-800 bg-slate-900 px-4 py-3 flex items-center justify-between sticky top-0 z-40">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-emerald-500 text-slate-950 flex items-center justify-center font-black">
-            <Car className="w-5 h-5" />
-          </div>
-          <div>
-            <div className="font-extrabold text-sm text-white flex items-center gap-1.5">
-              <span>App Conductor</span>
-              <span className="text-[10px] px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-400 font-bold border border-emerald-500/30 flex items-center gap-1">
-                <Radio className={`w-2.5 h-2.5 ${gpsActive ? 'animate-pulse text-emerald-400' : 'text-slate-500'}`} />
-                <span>GPS Continuo (3-5s)</span>
-              </span>
-            </div>
-            <div className="text-[11px] text-slate-400">Placa: P-584-912 • Toyota Corolla</div>
+        <div className="flex items-center gap-3">
+          <RumboLogo textClassName="text-lg" />
+          <div className="hidden sm:block border-l border-slate-800 pl-3">
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-bold border border-emerald-500/30 flex items-center gap-1">
+              <Radio className={`w-2.5 h-2.5 ${gpsActive ? 'animate-pulse text-emerald-400' : 'text-slate-500'}`} />
+              <span>GPS (3-5s)</span>
+            </span>
+            <div className="text-[10px] text-slate-400 font-mono mt-0.5">P-584-912 • Corolla</div>
           </div>
         </div>
 
@@ -390,6 +390,34 @@ export default function DriverApp() {
                   <span>{incomingRequest.destination}</span>
                 </div>
               </div>
+            </div>
+
+            {/* Requisitos y Preferencias del Pasajero */}
+            <div className="flex flex-wrap gap-1.5 pt-0.5">
+              {incomingRequest.preferences?.airConditioning !== false && (
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 font-bold flex items-center gap-1">
+                  ❄️ Desea A/C
+                </span>
+              )}
+              {incomingRequest.preferences?.petFriendly && (
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30 font-bold flex items-center gap-1">
+                  🐾 Lleva Mascota
+                </span>
+              )}
+              {incomingRequest.preferences?.passengers > 4 ? (
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-300 border border-orange-500/40 font-bold flex items-center gap-1 animate-pulse">
+                  🚐 5+ Pasajeros (Camioneta/Microbús)
+                </span>
+              ) : (
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700 font-bold flex items-center gap-1">
+                  👥 {incomingRequest.preferences?.passengers || 1} Pasajeros
+                </span>
+              )}
+              {incomingRequest.preferences?.extraLuggage && (
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-500/15 text-purple-300 border border-purple-500/30 font-bold flex items-center gap-1">
+                  🧳 Equipaje Extra
+                </span>
+              )}
             </div>
 
             <div className="p-3 bg-slate-950 rounded-2xl border border-slate-800 space-y-2">
@@ -582,31 +610,59 @@ export default function DriverApp() {
             </div>
 
             {/* Datos del Pasajero y Contacto Directo */}
-            <div className="flex items-center justify-between p-3.5 bg-slate-950 rounded-2xl border border-slate-800">
-              <div>
-                <div className="text-xs text-slate-400">Pasajero</div>
-                <div className="font-extrabold text-white text-base">{activeTrip.passengerName}</div>
-                <div className="text-xs text-slate-400">{activeTrip.passengerPhone}</div>
+            <div className="p-3.5 bg-slate-950 rounded-2xl border border-slate-800 space-y-2">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-xs text-slate-400">Pasajero</div>
+                  <div className="font-extrabold text-white text-base">{activeTrip.passengerName}</div>
+                  <div className="text-xs text-slate-400">{activeTrip.passengerPhone}</div>
+                </div>
+
+                <div className="flex gap-2">
+                  <a
+                    href={`tel:${activeTrip.passengerPhone}`}
+                    className="p-2.5 bg-slate-800 hover:bg-slate-700 text-emerald-400 rounded-xl border border-slate-700"
+                    title="Llamada telefónica"
+                  >
+                    <Phone className="w-5 h-5" />
+                  </a>
+                  <a
+                    href={`https://wa.me/503${activeTrip.passengerPhone.replace(/\D/g, '')}?text=Hola,%20soy%20tu%20conductor%20de%20Rumbo`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="p-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl shadow"
+                    title="WhatsApp directo"
+                  >
+                    <MessageCircle className="w-5 h-5" />
+                  </a>
+                </div>
               </div>
 
-              <div className="flex gap-2">
-                <a
-                  href={`tel:${activeTrip.passengerPhone}`}
-                  className="p-2.5 bg-slate-800 hover:bg-slate-700 text-emerald-400 rounded-xl border border-slate-700"
-                  title="Llamada telefónica"
-                >
-                  <Phone className="w-5 h-5" />
-                </a>
-                <a
-                  href={`https://wa.me/503${activeTrip.passengerPhone.replace(/\D/g, '')}?text=Hola,%20soy%20tu%20conductor%20de%20demiempresa.online`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="p-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl shadow"
-                  title="WhatsApp directo"
-                >
-                  <MessageCircle className="w-5 h-5" />
-                </a>
-              </div>
+              {/* Badges de preferencias solicitadas */}
+              {activeTrip.preferences && (
+                <div className="flex flex-wrap gap-1.5 pt-1 border-t border-slate-800/80">
+                  {activeTrip.preferences.airConditioning !== false && (
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 font-bold">
+                      ❄️ Con A/C
+                    </span>
+                  )}
+                  {activeTrip.preferences.petFriendly && (
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30 font-bold">
+                      🐾 Mascota
+                    </span>
+                  )}
+                  {activeTrip.preferences.passengers > 4 && (
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-300 border border-orange-500/40 font-bold">
+                      🚐 5+ Pasajeros
+                    </span>
+                  )}
+                  {activeTrip.preferences.extraLuggage && (
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-500/15 text-purple-300 border border-purple-500/30 font-bold">
+                      🧳 Maletas
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Direcciones y Botón Un Toque para Waze / Google Maps */}

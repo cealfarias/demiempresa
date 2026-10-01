@@ -22,11 +22,18 @@ import {
   Loader2,
   Play,
   Pause,
-  Map
+  Map,
+  SlidersHorizontal,
+  Wind,
+  Dog,
+  Users,
+  Briefcase
 } from 'lucide-react';
+import RumboLogo from './RumboLogo';
 import AdModal from './AdModal';
 import PickupMapModal from './PickupMapModal';
 import DestinationMapModal from './DestinationMapModal';
+import TripPreferencesModal from './TripPreferencesModal';
 import { calculateRoadDistance } from './fuelService';
 import {
   socket,
@@ -53,6 +60,17 @@ export default function ViajesApp() {
   const [showMapModal, setShowMapModal] = useState(false);
   const [showDestMapModal, setShowDestMapModal] = useState(false);
   const [cashBill, setCashBill] = useState('10'); // 'EXACT' | '5' | '10' | '20'
+
+  // Preferencias Especiales del Viaje (A/C, Mascotas, Pasajeros, Equipaje)
+  const [tripPreferences, setTripPreferences] = useState({
+    airConditioning: true,
+    petFriendly: false,
+    passengers: 1,
+    needsVanOrMicrobus: false,
+    extraLuggage: false
+  });
+  const [showPreferencesModal, setShowPreferencesModal] = useState(false);
+
   const [roadDistanceKm, setRoadDistanceKm] = useState(8.4);
   const [estimatedDurationMin, setEstimatedDurationMin] = useState(16);
   const [isCalculatingRoute, setIsCalculatingRoute] = useState(false);
@@ -125,7 +143,7 @@ export default function ViajesApp() {
 
   // Establecer título dinámico de la pestaña del navegador para viajes
   useEffect(() => {
-    document.title = "demiempresa.online | Viajes Directos & Envíos 100% Efectivo";
+    document.title = "Rumbo | Movilidad Directa 100% Efectivo";
   }, []);
 
   // Inicializar Socket y Eventos
@@ -239,6 +257,7 @@ export default function ViajesApp() {
       proposedFare: parseFloat(proposedFare).toFixed(2),
       cashBill,
       changeNeeded: calculateChange(),
+      preferences: tripPreferences,
       packageDetails,
       paymentTiming
     });
@@ -430,27 +449,16 @@ export default function ViajesApp() {
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
       
-      {/* Barra Superior Minimalista */}
+      {/* Barra Superior Oficial Rumbo */}
       <header className="border-b border-slate-800 bg-slate-900/90 backdrop-blur sticky top-0 z-40 px-4 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-amber-500 to-orange-500 flex items-center justify-center font-black text-slate-950 text-lg">
-            D
-          </div>
-          <div>
-            <span className="font-extrabold text-white text-base tracking-tight">demiempresa<span className="text-amber-400">.online</span></span>
-            <span className="block text-[10px] text-slate-400 -mt-1">Viajes Directos & Envíos 100% Efectivo</span>
-          </div>
-        </div>
+        <RumboLogo />
 
-        {/* Micro-enlace de captación B2B siempre visible */}
-        <button
-          onClick={() => setShowAdModal(true)}
-          className="text-xs px-2.5 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-300 hover:bg-amber-500/20 font-medium flex items-center gap-1.5 transition-colors cursor-pointer"
-        >
-          <Megaphone className="w-3.5 h-3.5" />
-          <span className="hidden sm:inline">¿Tienes un negocio?</span>
-          <span>Anúnciate aquí</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] font-bold text-lime-400 bg-lime-500/10 border border-lime-500/30 px-2.5 py-1 rounded-full flex items-center gap-1.5 shadow-sm">
+            <span className="w-1.5 h-1.5 rounded-full bg-lime-400 animate-pulse"></span>
+            <span>100% Efectivo</span>
+          </span>
+        </div>
       </header>
 
       {/* ============================================================== */}
@@ -713,6 +721,48 @@ export default function ViajesApp() {
                   </div>
                 </div>
               </div>
+
+              {/* Botón Minimalista: Preferencias del Viaje (A/C, Mascotas, Pasajeros) */}
+              <button
+                type="button"
+                onClick={() => setShowPreferencesModal(true)}
+                className="w-full py-2.5 px-3.5 bg-slate-950 hover:bg-slate-900 border border-slate-800 hover:border-slate-700 rounded-2xl flex items-center justify-between text-xs transition-all cursor-pointer group shadow-inner"
+              >
+                <div className="flex items-center gap-2 overflow-hidden">
+                  <SlidersHorizontal className="w-4 h-4 text-lime-400 flex-shrink-0" />
+                  <span className="font-bold text-slate-200">Preferencias:</span>
+                  <div className="flex items-center gap-1.5 overflow-hidden">
+                    {tripPreferences.airConditioning && (
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 font-semibold whitespace-nowrap">
+                        ❄️ Con A/C
+                      </span>
+                    )}
+                    {tripPreferences.petFriendly && (
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30 font-semibold whitespace-nowrap">
+                        🐾 Mascota
+                      </span>
+                    )}
+                    {tripPreferences.passengers > 4 ? (
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-orange-500/15 text-orange-300 border border-orange-500/30 font-semibold whitespace-nowrap">
+                        🚐 Camioneta (+4)
+                      </span>
+                    ) : tripPreferences.passengers > 1 ? (
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700 font-semibold whitespace-nowrap">
+                        👥 {tripPreferences.passengers} pers.
+                      </span>
+                    ) : null}
+                    {tripPreferences.extraLuggage && (
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-500/15 text-purple-300 border border-purple-500/30 font-semibold whitespace-nowrap">
+                        🧳 Maletas
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <span className="text-[11px] text-lime-400 group-hover:text-lime-300 font-bold ml-2 whitespace-nowrap">
+                  Ajustar ›
+                </span>
+              </button>
 
               {/* Monto Ofrecido en Efectivo */}
               <div>
@@ -1288,6 +1338,14 @@ export default function ViajesApp() {
             setDestinationMunicipality(municipality);
           }
         }}
+      />
+
+      {/* Modal de Preferencias del Viaje (A/C, Mascotas, Pasajeros, Equipaje) */}
+      <TripPreferencesModal
+        isOpen={showPreferencesModal}
+        onClose={() => setShowPreferencesModal(false)}
+        preferences={tripPreferences}
+        onChange={setTripPreferences}
       />
 
     </div>
