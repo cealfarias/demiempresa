@@ -11,6 +11,7 @@ export default function LandingPortal() {
   const navigate = useNavigate();
 
   useEffect(() => {
+    document.title = "demiempresa.online | Ecosistema de Gestión y Servicios Empresariales";
     // Show avatar container immediately
     const container = document.getElementById('demiempresa-avatar-container');
     if (container) container.style.display = 'flex';
@@ -116,6 +117,15 @@ export default function LandingPortal() {
           descripcion: 'Gestión de múltiples bodegas, entradas, salidas y actualización del kardex en tiempo real.',
           icon: <Layers size={28} color="#F97316" />,
           url: 'https://ventas.demiempresa.online'
+        },
+        {
+          id: 'viajes',
+          nombre: 'Transporte y Encomiendas',
+          descripcion: 'Despacho geoespacial bajo demanda (1 km) para traslado punto a punto y logística de paquetes comerciales.',
+          icon: <Truck size={28} color="#F97316" />,
+          url: 'https://viajes.demiempresa.online',
+          internalRoute: '/viajes',
+          badge: 'NUEVO'
         },
         {
           id: 'pos',
