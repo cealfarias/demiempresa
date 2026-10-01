@@ -285,6 +285,20 @@ export default function ViajesApp() {
     }
   }, [roadDistanceKm, trafficInfo.delayMinutes, tripPreferences, transportType]);
 
+  // El billete marcado en la zona de cambio siempre debe ser estrictamente mayor a la oferta
+  useEffect(() => {
+    const fareVal = parseFloat(proposedFare) || 0;
+    if (cashBill === 'EXACT') return;
+
+    if (cashBill === '5' && fareVal >= 5) {
+      setCashBill(fareVal < 10 ? '10' : (fareVal < 20 ? '20' : '50+'));
+    } else if (cashBill === '10' && fareVal >= 10) {
+      setCashBill(fareVal < 20 ? '20' : '50+');
+    } else if (cashBill === '20' && fareVal >= 20) {
+      setCashBill('50+');
+    }
+  }, [proposedFare, cashBill]);
+
   const calculateChange = (fare = proposedFare) => {
     if (cashBill === 'EXACT') return '0.00';
     if (cashBill === '50+') {
@@ -655,50 +669,102 @@ export default function ViajesApp() {
     setDestination(spokenText);
     setVoiceDialogueStep('CALCULATING_ROUTE');
 
-    let dCoords = null;
-    let dMunicipality = 'San Salvador';
-    let resolvedDestinationText = spokenText;
+    // 1. Locución al iniciar la búsqueda: "Iniciando la búsqueda para el destino X"
+    const speechPromise = new Promise((resolve) => {
+      speakAssistantMessage(`Iniciando la búsqueda para el destino ${spokenText}.`, resolve);
+    });
 
-    const oCoords = currentOriginCoords || originCoords || { lat: 13.7013, lng: -89.2244 };
+    // 2. Cálculo geográfico y de ruta en paralelo
+    const calculationPromise = (async () => {
+      let dCoords = null;
+      let dMunicipality = 'San Salvador';
+      let resolvedDestinationText = spokenText;
+      const oCoords = currentOriginCoords || originCoords || { lat: 13.7013, lng: -89.2244 };
 
-    try {
-      const viewboxParam = `&viewbox=${oCoords.lng - 0.25},${oCoords.lat + 0.25},${oCoords.lng + 0.25},${oCoords.lat - 0.25}&bounded=0`;
-      const res = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
-          spokenText + ', El Salvador'
-        )}&countrycodes=sv&limit=1&addressdetails=1${viewboxParam}`,
-        { headers: { 'Accept-Language': 'es' } }
-      );
-      if (res.ok) {
-        const data = await res.json();
-        if (data && data[0]) {
-          dCoords = {
-            lat: parseFloat(data[0].lat),
-            lng: parseFloat(data[0].lon)
-          };
-          setDestinationCoords(dCoords);
+      try {
+        const viewboxParam = `&viewbox=${oCoords.lng - 0.25},${oCoords.lat + 0.25},${oCoords.lng + 0.25},${oCoords.lat - 0.25}&bounded=0`;
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
+            spokenText + ', El Salvador'
+          )}&countrycodes=sv&limit=1&addressdetails=1${viewboxParam}`,
+          { headers: { 'Accept-Language': 'es' } }
+        );
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data[0]) {
+            dCoords = {
+              lat: parseFloat(data[0].lat),
+              lng: parseFloat(data[0].lon)
+            };
+            setDestinationCoords(dCoords);
 
-          // Actualizar inmediatamente la cajita de punto de llegada con el destino específico encontrado
-          const formattedDest = formatResolvedDestination(data[0]);
-          if (formattedDest) {
-            resolvedDestinationText = formattedDest;
-            setDestination(formattedDest);
-          }
+            // Actualizar inmediatamente la cajita de punto de llegada con el destino específico encontrado
+            const formattedDest = formatResolvedDestination(data[0]);
+            if (formattedDest) {
+              resolvedDestinationText = formattedDest;
+              setDestination(formattedDest);
+            }
 
-          if (data[0].address) {
-            const mun = data[0].address.city || data[0].address.town || data[0].address.municipality;
-            if (mun) {
-              setDestinationMunicipality(mun);
-              dMunicipality = mun;
+            if (data[0].address) {
+              const mun = data[0].address.city || data[0].address.town || data[0].address.municipality;
+              if (mun) {
+                setDestinationMunicipality(mun);
+                dMunicipality = mun;
+              }
             }
           }
         }
+      } catch (geoErr) {
+        console.warn('Geocodificación voz:', geoErr);
       }
-    } catch (geoErr) {
-      console.warn('Geocodificación voz:', geoErr);
-    }
 
-    if (!dCoords) {
+      if (!dCoords) {
+        return { success: false, spokenText };
+      }
+
+      setDestinationError('');
+
+      // Calcular ruta real por carretera, tiempo y tráfico
+      const routeRes = await calculateRoadDistance(oCoords, dCoords);
+      const distKm = routeRes?.distanceKm || 5.0;
+      const durMin = routeRes?.durationMinutes || 14;
+      const delayMin = routeRes?.delayMinutes || 0;
+
+      setRoadDistanceKm(distKm);
+      setEstimatedDurationMin(durMin);
+      setTrafficInfo({
+        trafficLevel: routeRes?.trafficLevel || 'FLUID',
+        trafficColor: routeRes?.trafficColor || '#10B981',
+        trafficLabel: routeRes?.trafficLabel || 'Tráfico Fluido',
+        delayMinutes: delayMin,
+        rushHourContext: routeRes?.rushHourContext || 'Horario Normal'
+      });
+
+      // Calcular tarifa sugerida exacta
+      const fareData = calculateSuggestedFare(
+        distKm,
+        transportType === 'MOTO' ? 115.0 : 42.0,
+        3.80,
+        delayMin,
+        { ...tripPreferences, transportType }
+      );
+      const calculatedFare = fareData.suggestedFare;
+      setProposedFare(calculatedFare);
+
+      return {
+        success: true,
+        distKm,
+        durMin,
+        calculatedFare,
+        resolvedDestinationText,
+        currentOriginCoords
+      };
+    })();
+
+    // Esperar a que la primera frase termine de hablarse y el cálculo esté listo
+    const [, calcResult] = await Promise.all([speechPromise, calculationPromise]);
+
+    if (!calcResult.success) {
       // Notificar por escrito y por audio que no se encontró el lugar, y solicitar de nuevo la dirección
       const errorMsg = `No se encontró "${spokenText}". Por favor, indica otra referencia o colonia.`;
       setDestinationError(errorMsg);
@@ -718,38 +784,8 @@ export default function ViajesApp() {
       return;
     }
 
-    // Destino encontrado exitosamente: limpiar cualquier error previo
-    setDestinationError('');
-
-    // Calcular ruta real por carretera, tiempo y tráfico
-    const routeRes = await calculateRoadDistance(oCoords, dCoords);
-    const distKm = routeRes?.distanceKm || 5.0;
-    const durMin = routeRes?.durationMinutes || 14;
-    const delayMin = routeRes?.delayMinutes || 0;
-
-    setRoadDistanceKm(distKm);
-    setEstimatedDurationMin(durMin);
-    setTrafficInfo({
-      trafficLevel: routeRes?.trafficLevel || 'FLUID',
-      trafficColor: routeRes?.trafficColor || '#10B981',
-      trafficLabel: routeRes?.trafficLabel || 'Tráfico Fluido',
-      delayMinutes: delayMin,
-      rushHourContext: routeRes?.rushHourContext || 'Horario Normal'
-    });
-
-    // Calcular tarifa sugerida exacta
-    const fareData = calculateSuggestedFare(
-      distKm,
-      transportType === 'MOTO' ? 115.0 : 42.0,
-      3.80,
-      delayMin,
-      { ...tripPreferences, transportType }
-    );
-    const calculatedFare = fareData.suggestedFare;
-    setProposedFare(calculatedFare);
-
-    // Locución obligatoria: Destino detectado, Distancia, Tiempo, Tarifa y Pregunta de Búsqueda
-    const speechPrompt = `Tu destino en ${resolvedDestinationText} está a ${distKm} kilómetros, aproximadamente ${durMin} minutos. La tarifa sugerida es de ${calculatedFare} dólares. ¿Deseas buscar conductor?`;
+    // Locución obligatoria: "Encontré la ruta a tu destino en [ubicación]. Está a [Y] km de distancia, tardarás en llegar [Z] minutos..."
+    const speechPrompt = `Encontré la ruta a tu destino en ${calcResult.resolvedDestinationText}. Está a ${calcResult.distKm} kilómetros de distancia, tardarás en llegar ${calcResult.durMin} minutos. La tarifa sugerida es de ${calcResult.calculatedFare} dólares. ¿Deseas buscar conductor?`;
 
     setVoiceDialogueStep('CONFIRMING_SEARCH');
     speakAndThenListen(speechPrompt, {
@@ -1915,25 +1951,38 @@ export default function ViajesApp() {
 
                 <div className="grid grid-cols-5 gap-1.5 text-xs font-bold">
                   {[
-                    { id: 'EXACT', label: 'Exacto' },
-                    { id: '5', label: '$5' },
-                    { id: '10', label: '$10' },
-                    { id: '20', label: '$20' },
-                    { id: '50+', label: '$50+' }
-                  ].map((bill) => (
-                    <button
-                      key={bill.id}
-                      type="button"
-                      onClick={() => setCashBill(bill.id)}
-                      className={`py-2 px-1 rounded-xl text-center transition-all cursor-pointer ${
-                        cashBill === bill.id
-                          ? 'bg-rose-500 text-white shadow-md shadow-rose-500/30 font-black'
-                          : 'bg-slate-800 text-slate-300 hover:text-white border border-slate-700'
-                      }`}
-                    >
-                      {bill.label}
-                    </button>
-                  ))}
+                    { id: 'EXACT', label: 'Exacto', val: 0 },
+                    { id: '5', label: '$5', val: 5 },
+                    { id: '10', label: '$10', val: 10 },
+                    { id: '20', label: '$20', val: 20 },
+                    { id: '50+', label: '$50+', val: 50 }
+                  ].map((bill) => {
+                    const fareNum = parseFloat(proposedFare) || 0;
+                    const isDisabled = bill.val > 0 && bill.val <= fareNum;
+                    return (
+                      <button
+                        key={bill.id}
+                        type="button"
+                        disabled={isDisabled}
+                        onClick={() => {
+                          if (!isDisabled) {
+                            playInteractionFeedback(false);
+                            setCashBill(bill.id);
+                          }
+                        }}
+                        className={`py-2 px-1 rounded-xl text-center transition-all ${
+                          isDisabled
+                            ? 'opacity-30 cursor-not-allowed bg-slate-900 border border-slate-800 text-slate-600 line-through'
+                            : cashBill === bill.id
+                            ? 'bg-rose-500 text-white shadow-md shadow-rose-500/30 font-black cursor-pointer'
+                            : 'bg-slate-800 text-slate-300 hover:text-white border border-slate-700 cursor-pointer'
+                        }`}
+                        title={isDisabled ? `El billete debe ser mayor a la oferta ($${fareNum.toFixed(2)})` : ''}
+                      >
+                        {bill.label}
+                      </button>
+                    );
+                  })}
                 </div>
 
                 {/* Mensaje de cálculo en vivo */}
