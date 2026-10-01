@@ -117,6 +117,45 @@ export default function ViajesApp() {
   const [isListeningVoice, setIsListeningVoice] = useState(false);
   const [voiceDialogueStep, setVoiceDialogueStep] = useState('IDLE');
   const [destinationError, setDestinationError] = useState('');
+  const [isSearchingDest, setIsSearchingDest] = useState(false);
+  const isDestinationConfirmed = Boolean(destinationCoords?.lat && destination?.trim());
+
+  const handleGeocodeManualDestination = async (textToSearch = destination) => {
+    const query = (textToSearch || destination).trim();
+    if (!query) return;
+    setIsSearchingDest(true);
+    setDestinationError('');
+
+    try {
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
+          query + ', El Salvador'
+        )}&countrycodes=sv&limit=1&addressdetails=1`,
+        { headers: { 'Accept-Language': 'es' } }
+      );
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data[0]) {
+          const dCoords = {
+            lat: parseFloat(data[0].lat),
+            lng: parseFloat(data[0].lon)
+          };
+          setDestinationCoords(dCoords);
+          if (data[0].address) {
+            const mun = data[0].address.city || data[0].address.town || data[0].address.municipality;
+            if (mun) setDestinationMunicipality(mun);
+          }
+          setIsSearchingDest(false);
+          return;
+        }
+      }
+    } catch (err) {
+      console.warn('Geocodificación manual err:', err);
+    }
+
+    setDestinationError(`No se encontró "${query}". Indica otra referencia o abre el mapa.`);
+    setIsSearchingDest(false);
+  };
 
   // Preferencias Especiales del Viaje (A/C, Mascotas, Pasajeros, Equipaje, Contextura/Peso)
   const [tripPreferences, setTripPreferences] = useState({
@@ -268,7 +307,18 @@ export default function ViajesApp() {
 
   // Establecer título dinámico de la pestaña del navegador para viajes
   useEffect(() => {
-    document.title = "Rumbo | Movilidad Directa 100% Efectivo";
+    document.title = "Rumbo a mi destino | 100% Efectivo";
+
+    // Ocultar widget flotante duplicado para usar exclusivamente el avatar ámbar y blanco de Rumbo
+    const globalAvatar = document.getElementById('demiempresa-avatar-container');
+    if (globalAvatar) {
+      globalAvatar.style.display = 'none';
+    }
+    return () => {
+      if (globalAvatar) {
+        globalAvatar.style.display = '';
+      }
+    };
   }, []);
 
   // Inicializar Socket y Eventos
@@ -1054,35 +1104,55 @@ export default function ViajesApp() {
         <RumboLogo />
 
         <div className="flex items-center gap-2">
-          {/* Botón Accesible Asistente de Voz (WCAG / Dictado) */}
+          {/* Avatar Oficial del Asistente de Voz (Ámbar y Blanco) */}
           <button
             type="button"
             onClick={handleToggleVoiceDictation}
             title={
               isListeningVoice
-                ? 'Escuchando... Toca para pausar'
-                : voiceAssistantMode === 'voice'
-                ? 'Asistente de Voz Activo (Toca para dictar destino)'
-                : 'Activar dictado por voz'
+                ? 'Asistente escuchando... Toca para pausar'
+                : 'Asistente de Voz Rumbo (Toca para dictar tu rumbo)'
             }
             aria-label={
               isListeningVoice
-                ? 'Escuchando destino por voz, presiona para pausar'
-                : 'Activar asistente de voz o dictar destino'
+                ? 'Asistente escuchando tu destino, presiona para pausar'
+                : 'Activar asistente de voz Rumbo'
             }
-            className={`min-h-[36px] px-2.5 py-1 rounded-full border text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:outline-none ${
+            className={`p-1 pl-1.5 pr-2.5 rounded-full border flex items-center gap-2 transition-all cursor-pointer focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:outline-none ${
               isListeningVoice
-                ? 'bg-rose-500/20 border-rose-500/60 text-rose-300 animate-pulse'
-                : voiceAssistantMode === 'voice'
-                ? 'bg-amber-500/15 border-amber-500/40 text-amber-300 hover:bg-amber-500/25'
-                : 'bg-slate-800/80 border-slate-700 text-slate-400 hover:text-slate-200'
+                ? 'bg-amber-500/20 border-amber-400 ring-2 ring-amber-400/50 shadow-lg shadow-amber-500/30'
+                : 'bg-slate-800/80 border-slate-700/80 hover:border-amber-400/50 hover:bg-slate-800'
             }`}
           >
-            <Mic className={`w-3.5 h-3.5 ${isListeningVoice ? 'text-rose-400 animate-bounce' : 'text-amber-400'}`} />
-            <span className="hidden sm:inline">
-              {isListeningVoice ? 'Escuchando...' : 'Asistente'}
-            </span>
+            {/* Avatar Orb Ámbar y Blanco */}
+            <div className={`relative w-7 h-7 rounded-full border-2 border-white flex items-center justify-center overflow-hidden transition-transform shadow-md ${
+              isListeningVoice
+                ? 'bg-gradient-to-tr from-amber-600 via-amber-500 to-amber-300 scale-105'
+                : 'bg-gradient-to-tr from-amber-500 to-amber-400'
+            }`}>
+              {isListeningVoice && (
+                <span className="absolute inset-0 rounded-full bg-white/40 animate-ping pointer-events-none" />
+              )}
+              <Mic className={`w-3.5 h-3.5 text-white drop-shadow-sm ${isListeningVoice ? 'animate-bounce' : ''}`} />
+            </div>
+
+            <div className="flex flex-col text-left leading-none">
+              <span className="text-[11px] font-black text-white">
+                Asistente
+              </span>
+              <span className="text-[9px] font-bold text-amber-400 mt-0.5">
+                {isListeningVoice ? 'Escuchando...' : 'Voz activa'}
+              </span>
+            </div>
           </button>
+
+          {/* Estado dinámico del Asistente por Voz */}
+          {(voiceDialogueStep !== 'IDLE' || isListeningVoice) && (
+            <div className="hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500/15 border border-amber-400/40 text-amber-300 text-[11px] font-bold animate-pulse">
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping" />
+              <span>{isListeningVoice ? 'Escuchando rumbo...' : 'Hablando...'}</span>
+            </div>
+          )}
 
           {/* Selector Mutuamente Excluyente de Tema: Solecito / Media Luna */}
           <div className={`flex items-center p-0.5 rounded-full border transition-all ${
@@ -1131,69 +1201,6 @@ export default function ViajesApp() {
             isLight ? 'bg-white border-slate-200 shadow-slate-200/60 text-slate-900' : 'bg-slate-900 border-slate-800 text-slate-100'
           }`}>
             
-            {/* Selector de Servicio: Pasajero vs Encomienda */}
-            <div className="grid grid-cols-2 p-1 bg-slate-950 rounded-2xl border border-slate-800 text-xs font-bold">
-              <button
-                type="button"
-                onClick={() => setServiceType('PASSENGER')}
-                className={`py-2.5 rounded-xl flex items-center justify-center gap-2 transition-all cursor-pointer ${
-                  serviceType === 'PASSENGER'
-                    ? 'bg-amber-500 text-slate-950 shadow-md font-black'
-                    : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                <Car className="w-4 h-4" />
-                <span>Viaje Pasajero</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setServiceType('PACKAGE')}
-                className={`py-2.5 rounded-xl flex items-center justify-center gap-2 transition-all cursor-pointer ${
-                  serviceType === 'PACKAGE'
-                    ? 'bg-amber-500 text-slate-950 shadow-md font-black'
-                    : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                <Package className="w-4 h-4" />
-                <span>Envío Paquete</span>
-              </button>
-            </div>
-
-            {/* Selector de Tipo de Transporte: Auto / Carro vs Moto */}
-            <div className="grid grid-cols-2 p-1 bg-slate-950/80 rounded-2xl border border-slate-800 text-xs font-bold gap-1">
-              <button
-                type="button"
-                onClick={() => handleSelectTransportType('CAR')}
-                className={`py-2 px-3 rounded-xl flex items-center justify-center gap-2 transition-all cursor-pointer ${
-                  transportType === 'CAR'
-                    ? 'bg-gradient-to-r from-amber-500 to-amber-400 text-slate-950 shadow-md font-black'
-                    : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
-                }`}
-              >
-                <Car className="w-4 h-4 flex-shrink-0" />
-                <div className="text-left leading-tight">
-                  <span className="block text-xs font-bold">Auto / Carro</span>
-                  <span className="block text-[10px] opacity-75 font-normal">Hasta 4 pax • Con A/C</span>
-                </div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleSelectTransportType('MOTO')}
-                className={`py-2 px-3 rounded-xl flex items-center justify-center gap-2 transition-all cursor-pointer ${
-                  transportType === 'MOTO'
-                    ? 'bg-gradient-to-r from-amber-500 to-amber-400 text-slate-950 shadow-md font-black'
-                    : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
-                }`}
-              >
-                <Bike className="w-4 h-4 flex-shrink-0" />
-                <div className="text-left leading-tight">
-                  <span className="block text-xs font-bold">Moto</span>
-                  <span className="block text-[10px] opacity-75 font-normal">Económico • Rápido</span>
-                </div>
-              </button>
-            </div>
-
             <form onSubmit={handleSearchDrivers} className="space-y-4">
               
               {/* Alerta Inteligente de Ubicación Bloqueada */}
@@ -1211,45 +1218,6 @@ export default function ViajesApp() {
                     className="px-2.5 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-lg text-[11px] whitespace-nowrap cursor-pointer transition-colors"
                   >
                     Activar
-                  </button>
-                </div>
-              )}
-
-              {/* Asistente de Voz Activo en Tiempo Real */}
-              {(voiceDialogueStep !== 'IDLE' || isListeningVoice) && (
-                <div className="p-3 bg-gradient-to-r from-amber-500/20 via-lime-500/15 to-emerald-500/20 border border-amber-500/40 rounded-2xl flex items-center justify-between gap-3 text-xs text-amber-200 animate-fade-in shadow-lg">
-                  <div className="flex items-center gap-2.5">
-                    <div className="relative">
-                      <div className="w-8 h-8 rounded-full bg-amber-500/20 flex items-center justify-center text-amber-400 font-bold">
-                        <Mic className="w-4 h-4 animate-bounce" />
-                      </div>
-                      <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-rose-500 rounded-full animate-ping" />
-                    </div>
-                    <div>
-                      <p className="font-extrabold text-white text-xs">
-                        {isListeningVoice ? 'Asistente de Voz Escuchando...' : 'Asistente Procesando...'}
-                      </p>
-                      <p className="text-[11px] text-amber-300/80">
-                        {destinationError ? (
-                          <span className="text-rose-300 font-bold">{destinationError}</span>
-                        ) : (
-                          <>
-                            {voiceDialogueStep === 'AWAITING_DESTINATION' && 'Dicta tu destino (ej. Metrocentro)...'}
-                            {voiceDialogueStep === 'CALCULATING_ROUTE' && 'Calculando distancia y tarifa...'}
-                            {voiceDialogueStep === 'CONFIRMING_SEARCH' && 'Responde: "Sí" para buscar o "No" para ajustar...'}
-                            {voiceDialogueStep === 'AWAITING_ADJUSTMENT' && 'Menciona qué deseas cambiar (tarifa, aire, pasajeros, mascotas)...'}
-                            {voiceDialogueStep === 'AWAITING_FARE_INPUT' && 'Di la tarifa en dólares (ej. 3 dólares)...'}
-                          </>
-                        )}
-                      </p>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handleToggleVoiceDictation}
-                    className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg text-[11px] font-semibold cursor-pointer transition-colors"
-                  >
-                    Pausar
                   </button>
                 </div>
               )}
@@ -1343,7 +1311,14 @@ export default function ViajesApp() {
                     value={destination}
                     onChange={(e) => {
                       setDestination(e.target.value);
+                      if (destinationCoords) setDestinationCoords(null);
                       if (destinationError) setDestinationError('');
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleGeocodeManualDestination(destination);
+                      }
                     }}
                     placeholder="Escoge tu rumbo... (Ej. Metrocentro, Multiplaza, Colonia...)"
                     className="w-full pl-3 pr-20 py-3 bg-slate-800/80 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-rose-400 text-sm"
@@ -1392,6 +1367,30 @@ export default function ViajesApp() {
                   </div>
                 )}
 
+                {/* Botón para Confirmar Destino Manual si aún no tiene coordenadas */}
+                {!isDestinationConfirmed && destination.trim().length > 1 && (
+                  <div className="mt-2.5 animate-fade-in">
+                    <button
+                      type="button"
+                      disabled={isSearchingDest}
+                      onClick={() => handleGeocodeManualDestination(destination)}
+                      className="w-full py-2.5 px-4 bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-black text-xs rounded-xl shadow-md flex items-center justify-center gap-2 cursor-pointer transition-all disabled:opacity-50"
+                    >
+                      {isSearchingDest ? (
+                        <>
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          <span>Confirmando rumbo...</span>
+                        </>
+                      ) : (
+                        <>
+                          <span>Confirmar Rumbo</span>
+                          <ArrowRight className="w-3.5 h-3.5" />
+                        </>
+                      )}
+                    </button>
+                  </div>
+                )}
+
                 <div className="flex items-center justify-between mt-1 px-1 text-[11px]">
                   <button
                     type="button"
@@ -1403,7 +1402,74 @@ export default function ViajesApp() {
                 </div>
               </div>
 
-              {/* Campos específicos si es envío de paquete */}
+              {/* ========================================================= */}
+              {/* BLOQUE PROGRESIVO: Solo se revela tras confirmar destino */}
+              {/* ========================================================= */}
+              {isDestinationConfirmed && (
+                <div className="space-y-4 pt-3 border-t border-slate-800/80 animate-fade-in">
+
+                  {/* Selector de Tipo de Transporte: Auto / Carro vs Moto */}
+                  <div className="grid grid-cols-2 p-1 bg-slate-950/80 rounded-2xl border border-slate-800 text-xs font-bold gap-1">
+                    <button
+                      type="button"
+                      onClick={() => handleSelectTransportType('CAR')}
+                      className={`py-2 px-3 rounded-xl flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                        transportType === 'CAR'
+                          ? 'bg-gradient-to-r from-amber-500 to-amber-400 text-slate-950 shadow-md font-black'
+                          : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
+                      }`}
+                    >
+                      <Car className="w-4 h-4 flex-shrink-0" />
+                      <div className="text-left leading-tight">
+                        <span className="block text-xs font-bold">Auto / Carro</span>
+                        <span className="block text-[10px] opacity-75 font-normal">Hasta 4 pax • Con A/C</span>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleSelectTransportType('MOTO')}
+                      className={`py-2 px-3 rounded-xl flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                        transportType === 'MOTO'
+                          ? 'bg-gradient-to-r from-amber-500 to-amber-400 text-slate-950 shadow-md font-black'
+                          : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
+                      }`}
+                    >
+                      <Bike className="w-4 h-4 flex-shrink-0" />
+                      <div className="text-left leading-tight">
+                        <span className="block text-xs font-bold">Moto</span>
+                        <span className="block text-[10px] opacity-75 font-normal">Económico • Rápido</span>
+                      </div>
+                    </button>
+                  </div>
+
+                  {/* Selector de Servicio: Pasajero vs Encomienda */}
+                  <div className="grid grid-cols-2 p-1 bg-slate-950 rounded-2xl border border-slate-800 text-xs font-bold">
+                    <button
+                      type="button"
+                      onClick={() => setServiceType('PASSENGER')}
+                      className={`py-2.5 rounded-xl flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                        serviceType === 'PASSENGER'
+                          ? 'bg-amber-500 text-slate-950 shadow-md font-black'
+                          : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      <Car className="w-4 h-4" />
+                      <span>Viaje Pasajero</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setServiceType('PACKAGE')}
+                      className={`py-2.5 rounded-xl flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                        serviceType === 'PACKAGE'
+                          ? 'bg-amber-500 text-slate-950 shadow-md font-black'
+                          : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      <Package className="w-4 h-4" />
+                      <span>Envío Paquete</span>
+                    </button>
+                  </div>
               {serviceType === 'PACKAGE' && (
                 <div className="p-3 bg-amber-500/5 border border-amber-500/20 rounded-xl space-y-2.5 animate-fade-in">
                   <div>
@@ -1686,14 +1752,6 @@ export default function ViajesApp() {
                 </div>
               </div>
 
-              {/* Beneficio de Referido 7+7 */}
-              <div className="p-3 bg-slate-950/70 border border-slate-800 rounded-xl flex items-center gap-2.5 text-xs text-slate-400">
-                <Sparkles className="w-4 h-4 text-amber-400 flex-shrink-0" />
-                <span>
-                  <strong>Bono de Bienvenida:</strong> Recibe $1.00 de descuento en tu próximo viaje si eres referido verificado.
-                </span>
-              </div>
-
               {/* Botón de Despacho */}
               <div>
                 <button
@@ -1708,7 +1766,10 @@ export default function ViajesApp() {
                 </p>
               </div>
 
-            </form>
+            </div>
+          )}
+
+        </form>
           </div>
         </main>
       )}

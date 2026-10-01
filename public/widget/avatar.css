@@ -1,10 +1,10 @@
 /* avatar.css - Global Styles for Demiempresa Avatar */
 
 :root {
-  --avatar-primary: #4f46e5; /* Indigo-600 */
-  --avatar-primary-hover: #4338ca;
-  --avatar-bg: #1e293b; /* Slate-800 */
-  --avatar-bg-grad: linear-gradient(to top right, #1e293b, #0f172a);
+  --avatar-primary: #f59e0b; /* Amber-500 */
+  --avatar-primary-hover: #d97706; /* Amber-600 */
+  --avatar-bg: #0f172a; /* Slate-900 */
+  --avatar-bg-grad: linear-gradient(135deg, #78350f 0%, #1e293b 100%);
 }
 
 #demiempresa-avatar-container {
@@ -138,9 +138,9 @@
 .avatar-glow {
   position: absolute;
   inset: -4px;
-  background-color: #818cf8;
+  background-color: #fbbf24;
   border-radius: 50%;
-  opacity: 0.25;
+  opacity: 0.35;
   animation: avatar-ping 2s cubic-bezier(0, 0, 0.2, 1) infinite;
   pointer-events: none;
 }
@@ -161,7 +161,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.2);
   border: 2px solid white;
   overflow: hidden;
   transition: transform 0.2s;
@@ -169,9 +169,9 @@
 }
 
 .avatar-orb.active {
-  box-shadow: 0 0 20px rgba(99, 102, 241, 0.5);
+  box-shadow: 0 0 25px rgba(245, 158, 11, 0.65);
   transform: scale(1.05);
-  border-color: #818cf8;
+  border-color: #ffffff;
 }
 
 .avatar-orb:hover:not(.active) {
