@@ -102,6 +102,7 @@ export default function ViajesApp() {
   });
   const [isListeningVoice, setIsListeningVoice] = useState(false);
   const [voiceDialogueStep, setVoiceDialogueStep] = useState('IDLE');
+  const [destinationError, setDestinationError] = useState('');
 
   // Preferencias Especiales del Viaje (A/C, Mascotas, Pasajeros, Equipaje, Contextura/Peso)
   const [tripPreferences, setTripPreferences] = useState({
@@ -499,9 +500,27 @@ export default function ViajesApp() {
     }
 
     if (!dCoords) {
-      dCoords = { lat: 13.6738, lng: -89.2789 };
-      setDestinationCoords(dCoords);
+      // Notificar por escrito y por audio que no se encontró el lugar, y solicitar de nuevo la dirección
+      const errorMsg = `No se encontró "${spokenText}". Por favor, indica otra referencia o colonia.`;
+      setDestinationError(errorMsg);
+      setDestinationCoords(null);
+      setVoiceDialogueStep('AWAITING_DESTINATION');
+
+      const speechPrompt = `No logré encontrar "${spokenText}". Por favor, dime otra referencia, calle o punto conocido.`;
+      speakAndThenListen(speechPrompt, {
+        onListeningChange: (listening) => setIsListeningVoice(listening),
+        onResult: (newSpokenText) => processVoiceDestination(newSpokenText, currentOriginCoords),
+        onError: (err) => {
+          console.warn('Error al reintentar destino:', err);
+          setIsListeningVoice(false);
+          setVoiceDialogueStep('IDLE');
+        }
+      });
+      return;
     }
+
+    // Destino encontrado exitosamente: limpiar cualquier error previo
+    setDestinationError('');
 
     const oCoords = currentOriginCoords || originCoords || { lat: 13.7013, lng: -89.2244 };
 
@@ -1137,11 +1156,17 @@ export default function ViajesApp() {
                         {isListeningVoice ? 'Asistente de Voz Escuchando...' : 'Asistente Procesando...'}
                       </p>
                       <p className="text-[11px] text-amber-300/80">
-                        {voiceDialogueStep === 'AWAITING_DESTINATION' && 'Dicta tu destino (ej. Metrocentro)...'}
-                        {voiceDialogueStep === 'CALCULATING_ROUTE' && 'Calculando distancia y tarifa...'}
-                        {voiceDialogueStep === 'CONFIRMING_SEARCH' && 'Responde: "Sí" para buscar o "No" para ajustar...'}
-                        {voiceDialogueStep === 'AWAITING_ADJUSTMENT' && 'Menciona qué deseas cambiar (tarifa, aire, pasajeros, mascotas)...'}
-                        {voiceDialogueStep === 'AWAITING_FARE_INPUT' && 'Di la tarifa en dólares (ej. 3 dólares)...'}
+                        {destinationError ? (
+                          <span className="text-rose-300 font-bold">{destinationError}</span>
+                        ) : (
+                          <>
+                            {voiceDialogueStep === 'AWAITING_DESTINATION' && 'Dicta tu destino (ej. Metrocentro)...'}
+                            {voiceDialogueStep === 'CALCULATING_ROUTE' && 'Calculando distancia y tarifa...'}
+                            {voiceDialogueStep === 'CONFIRMING_SEARCH' && 'Responde: "Sí" para buscar o "No" para ajustar...'}
+                            {voiceDialogueStep === 'AWAITING_ADJUSTMENT' && 'Menciona qué deseas cambiar (tarifa, aire, pasajeros, mascotas)...'}
+                            {voiceDialogueStep === 'AWAITING_FARE_INPUT' && 'Di la tarifa en dólares (ej. 3 dólares)...'}
+                          </>
+                        )}
                       </p>
                     </div>
                   </div>
@@ -1242,7 +1267,10 @@ export default function ViajesApp() {
                     type="text"
                     required
                     value={destination}
-                    onChange={(e) => setDestination(e.target.value)}
+                    onChange={(e) => {
+                      setDestination(e.target.value);
+                      if (destinationError) setDestinationError('');
+                    }}
                     placeholder="Escoge tu rumbo... (Ej. Metrocentro, Multiplaza, Colonia...)"
                     className="w-full pl-3 pr-20 py-3 bg-slate-800/80 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-rose-400 text-sm"
                   />
@@ -1270,6 +1298,25 @@ export default function ViajesApp() {
                     </button>
                   </div>
                 </div>
+
+                {/* Notificación visual por escrito si el destino no es encontrado */}
+                {destinationError && (
+                  <div className="mt-2 p-2.5 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs flex items-center justify-between gap-2 animate-fade-in shadow-sm">
+                    <div className="flex items-center gap-2">
+                      <AlertTriangle className="w-4 h-4 text-rose-400 flex-shrink-0" />
+                      <span className="leading-tight font-medium text-[11px] sm:text-xs">
+                        {destinationError}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowDestMapModal(true)}
+                      className="px-2.5 py-1 bg-rose-500 hover:bg-rose-400 text-slate-950 font-black rounded-lg text-[10px] whitespace-nowrap cursor-pointer transition-colors"
+                    >
+                      Fijar en Mapa
+                    </button>
+                  </div>
+                )}
 
                 <div className="flex items-center justify-between mt-1 px-1 text-[11px]">
                   <button
