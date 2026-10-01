@@ -2480,9 +2480,38 @@ export default function ViajesApp() {
         onClose={() => setShowMapModal(false)}
         initialCoords={originCoords || { lat: 13.7013, lng: -89.2244 }}
         initialAddress={origin}
-        onConfirm={({ address, lat, lng }) => {
+        onConfirm={async ({ address, lat, lng }) => {
           setOrigin(address);
-          setOriginCoords({ lat, lng });
+          const oCoords = { lat, lng };
+          setOriginCoords(oCoords);
+
+          if (destinationCoords) {
+            const routeRes = await calculateRoadDistance(oCoords, destinationCoords);
+            const distKm = routeRes?.distanceKm || 5.0;
+            const durMin = routeRes?.durationMinutes || 14;
+            const delayMin = routeRes?.delayMinutes || 0;
+            setRoadDistanceKm(distKm);
+            setEstimatedDurationMin(durMin);
+            setTrafficInfo({
+              trafficLevel: routeRes?.trafficLevel || 'FLUID',
+              trafficColor: routeRes?.trafficColor || '#10B981',
+              trafficLabel: routeRes?.trafficLabel || 'Tráfico Fluido',
+              delayMinutes: delayMin,
+              rushHourContext: routeRes?.rushHourContext || 'Horario Normal'
+            });
+            const fareData = calculateSuggestedFare(
+              distKm,
+              transportType === 'MOTO' ? 115.0 : 42.0,
+              3.80,
+              delayMin,
+              { ...tripPreferences, transportType }
+            );
+            setProposedFare(fareData.suggestedFare);
+            const speechMsg = `Pin de recogida colocado en ${address}, a ${distKm} kilómetros de tu destino y tiempo de llegada aproximado en ${durMin} minutos.`;
+            speakAssistantMessage(speechMsg);
+          } else {
+            speakAssistantMessage(`Pin de recogida colocado en ${address}.`);
+          }
         }}
       />
 
@@ -2490,14 +2519,45 @@ export default function ViajesApp() {
       <DestinationMapModal
         isOpen={showDestMapModal}
         onClose={() => setShowDestMapModal(false)}
+        originCoords={originCoords}
         initialCoords={destinationCoords || { lat: 13.6738, lng: -89.2789 }}
         initialAddress={destination}
-        onConfirm={({ address, lat, lng, municipality }) => {
+        onConfirm={async ({ address, lat, lng, municipality, distanceKm, durationMinutes }) => {
           setDestination(address);
-          setDestinationCoords({ lat, lng });
+          const dCoords = { lat, lng };
+          setDestinationCoords(dCoords);
           if (municipality) {
             setDestinationMunicipality(municipality);
           }
+
+          const oCoords = originCoords || { lat: 13.7013, lng: -89.2244 };
+          const routeRes = await calculateRoadDistance(oCoords, dCoords);
+          const distKm = routeRes?.distanceKm || distanceKm || 5.0;
+          const durMin = routeRes?.durationMinutes || durationMinutes || 14;
+          const delayMin = routeRes?.delayMinutes || 0;
+
+          setRoadDistanceKm(distKm);
+          setEstimatedDurationMin(durMin);
+          setTrafficInfo({
+            trafficLevel: routeRes?.trafficLevel || 'FLUID',
+            trafficColor: routeRes?.trafficColor || '#10B981',
+            trafficLabel: routeRes?.trafficLabel || 'Tráfico Fluido',
+            delayMinutes: delayMin,
+            rushHourContext: routeRes?.rushHourContext || 'Horario Normal'
+          });
+
+          const fareData = calculateSuggestedFare(
+            distKm,
+            transportType === 'MOTO' ? 115.0 : 42.0,
+            3.80,
+            delayMin,
+            { ...tripPreferences, transportType }
+          );
+          setProposedFare(fareData.suggestedFare);
+
+          // Confirmación por audio requerida al ubicar el pin en el mapa
+          const speechMsg = `Pin colocado en ${address}, que está ubicado a ${distKm} kilómetros y tiempo de llegada aproximado en ${durMin} minutos. La tarifa sugerida es de ${fareData.suggestedFare} dólares.`;
+          speakAssistantMessage(speechMsg);
         }}
       />
 

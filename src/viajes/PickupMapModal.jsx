@@ -46,6 +46,11 @@ export default function PickupMapModal({
       }).addTo(map);
       circleRef.current = circle;
 
+      // Al hacer click en el mapa, centrar el pin en esa coordenada
+      map.on('click', (e) => {
+        map.panTo(e.latlng);
+      });
+
       // Al mover el mapa, actualizar centro y radio
       map.on('move', () => {
         const center = map.getCenter();

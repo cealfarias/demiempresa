@@ -2,13 +2,14 @@ import React, { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { X, MapPin, Navigation, CheckCircle, Loader2, Search } from 'lucide-react';
-import { evaluateSalvadoranTraffic } from './fuelService';
+import { evaluateSalvadoranTraffic, calculateRoadDistance } from './fuelService';
 
 export default function DestinationMapModal({
   isOpen,
   onClose,
   initialCoords = { lat: 13.6738, lng: -89.2789 },
   initialAddress = '',
+  originCoords = null,
   onConfirm
 }) {
   const mapContainerRef = useRef(null);
@@ -21,6 +22,7 @@ export default function DestinationMapModal({
   const [isGettingGps, setIsGettingGps] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
+  const [routeDistanceInfo, setRouteDistanceInfo] = useState({ distanceKm: null, durationMinutes: null });
 
   // Inicializar o destruir el mapa Leaflet
   useEffect(() => {
@@ -38,6 +40,10 @@ export default function DestinationMapModal({
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
         maxZoom: 19
       }).addTo(map);
+
+      map.on('click', (e) => {
+        map.panTo(e.latlng);
+      });
 
       map.on('moveend', () => {
         const center = map.getCenter();
@@ -94,6 +100,19 @@ export default function DestinationMapModal({
         } else {
           setDetectedMunicipality('San Salvador');
         }
+
+        // Calcular distancia y tiempo real en carretera desde originCoords
+        const effectiveOrigin = originCoords || { lat: 13.7013, lng: -89.2244 };
+        calculateRoadDistance(effectiveOrigin, { lat, lng })
+          .then((route) => {
+            if (route) {
+              setRouteDistanceInfo({
+                distanceKm: route.distanceKm,
+                durationMinutes: route.durationMinutes
+              });
+            }
+          })
+          .catch(() => {});
       }
     } catch (err) {
       console.warn('Error en reverse geocode destino:', err);
@@ -154,7 +173,9 @@ export default function DestinationMapModal({
       address,
       lat: currentCoords.lat,
       lng: currentCoords.lng,
-      municipality: detectedMunicipality
+      municipality: detectedMunicipality,
+      distanceKm: routeDistanceInfo.distanceKm,
+      durationMinutes: routeDistanceInfo.durationMinutes
     });
     onClose();
   };
@@ -250,10 +271,15 @@ export default function DestinationMapModal({
         {/* Barra Inferior de Confirmación & Estado del Tráfico */}
         <div className="bg-slate-900 border-t border-slate-800 p-4 sm:p-5 z-[1000] space-y-2">
           {(() => {
-            const trafficStatus = evaluateSalvadoranTraffic(null, currentCoords, 15);
+            const trafficStatus = evaluateSalvadoranTraffic(originCoords, currentCoords, routeDistanceInfo.durationMinutes || 15);
             return (
               <div className="text-[11px] text-slate-400 flex items-center justify-between">
                 <span>Municipio: <strong className="text-rose-400">{detectedMunicipality}</strong></span>
+                {routeDistanceInfo.distanceKm ? (
+                  <span className="font-bold text-amber-300">
+                    📍 {routeDistanceInfo.distanceKm} km • ~{routeDistanceInfo.durationMinutes} min
+                  </span>
+                ) : null}
                 <span className="flex items-center gap-1.5 font-bold" style={{ color: trafficStatus.trafficColor }}>
                   <span className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: trafficStatus.trafficColor }} />
                   <span>{trafficStatus.trafficLabel}</span>
