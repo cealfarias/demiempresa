@@ -246,6 +246,10 @@ CREATE TABLE IF NOT EXISTS viajes_gas_reports (
 );
 
 -- 9.1 EXTENSIÓN PARA EXPEDIENTE DIGITAL Y REGISTRO DE CONDUCTORES
+ALTER TABLE viajes_driver_profiles ADD COLUMN IF NOT EXISTS license_number VARCHAR(30);
+ALTER TABLE viajes_driver_profiles ADD COLUMN IF NOT EXISTS approval_status VARCHAR(20) DEFAULT 'PENDING';
+ALTER TABLE viajes_driver_profiles ADD COLUMN IF NOT EXISTS approved_at TIMESTAMP WITH TIME ZONE;
+ALTER TABLE viajes_driver_profiles ADD COLUMN IF NOT EXISTS approved_by VARCHAR(64);
 ALTER TABLE viajes_driver_profiles ADD COLUMN IF NOT EXISTS dui_front_url TEXT;
 ALTER TABLE viajes_driver_profiles ADD COLUMN IF NOT EXISTS dui_back_url TEXT;
 ALTER TABLE viajes_driver_profiles ADD COLUMN IF NOT EXISTS license_front_url TEXT;
