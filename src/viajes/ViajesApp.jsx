@@ -1479,14 +1479,15 @@ export default function ViajesApp() {
           // Renderizar botón oficial GSI en el encabezado si no hay usuario logueado
           if (headerGoogleButtonRef.current && !userProfile) {
             headerGoogleButtonRef.current.innerHTML = '';
+            const isSmallScreen = typeof window !== 'undefined' && window.innerWidth < 640;
             window.google.accounts.id.renderButton(headerGoogleButtonRef.current, {
               type: 'standard',
               theme: isLight ? 'outline' : 'filled_blue',
               size: 'medium',
-              text: 'signin_with',
+              text: 'signin',
               shape: 'pill',
               logo_alignment: 'left',
-              width: 180
+              width: isSmallScreen ? 125 : 180
             });
           }
 
@@ -1670,17 +1671,19 @@ export default function ViajesApp() {
   };
 
   return (
-    <div className={`min-h-screen flex flex-col font-sans transition-colors duration-200 ${
+    <div className={`min-h-screen w-full max-w-full overflow-x-hidden flex flex-col font-sans transition-colors duration-200 ${
       isLight ? 'bg-slate-100 text-slate-800' : 'bg-slate-950 text-slate-100'
     }`}>
       
       {/* Barra Superior Oficial Rumbo */}
-      <header className={`border-b backdrop-blur sticky top-0 z-40 px-4 py-3 flex items-center justify-between transition-colors ${
+      <header className={`border-b backdrop-blur sticky top-0 z-40 px-2.5 sm:px-4 py-2 sm:py-3 flex items-center justify-between transition-colors w-full max-w-full overflow-hidden ${
         isLight ? 'bg-white/95 border-slate-200' : 'bg-slate-900/90 border-slate-800'
       }`}>
-        <RumboLogo />
+        <div className="flex-shrink-0">
+          <RumboLogo />
+        </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
           {/* Avatar Oficial del Asistente de Voz (Ámbar y Blanco) */}
           <button
             type="button"
@@ -1695,7 +1698,7 @@ export default function ViajesApp() {
                 ? 'Asistente escuchando tu destino, presiona para pausar'
                 : 'Activar asistente de voz Rumbo'
             }
-            className={`p-1 pl-1.5 pr-2.5 rounded-full border flex items-center gap-2 transition-all cursor-pointer focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:outline-none ${
+            className={`p-1 sm:pl-1.5 sm:pr-2.5 rounded-full border flex items-center gap-1.5 sm:gap-2 transition-all cursor-pointer focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:outline-none flex-shrink-0 ${
               isListeningVoice
                 ? 'bg-amber-500/20 border-amber-400 ring-2 ring-amber-400/50 shadow-lg shadow-amber-500/30'
                 : 'bg-slate-800/80 border-slate-700/80 hover:border-amber-400/50 hover:bg-slate-800'
@@ -1713,7 +1716,7 @@ export default function ViajesApp() {
               <Mic className={`w-3.5 h-3.5 text-white drop-shadow-sm ${isListeningVoice ? 'animate-bounce' : ''}`} />
             </div>
 
-            <div className="flex flex-col text-left leading-none">
+            <div className="hidden sm:flex flex-col text-left leading-none">
               <span className="text-[11px] font-black text-white">
                 Asistente
               </span>
@@ -1731,42 +1734,27 @@ export default function ViajesApp() {
             </div>
           )}
 
-          {/* Selector Mutuamente Excluyente de Tema: Solecito / Media Luna */}
-          <div className={`flex items-center p-0.5 rounded-full border transition-all ${
-            isLight ? 'bg-slate-200/80 border-slate-300' : 'bg-slate-800/90 border-slate-700'
-          }`}>
-            <button
-              type="button"
-              onClick={() => toggleTheme('light')}
-              title="Tema Claro"
-              className={`p-1.5 rounded-full transition-all cursor-pointer ${
-                theme === 'light'
-                  ? 'bg-amber-400 text-slate-950 shadow-md font-black scale-105'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              <Sun className="w-4 h-4" />
-            </button>
-            <button
-              type="button"
-              onClick={() => toggleTheme('dark')}
-              title="Tema Oscuro"
-              className={`p-1.5 rounded-full transition-all cursor-pointer ${
-                theme === 'dark'
-                  ? 'bg-lime-500 text-slate-950 shadow-md font-black scale-105'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              <Moon className="w-4 h-4" />
-            </button>
-          </div>
+          {/* Selector de Tema Compacto */}
+          <button
+            type="button"
+            onClick={() => toggleTheme(theme === 'dark' ? 'light' : 'dark')}
+            title={theme === 'dark' ? 'Cambiar a tema claro' : 'Cambiar a tema oscuro'}
+            aria-label="Cambiar tema de color"
+            className={`p-1.5 sm:p-2 rounded-full border transition-all cursor-pointer flex-shrink-0 ${
+              isLight
+                ? 'bg-amber-100/90 border-amber-300 text-amber-800 hover:bg-amber-200'
+                : 'bg-slate-800/90 border-slate-700 text-lime-400 hover:bg-slate-700'
+            }`}
+          >
+            {isLight ? <Sun className="w-4 h-4 text-amber-600" /> : <Moon className="w-4 h-4 text-lime-400" />}
+          </button>
 
           {/* BOTÓN ENCABEZADO SUPERIOR DERECHO: INGRESO OFICIAL CON GOOGLE O SALDO DE BONOS */}
           {!userProfile ? (
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center flex-shrink-0">
               <div
                 ref={headerGoogleButtonRef}
-                className="min-h-[36px] flex items-center justify-end rounded-full overflow-hidden shadow-sm"
+                className="min-h-[36px] flex items-center justify-end rounded-full overflow-hidden shadow-sm flex-shrink-0"
               />
               {/* Fallback de respaldo en caso de bloqueo de script o sin conexión */}
               {!window.google?.accounts?.id && (
@@ -1774,7 +1762,7 @@ export default function ViajesApp() {
                   type="button"
                   onClick={handleGoogleSignInClick}
                   title="Ingresa con Google y obtén tu bono de $1.00 USD"
-                  className="px-2.5 sm:px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-900 border border-slate-200 rounded-full flex items-center gap-2 shadow-sm transition-all cursor-pointer group active:scale-95"
+                  className="px-2 sm:px-3 py-1 sm:py-1.5 bg-white hover:bg-slate-50 text-slate-900 border border-slate-200 rounded-full flex items-center gap-1.5 shadow-sm transition-all cursor-pointer group active:scale-95 flex-shrink-0"
                 >
                   <svg className="w-4 h-4 flex-shrink-0 group-hover:scale-110 transition-transform" viewBox="0 0 24 24">
                     <path fill="#EA4335" d="M12 5c1.6 0 3 .6 4.1 1.6l3.1-3.1C17.3 1.7 14.8 1 12 1 7.4 1 3.5 3.6 1.6 7.4l3.7 2.9C6.2 7.4 8.9 5 12 5z" />
@@ -1782,12 +1770,12 @@ export default function ViajesApp() {
                     <path fill="#FBBC05" d="M5.3 14.7c-.2-.7-.4-1.5-.4-2.3s.2-1.6.4-2.3L1.6 7.2C.6 9.2 0 11.5 0 14s.6 4.8 1.6 6.8l3.7-2.9" />
                     <path fill="#34A853" d="M12 23c3.2 0 6-1.1 8-3l-3.7-2.9c-1.1.7-2.5 1.2-4.3 1.2-3.1 0-5.8-2.4-6.7-5.3L1.6 16c1.9 3.8 5.8 7 10.4 7z" />
                   </svg>
-                  <div className="flex items-center gap-1.5 leading-none">
+                  <div className="flex items-center gap-1 leading-none">
                     <span className="text-[11px] font-bold text-slate-800">
                       Ingresar
                     </span>
-                    <span className="text-[10px] font-black text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded-full border border-amber-200">
-                      +$1.00
+                    <span className="text-[10px] font-black text-amber-600 bg-amber-100 px-1 py-0.5 rounded-full border border-amber-200">
+                      +$1
                     </span>
                   </div>
                 </button>
@@ -1798,7 +1786,7 @@ export default function ViajesApp() {
               type="button"
               onClick={() => setShowBonusesAccountModal(true)}
               title="Ver crédito de bonos, vencimiento y referir amigos"
-              className="px-2 sm:px-3 py-1 bg-gradient-to-r from-amber-500/15 to-yellow-500/15 hover:from-amber-500/25 hover:to-yellow-500/25 border border-amber-400/50 rounded-full flex items-center gap-2 shadow-sm transition-all cursor-pointer active:scale-95"
+              className="px-2 sm:px-3 py-1 bg-gradient-to-r from-amber-500/15 to-yellow-500/15 hover:from-amber-500/25 hover:to-yellow-500/25 border border-amber-400/50 rounded-full flex items-center gap-1.5 sm:gap-2 shadow-sm transition-all cursor-pointer active:scale-95 flex-shrink-0"
             >
               {userProfile.photoUrl ? (
                 <img

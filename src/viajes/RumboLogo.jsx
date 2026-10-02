@@ -48,7 +48,7 @@ export default function RumboLogo({ className = 'h-8', showText = true, textClas
               Rumbo
             </span>
           </div>
-          <span className="text-[10px] text-amber-400 font-semibold tracking-wider uppercase -mt-0.5">
+          <span className="hidden sm:inline text-[10px] text-amber-400 font-semibold tracking-wider uppercase -mt-0.5">
             A mi destino
           </span>
         </div>

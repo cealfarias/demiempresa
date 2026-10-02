@@ -24,13 +24,25 @@ html.light, body.light {
   color: #0F172A;
 }
 
-body {
+html, body {
   margin: 0;
   padding: 0;
+  width: 100%;
+  max-width: 100vw;
+  overflow-x: hidden;
+}
+
+body {
   min-width: 320px;
   min-height: 100vh;
   font-size: 14px;
   transition: background-color 0.25s ease, color 0.25s ease;
+}
+
+#root {
+  width: 100%;
+  max-width: 100vw;
+  overflow-x: hidden;
 }
 
 * {
