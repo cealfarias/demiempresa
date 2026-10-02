@@ -95,15 +95,25 @@ function getSystemAuthorityKeys() {
 export const LedgerService = {
   /**
    * 1. Crear o recuperar la Identidad de Wallet Criptográfica del Usuario
+   * Conductor: referral_code = NULL
+   * Pasajero: referral_code = 'RMBXXXXXX'
    */
-  async getOrCreateWalletIdentity(userId, clientDb = null) {
+  async getOrCreateWalletIdentity(userId, clientDb = null, role = null) {
     const db = clientDb || pool;
+    const userRoleRes = await db.query('SELECT role FROM viajes_users WHERE id::text = $1', [userId.toString()]);
+    const userRole = role || (userRoleRes.rows[0]?.role || 'PASSENGER');
+
     const existing = await db.query(
       'SELECT id, user_id, public_key, address, referral_code, created_at FROM viajes_wallet_identities WHERE user_id = $1',
       [userId.toString()]
     );
 
     if (existing.rowCount > 0) {
+      // Blindaje: Si la cuenta tiene rol DRIVER pero conservaba código de referido, anularlo
+      if (userRole === 'DRIVER' && existing.rows[0].referral_code) {
+        await db.query('UPDATE viajes_wallet_identities SET referral_code = NULL WHERE id = $1', [existing.rows[0].id]);
+        existing.rows[0].referral_code = null;
+      }
       return existing.rows[0];
     }
 
@@ -113,7 +123,8 @@ export const LedgerService = {
     });
 
     const address = 'rmb_' + crypto.createHash('sha256').update(publicKey).digest('hex').slice(0, 40);
-    const referralCode = 'RMB' + crypto.randomBytes(3).toString('hex').toUpperCase();
+    // Solo los pasajeros tienen derecho a generar y portar código de referido
+    const referralCode = userRole === 'PASSENGER' ? ('RMB' + crypto.randomBytes(3).toString('hex').toUpperCase()) : null;
     const encryptedKey = encryptPrivateKey(privateKey);
 
     const res = await db.query(`
@@ -127,6 +138,7 @@ export const LedgerService = {
 
   /**
    * 2. Acreditar Bono de Bienvenida ($1.00 USD) al Pasajero - Válido por 7 Días
+   * Blindaje: Solo usuarios con rol PASSENGER. Los conductores NO reciben bienvenida.
    */
   async grantWelcomeBonus(userId) {
     const client = await pool.connect();
@@ -134,7 +146,19 @@ export const LedgerService = {
       await client.query('BEGIN');
       await client.query('SELECT pg_advisory_xact_lock($1)', [ADVISORY_LOCK_ID]);
 
-      const wallet = await this.getOrCreateWalletIdentity(userId, client);
+      // Verificar rol del usuario
+      const userRes = await client.query('SELECT role FROM viajes_users WHERE id::text = $1', [userId.toString()]);
+      const userRole = userRes.rows[0]?.role || 'PASSENGER';
+
+      if (userRole !== 'PASSENGER') {
+        await client.query('COMMIT');
+        return {
+          success: false,
+          message: 'Cortafuegos de Roles: Los conductores no reciben bonos de bienvenida promocionales. Su billetera inicia en $0.00 USD.'
+        };
+      }
+
+      const wallet = await this.getOrCreateWalletIdentity(userId, client, 'PASSENGER');
 
       // Prevenir doble bienvenida
       const existing = await client.query(
@@ -199,6 +223,7 @@ export const LedgerService = {
 
   /**
    * 3. Registrar Referido en Estado PENDIENTE DE ACTIVACIÓN (Temporizador 7 Días)
+   * Cortafuegos: ÚNICAMENTE usuarios con rol PASSENGER. Los conductores no participan en referidos.
    * El anfitrión ganará el bono solo si el invitado completa un viaje >= $4.00 en los próximos 7 días
    */
   async registerReferralPending(hostUserId, referredUserId) {
@@ -207,7 +232,31 @@ export const LedgerService = {
       await client.query('BEGIN');
       await client.query('SELECT pg_advisory_xact_lock($1)', [ADVISORY_LOCK_ID]);
 
-      const hostWallet = await this.getOrCreateWalletIdentity(hostUserId, client);
+      // Cortafuegos de rol: Verificar que anfitrión y referido sean PASSENGER
+      const usersRes = await client.query(`
+        SELECT id, role FROM viajes_users WHERE id::text IN ($1, $2)
+      `, [hostUserId.toString(), referredUserId.toString()]);
+
+      const host = usersRes.rows.find(u => u.id.toString() === hostUserId.toString());
+      const referred = usersRes.rows.find(u => u.id.toString() === referredUserId.toString());
+
+      if (!host || host.role !== 'PASSENGER') {
+        await client.query('COMMIT');
+        return {
+          success: false,
+          message: 'Cortafuegos de Roles: Solo los usuarios con rol PASSENGER pueden invitar y ganar bonos. Los conductores no participan en referidos.'
+        };
+      }
+
+      if (!referred || referred.role !== 'PASSENGER') {
+        await client.query('COMMIT');
+        return {
+          success: false,
+          message: 'Cortafuegos de Roles: Solo usuarios con rol PASSENGER pueden ser referidos con bonos.'
+        };
+      }
+
+      const hostWallet = await this.getOrCreateWalletIdentity(hostUserId, client, 'PASSENGER');
 
       // Prevenir duplicado de referido entre los mismos usuarios
       const existing = await client.query(
@@ -636,6 +685,155 @@ export const LedgerService = {
       };
     } catch (err) {
       await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  },
+
+  /**
+   * Alias de compatibilidad para registro de referidos en estado pendiente
+   */
+  async grantReferralBonus(hostUserId, referredUserId) {
+    return this.registerReferralPending(hostUserId, referredUserId);
+  },
+
+  /**
+   * 6.1 CORTAFUEGOS Y BLINDAJE ANTI-ARBITRAJE:
+   * Aprobación Administrativa de Conductor con Quema de Bonos Promocionales
+   * Si un pasajero solicita formalmente pasar a ser conductor y es aprobado:
+   * 1. Se queman/cancelan automáticamente todos sus bonos promocionales ('WELCOME_BONUS', 'REFERRAL_BONUS')
+   *    mediante un asiento encadenado inmutable en el ledger ('ROLE_TRANSITION_CANCELLATION').
+   * 2. Se anula permanentemente su referral_code en la wallet.
+   * 3. Se actualiza su rol a 'DRIVER' y su perfil a 'APPROVED'.
+   * 4. Su balance de conductor inicia estrictamente en 0.00 USD.
+   */
+  async cancelPromotionalBonusesOnDriverApproval(userId, adminApproverId = 'ADMIN_SUPERVISOR') {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query('SELECT pg_advisory_xact_lock($1)', [ADVISORY_LOCK_ID]);
+
+      // 1. Obtener la wallet del usuario
+      const walletRes = await client.query(
+        'SELECT * FROM viajes_wallet_identities WHERE user_id = $1',
+        [userId.toString()]
+      );
+
+      let burnedBonusesCount = 0;
+      let totalBurnedAmount = 0.00;
+      const burnTransactions = [];
+
+      if (walletRes.rowCount > 0) {
+        const wallet = walletRes.rows[0];
+
+        // 2. Localizar todos los tokens promocionales vigentes o pendientes no gastados
+        const promoTokensRes = await client.query(`
+          SELECT * FROM viajes_ledger_transactions
+          WHERE to_address = $1
+            AND is_spent = FALSE
+            AND transaction_type IN ('WELCOME_BONUS', 'REFERRAL_BONUS')
+          FOR UPDATE;
+        `, [wallet.address]);
+
+        const promoTokens = promoTokensRes.rows;
+
+        if (promoTokens.length > 0) {
+          let lastBlock = (await client.query(
+            'SELECT current_hash, sequence_number FROM viajes_ledger_transactions ORDER BY sequence_number DESC LIMIT 1'
+          )).rows[0];
+
+          const txType = 'ROLE_TRANSITION_CANCELLATION';
+          const { privateKey } = getSystemAuthorityKeys();
+
+          for (const token of promoTokens) {
+            const prevHash = lastBlock.current_hash;
+            const nextSeq = parseInt(lastBlock.sequence_number, 10) + 1;
+            const amount = parseFloat(token.amount).toFixed(2);
+            totalBurnedAmount += parseFloat(token.amount);
+            burnedBonusesCount++;
+
+            const payload = `${prevHash}|${nextSeq}|${wallet.address}|${SYSTEM_BURN_VAULT}|${amount}|${token.id}|${txType}|DRIVER_APPROVAL_CANCELLATION`;
+            const signature = signPayload(privateKey, payload);
+
+            const currentHash = calculateBlockHash({
+              previous_hash: prevHash,
+              sequence_number: nextSeq,
+              from_address: wallet.address,
+              to_address: SYSTEM_BURN_VAULT,
+              amount,
+              input_ref: token.id,
+              transaction_type: txType,
+              expires_at: new Date(Date.now() + 3650 * 24 * 60 * 60 * 1000).toISOString(),
+              signature
+            });
+
+            const burnTx = (await client.query(`
+              INSERT INTO viajes_ledger_transactions (
+                sequence_number, previous_hash, from_address, to_address, amount,
+                input_ref, is_spent, expires_at, status, transaction_type, reference_id,
+                signature, current_hash
+              ) VALUES ($1, $2, $3, $4, $5, $6, TRUE, NOW(), 'CANCELLED', $7, $8, $9, $10)
+              RETURNING *;
+            `, [
+              nextSeq, prevHash, wallet.address, SYSTEM_BURN_VAULT, amount,
+              token.id, txType, `APPROVAL_BY_${adminApproverId}`, signature, currentHash
+            ])).rows[0];
+
+            // Marcar el token original como consumido/cancelado
+            await client.query(`
+              UPDATE viajes_ledger_transactions
+              SET is_spent = TRUE,
+                  status = 'CANCELLED',
+                  spent_at = NOW(),
+                  spending_tx_id = $1
+              WHERE id = $2;
+            `, [burnTx.id, token.id]);
+
+            lastBlock = burnTx;
+            burnTransactions.push(burnTx);
+          }
+        }
+
+        // 3. Anular código de referido para el nuevo conductor
+        await client.query(`
+          UPDATE viajes_wallet_identities
+          SET referral_code = NULL
+          WHERE id = $1;
+        `, [wallet.id]);
+      }
+
+      // 4. Actualizar rol a 'DRIVER' en viajes_users
+      await client.query(`
+        UPDATE viajes_users
+        SET role = 'DRIVER'
+        WHERE id::text = $1;
+      `, [userId.toString()]);
+
+      // 5. Actualizar perfil de conductor a 'APPROVED'
+      await client.query(`
+        UPDATE viajes_driver_profiles
+        SET approval_status = 'APPROVED',
+            approved_at = NOW(),
+            approved_by = $1,
+            is_active = TRUE
+        WHERE user_id::text = $2;
+      `, [adminApproverId, userId.toString()]);
+
+      await client.query('COMMIT');
+
+      return {
+        success: true,
+        userId,
+        burnedBonusesCount,
+        burnedAmount: totalBurnedAmount.toFixed(2),
+        newDriverBalance: '0.00',
+        approvalStatus: 'APPROVED',
+        message: `Conductor aprobado exitosamente. Se cancelaron ${burnedBonusesCount} bono(s) promocionales ($${totalBurnedAmount.toFixed(2)} USD). El balance de conductor inicia en $0.00 USD.`
+      };
+    } catch (err) {
+      await client.query('ROLLBACK');
+      console.error('Error al aprobar conductor y cancelar bonos:', err);
       throw err;
     } finally {
       client.release();

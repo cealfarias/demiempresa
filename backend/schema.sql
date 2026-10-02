@@ -75,10 +75,14 @@ CREATE TABLE IF NOT EXISTS viajes_users (
 CREATE TABLE IF NOT EXISTS viajes_driver_profiles (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL UNIQUE REFERENCES viajes_users(id) ON DELETE CASCADE,
-    vehicle_plate VARCHAR(20) NOT NULL,
+    vehicle_plate VARCHAR(20) NOT NULL UNIQUE,
     vehicle_brand VARCHAR(50) NOT NULL,
     vehicle_model VARCHAR(50) NOT NULL,
     vehicle_color VARCHAR(30) NOT NULL,
+    license_number VARCHAR(30) UNIQUE,
+    approval_status VARCHAR(20) NOT NULL DEFAULT 'PENDING' CHECK (approval_status IN ('PENDING', 'APPROVED', 'REJECTED', 'SUSPENDED')),
+    approved_at TIMESTAMP WITH TIME ZONE,
+    approved_by VARCHAR(64),
     photo_url TEXT NOT NULL,
     is_active BOOLEAN NOT NULL DEFAULT FALSE,
     is_online BOOLEAN NOT NULL DEFAULT FALSE,
@@ -331,7 +335,7 @@ CREATE TABLE IF NOT EXISTS viajes_wallet_identities (
     public_key TEXT NOT NULL,
     encrypted_private_key TEXT NOT NULL,
     address VARCHAR(64) UNIQUE NOT NULL,
-    referral_code VARCHAR(16) UNIQUE NOT NULL,
+    referral_code VARCHAR(16) UNIQUE NULL, -- NULL para conductores
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -365,7 +369,8 @@ CREATE TABLE IF NOT EXISTS viajes_ledger_transactions (
             'WEEKLY_FEE_PAYMENT',
             'DRIVER_FEE_WAIVER',
             'CHANGE_OUTPUT',
-            'EXPIRED_SWEEP'
+            'EXPIRED_SWEEP',
+            'ROLE_TRANSITION_CANCELLATION'
         )
     ),
     reference_id VARCHAR(64) NULL,
@@ -380,4 +385,34 @@ CREATE INDEX IF NOT EXISTS idx_viajes_ledger_pending_referral ON viajes_ledger_t
 CREATE INDEX IF NOT EXISTS idx_viajes_ledger_from_address ON viajes_ledger_transactions(from_address);
 CREATE INDEX IF NOT EXISTS idx_viajes_ledger_sequence ON viajes_ledger_transactions(sequence_number DESC);
 CREATE INDEX IF NOT EXISTS idx_viajes_ledger_input_ref ON viajes_ledger_transactions(input_ref);
+
+-- RESTRICCIÓN DE INTEGRIDAD: Solo pasajeros pueden ser anfitriones de referidos
+CREATE OR REPLACE FUNCTION fn_check_passenger_referral_integrity()
+RETURNS TRIGGER AS $$
+DECLARE
+    referrer_role VARCHAR(20);
+    referred_role VARCHAR(20);
+BEGIN
+    SELECT role::text INTO referrer_role FROM viajes_users WHERE id = NEW.referrer_user_id;
+    SELECT role::text INTO referred_role FROM viajes_users WHERE id = NEW.referred_user_id;
+
+    IF referrer_role <> 'PASSENGER' THEN
+        RAISE EXCEPTION 'Cortafuegos de Roles: Solo los usuarios con rol PASSENGER pueden referir. Los conductores no participan en el programa de referidos.';
+    END IF;
+
+    IF referred_role <> 'PASSENGER' THEN
+        RAISE EXCEPTION 'Cortafuegos de Roles: Solo los usuarios con rol PASSENGER pueden ser referidos con bonos.';
+    END IF;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_check_passenger_referral_integrity ON viajes_referrals;
+
+CREATE TRIGGER trg_check_passenger_referral_integrity
+    BEFORE INSERT OR UPDATE ON viajes_referrals
+    FOR EACH ROW
+    EXECUTE FUNCTION fn_check_passenger_referral_integrity();
+
 

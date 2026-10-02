@@ -62,7 +62,7 @@ function isValidSalvadoranDUI(dui) {
 }
 
 app.post('/api/users/register', async (req, res) => {
-  const { fullName, phone, dui, role = 'PASSENGER', referrerCode } = req.body;
+  const { fullName, phone, dui, referrerCode } = req.body;
 
   if (!fullName || !phone || !dui) {
     return res.status(400).json({ error: 'Nombre, teléfono y DUI son obligatorios' });
@@ -71,6 +71,11 @@ app.post('/api/users/register', async (req, res) => {
   if (!isValidSalvadoranDUI(dui)) {
     return res.status(400).json({ error: 'El DUI no tiene un formato válido (ej. 01234567-8)' });
   }
+
+  // CORTAFUEGOS ESTRICTO DE ROLES:
+  // Todo autoregistro en la app móvil/web es exclusivamente PASSENGER.
+  // Los conductores tienen onboarding administrativo con validación de placas, DUI y licencia.
+  const role = 'PASSENGER';
 
   try {
     const userRes = await pool.query(`
@@ -205,6 +210,23 @@ app.get('/api/drivers/:driverProfileId/subscription', async (req, res) => {
       trialEndsAt: profile.trial_ends_at
     });
   } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 5.0 CORTAFUEGOS ANTI-ARBITRAJE: APROBACIÓN ADMINISTRATIVA DE CONDUCTORES
+// Quema automática de bonos promocionales de pasajero e inicio de balance en $0.00
+app.post('/api/admin/drivers/approve', async (req, res) => {
+  try {
+    const { userId, adminId = 'ADMIN_SUPERVISOR' } = req.body;
+    if (!userId) {
+      return res.status(400).json({ error: 'userId es obligatorio para la aprobación del conductor' });
+    }
+
+    const result = await LedgerService.cancelPromotionalBonusesOnDriverApproval(userId, adminId);
+    res.json(result);
+  } catch (err) {
+    console.error('Error al aprobar conductor administrativamente:', err);
     res.status(500).json({ error: err.message });
   }
 });
