@@ -27,6 +27,7 @@ import {
 import RumboLogo from './RumboLogo';
 import GasModal from './GasModal';
 import DriverRegistrationModal from './DriverRegistrationModal';
+import DriverLandingView from './DriverLandingView';
 import {
   calculateTripFuelCost,
   estimateFuelEconomy,
@@ -60,7 +61,7 @@ export default function DriverApp() {
     }
   });
 
-  const isApproved = !driverProfile || driverProfile.approvalStatus === 'APPROVED';
+  const isApproved = driverProfile && driverProfile.approvalStatus === 'APPROVED';
   const isPending = driverProfile?.approvalStatus === 'PENDING';
   const isRejected = driverProfile?.approvalStatus === 'REJECTED';
 
@@ -359,6 +360,33 @@ export default function DriverApp() {
     }
   };
 
+  // Si el conductor NO se ha registrado o su solicitud no está aprobada:
+  // NO le mostramos la consola operativa del radar, sino la presentación persuasiva de bienvenida
+  if (!isApproved) {
+    return (
+      <>
+        <DriverLandingView
+          onStartRegistration={() => setShowRegistrationModal(true)}
+          onCheckStatus={() => setShowRegistrationModal(true)}
+        />
+
+        {/* Modal de Registro y Expediente Digital de Conductor */}
+        <DriverRegistrationModal
+          isOpen={showRegistrationModal}
+          onClose={() => setShowRegistrationModal(false)}
+          existingDriverId={driverProfile?.id || driverProfile?.dui}
+          onDriverRegistered={(newProfile) => {
+            setDriverProfile(newProfile);
+            setDriverProfileId(newProfile.id);
+            if (newProfile.approvalStatus === 'APPROVED') {
+              setDriverOnline(true);
+            }
+          }}
+        />
+      </>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
       
@@ -444,6 +472,18 @@ export default function DriverApp() {
           >
             <span className={`w-2 h-2 rounded-full ${driverOnline ? 'bg-slate-950 animate-pulse' : 'bg-slate-500'}`}></span>
             <span>{driverOnline ? 'EN LÍNEA' : 'DESCONECTADO'}</span>
+          </button>
+
+          <button
+            onClick={() => {
+              localStorage.removeItem('rumbo_driver_profile');
+              setDriverProfile(null);
+              setDriverOnline(false);
+            }}
+            title="Cerrar sesión de conductor y volver a la página de bienvenida"
+            className="p-1.5 sm:px-2.5 sm:py-1.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-slate-100 text-xs font-bold border border-slate-700/60 transition-colors"
+          >
+            Salir
           </button>
         </div>
       </header>

@@ -27,6 +27,29 @@ export default function DriverRegistrationModal({ isOpen, onClose, onDriverRegis
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState(null);
   const [successData, setSuccessData] = useState(null);
+  const [lookupDui, setLookupDui] = useState('');
+  const [isLookingUp, setIsLookingUp] = useState(false);
+  const [lookupError, setLookupError] = useState(null);
+
+  const handleLookupByDui = async () => {
+    if (!lookupDui.trim()) return;
+    setIsLookingUp(true);
+    setLookupError(null);
+    try {
+      const data = await fetchDriverStatusApi(lookupDui.trim());
+      if (data && !data.error && data.id) {
+        setSuccessData(data);
+        localStorage.setItem('rumbo_driver_profile', JSON.stringify(data));
+        if (onDriverRegistered) onDriverRegistered(data);
+      } else {
+        setLookupError('No se encontró expediente con ese DUI. Puedes iniciar tu registro abajo.');
+      }
+    } catch {
+      setLookupError('No se encontró expediente registrado con ese DUI.');
+    } finally {
+      setIsLookingUp(false);
+    }
+  };
 
   // Form State
   const [form, setForm] = useState({
@@ -366,7 +389,33 @@ export default function DriverRegistrationModal({ isOpen, onClose, onDriverRegis
             {/* PASO 1: DATOS PERSONALES E IDENTIDAD */}
             {step === 1 && (
               <div className="space-y-4 animate-in fade-in-50 duration-200">
-                <div className="flex items-center gap-2 text-xs font-bold text-amber-400 uppercase tracking-wider">
+                {/* Consulta Rápida por DUI */}
+                <div className="p-3 bg-slate-900/90 border border-slate-800 rounded-2xl space-y-2">
+                  <div className="flex items-center justify-between text-[11px]">
+                    <span className="text-slate-400 font-bold">¿Ya te habías registrado anteriormente?</span>
+                    <span className="text-amber-400 font-semibold">Acceso rápido</span>
+                  </div>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      placeholder="Ingresa tu DUI (00000000-0)"
+                      value={lookupDui}
+                      onChange={(e) => setLookupDui(e.target.value)}
+                      className="flex-1 bg-slate-950 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-slate-100 font-mono focus:outline-none focus:border-amber-400"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleLookupByDui}
+                      disabled={isLookingUp}
+                      className="px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 text-xs font-bold transition-colors disabled:opacity-50 cursor-pointer"
+                    >
+                      {isLookingUp ? 'Buscando...' : 'Consultar'}
+                    </button>
+                  </div>
+                  {lookupError && <p className="text-[10px] text-rose-400 font-medium">{lookupError}</p>}
+                </div>
+
+                <div className="flex items-center gap-2 text-xs font-bold text-amber-400 uppercase tracking-wider pt-1">
                   <User className="w-4 h-4" />
                   <span>Paso 1: Datos Personales del Conductor</span>
                 </div>
