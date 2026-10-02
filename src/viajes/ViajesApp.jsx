@@ -368,7 +368,12 @@ export default function ViajesApp() {
     return saved ? JSON.parse(saved) : null;
   });
   const [showRegisterModal, setShowRegisterModal] = useState(false);
-  const [showGoogleAuthModal, setShowGoogleAuthModal] = useState(false);
+  const [googleClientId, setGoogleClientId] = useState(
+    () => import.meta.env.VITE_GOOGLE_CLIENT_ID || localStorage.getItem('demiempresa_google_client_id') || ''
+  );
+  const [showGoogleConfigModal, setShowGoogleConfigModal] = useState(false);
+  const [configClientIdInput, setConfigClientIdInput] = useState('');
+  const googleButtonContainerRef = React.useRef(null);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [regFullName, setRegFullName] = useState('');
   const [regEmail, setRegEmail] = useState('');
@@ -1265,7 +1270,6 @@ export default function ViajesApp() {
     setUserProfile(fullProfile);
     localStorage.setItem('demiempresa_passenger', JSON.stringify(fullProfile));
     setShowRegisterModal(false);
-    setShowGoogleAuthModal(false);
     setGoogleDuiStep(false);
 
     setCelebrationName(profileData.fullName || 'Pasajero');
@@ -1347,7 +1351,6 @@ export default function ViajesApp() {
     setGoogleLoading(true);
     setTimeout(() => {
       setGoogleLoading(false);
-      setShowGoogleAuthModal(false);
 
       // Guardamos datos de Google (Nombre y Email)
       setRegFullName(account.name);
@@ -1357,16 +1360,88 @@ export default function ViajesApp() {
       // Como requerimos todos los datos completos (nombre, dui, email), solicitamos el DUI
       setGoogleDuiStep(true);
       setShowRegisterModal(true);
-    }, 500);
+    }, 400);
   };
 
-  // Abrir Google Identity Services real o modal interactivo
+  // Inicializar botón oficial de Google Identity Services en el DOM
+  useEffect(() => {
+    if (!showRegisterModal || googleDuiStep) return;
+    const clientId = googleClientId;
+    if (!clientId) return;
+
+    const renderOfficialGsiButton = () => {
+      if (window.google?.accounts?.id && googleButtonContainerRef.current) {
+        try {
+          window.google.accounts.id.initialize({
+            client_id: clientId,
+            callback: (response) => {
+              if (response?.credential) {
+                try {
+                  const base64Url = response.credential.split('.')[1];
+                  const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+                  const jsonPayload = decodeURIComponent(
+                    atob(base64)
+                      .split('')
+                      .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+                      .join('')
+                  );
+                  const user = JSON.parse(jsonPayload);
+                  handleSelectGoogleAccount({
+                    id: user.sub || `google-${Date.now()}`,
+                    name: user.name || 'Usuario Google',
+                    email: user.email,
+                    photoUrl: user.picture
+                  });
+                } catch (e) {
+                  console.error('Error al decodificar credencial de Google:', e);
+                }
+              }
+            },
+            auto_select: false
+          });
+
+          googleButtonContainerRef.current.innerHTML = '';
+          window.google.accounts.id.renderButton(googleButtonContainerRef.current, {
+            type: 'standard',
+            theme: 'outline',
+            size: 'large',
+            text: 'continue_with',
+            shape: 'pill',
+            logo_alignment: 'left',
+            width: 320
+          });
+        } catch (err) {
+          console.warn('Error inicializando Google Identity Services:', err);
+        }
+      }
+    };
+
+    if (window.google?.accounts?.id) {
+      renderOfficialGsiButton();
+    } else {
+      const timer = setInterval(() => {
+        if (window.google?.accounts?.id) {
+          clearInterval(timer);
+          renderOfficialGsiButton();
+        }
+      }, 400);
+      return () => clearInterval(timer);
+    }
+  }, [showRegisterModal, googleDuiStep, googleClientId]);
+
+  // Abrir Google Identity Services real / Ventana emergente oficial de Google
   const handleGoogleSignInClick = () => {
-    const gClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-    if (window.google?.accounts?.oauth2 && gClientId) {
+    const clientId = googleClientId;
+    if (!clientId) {
+      // Si aún no está configurado el Client ID de Google Cloud, solicitarlo para abrir accounts.google.com
+      setShowGoogleConfigModal(true);
+      return;
+    }
+
+    if (window.google?.accounts?.oauth2) {
       try {
         const tokenClient = window.google.accounts.oauth2.initTokenClient({
-          client_id: gClientId,
+          client_id: clientId,
           scope: 'email profile openid',
           callback: async (tokenResponse) => {
             if (tokenResponse?.access_token) {
@@ -1397,8 +1472,10 @@ export default function ViajesApp() {
       }
     }
 
-    // Modal oficial interactivo de Google
-    setShowGoogleAuthModal(true);
+    // Fallback: abrir directamente la ventana oficial de Google accounts.google.com
+    const redirectUri = window.location.origin;
+    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=token&scope=email%20profile%20openid`;
+    window.open(authUrl, 'GoogleSignIn', 'width=500,height=650');
   };
 
   // Enviar invitación de referido por WhatsApp
@@ -2491,8 +2568,12 @@ export default function ViajesApp() {
                   Ahora que tu viaje ya está asegurado y en camino, valida tu cuenta una única vez para activar tus créditos y viajar con máxima tranquilidad.
                 </p>
 
-                {/* BOTÓN DESTACADO: CONTINUAR CON GOOGLE */}
+                {/* BOTÓN DESTACADO: CONTINUAR CON GOOGLE OFICIAL */}
                 <div className="space-y-2 pt-1">
+                  {/* Contenedor oficial donde Google Identity Services inyecta su botón nativo de iframe */}
+                  <div ref={googleButtonContainerRef} className="flex justify-center w-full min-h-[44px]" />
+
+                  {/* Botón directo para invocar la ventana oficial de Google (accounts.google.com) */}
                   <button
                     type="button"
                     onClick={handleGoogleSignInClick}
@@ -2520,7 +2601,7 @@ export default function ViajesApp() {
                   </button>
                   <div className="flex items-center justify-center gap-1.5 text-[10px] text-emerald-400 font-medium">
                     <ShieldCheck className="w-3.5 h-3.5 flex-shrink-0" />
-                    <span>Validación oficial protegida por Google Security</span>
+                    <span>Conexión oficial protegida por Google Identity Services</span>
                   </div>
                 </div>
 
@@ -2638,110 +2719,78 @@ export default function ViajesApp() {
       )}
 
       {/* ============================================================== */}
-      {/* PANTALLA OFICIAL DE GOOGLE: "ACCEDER CON GOOGLE"                */}
+      {/* MODAL DE VINCULACIÓN CON GOOGLE CLOUD (SI CLIENT ID NO ESTÁ)   */}
       {/* ============================================================== */}
-      {showGoogleAuthModal && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in">
-          <div className="w-full max-w-sm bg-white text-slate-800 rounded-3xl p-6 sm:p-7 shadow-2xl space-y-5 border border-slate-200 animate-in zoom-in-95 duration-200">
-            {/* Header Google */}
-            <div className="text-center space-y-2">
-              <div className="flex justify-center">
-                <svg className="w-9 h-9" viewBox="0 0 24 24">
+      {showGoogleConfigModal && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in">
+          <div className="w-full max-w-md bg-slate-900 border-2 border-blue-500/50 rounded-3xl p-6 shadow-2xl space-y-4 text-white">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5 text-blue-400 font-bold">
+                <svg className="w-6 h-6" viewBox="0 0 24 24">
                   <path fill="#EA4335" d="M12 5c1.6 0 3 .6 4.1 1.6l3.1-3.1C17.3 1.7 14.8 1 12 1 7.4 1 3.5 3.6 1.6 7.4l3.7 2.9C6.2 7.4 8.9 5 12 5z" />
                   <path fill="#4285F4" d="M23.5 12.3c0-.8-.1-1.6-.2-2.3H12v4.6h6.5c-.3 1.5-1.1 2.8-2.4 3.7l3.7 2.9c2.2-2 3.7-5 3.7-8.9z" />
                   <path fill="#FBBC05" d="M5.3 14.7c-.2-.7-.4-1.5-.4-2.3s.2-1.6.4-2.3L1.6 7.2C.6 9.2 0 11.5 0 14s.6 4.8 1.6 6.8l3.7-2.9" />
                   <path fill="#34A853" d="M12 23c3.2 0 6-1.1 8-3l-3.7-2.9c-1.1.7-2.5 1.2-4.3 1.2-3.1 0-5.8-2.4-6.7-5.3L1.6 16c1.9 3.8 5.8 7 10.4 7z" />
                 </svg>
+                <h3 className="text-base font-bold text-white">Vincular Pantalla Oficial de Google</h3>
               </div>
-              <h3 className="text-xl font-medium text-slate-900 tracking-tight">Acceder con Google</h3>
-              <p className="text-xs text-slate-500">
-                Selecciona una cuenta para continuar a <strong className="text-slate-800">demiempresa.online</strong>
-              </p>
-            </div>
-
-            {/* Cuentas de Google */}
-            <div className="divide-y divide-slate-100 border-y border-slate-100 -mx-6 px-6">
-              {[
-                {
-                  id: 'google-usr-1',
-                  name: 'Carlos Alfaro',
-                  email: 'cealfarias@gmail.com',
-                  photoUrl: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=120&q=80',
-                  initial: 'C',
-                  bgColor: 'bg-blue-600'
-                },
-                {
-                  id: 'google-usr-2',
-                  name: 'Usuario DemiEmpresa',
-                  email: 'pasajero.salvador@gmail.com',
-                  photoUrl: null,
-                  initial: 'U',
-                  bgColor: 'bg-emerald-600'
-                }
-              ].map((acc) => (
-                <button
-                  key={acc.id}
-                  disabled={googleLoading}
-                  onClick={() => handleSelectGoogleAccount(acc)}
-                  className="w-full py-3 flex items-center justify-between hover:bg-slate-50 -mx-3 px-3 rounded-xl transition-all cursor-pointer text-left"
-                >
-                  <div className="flex items-center gap-3">
-                    {acc.photoUrl ? (
-                      <img src={acc.photoUrl} alt="" className="w-10 h-10 rounded-full object-cover border border-slate-200" />
-                    ) : (
-                      <div className={`w-10 h-10 rounded-full ${acc.bgColor} text-white font-bold flex items-center justify-center text-sm shadow-sm`}>
-                        {acc.initial}
-                      </div>
-                    )}
-                    <div>
-                      <div className="text-sm font-semibold text-slate-900">{acc.name}</div>
-                      <div className="text-xs text-slate-500">{acc.email}</div>
-                    </div>
-                  </div>
-                  {googleLoading ? (
-                    <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
-                  ) : (
-                    <ChevronRight className="w-4 h-4 text-slate-400" />
-                  )}
-                </button>
-              ))}
-
               <button
                 type="button"
-                disabled={googleLoading}
-                onClick={() => {
-                  const customName = prompt('Introduce tu nombre para acceder con Google:') || 'Usuario Google';
-                  const customEmail = prompt('Introduce tu correo de Gmail:') || 'usuario@gmail.com';
-                  handleSelectGoogleAccount({
-                    id: `google-${Date.now()}`,
-                    name: customName,
-                    email: customEmail,
-                    initial: customName[0].toUpperCase(),
-                    bgColor: 'bg-purple-600'
-                  });
-                }}
-                className="w-full py-3 flex items-center gap-3 text-slate-700 hover:bg-slate-50 -mx-3 px-3 rounded-xl transition-all cursor-pointer text-xs font-semibold"
+                onClick={() => setShowGoogleConfigModal(false)}
+                className="text-slate-400 hover:text-white cursor-pointer"
               >
-                <div className="w-10 h-10 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center">
-                  <User className="w-5 h-5" />
-                </div>
-                <span>Usar otra cuenta</span>
+                ✕
               </button>
             </div>
 
-            {/* Disclaimer legal Google */}
-            <p className="text-[11px] text-slate-400 text-center leading-relaxed">
-              Para continuar, Google compartirá tu nombre, dirección de correo electrónico y foto de perfil con demiempresa.online.
+            <p className="text-xs text-slate-300 leading-relaxed">
+              Para desplegar la ventana emergente oficial de Google (<strong>accounts.google.com</strong>), ingresa el <strong>Google OAuth 2.0 Client ID</strong> de tu proyecto en Google Cloud:
             </p>
 
-            {/* Botón Cancelar */}
-            <button
-              type="button"
-              onClick={() => setShowGoogleAuthModal(false)}
-              className="w-full py-2.5 rounded-xl border border-slate-200 text-slate-600 hover:text-slate-900 text-xs font-semibold hover:bg-slate-50 cursor-pointer transition-all"
-            >
-              Cancelar
-            </button>
+            <div className="space-y-1.5">
+              <label className="block text-xs font-semibold text-slate-400">
+                Google Client ID (termina en .apps.googleusercontent.com)
+              </label>
+              <input
+                type="text"
+                value={configClientIdInput}
+                onChange={(e) => setConfigClientIdInput(e.target.value)}
+                placeholder="ej. 123456789-abc.apps.googleusercontent.com"
+                className="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-blue-400 font-mono"
+              />
+            </div>
+
+            <div className="bg-blue-950/40 border border-blue-500/20 rounded-xl p-3 text-[11px] text-blue-200 space-y-1">
+              <p className="font-semibold text-blue-300">¿Cómo habilitarlo en Google Cloud Console?</p>
+              <p>1. Ingresa a <strong>console.cloud.google.com</strong> ➔ Credenciales.</p>
+              <p>2. En "ID de cliente de OAuth 2.0", autoriza el origen <code>https://demiempresa.online</code></p>
+              <p>3. Pega el ID aquí para activar la ventana oficial de Google al instante.</p>
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowGoogleConfigModal(false)}
+                className="w-1/3 py-2.5 rounded-xl bg-slate-800 text-slate-300 text-xs font-bold hover:bg-slate-700 cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (configClientIdInput.trim()) {
+                    const cleanId = configClientIdInput.trim();
+                    setGoogleClientId(cleanId);
+                    localStorage.setItem('demiempresa_google_client_id', cleanId);
+                    setShowGoogleConfigModal(false);
+                    setTimeout(() => handleGoogleSignInClick(), 300);
+                  }
+                }}
+                className="w-2/3 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs cursor-pointer shadow-lg shadow-blue-600/30"
+              >
+                Guardar y Conectar con Google
+              </button>
+            </div>
           </div>
         </div>
       )}
