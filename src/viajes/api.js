@@ -130,6 +130,20 @@ export async function fetchWalletHistoryApi(userId) {
 }
 
 /**
+ * 7.1. Listado de Invitados con Temporizador y Enlace de WhatsApp
+ */
+export async function fetchWalletReferralsApi(userId) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/wallet/referrals/${encodeURIComponent(userId)}`);
+    if (!res.ok) return { referrals: [] };
+    return await res.json();
+  } catch (err) {
+    console.warn('API Error fetchWalletReferrals:', err);
+    return { referrals: [] };
+  }
+}
+
+/**
  * 8. Transferir Bono para Pago de Carrera (Pasajero -> Conductor)
  */
 export async function transferTripBonusApi({ passengerId, driverId, tripId, amount = 1.00 }) {

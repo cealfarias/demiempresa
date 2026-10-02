@@ -33,6 +33,12 @@ CREATE TABLE IF NOT EXISTS viajes_ledger_transactions (
     spent_at TIMESTAMP WITH TIME ZONE NULL,
     spending_tx_id UUID NULL,
     expires_at TIMESTAMP WITH TIME ZONE NOT NULL, -- Caducidad estricta (ej. 7 días para bonos)
+    status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE', -- 'PENDING_ACTIVATION', 'ACTIVE', 'SPENT', 'EXPIRED'
+    activation_expires_at TIMESTAMP WITH TIME ZONE NULL, -- 7 días para que el invitado haga viaje >= $4.00
+    spend_expires_at TIMESTAMP WITH TIME ZONE NULL,      -- 7 días para gastar el bono una vez activo
+    referrer_user_id VARCHAR(64) NULL,                   -- Usuario anfitrión
+    referred_user_id VARCHAR(64) NULL,                   -- Usuario invitado
+    qualifying_trip_id VARCHAR(64) NULL,                 -- ID del viaje >= $4.00 que activó el bono
     transaction_type VARCHAR(32) NOT NULL CHECK (
         transaction_type IN (
             'WELCOME_BONUS',         -- Bono bienvenida $1.00 pasajero
@@ -53,6 +59,10 @@ CREATE TABLE IF NOT EXISTS viajes_ledger_transactions (
 -- Índices de alto rendimiento para UTXO no gastados y consultas de balance
 CREATE INDEX IF NOT EXISTS idx_viajes_ledger_to_unspent 
     ON viajes_ledger_transactions(to_address, is_spent, expires_at);
+CREATE INDEX IF NOT EXISTS idx_viajes_ledger_active_balance 
+    ON viajes_ledger_transactions(to_address, status, is_spent, spend_expires_at);
+CREATE INDEX IF NOT EXISTS idx_viajes_ledger_pending_referral 
+    ON viajes_ledger_transactions(referred_user_id, status, activation_expires_at);
 CREATE INDEX IF NOT EXISTS idx_viajes_ledger_from_address 
     ON viajes_ledger_transactions(from_address);
 CREATE INDEX IF NOT EXISTS idx_viajes_ledger_sequence 

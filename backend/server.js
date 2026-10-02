@@ -337,6 +337,20 @@ app.get(['/api/wallet/history', '/api/wallet/history/:userId'], async (req, res)
   }
 });
 
+// GET /api/wallet/referrals - Lista de invitados con cuenta regresiva y enlace directo a WhatsApp
+app.get(['/api/wallet/referrals', '/api/wallet/referrals/:userId'], async (req, res) => {
+  try {
+    const userId = req.params.userId || req.query.userId || req.headers['x-user-id'];
+    if (!userId) return res.status(400).json({ error: 'userId es requerido' });
+
+    const data = await LedgerService.getReferralsList(userId);
+    res.json(data);
+  } catch (err) {
+    console.error('Error en /api/wallet/referrals:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // POST /api/wallet/welcome-bonus - Solicitar bono de bienvenida explícito
 app.post('/api/wallet/welcome-bonus', async (req, res) => {
   try {

@@ -351,6 +351,12 @@ CREATE TABLE IF NOT EXISTS viajes_ledger_transactions (
     spent_at TIMESTAMP WITH TIME ZONE NULL,
     spending_tx_id UUID NULL,
     expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE',
+    activation_expires_at TIMESTAMP WITH TIME ZONE NULL,
+    spend_expires_at TIMESTAMP WITH TIME ZONE NULL,
+    referrer_user_id VARCHAR(64) NULL,
+    referred_user_id VARCHAR(64) NULL,
+    qualifying_trip_id VARCHAR(64) NULL,
     transaction_type VARCHAR(32) NOT NULL CHECK (
         transaction_type IN (
             'WELCOME_BONUS',
@@ -369,6 +375,8 @@ CREATE TABLE IF NOT EXISTS viajes_ledger_transactions (
 );
 
 CREATE INDEX IF NOT EXISTS idx_viajes_ledger_to_unspent ON viajes_ledger_transactions(to_address, is_spent, expires_at);
+CREATE INDEX IF NOT EXISTS idx_viajes_ledger_active_balance ON viajes_ledger_transactions(to_address, status, is_spent, spend_expires_at);
+CREATE INDEX IF NOT EXISTS idx_viajes_ledger_pending_referral ON viajes_ledger_transactions(referred_user_id, status, activation_expires_at);
 CREATE INDEX IF NOT EXISTS idx_viajes_ledger_from_address ON viajes_ledger_transactions(from_address);
 CREATE INDEX IF NOT EXISTS idx_viajes_ledger_sequence ON viajes_ledger_transactions(sequence_number DESC);
 CREATE INDEX IF NOT EXISTS idx_viajes_ledger_input_ref ON viajes_ledger_transactions(input_ref);

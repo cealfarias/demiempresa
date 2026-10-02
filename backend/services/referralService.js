@@ -1,8 +1,9 @@
 import { pool } from '../db.js';
+import { LedgerService } from './ledgerService.js';
 
 export class ReferralService {
   /**
-   * Registra un referido y activa la Fase 1 (TTL 7 Días para activación)
+   * Registra un referido y activa la Fase 1 (TTL 7 Días para activación con viaje >= $4.00)
    */
   static async createReferral({ referrerUserId, referredUserId, referralType = 'PASSENGER_TO_PASSENGER' }) {
     const query = `
@@ -11,16 +12,31 @@ export class ReferralService {
       RETURNING *;
     `;
     const res = await pool.query(query, [referrerUserId, referredUserId, referralType]);
+
+    // Registrar también en el Libro Mayor Criptográfico Inmutable en estado PENDING_ACTIVATION
+    try {
+      await LedgerService.registerReferralPending(referrerUserId, referredUserId);
+    } catch (e) {
+      console.warn('⚠️ No se pudo registrar referido en LedgerService:', e.message);
+    }
+
     return res.rows[0];
   }
 
   /**
-   * Valida si un viaje califica para activar el premio de referido (>= $3.00)
-   * y desencadena la Fase 2 (TTL 7 Días para gastar el crédito)
+   * Valida si un viaje califica para activar el premio de referido (>= $4.00 USD)
+   * y desencadena la Fase 2 (TTL 7 Días para gastar el crédito en el Ledger)
    */
   static async processTripCompletionForReferral(tripId, passengerUserId, agreedFare) {
-    if (parseFloat(agreedFare) < 3.00) {
+    if (parseFloat(agreedFare) < 4.00) {
       return null;
+    }
+
+    // Activar en el Libro Mayor Criptográfico Inmutable
+    try {
+      await LedgerService.processTripCompletionForReferral(tripId, passengerUserId, agreedFare);
+    } catch (e) {
+      console.warn('⚠️ Error al activar bono en LedgerService:', e.message);
     }
 
     const refQuery = `
@@ -183,10 +199,13 @@ export class ReferralService {
         RETURNING id;
       `);
 
+      // Barrido en el Libro Mayor Criptográfico Inmutable (Ledger UTXO)
+      const ledgerSweep = await LedgerService.expireOutdatedBonuses().catch(() => ({ expiredPendingCount: 0, expiredActiveCount: 0 }));
+
       await client.query('COMMIT');
       return {
-        expiredReferrals: expiredRefs.rowCount,
-        expiredCredits: expiredCredits.rowCount
+        expiredReferrals: expiredRefs.rowCount + (ledgerSweep.expiredPendingCount || 0),
+        expiredCredits: expiredCredits.rowCount + (ledgerSweep.expiredActiveCount || 0)
       };
     } catch (err) {
       await client.query('ROLLBACK');
