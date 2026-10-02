@@ -151,27 +151,28 @@ export default function DriverApp() {
       }
     });
 
-    // Escuchar nuevas solicitudes entrantes a 1 km con distancia de carretera
+    // Escuchar nuevas solicitudes entrantes
     socket.on('trip:new_request', (reqData) => {
+      console.log('🚗 Nueva solicitud recibida en el conductor:', reqData);
       setIncomingRequest({
         id: reqData.tripId,
         serviceType: reqData.serviceType,
         transportType: reqData.transportType || 'CAR',
-        origin: reqData.originAddress,
-        destination: reqData.destinationAddress,
-        distanceKm: reqData.distanceToPickupKm || 0.5,
-        roadDistanceKm: reqData.distanceKm || 7.8,
-        offeredFare: reqData.proposedFare,
-        suggestedFare: reqData.suggestedFare,
+        origin: reqData.origin || reqData.originAddress || 'Origen Rumbo',
+        destination: reqData.destination || reqData.destinationAddress || 'Destino Rumbo',
+        distanceKm: reqData.distanceKm || 0.5,
+        roadDistanceKm: reqData.roadDistanceKm || reqData.distanceKm || 5.0,
+        offeredFare: reqData.offeredFare || reqData.proposedFare || '3.50',
+        suggestedFare: reqData.suggestedFare || reqData.proposedFare || '3.50',
         delayMinutes: reqData.delayMinutes || 0,
-        trafficLevel: reqData.trafficLevel,
-        trafficLabel: reqData.trafficLabel,
-        trafficColor: reqData.trafficColor,
+        trafficLevel: reqData.trafficLevel || 'FLUID',
+        trafficLabel: reqData.trafficLabel || 'Tráfico Fluido',
+        trafficColor: reqData.trafficColor || '#10B981',
         preferences: reqData.preferences || {},
         cashBill: reqData.cashBill || '10',
-        changeNeeded: reqData.changeNeeded || '6.50',
-        hasBonusDiscount: false,
-        timeLeft: 10
+        changeNeeded: reqData.changeNeeded || '0.00',
+        hasBonusDiscount: Boolean(reqData.hasBonusDiscount),
+        timeLeft: reqData.timeLeft || 20
       });
     });
 

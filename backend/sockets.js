@@ -32,11 +32,16 @@ export function initializeWebSockets(httpServer) {
       socket.driverProfileId = driverProfileId;
 
       connectedUsers.set(userId, socket.id);
-      if (role === 'DRIVER' && driverProfileId) {
-        driverSockets.set(driverProfileId, socket.id);
-        socket.join(`driver:${driverProfileId}`);
+      if (role === 'DRIVER') {
+        if (driverProfileId) {
+          driverSockets.set(driverProfileId, socket.id);
+          socket.join(`driver:${driverProfileId}`);
+        }
+        socket.join('drivers_channel');
+        console.log(`🚖 Conductor suscrito al canal de despacho: ${socket.id}`);
       } else {
         socket.join(`passenger:${userId}`);
+        socket.join('passengers_channel');
       }
     });
 
@@ -60,27 +65,56 @@ export function initializeWebSockets(httpServer) {
     });
 
     /**
-     * 2. Solicitud de Viaje o Encomienda (Despacho a 1 km)
+     * 2. Solicitud de Viaje o Encomienda (Despacho a Conductores)
      */
     socket.on('trip:request', async (tripData, callback) => {
       try {
         const {
           passengerId,
           serviceType = 'PASSENGER',
-          originAddress,
+          originAddress = 'San Salvador',
           originLat,
           originLng,
-          destinationAddress,
+          destinationAddress = 'Destino Rumbo',
           destinationLat,
           destinationLng,
-          destinationMunicipality,
+          destinationMunicipality = 'San Salvador',
           proposedFare,
           packageDetails,
           paymentTiming
         } = tripData;
 
-        const credit = await ReferralService.getAvailableCredit(passengerId);
-        const creditApplied = credit ? 1.00 : 0.00;
+        const isUUID = (str) => typeof str === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(str);
+
+        // Si el pasajero aún no ha iniciado sesión o es invitado, asignar UUID de invitado
+        let effectivePassengerId = passengerId;
+        if (!effectivePassengerId || !isUUID(effectivePassengerId)) {
+          let guestRes = await pool.query(
+            "SELECT id FROM viajes_users WHERE full_name = 'Pasajero Invitado' OR phone = '0000-0000' LIMIT 1"
+          );
+          if (guestRes.rows.length === 0) {
+            guestRes = await pool.query(
+              "INSERT INTO viajes_users (full_name, phone, role) VALUES ('Pasajero Invitado', '0000-0000', 'PASSENGER') RETURNING id"
+            );
+          }
+          effectivePassengerId = guestRes.rows[0].id;
+        }
+
+        let creditApplied = 0.00;
+        if (isUUID(passengerId)) {
+          try {
+            const credit = await ReferralService.getAvailableCredit(passengerId);
+            creditApplied = credit ? 1.00 : 0.00;
+          } catch {
+            creditApplied = 0.00;
+          }
+        }
+
+        const safeOriginLat = parseFloat(originLat) || 13.7013;
+        const safeOriginLng = parseFloat(originLng) || -89.2244;
+        const safeDestLat = parseFloat(destinationLat) || 13.6738;
+        const safeDestLng = parseFloat(destinationLng) || -89.2789;
+        const safeFare = (parseFloat(proposedFare) || 3.50).toFixed(2);
 
         const insertRes = await pool.query(`
           INSERT INTO viajes_trips (
@@ -91,17 +125,14 @@ export function initializeWebSockets(httpServer) {
           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'REQUESTED')
           RETURNING *;
         `, [
-          serviceType, passengerId, originAddress, originLat, originLng,
-          destinationAddress, destinationLat, destinationLng, destinationMunicipality || 'SAN SALVADOR',
-          proposedFare, creditApplied, packageDetails || null, paymentTiming || 'AT_ORIGIN'
+          serviceType, effectivePassengerId, originAddress, safeOriginLat, safeOriginLng,
+          destinationAddress, safeDestLat, safeDestLng, destinationMunicipality,
+          safeFare, creditApplied, packageDetails || null, paymentTiming || 'AT_ORIGIN'
         ]);
 
         const newTrip = insertRes.rows[0];
         socket.join(`trip:${newTrip.id}`);
         await initTripLock(newTrip.id);
-
-        let nearbyDrivers = await findNearbyDrivers(originLng, originLat, 10.0);
-        const notifiedDriverIds = new Set();
 
         const tripPayload = {
           tripId: newTrip.id,
@@ -113,8 +144,8 @@ export function initializeWebSockets(httpServer) {
           originAddress: newTrip.origin_address,
           originLat: newTrip.origin_lat,
           originLng: newTrip.origin_lng,
-          originLatObfuscated: Number(parseFloat(originLat).toFixed(2)),
-          originLngObfuscated: Number(parseFloat(originLng).toFixed(2)),
+          originLatObfuscated: Number(parseFloat(safeOriginLat).toFixed(2)),
+          originLngObfuscated: Number(parseFloat(safeOriginLng).toFixed(2)),
           destination: newTrip.destination_address,
           destinationAddress: newTrip.destination_address,
           destinationLat: newTrip.destination_lat,
@@ -139,31 +170,15 @@ export function initializeWebSockets(httpServer) {
           packageDetails: newTrip.package_details
         };
 
-        if (nearbyDrivers && nearbyDrivers.length > 0) {
-          for (const nearby of nearbyDrivers) {
-            if (creditApplied > 0) {
-              const canAccept = await ReferralService.canDriverAcceptBonusTrip(nearby.driverId);
-              if (!canAccept) continue;
-            }
+        // 1. Emitir a todos los conductores en la sala 'drivers_channel'
+        io.to('drivers_channel').emit('trip:new_request', tripPayload);
 
-            const targetSocketId = driverSockets.get(nearby.driverId);
-            if (targetSocketId) {
-              notifiedDriverIds.add(nearby.driverId);
-              io.to(targetSocketId).emit('trip:new_request', {
-                ...tripPayload,
-                distanceKm: nearby.distanceKm
-              });
-            }
-          }
+        // 2. Emitir directamente a cada conductor registrado en el mapa de sockets
+        for (const [drvId, targetSocketId] of driverSockets.entries()) {
+          io.to(targetSocketId).emit('trip:new_request', tripPayload);
         }
 
-        // Si no se notificó a conductores por geocercanía (ej. conductores online en fase de prueba),
-        // notificar a todos los conductores activos conectados para pruebas reales
-        if (notifiedDriverIds.size === 0 && driverSockets.size > 0) {
-          for (const [drvId, targetSocketId] of driverSockets.entries()) {
-            io.to(targetSocketId).emit('trip:new_request', tripPayload);
-          }
-        }
+        console.log(`📡 [trip:request] Solicitud #${newTrip.id} enviada exitosamente a conductores.`);
 
         if (callback) callback({ success: true, trip: newTrip, creditApplied });
       } catch (err) {
