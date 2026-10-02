@@ -787,49 +787,57 @@ async function initializeDatabase() {
       EXCEPTION WHEN others THEN null; END $$;
     `);
 
-    // 2. Intentar cargar schema.sql completo si existe
-    const fs = await import('fs');
-    const path = await import('path');
-    const possiblePaths = [
-      path.resolve('schema.sql'),
-      path.resolve('backend/schema.sql'),
-      path.join(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Z]:)/, '$1')), 'schema.sql')
-    ];
-    for (const schemaPath of possiblePaths) {
-      if (fs.existsSync(schemaPath)) {
-        const sql = fs.readFileSync(schemaPath, 'utf8');
-        await pool.query(sql);
-        console.log(`✅ Esquema cargado exitosamente desde ${schemaPath}`);
-        break;
-      }
+    // 2. Sincronizar precios oficiales y de mercado vigentes ($5.13 Especial)
+    try {
+      await pool.query(`
+        UPDATE viajes_gas_stations SET
+          gov_especial_price = 5.13,
+          gov_regular_price = 4.75,
+          gov_diesel_price = 4.25,
+          especial_price = CASE 
+            WHEN brand = 'DLC' THEN 5.03
+            WHEN brand = 'Puma' THEN 5.06
+            WHEN brand = 'Texaco' THEN 5.09
+            WHEN brand = 'Uno' THEN 5.10
+            ELSE 5.08
+          END,
+          regular_price = CASE
+            WHEN brand = 'DLC' THEN 4.65
+            WHEN brand = 'Puma' THEN 4.68
+            WHEN brand = 'Uno' THEN 4.71
+            ELSE 4.70
+          END,
+          diesel_price = CASE
+            WHEN brand = 'DLC' THEN 4.15
+            WHEN brand = 'Puma' THEN 4.18
+            ELSE 4.20
+          END;
+      `);
+      console.log('✅ Precios de estaciones actualizados con éxito ($5.13 Especial).');
+    } catch (e) {
+      console.warn('⚠️ Error al actualizar precios de estaciones:', e.message);
     }
 
-    // 3. Sincronizar precios oficiales y de mercado vigentes ($5.13 Especial)
-    await pool.query(`
-      UPDATE viajes_gas_stations SET
-        gov_especial_price = 5.13,
-        gov_regular_price = 4.75,
-        gov_diesel_price = 4.25,
-        especial_price = CASE 
-          WHEN brand = 'DLC' THEN 5.03
-          WHEN brand = 'Puma' THEN 5.06
-          WHEN brand = 'Texaco' THEN 5.09
-          WHEN brand = 'Uno' THEN 5.10
-          ELSE 5.08
-        END,
-        regular_price = CASE
-          WHEN brand = 'DLC' THEN 4.65
-          WHEN brand = 'Puma' THEN 4.68
-          WHEN brand = 'Uno' THEN 4.71
-          ELSE 4.70
-        END,
-        diesel_price = CASE
-          WHEN brand = 'DLC' THEN 4.15
-          WHEN brand = 'Puma' THEN 4.18
-          ELSE 4.20
-        END
-      WHERE gov_especial_price < 5.00;
-    `).catch(() => {});
+    // 3. Intentar cargar schema.sql completo si existe
+    try {
+      const fs = await import('fs');
+      const path = await import('path');
+      const possiblePaths = [
+        path.resolve('schema.sql'),
+        path.resolve('backend/schema.sql'),
+        path.join(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Z]:)/, '$1')), 'schema.sql')
+      ];
+      for (const schemaPath of possiblePaths) {
+        if (fs.existsSync(schemaPath)) {
+          const sql = fs.readFileSync(schemaPath, 'utf8');
+          await pool.query(sql);
+          console.log(`✅ Esquema cargado exitosamente desde ${schemaPath}`);
+          break;
+        }
+      }
+    } catch (e) {
+      console.warn('⚠️ Nota sobre carga de schema.sql:', e.message);
+    }
 
     console.log('✅ Tablas viajes_*, precios de combustible ($5.13 Especial) y columnas de conductor verificadas en PostgreSQL.');
   } catch (err) {
@@ -862,6 +870,44 @@ app.get('/api/admin/init-db', async (req, res) => {
     });
   } catch (err) {
     console.error('Error en /api/admin/init-db:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.get('/api/admin/update-gas-prices', async (req, res) => {
+  try {
+    const updateRes = await pool.query(`
+      UPDATE viajes_gas_stations SET
+        gov_especial_price = 5.13,
+        gov_regular_price = 4.75,
+        gov_diesel_price = 4.25,
+        especial_price = CASE 
+          WHEN brand = 'DLC' THEN 5.03
+          WHEN brand = 'Puma' THEN 5.06
+          WHEN brand = 'Texaco' THEN 5.09
+          WHEN brand = 'Uno' THEN 5.10
+          ELSE 5.08
+        END,
+        regular_price = CASE
+          WHEN brand = 'DLC' THEN 4.65
+          WHEN brand = 'Puma' THEN 4.68
+          WHEN brand = 'Uno' THEN 4.71
+          ELSE 4.70
+        END,
+        diesel_price = CASE
+          WHEN brand = 'DLC' THEN 4.15
+          WHEN brand = 'Puma' THEN 4.18
+          ELSE 4.20
+        END;
+    `);
+    const stations = await pool.query(`SELECT brand, station_name, regular_price, especial_price, gov_especial_price FROM viajes_gas_stations;`);
+    res.json({
+      success: true,
+      message: 'Precios de combustible actualizados exitosamente en PostgreSQL Cloud',
+      rowsUpdated: updateRes.rowCount,
+      stations: stations.rows
+    });
+  } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
 });
