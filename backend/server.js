@@ -232,19 +232,316 @@ app.get('/api/drivers/:driverProfileId/subscription', async (req, res) => {
   }
 });
 
-// 5.0 CORTAFUEGOS ANTI-ARBITRAJE: APROBACIÓN ADMINISTRATIVA DE CONDUCTORES
-// Quema automática de bonos promocionales de pasajero e inicio de balance en $0.00
-app.post('/api/admin/drivers/approve', async (req, res) => {
+// 5.0 REGISTRO Y EXPEDIENTE DIGITAL DEL CONDUCTOR (CUMPLIMIENTO & AUDITORÍA)
+app.post('/api/drivers/register', async (req, res) => {
   try {
-    const { userId, adminId = 'ADMIN_SUPERVISOR' } = req.body;
-    if (!userId) {
-      return res.status(400).json({ error: 'userId es obligatorio para la aprobación del conductor' });
+    const {
+      fullName,
+      phone,
+      dui,
+      emergencyContactName,
+      emergencyContactPhone,
+      licenseNumber,
+      vehiclePlate,
+      vehicleBrand,
+      vehicleModel,
+      vehicleYear,
+      vehicleColor,
+      fuelType = 'REGULAR',
+      fuelKmPerGallon = 42.0,
+      photoUrl,
+      duiFrontUrl,
+      duiBackUrl,
+      licenseFrontUrl,
+      licenseBackUrl,
+      circulationCardUrl,
+      policeRecordUrl,
+      criminalRecordUrl,
+      vehiclePhotoFront,
+      vehiclePhotoInside
+    } = req.body;
+
+    if (!fullName || !phone || !dui || !licenseNumber || !vehiclePlate) {
+      return res.status(400).json({ error: 'Nombre, teléfono, DUI, licencia y placa son obligatorios' });
     }
 
-    const result = await LedgerService.cancelPromotionalBonusesOnDriverApproval(userId, adminId);
+    if (!isValidSalvadoranDUI(dui)) {
+      return res.status(400).json({ error: 'El DUI no tiene un formato salvadoreño válido (ej. 01234567-8)' });
+    }
+
+    const cleanPlate = vehiclePlate.trim().toUpperCase();
+    const cleanLicense = licenseNumber.trim().toUpperCase();
+
+    // 1. Verificar si la placa ya pertenece a otro conductor
+    const plateCheck = await pool.query(
+      'SELECT dp.id, u.full_name FROM viajes_driver_profiles dp JOIN viajes_users u ON dp.user_id = u.id WHERE dp.vehicle_plate = $1 AND u.dui <> $2',
+      [cleanPlate, dui]
+    );
+    if (plateCheck.rows.length > 0) {
+      return res.status(400).json({ error: `La placa ${cleanPlate} ya se encuentra registrada en la plataforma.` });
+    }
+
+    // 2. Verificar o crear el usuario en viajes_users
+    let userRes = await pool.query('SELECT * FROM viajes_users WHERE dui = $1', [dui]);
+    let user;
+    if (userRes.rows.length === 0) {
+      const newUser = await pool.query(
+        'INSERT INTO viajes_users (full_name, phone, dui, role) VALUES ($1, $2, $3, $4) RETURNING *',
+        [fullName, phone, dui, 'DRIVER']
+      );
+      user = newUser.rows[0];
+    } else {
+      user = userRes.rows[0];
+      await pool.query(
+        'UPDATE viajes_users SET full_name = $1, phone = $2 WHERE id = $3',
+        [fullName, phone, user.id]
+      );
+    }
+
+    // 3. Crear o actualizar el perfil del conductor en viajes_driver_profiles
+    const existingProfile = await pool.query(
+      'SELECT * FROM viajes_driver_profiles WHERE user_id = $1',
+      [user.id]
+    );
+
+    let profile;
+    const defaultPhoto = photoUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=250&q=80';
+
+    if (existingProfile.rows.length > 0) {
+      const updateRes = await pool.query(`
+        UPDATE viajes_driver_profiles SET
+          vehicle_plate = $1,
+          vehicle_brand = $2,
+          vehicle_model = $3,
+          vehicle_color = $4,
+          vehicle_year = $5,
+          license_number = $6,
+          fuel_type = $7,
+          fuel_km_per_gallon = $8,
+          photo_url = COALESCE($9, photo_url),
+          dui_front_url = COALESCE($10, dui_front_url),
+          dui_back_url = COALESCE($11, dui_back_url),
+          license_front_url = COALESCE($12, license_front_url),
+          license_back_url = COALESCE($13, license_back_url),
+          circulation_card_url = COALESCE($14, circulation_card_url),
+          police_record_url = COALESCE($15, police_record_url),
+          criminal_record_url = COALESCE($16, criminal_record_url),
+          vehicle_photo_front = COALESCE($17, vehicle_photo_front),
+          vehicle_photo_inside = COALESCE($18, vehicle_photo_inside),
+          emergency_contact_name = $19,
+          emergency_contact_phone = $20,
+          approval_status = 'PENDING',
+          rejection_reason = NULL,
+          updated_at = NOW()
+        WHERE user_id = $21
+        RETURNING *;
+      `, [
+        cleanPlate, vehicleBrand || 'Toyota', vehicleModel || 'Corolla', vehicleColor || 'Gris Plata',
+        parseInt(vehicleYear, 10) || 2018, cleanLicense, fuelType, parseFloat(fuelKmPerGallon) || 42.0,
+        defaultPhoto, duiFrontUrl || null, duiBackUrl || null, licenseFrontUrl || null, licenseBackUrl || null,
+        circulationCardUrl || null, policeRecordUrl || null, criminalRecordUrl || null,
+        vehiclePhotoFront || null, vehiclePhotoInside || null,
+        emergencyContactName || null, emergencyContactPhone || null,
+        user.id
+      ]);
+      profile = updateRes.rows[0];
+    } else {
+      const insertRes = await pool.query(`
+        INSERT INTO viajes_driver_profiles (
+          user_id, vehicle_plate, vehicle_brand, vehicle_model, vehicle_color, vehicle_year,
+          license_number, fuel_type, fuel_km_per_gallon, photo_url,
+          dui_front_url, dui_back_url, license_front_url, license_back_url,
+          circulation_card_url, police_record_url, criminal_record_url,
+          vehicle_photo_front, vehicle_photo_inside,
+          emergency_contact_name, emergency_contact_phone,
+          approval_status, is_active, is_online
+        ) VALUES (
+          $1, $2, $3, $4, $5, $6,
+          $7, $8, $9, $10,
+          $11, $12, $13, $14,
+          $15, $16, $17,
+          $18, $19,
+          $20, $21,
+          'PENDING', FALSE, FALSE
+        ) RETURNING *;
+      `, [
+        user.id, cleanPlate, vehicleBrand || 'Toyota', vehicleModel || 'Corolla', vehicleColor || 'Gris Plata',
+        parseInt(vehicleYear, 10) || 2018, cleanLicense, fuelType, parseFloat(fuelKmPerGallon) || 42.0,
+        defaultPhoto, duiFrontUrl || null, duiBackUrl || null, licenseFrontUrl || null, licenseBackUrl || null,
+        circulationCardUrl || null, policeRecordUrl || null, criminalRecordUrl || null,
+        vehiclePhotoFront || null, vehiclePhotoInside || null,
+        emergencyContactName || null, emergencyContactPhone || null
+      ]);
+      profile = insertRes.rows[0];
+    }
+
+    res.json({
+      success: true,
+      message: 'Expediente de conductor recibido exitosamente. Tu documentación está en revisión administrativa.',
+      driverProfile: {
+        id: profile.id,
+        userId: user.id,
+        fullName: user.full_name,
+        phone: user.phone,
+        dui: user.dui,
+        vehiclePlate: profile.vehicle_plate,
+        vehicleBrand: profile.vehicle_brand,
+        vehicleModel: profile.vehicle_model,
+        vehicleYear: profile.vehicle_year,
+        vehicleColor: profile.vehicle_color,
+        approvalStatus: profile.approval_status
+      }
+    });
+  } catch (err) {
+    console.error('Error en /api/drivers/register:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 5.1 CONSULTA DE ESTADO DE APROBACIÓN DEL CONDUCTOR
+app.get('/api/drivers/:id/status', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const profileRes = await pool.query(`
+      SELECT dp.*, u.full_name, u.phone, u.dui
+      FROM viajes_driver_profiles dp
+      JOIN viajes_users u ON dp.user_id = u.id
+      WHERE dp.id::text = $1 OR dp.user_id::text = $1 OR dp.vehicle_plate = $1 OR u.dui = $1;
+    `, [id]);
+
+    if (profileRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Perfil de conductor no encontrado' });
+    }
+
+    const row = profileRes.rows[0];
+    res.json({
+      id: row.id,
+      userId: row.user_id,
+      fullName: row.full_name,
+      phone: row.phone,
+      dui: row.dui,
+      licenseNumber: row.license_number,
+      vehiclePlate: row.vehicle_plate,
+      vehicleBrand: row.vehicle_brand,
+      vehicleModel: row.vehicle_model,
+      vehicleYear: row.vehicle_year,
+      vehicleColor: row.vehicle_color,
+      photoUrl: row.photo_url,
+      approvalStatus: row.approval_status,
+      rejectionReason: row.rejection_reason,
+      isActive: row.is_active,
+      isOnline: row.is_online,
+      currentWeekBonuses: row.current_week_bonuses_count || 0,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 5.2 BANDEJA ADMINISTRATIVA: LISTADO DE EXPEDIENTES DE CONDUCTORES
+app.get('/api/admin/drivers/list', async (req, res) => {
+  try {
+    const { status } = req.query;
+    let query = `
+      SELECT dp.*, u.full_name, u.phone, u.dui
+      FROM viajes_driver_profiles dp
+      JOIN viajes_users u ON dp.user_id = u.id
+    `;
+    const params = [];
+    if (status) {
+      query += ' WHERE dp.approval_status = $1';
+      params.push(status);
+    }
+    query += ' ORDER BY dp.created_at DESC;';
+
+    const listRes = await pool.query(query, params);
+    res.json({
+      drivers: listRes.rows.map(r => ({
+        id: r.id,
+        userId: r.user_id,
+        fullName: r.full_name,
+        phone: r.phone,
+        dui: r.dui,
+        licenseNumber: r.license_number,
+        vehiclePlate: r.vehicle_plate,
+        vehicleBrand: r.vehicle_brand,
+        vehicleModel: r.vehicle_model,
+        vehicleYear: r.vehicle_year,
+        vehicleColor: r.vehicle_color,
+        approvalStatus: r.approval_status,
+        rejectionReason: r.rejection_reason,
+        photoUrl: r.photo_url,
+        duiFrontUrl: r.dui_front_url,
+        duiBackUrl: r.dui_back_url,
+        licenseFrontUrl: r.license_front_url,
+        licenseBackUrl: r.license_back_url,
+        circulationCardUrl: r.circulation_card_url,
+        policeRecordUrl: r.police_record_url,
+        criminalRecordUrl: r.criminal_record_url,
+        vehiclePhotoFront: r.vehicle_photo_front,
+        vehiclePhotoInside: r.vehicle_photo_inside,
+        createdAt: r.created_at
+      }))
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 5.3 CORTAFUEGOS ANTI-ARBITRAJE: APROBACIÓN ADMINISTRATIVA DE CONDUCTORES
+app.post('/api/admin/drivers/approve', async (req, res) => {
+  try {
+    const { userId, driverProfileId, adminId = 'ADMIN_SUPERVISOR' } = req.body;
+    let targetUserId = userId;
+
+    if (!targetUserId && driverProfileId) {
+      const dRes = await pool.query('SELECT user_id FROM viajes_driver_profiles WHERE id::text = $1', [driverProfileId]);
+      if (dRes.rows.length > 0) targetUserId = dRes.rows[0].user_id;
+    }
+
+    if (!targetUserId) {
+      return res.status(400).json({ error: 'userId o driverProfileId es obligatorio para la aprobación del conductor' });
+    }
+
+    const result = await LedgerService.cancelPromotionalBonusesOnDriverApproval(targetUserId, adminId);
     res.json(result);
   } catch (err) {
     console.error('Error al aprobar conductor administrativamente:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 5.4 RECHAZO ADMINISTRATIVO CON RETROALIMENTACIÓN
+app.post('/api/admin/drivers/reject', async (req, res) => {
+  try {
+    const { driverProfileId, userId, reason = 'Documentación incompleta o ilegible' } = req.body;
+    if (!driverProfileId && !userId) {
+      return res.status(400).json({ error: 'driverProfileId o userId es requerido' });
+    }
+
+    const updateRes = await pool.query(`
+      UPDATE viajes_driver_profiles
+      SET approval_status = 'REJECTED',
+          rejection_reason = $1,
+          is_active = FALSE,
+          is_online = FALSE,
+          updated_at = NOW()
+      WHERE id::text = $2 OR user_id::text = $2
+      RETURNING *;
+    `, [reason, (driverProfileId || userId).toString()]);
+
+    if (updateRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Conductor no encontrado' });
+    }
+
+    res.json({
+      success: true,
+      message: 'Expediente marcado como RECHAZADO con motivo especificado',
+      driverProfile: updateRes.rows[0]
+    });
+  } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });

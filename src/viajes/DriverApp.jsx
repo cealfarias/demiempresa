@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import RumboLogo from './RumboLogo';
 import GasModal from './GasModal';
+import DriverRegistrationModal from './DriverRegistrationModal';
 import {
   calculateTripFuelCost,
   estimateFuelEconomy,
@@ -36,12 +37,36 @@ import {
   socket,
   fetchDriverSubscriptionApi,
   payDriverWeeklyFeeWithBonusesApi,
-  fetchWalletSummaryApi
+  fetchWalletSummaryApi,
+  fetchDriverStatusApi
 } from './api';
 
 export default function DriverApp() {
-  const [driverOnline, setDriverOnline] = useState(true);
-  const [driverProfileId] = useState('drv-sv-1');
+  const [driverProfile, setDriverProfile] = useState(() => {
+    try {
+      const saved = localStorage.getItem('rumbo_driver_profile');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+  const [showRegistrationModal, setShowRegistrationModal] = useState(false);
+  const [driverProfileId, setDriverProfileId] = useState(() => {
+    try {
+      const saved = localStorage.getItem('rumbo_driver_profile');
+      return saved ? (JSON.parse(saved).id || 'drv-sv-1') : 'drv-sv-1';
+    } catch {
+      return 'drv-sv-1';
+    }
+  });
+
+  const isApproved = !driverProfile || driverProfile.approvalStatus === 'APPROVED';
+  const isPending = driverProfile?.approvalStatus === 'PENDING';
+  const isRejected = driverProfile?.approvalStatus === 'REJECTED';
+
+  const [driverOnline, setDriverOnline] = useState(() => {
+    return isApproved;
+  });
   const [weeklyBonuses, setWeeklyBonuses] = useState(0);
   const [isApplyingBonuses, setIsApplyingBonuses] = useState(false);
   const [showFeePaymentModal, setShowFeePaymentModal] = useState(false);
@@ -76,6 +101,32 @@ export default function DriverApp() {
   useEffect(() => {
     document.title = "Rumbo Conductor | 100% Efectivo";
   }, []);
+
+  // Sincronizar estado de aprobación del conductor con el backend
+  useEffect(() => {
+    if (driverProfile?.id) {
+      fetchDriverStatusApi(driverProfile.id)
+        .then((updated) => {
+          if (updated && !updated.error) {
+            setDriverProfile(updated);
+            localStorage.setItem('rumbo_driver_profile', JSON.stringify(updated));
+            if (updated.approvalStatus !== 'APPROVED') {
+              setDriverOnline(false);
+            }
+          }
+        })
+        .catch(() => {});
+    }
+  }, []);
+
+  // Controlar conexión en línea con validación de aprobación administrativa
+  const handleToggleOnline = () => {
+    if (isPending || isRejected || (driverProfile && driverProfile.approvalStatus !== 'APPROVED')) {
+      setShowRegistrationModal(true);
+      return;
+    }
+    setDriverOnline(!driverOnline);
+  };
 
   // Cargar gasolineras del backend
   useEffect(() => {
@@ -312,7 +363,7 @@ export default function DriverApp() {
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
       
       {/* Barra Superior Conductor */}
-      <header className="border-b border-slate-800 bg-slate-900 px-4 py-3 flex items-center justify-between sticky top-0 z-40">
+      <header className="border-b border-slate-800 bg-slate-900 px-3 sm:px-4 py-3 flex items-center justify-between sticky top-0 z-40">
         <div className="flex items-center gap-3">
           <RumboLogo textClassName="text-lg" />
           <div className="hidden sm:block border-l border-slate-800 pl-3">
@@ -320,19 +371,58 @@ export default function DriverApp() {
               <Radio className={`w-2.5 h-2.5 ${gpsActive ? 'animate-pulse text-emerald-400' : 'text-slate-500'}`} />
               <span>GPS (3-5s)</span>
             </span>
-            <div className="text-[10px] text-slate-400 font-mono mt-0.5">P-584-912 • Corolla</div>
+            <div className="text-[10px] text-slate-400 font-mono mt-0.5">
+              {driverProfile?.vehiclePlate || 'P-584-912'} • {driverProfile?.vehicleModel || 'Corolla'}
+            </div>
           </div>
         </div>
 
-        {/* Botones Rápidos: Radar Gasolina, Auto y Switch En Línea */}
+        {/* Botones Rápidos: Registro/Expediente, Radar Gasolina, Auto y Switch En Línea */}
         <div className="flex items-center gap-2">
+          {/* Botón de Expediente Digital / Registro Oficial */}
+          <button
+            onClick={() => setShowRegistrationModal(true)}
+            className={`px-2.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors ${
+              isPending
+                ? 'bg-amber-500/20 border border-amber-500/40 text-amber-300 hover:bg-amber-500/30'
+                : isRejected
+                ? 'bg-rose-500/20 border border-rose-500/40 text-rose-300 hover:bg-rose-500/30'
+                : driverProfile?.approvalStatus === 'APPROVED'
+                ? 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/25'
+                : 'bg-amber-500 hover:bg-amber-400 text-slate-950 font-black shadow-md shadow-amber-950/40'
+            }`}
+            title="Expediente de registro de conductor"
+          >
+            {isPending ? (
+              <>
+                <Clock className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
+                <span>En Revisión</span>
+              </>
+            ) : isRejected ? (
+              <>
+                <AlertTriangle className="w-3.5 h-3.5 text-rose-400" />
+                <span>Observaciones</span>
+              </>
+            ) : driverProfile?.approvalStatus === 'APPROVED' ? (
+              <>
+                <CheckCircle className="w-3.5 h-3.5 text-emerald-400" />
+                <span className="hidden sm:inline">Verificado</span>
+              </>
+            ) : (
+              <>
+                <Car className="w-3.5 h-3.5" />
+                <span>Registro Conductor</span>
+              </>
+            )}
+          </button>
+
           <button
             onClick={() => setShowGasModal(true)}
             title="Radar de Gasolina al centavo"
             className="p-2 sm:px-2.5 sm:py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 hover:bg-amber-500/20 text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors"
           >
             <Fuel className="w-4 h-4 text-amber-400" />
-            <span className="hidden sm:inline">Radar Gasolina</span>
+            <span className="hidden md:inline">Radar Gasolina</span>
           </button>
 
           <button
@@ -341,11 +431,11 @@ export default function DriverApp() {
             className="p-2 sm:px-2.5 sm:py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors"
           >
             <Settings className="w-4 h-4 text-slate-400" />
-            <span className="hidden sm:inline">{vehicleYear} • {kmPerGallon} km/gal</span>
+            <span className="hidden lg:inline">{vehicleYear} • {kmPerGallon} km/gal</span>
           </button>
 
           <button
-            onClick={() => setDriverOnline(!driverOnline)}
+            onClick={handleToggleOnline}
             className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 ${
               driverOnline
                 ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20'
@@ -357,6 +447,41 @@ export default function DriverApp() {
           </button>
         </div>
       </header>
+
+      {/* Banner Informativo si el Expediente está PENDIENTE o RECHAZADO */}
+      {isPending && (
+        <div className="bg-amber-500/15 border-b border-amber-500/30 px-4 py-2.5 text-xs text-amber-200 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <Clock className="w-4 h-4 text-amber-400 animate-pulse shrink-0" />
+            <span>
+              <strong>Expediente en Revisión:</strong> Tu solicitud y documentos oficiales están siendo validados por administración (plazo 2-12 hrs).
+            </span>
+          </div>
+          <button
+            onClick={() => setShowRegistrationModal(true)}
+            className="px-2.5 py-1 rounded-lg bg-amber-500 text-slate-950 font-black text-[11px] shrink-0 hover:bg-amber-400 transition-colors"
+          >
+            Ver Estatus
+          </button>
+        </div>
+      )}
+
+      {isRejected && (
+        <div className="bg-rose-500/15 border-b border-rose-500/30 px-4 py-2.5 text-xs text-rose-200 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+            <span>
+              <strong>Solicitud con Observaciones:</strong> {driverProfile?.rejectionReason || 'Faltan documentos legibles o actualizados.'}
+            </span>
+          </div>
+          <button
+            onClick={() => setShowRegistrationModal(true)}
+            className="px-2.5 py-1 rounded-lg bg-rose-500 text-white font-black text-[11px] shrink-0 hover:bg-rose-600 transition-colors"
+          >
+            Corregir Ahora
+          </button>
+        </div>
+      )}
 
       {/* ALERTA HUD EN RUTA: Gasolinera Económica Detectada Frente al Conductor */}
       {nearbyStationAlert && (
@@ -1184,6 +1309,21 @@ export default function DriverApp() {
         </div>
       )}
 
+      {/* Modal de Registro y Expediente Digital de Conductor */}
+      <DriverRegistrationModal
+        isOpen={showRegistrationModal}
+        onClose={() => setShowRegistrationModal(false)}
+        existingDriverId={driverProfile?.id}
+        onDriverRegistered={(newProfile) => {
+          setDriverProfile(newProfile);
+          setDriverProfileId(newProfile.id);
+          if (newProfile.approvalStatus !== 'APPROVED') {
+            setDriverOnline(false);
+          }
+        }}
+      />
+
     </div>
   );
 }
+

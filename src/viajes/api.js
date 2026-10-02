@@ -214,3 +214,89 @@ export async function verifyLedgerAuditApi() {
   }
 }
 
+/**
+ * 12. Registro y Envío de Expediente Digital del Conductor
+ */
+export async function registerDriverApi(driverData) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/drivers/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(driverData)
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Error al registrar conductor');
+    return data;
+  } catch (err) {
+    console.error('API Error registerDriverApi:', err);
+    throw err;
+  }
+}
+
+/**
+ * 13. Consulta de Estado de Aprobación del Conductor
+ */
+export async function fetchDriverStatusApi(driverProfileId) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/drivers/${driverProfileId}/status`);
+    if (!res.ok) return null;
+    return await res.json();
+  } catch (err) {
+    console.warn('API Error fetchDriverStatusApi:', err);
+    return null;
+  }
+}
+
+/**
+ * 14. Listado Administrativo de Expedientes de Conductores
+ */
+export async function fetchPendingDriversApi(status = '') {
+  try {
+    const url = status ? `${API_BASE_URL}/api/admin/drivers/list?status=${status}` : `${API_BASE_URL}/api/admin/drivers/list`;
+    const res = await fetch(url);
+    if (!res.ok) return { drivers: [] };
+    return await res.json();
+  } catch (err) {
+    console.warn('API Error fetchPendingDriversApi:', err);
+    return { drivers: [] };
+  }
+}
+
+/**
+ * 15. Aprobación Administrativa de Conductor
+ */
+export async function approveDriverApi({ userId, driverProfileId, adminId = 'ADMIN_SUPERVISOR' }) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/admin/drivers/approve`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, driverProfileId, adminId })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Error al aprobar conductor');
+    return data;
+  } catch (err) {
+    console.error('API Error approveDriverApi:', err);
+    throw err;
+  }
+}
+
+/**
+ * 16. Rechazo Administrativo con Retroalimentación
+ */
+export async function rejectDriverApi({ driverProfileId, userId, reason, adminId = 'ADMIN_SUPERVISOR' }) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/admin/drivers/reject`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ driverProfileId, userId, reason, adminId })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Error al rechazar conductor');
+    return data;
+  } catch (err) {
+    console.error('API Error rejectDriverApi:', err);
+    throw err;
+  }
+}
+
