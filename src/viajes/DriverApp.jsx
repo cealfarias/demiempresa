@@ -114,21 +114,6 @@ export default function DriverApp() {
       .catch(() => {});
   }, []);
 
-  // Inicializar WebSockets para el Chofer y Foreground GPS
-  useEffect(() => {
-    socket.emit('client:register', {
-      userId: 'driver-user-1',
-      role: 'DRIVER',
-      driverProfileId
-    });
-
-    // Cargar cuota semanal del backend
-    fetchDriverSubscriptionApi(driverProfileId).then((data) => {
-      if (data) {
-        setWeeklyBonuses(data.currentWeekBonuses || 0);
-      }
-    });
-
   // Pagar cuota semanal ($10.00) usando saldo bonificado acumulado (Ledger Criptográfico)
   const handlePayWeeklyFeeWithBonuses = async () => {
     setIsApplyingBonuses(true);
@@ -160,6 +145,21 @@ export default function DriverApp() {
       setIsApplyingBonuses(false);
     }
   };
+
+  // Inicializar WebSockets para el Chofer y Foreground GPS
+  useEffect(() => {
+    socket.emit('client:register', {
+      userId: 'driver-user-1',
+      role: 'DRIVER',
+      driverProfileId
+    });
+
+    // Cargar cuota semanal del backend
+    fetchDriverSubscriptionApi(driverProfileId).then((data) => {
+      if (data) {
+        setWeeklyBonuses(data.currentWeekBonuses || 0);
+      }
+    });
 
     // Escuchar nuevas solicitudes entrantes a 1 km con distancia de carretera
     socket.on('trip:new_request', (reqData) => {
