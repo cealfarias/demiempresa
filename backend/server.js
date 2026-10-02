@@ -764,14 +764,46 @@ async function initializeDatabase() {
     return;
   }
   try {
+    // 1. Asegurar columnas de cumplimiento y expediente de conductores de inmediato
+    await pool.query(`
+      DO $$ BEGIN
+        ALTER TABLE viajes_driver_profiles ADD COLUMN IF NOT EXISTS license_number VARCHAR(30);
+        ALTER TABLE viajes_driver_profiles ADD COLUMN IF NOT EXISTS approval_status VARCHAR(20) DEFAULT 'PENDING';
+        ALTER TABLE viajes_driver_profiles ADD COLUMN IF NOT EXISTS approved_at TIMESTAMP WITH TIME ZONE;
+        ALTER TABLE viajes_driver_profiles ADD COLUMN IF NOT EXISTS approved_by VARCHAR(64);
+        ALTER TABLE viajes_driver_profiles ADD COLUMN IF NOT EXISTS dui_front_url TEXT;
+        ALTER TABLE viajes_driver_profiles ADD COLUMN IF NOT EXISTS dui_back_url TEXT;
+        ALTER TABLE viajes_driver_profiles ADD COLUMN IF NOT EXISTS license_front_url TEXT;
+        ALTER TABLE viajes_driver_profiles ADD COLUMN IF NOT EXISTS license_back_url TEXT;
+        ALTER TABLE viajes_driver_profiles ADD COLUMN IF NOT EXISTS circulation_card_url TEXT;
+        ALTER TABLE viajes_driver_profiles ADD COLUMN IF NOT EXISTS police_record_url TEXT;
+        ALTER TABLE viajes_driver_profiles ADD COLUMN IF NOT EXISTS criminal_record_url TEXT;
+        ALTER TABLE viajes_driver_profiles ADD COLUMN IF NOT EXISTS vehicle_photo_front TEXT;
+        ALTER TABLE viajes_driver_profiles ADD COLUMN IF NOT EXISTS vehicle_photo_inside TEXT;
+        ALTER TABLE viajes_driver_profiles ADD COLUMN IF NOT EXISTS emergency_contact_name VARCHAR(150);
+        ALTER TABLE viajes_driver_profiles ADD COLUMN IF NOT EXISTS emergency_contact_phone VARCHAR(20);
+        ALTER TABLE viajes_driver_profiles ADD COLUMN IF NOT EXISTS rejection_reason TEXT;
+        ALTER TABLE viajes_driver_profiles ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
+      EXCEPTION WHEN others THEN null; END $$;
+    `);
+
+    // 2. Intentar cargar schema.sql completo si existe
     const fs = await import('fs');
     const path = await import('path');
-    const schemaPath = path.resolve('schema.sql');
-    if (fs.existsSync(schemaPath)) {
-      const sql = fs.readFileSync(schemaPath, 'utf8');
-      await pool.query(sql);
-      console.log('✅ Tablas viajes_* y datos semilla verificados e inicializados en PostgreSQL.');
+    const possiblePaths = [
+      path.resolve('schema.sql'),
+      path.resolve('backend/schema.sql'),
+      path.join(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Z]:)/, '$1')), 'schema.sql')
+    ];
+    for (const schemaPath of possiblePaths) {
+      if (fs.existsSync(schemaPath)) {
+        const sql = fs.readFileSync(schemaPath, 'utf8');
+        await pool.query(sql);
+        console.log(`✅ Esquema cargado exitosamente desde ${schemaPath}`);
+        break;
+      }
     }
+    console.log('✅ Tablas viajes_* y columnas de conductor verificadas en PostgreSQL.');
   } catch (err) {
     console.error('⚠️ Error al inicializar esquema viajes_*:', err.message);
   }
