@@ -591,9 +591,9 @@ app.get('/api/gas/stations', async (req, res) => {
       stations: stationsRes.rows,
       officialGovernmentPrices: {
         zone: 'Zona Central (San Salvador / La Libertad)',
-        regular: 3.82,
-        especial: 4.18,
-        diesel: 3.52,
+        regular: 4.75,
+        especial: 5.13,
+        diesel: 4.25,
         source: 'Dirección General de Energía, Hidrocarburos y Minas (DGEHM) El Salvador',
         updatedPeriod: 'Quincena Vigente'
       }
@@ -803,7 +803,35 @@ async function initializeDatabase() {
         break;
       }
     }
-    console.log('✅ Tablas viajes_* y columnas de conductor verificadas en PostgreSQL.');
+
+    // 3. Sincronizar precios oficiales y de mercado vigentes ($5.13 Especial)
+    await pool.query(`
+      UPDATE viajes_gas_stations SET
+        gov_especial_price = 5.13,
+        gov_regular_price = 4.75,
+        gov_diesel_price = 4.25,
+        especial_price = CASE 
+          WHEN brand = 'DLC' THEN 5.03
+          WHEN brand = 'Puma' THEN 5.06
+          WHEN brand = 'Texaco' THEN 5.09
+          WHEN brand = 'Uno' THEN 5.10
+          ELSE 5.08
+        END,
+        regular_price = CASE
+          WHEN brand = 'DLC' THEN 4.65
+          WHEN brand = 'Puma' THEN 4.68
+          WHEN brand = 'Uno' THEN 4.71
+          ELSE 4.70
+        END,
+        diesel_price = CASE
+          WHEN brand = 'DLC' THEN 4.15
+          WHEN brand = 'Puma' THEN 4.18
+          ELSE 4.20
+        END
+      WHERE gov_especial_price < 5.00;
+    `).catch(() => {});
+
+    console.log('✅ Tablas viajes_*, precios de combustible ($5.13 Especial) y columnas de conductor verificadas en PostgreSQL.');
   } catch (err) {
     console.error('⚠️ Error al inicializar esquema viajes_*:', err.message);
   }

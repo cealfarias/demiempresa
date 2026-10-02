@@ -65,7 +65,7 @@ import {
   resumeAudioContext
 } from './soundFeedbackService';
 import confetti from 'canvas-confetti';
-import { calculateRoadDistance, calculateSuggestedFare, PASSENGER_WEIGHT_PROFILES } from './fuelService';
+import { calculateRoadDistance, calculateSuggestedFare, PASSENGER_WEIGHT_PROFILES, OFFICIAL_GOV_PRICES } from './fuelService';
 import {
   socket,
   registerUserApi,
@@ -277,7 +277,7 @@ export default function ViajesApp() {
   const suggestedFareInfo = calculateSuggestedFare(
     roadDistanceKm,
     isMotoMode ? 115.0 : 42.0,
-    3.80,
+    OFFICIAL_GOV_PRICES.regular,
     trafficInfo.delayMinutes,
     { ...tripPreferences, transportType }
   );
@@ -818,7 +818,7 @@ export default function ViajesApp() {
       const fareData = calculateSuggestedFare(
         distKm,
         transportType === 'MOTO' ? 115.0 : 42.0,
-        3.80,
+        OFFICIAL_GOV_PRICES.regular,
         delayMin,
         { ...tripPreferences, transportType }
       );
@@ -3665,7 +3665,7 @@ export default function ViajesApp() {
             const fareData = calculateSuggestedFare(
               distKm,
               transportType === 'MOTO' ? 115.0 : 42.0,
-              3.80,
+              OFFICIAL_GOV_PRICES.regular,
               delayMin,
               { ...tripPreferences, transportType }
             );
@@ -3712,7 +3712,7 @@ export default function ViajesApp() {
           const fareData = calculateSuggestedFare(
             distKm,
             transportType === 'MOTO' ? 115.0 : 42.0,
-            3.80,
+            OFFICIAL_GOV_PRICES.regular,
             delayMin,
             { ...tripPreferences, transportType }
           );

@@ -242,18 +242,28 @@ export function calculateCabinWeight(passengersCount = 1, weightProfile = 'NORMA
   };
 }
 
+// 4.1 PRECIOS OFICIALES DE REFERENCIA DEL GOBIERNO (DGEHM EL SALVADOR)
+export const OFFICIAL_GOV_PRICES = {
+  zone: 'Zona Central (San Salvador / La Libertad)',
+  regular: 4.75,
+  especial: 5.13,
+  diesel: 4.25,
+  source: 'Dirección General de Energía, Hidrocarburos y Minas (DGEHM)',
+  effectiveDate: 'Quincena Vigente'
+};
+
 // 5. CÁLCULO CIENTÍFICO DE COSTO DE GASOLINA (DISTANCIA + TRÁFICO + A/C + PESO DE PASAJEROS)
 export function calculateTripFuelCost(
   distanceKm,
   kmPerGallon = 42.0,
-  fuelPricePerGallon = 3.80,
+  fuelPricePerGallon = OFFICIAL_GOV_PRICES.regular,
   agreedFare = 3.50,
   delayMinutes = 0,
   options = {}
 ) {
   const dist = parseFloat(distanceKm) || 1.0;
   const kpg = Math.max(10.0, parseFloat(kmPerGallon) || 42.0);
-  const price = parseFloat(fuelPricePerGallon) || 3.80;
+  const price = parseFloat(fuelPricePerGallon) || OFFICIAL_GOV_PRICES.regular;
   const fare = parseFloat(agreedFare) || 0.0;
 
   const {
@@ -304,7 +314,7 @@ export function calculateTripFuelCost(
 export function calculateSuggestedFare(
   distanceKm,
   kmPerGallon = 42.0,
-  fuelPricePerGallon = 3.80,
+  fuelPricePerGallon = OFFICIAL_GOV_PRICES.regular,
   delayMinutes = 0,
   options = {}
 ) {
@@ -414,17 +424,7 @@ export function calculateSuggestedFare(
   };
 }
 
-// 4. PRECIOS OFICIALES DE REFERENCIA DEL GOBIERNO (DGEHM EL SALVADOR)
-export const OFFICIAL_GOV_PRICES = {
-  zone: 'Zona Central (San Salvador / La Libertad)',
-  regular: 3.82,
-  especial: 4.18,
-  diesel: 3.52,
-  source: 'Dirección General de Energía, Hidrocarburos y Minas (DGEHM)',
-  effectiveDate: 'Quincena Vigente'
-};
-
-// 5. ESTACIONES DE GASOLINA EN EL SALVADOR CON PRECIOS AL DÍA
+// 7. ESTACIONES DE GASOLINA EN EL SALVADOR CON PRECIOS AL DÍA
 export const DEFAULT_GAS_STATIONS = [
   {
     id: 'gas-dlc-const',
@@ -434,11 +434,11 @@ export const DEFAULT_GAS_STATIONS = [
     municipality: 'San Salvador',
     lat: 13.7150,
     lng: -89.2280,
-    regular: 3.72,
-    especial: 4.08,
-    diesel: 3.42,
+    regular: 4.65,
+    especial: 5.03,
+    diesel: 4.15,
     savingsRegular: 0.10,
-    reportsCount: 19
+    reportsCount: 24
   },
   {
     id: 'gas-puma-metro',
@@ -448,11 +448,11 @@ export const DEFAULT_GAS_STATIONS = [
     municipality: 'San Salvador',
     lat: 13.7025,
     lng: -89.2150,
-    regular: 3.75,
-    especial: 4.10,
-    diesel: 3.44,
+    regular: 4.68,
+    especial: 5.06,
+    diesel: 4.18,
     savingsRegular: 0.07,
-    reportsCount: 14
+    reportsCount: 18
   },
   {
     id: 'gas-puma-tecla',
@@ -462,11 +462,11 @@ export const DEFAULT_GAS_STATIONS = [
     municipality: 'Santa Tecla',
     lat: 13.6738,
     lng: -89.2789,
-    regular: 3.74,
-    especial: 4.09,
-    diesel: 3.45,
+    regular: 4.67,
+    especial: 5.05,
+    diesel: 4.17,
     savingsRegular: 0.08,
-    reportsCount: 12
+    reportsCount: 15
   },
   {
     id: 'gas-uno-soya',
@@ -476,11 +476,11 @@ export const DEFAULT_GAS_STATIONS = [
     municipality: 'Soyapango',
     lat: 13.7080,
     lng: -89.1550,
-    regular: 3.76,
-    especial: 4.11,
-    diesel: 3.46,
+    regular: 4.69,
+    especial: 5.07,
+    diesel: 4.19,
     savingsRegular: 0.06,
-    reportsCount: 11
+    reportsCount: 13
   },
   {
     id: 'gas-texaco-heroes',
@@ -490,11 +490,11 @@ export const DEFAULT_GAS_STATIONS = [
     municipality: 'San Salvador',
     lat: 13.7040,
     lng: -89.2140,
-    regular: 3.78,
-    especial: 4.12,
-    diesel: 3.47,
+    regular: 4.71,
+    especial: 5.09,
+    diesel: 4.21,
     savingsRegular: 0.04,
-    reportsCount: 8
+    reportsCount: 11
   },
   {
     id: 'gas-uno-salvador-mundo',
@@ -504,11 +504,11 @@ export const DEFAULT_GAS_STATIONS = [
     municipality: 'San Salvador',
     lat: 13.7013,
     lng: -89.2244,
-    regular: 3.79,
-    especial: 4.14,
-    diesel: 3.48,
+    regular: 4.72,
+    especial: 5.10,
+    diesel: 4.22,
     savingsRegular: 0.03,
-    reportsCount: 6
+    reportsCount: 9
   }
 ];
 

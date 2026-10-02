@@ -20,7 +20,7 @@ export default function GasModal({
 }) {
   const [selectedStationId, setSelectedStationId] = useState(stations[0]?.id || '');
   const [fuelType, setFuelType] = useState('REGULAR');
-  const [reportedPrice, setReportedPrice] = useState('3.75');
+  const [reportedPrice, setReportedPrice] = useState('4.70');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successMessage, setSuccessMessage] = useState(false);
 
@@ -171,7 +171,7 @@ export default function GasModal({
                     type="number"
                     step="0.01"
                     min="2.50"
-                    max="6.00"
+                    max="7.00"
                     required
                     value={reportedPrice}
                     onChange={(e) => setReportedPrice(e.target.value)}

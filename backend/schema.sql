@@ -225,12 +225,12 @@ CREATE TABLE IF NOT EXISTS viajes_gas_stations (
     municipality VARCHAR(50) NOT NULL,
     lat DOUBLE PRECISION NOT NULL,
     lng DOUBLE PRECISION NOT NULL,
-    regular_price NUMERIC(4,2) NOT NULL DEFAULT 3.80,
-    especial_price NUMERIC(4,2) NOT NULL DEFAULT 4.15,
-    diesel_price NUMERIC(4,2) NOT NULL DEFAULT 3.48,
-    gov_regular_price NUMERIC(4,2) NOT NULL DEFAULT 3.82,
-    gov_especial_price NUMERIC(4,2) NOT NULL DEFAULT 4.18,
-    gov_diesel_price NUMERIC(4,2) NOT NULL DEFAULT 3.52,
+    regular_price NUMERIC(4,2) NOT NULL DEFAULT 4.68,
+    especial_price NUMERIC(4,2) NOT NULL DEFAULT 5.08,
+    diesel_price NUMERIC(4,2) NOT NULL DEFAULT 4.18,
+    gov_regular_price NUMERIC(4,2) NOT NULL DEFAULT 4.75,
+    gov_especial_price NUMERIC(4,2) NOT NULL DEFAULT 5.13,
+    gov_diesel_price NUMERIC(4,2) NOT NULL DEFAULT 4.25,
     verified_reports_count INT NOT NULL DEFAULT 1,
     last_verified_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
@@ -334,13 +334,13 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM viajes_gas_stations LIMIT 1) THEN
         INSERT INTO viajes_gas_stations (brand, station_name, address, municipality, lat, lng, regular_price, especial_price, diesel_price, gov_regular_price, gov_especial_price, gov_diesel_price, verified_reports_count)
         VALUES
-        ('Puma', 'Puma Metrocentro Los Héroes', 'Boulevard de Los Héroes, San Salvador', 'San Salvador', 13.7025, -89.2150, 3.75, 4.10, 3.44, 3.82, 4.18, 3.52, 12),
-        ('Texaco', 'Texaco Los Héroes', 'Blvd. Los Héroes y Calle Gabriela Mistral', 'San Salvador', 13.7040, -89.2140, 3.78, 4.12, 3.47, 3.82, 4.18, 3.52, 8),
-        ('Uno', 'Uno Salvador del Mundo', 'Alameda Roosevelt y Plaza Las Américas', 'San Salvador', 13.7013, -89.2244, 3.79, 4.14, 3.48, 3.82, 4.18, 3.52, 6),
-        ('DLC', 'DLC Constitución', 'Boulevard Constitución y Calle Los Sisimiles', 'San Salvador', 13.7150, -89.2280, 3.72, 4.08, 3.42, 3.82, 4.18, 3.52, 19),
-        ('Puma', 'Puma Santa Tecla Panamericana', 'Carretera Panamericana frente a La Joya', 'Santa Tecla', 13.6738, -89.2789, 3.74, 4.09, 3.45, 3.82, 4.18, 3.52, 14),
-        ('Texaco', 'Texaco Las Delicias', 'Final 4a Calle Poniente, Las Delicias', 'Santa Tecla', 13.6680, -89.2920, 3.80, 4.16, 3.50, 3.82, 4.18, 3.52, 5),
-        ('Uno', 'Uno Soyapango Blvd. del Ejército', 'Boulevard del Ejército Km 4.5', 'Soyapango', 13.7080, -89.1550, 3.76, 4.11, 3.46, 3.82, 4.18, 3.52, 11);
+        ('Puma', 'Puma Metrocentro Los Héroes', 'Boulevard de Los Héroes, San Salvador', 'San Salvador', 13.7025, -89.2150, 4.68, 5.06, 4.18, 4.75, 5.13, 4.25, 18),
+        ('Texaco', 'Texaco Los Héroes', 'Blvd. Los Héroes y Calle Gabriela Mistral', 'San Salvador', 13.7040, -89.2140, 4.71, 5.09, 4.21, 4.75, 5.13, 4.25, 11),
+        ('Uno', 'Uno Salvador del Mundo', 'Alameda Roosevelt y Plaza Las Américas', 'San Salvador', 13.7013, -89.2244, 4.72, 5.10, 4.22, 4.75, 5.13, 4.25, 9),
+        ('DLC', 'DLC Constitución', 'Boulevard Constitución y Calle Los Sisimiles', 'San Salvador', 13.7150, -89.2280, 4.65, 5.03, 4.15, 4.75, 5.13, 4.25, 24),
+        ('Puma', 'Puma Santa Tecla Panamericana', 'Carretera Panamericana frente a La Joya', 'Santa Tecla', 13.6738, -89.2789, 4.67, 5.05, 4.17, 4.75, 5.13, 4.25, 15),
+        ('Texaco', 'Texaco Las Delicias', 'Final 4a Calle Poniente, Las Delicias', 'Santa Tecla', 13.6680, -89.2920, 4.72, 5.11, 4.23, 4.75, 5.13, 4.25, 8),
+        ('Uno', 'Uno Soyapango Blvd. del Ejército', 'Boulevard del Ejército Km 4.5', 'Soyapango', 13.7080, -89.1550, 4.69, 5.07, 4.19, 4.75, 5.13, 4.25, 13);
     END IF;
 END $$;
 

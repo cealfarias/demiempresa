@@ -279,24 +279,32 @@ export default function DriverLandingView({ onStartRegistration, onCheckStatus }
               </div>
             </div>
 
-            <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/25 text-xs space-y-1.5">
+            <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/25 text-xs space-y-2">
               <div className="flex justify-between text-slate-300">
-                <span>Ingreso que le quedó al chofer tras la comisión:</span>
+                <span>Ingreso que le quedó al chofer tras la comisión de la app ($0.69):</span>
                 <span className="font-bold text-white">$4.51 USD</span>
               </div>
               <div className="flex justify-between text-amber-300">
-                <span>Gasolina consumida en 66 min de tráfico (10.8 km):</span>
-                <span className="font-bold">-$1.35 USD aprox.</span>
+                <span>Gasolina consumida en 66 min de tráfico a marcha lenta (Gasolina Especial $5.13/gal):</span>
+                <span className="font-bold text-amber-200">-$1.80 USD (0.35 gal)</span>
               </div>
-              <div className="flex justify-between text-rose-400 font-bold pt-1 border-t border-amber-500/20">
-                <span>Lo que realmente le quedó al chofer por 66 minutos de su vida:</span>
-                <span className="text-sm font-black text-rose-300">$3.16 USD</span>
+              <div className="flex justify-between text-slate-300">
+                <span>Saldo en mano tras pagar el combustible:</span>
+                <span className="font-bold text-white">$2.71 USD</span>
+              </div>
+              <div className="flex justify-between text-rose-300 font-bold pt-1.5 border-t border-amber-500/20">
+                <span>Proporcional del alquiler / financiamiento del carro (~$100/sem ≈ $2.00/hr):</span>
+                <span>-$2.00 USD</span>
+              </div>
+              <div className="flex justify-between text-rose-400 font-black text-sm pt-1 border-t border-rose-500/30">
+                <span>Lo que realmente le quedó limpio al chofer por 66 minutos de su vida:</span>
+                <span className="text-base text-rose-400">$0.71 USD</span>
               </div>
             </div>
 
             <p className="text-[11px] text-slate-400 leading-relaxed">
-              👉 Si a eso le sumas los <strong>$100 semanales de alquiler o financiamiento del auto</strong> (~$2.00 por hora), el chofer ganó apenas <strong>$1.16 por más de una hora de desgaste físico y mecánico</strong>. 
-              En <strong>Rumbo a mi Destino</strong> la comisión es <strong>$0.00</strong>: los $5.20 entran íntegros en tu bolsa de efectivo y la tarifa toma en cuenta el tráfico real para que tu tiempo valga.
+              👉 ¡Con la <strong>Gasolina Especial a $5.13 por galón</strong> y la comisión del 13.34%, el chofer se mató en el tráfico durante más de una hora para llevarse <strong>setenta y un centavos</strong> a su casa!  
+              En <strong>Rumbo a mi Destino</strong> la comisión es <strong>$0.00</strong>: los $5.20 entran íntegros a tu bolsa, la tarifa protege tu tiempo en tráfico y el radar de gasolina te ayuda a encontrar las estaciones con mejor precio para cuidar cada centavo.
             </p>
           </div>
         </div>
