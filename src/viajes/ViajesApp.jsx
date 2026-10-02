@@ -365,8 +365,25 @@ export default function ViajesApp() {
 
   // Perfil del Pasajero & Punto de Inflexión
   const [userProfile, setUserProfile] = useState(() => {
-    const saved = localStorage.getItem('demiempresa_passenger');
-    return saved ? JSON.parse(saved) : null;
+    try {
+      const saved = localStorage.getItem('demiempresa_passenger');
+      if (!saved) return null;
+      const parsed = JSON.parse(saved);
+      // Purgar perfiles mock / dummy antiguos para que siempre aparezca el botón oficial de Google si no es auténtico
+      if (
+        !parsed ||
+        parsed.id === 'google-usr-1' ||
+        parsed.id === 'google-usr-2' ||
+        parsed.id === 'demo-passenger' ||
+        parsed.isGuest
+      ) {
+        localStorage.removeItem('demiempresa_passenger');
+        return null;
+      }
+      return parsed;
+    } catch {
+      return null;
+    }
   });
   const [showRegisterModal, setShowRegisterModal] = useState(false);
   const [googleClientId, setGoogleClientId] = useState(
@@ -378,6 +395,7 @@ export default function ViajesApp() {
   const [showGoogleConfigModal, setShowGoogleConfigModal] = useState(false);
   const [configClientIdInput, setConfigClientIdInput] = useState('');
   const googleButtonContainerRef = React.useRef(null);
+  const headerGoogleButtonRef = React.useRef(null);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [regFullName, setRegFullName] = useState('');
   const [regEmail, setRegEmail] = useState('');
@@ -1422,14 +1440,13 @@ export default function ViajesApp() {
     }, 400);
   };
 
-  // Inicializar botón oficial de Google Identity Services en el DOM
+  // Inicializar botón oficial de Google Identity Services en el DOM (En Encabezado y en Modal)
   useEffect(() => {
-    if (!showRegisterModal || googleDuiStep) return;
     const clientId = googleClientId;
     if (!clientId) return;
 
     const renderOfficialGsiButton = () => {
-      if (window.google?.accounts?.id && googleButtonContainerRef.current) {
+      if (window.google?.accounts?.id) {
         try {
           window.google.accounts.id.initialize({
             client_id: clientId,
@@ -1459,16 +1476,38 @@ export default function ViajesApp() {
             auto_select: false
           });
 
-          googleButtonContainerRef.current.innerHTML = '';
-          window.google.accounts.id.renderButton(googleButtonContainerRef.current, {
-            type: 'standard',
-            theme: 'outline',
-            size: 'large',
-            text: 'continue_with',
-            shape: 'pill',
-            logo_alignment: 'left',
-            width: 320
-          });
+          // Renderizar botón oficial GSI en el encabezado si no hay usuario logueado
+          if (headerGoogleButtonRef.current && !userProfile) {
+            headerGoogleButtonRef.current.innerHTML = '';
+            window.google.accounts.id.renderButton(headerGoogleButtonRef.current, {
+              type: 'standard',
+              theme: isLight ? 'outline' : 'filled_blue',
+              size: 'medium',
+              text: 'signin_with',
+              shape: 'pill',
+              logo_alignment: 'left',
+              width: 180
+            });
+          }
+
+          // Renderizar botón oficial GSI en el modal de registro si está visible
+          if (showRegisterModal && !googleDuiStep && googleButtonContainerRef.current) {
+            googleButtonContainerRef.current.innerHTML = '';
+            window.google.accounts.id.renderButton(googleButtonContainerRef.current, {
+              type: 'standard',
+              theme: 'outline',
+              size: 'large',
+              text: 'continue_with',
+              shape: 'pill',
+              logo_alignment: 'left',
+              width: 320
+            });
+          }
+
+          // Desplegar Google One Tap prompt si no está autenticado
+          if (!userProfile) {
+            window.google.accounts.id.prompt();
+          }
         } catch (err) {
           console.warn('Error inicializando Google Identity Services:', err);
         }
@@ -1483,10 +1522,10 @@ export default function ViajesApp() {
           clearInterval(timer);
           renderOfficialGsiButton();
         }
-      }, 400);
+      }, 300);
       return () => clearInterval(timer);
     }
-  }, [showRegisterModal, googleDuiStep, googleClientId]);
+  }, [showRegisterModal, googleDuiStep, googleClientId, userProfile, isLight]);
 
   // Abrir Google Identity Services real / Ventana emergente oficial de Google
   const handleGoogleSignInClick = () => {
@@ -1722,29 +1761,38 @@ export default function ViajesApp() {
             </button>
           </div>
 
-          {/* BOTÓN ENCABEZADO SUPERIOR DERECHO: INGRESO CON GOOGLE O SALDO DE BONOS */}
+          {/* BOTÓN ENCABEZADO SUPERIOR DERECHO: INGRESO OFICIAL CON GOOGLE O SALDO DE BONOS */}
           {!userProfile ? (
-            <button
-              type="button"
-              onClick={handleGoogleSignInClick}
-              title="Ingresa con Google y obtén tu bono de $1.00 USD"
-              className="px-2.5 sm:px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-900 border border-slate-200 rounded-full flex items-center gap-2 shadow-sm transition-all cursor-pointer group active:scale-95"
-            >
-              <svg className="w-4 h-4 flex-shrink-0 group-hover:scale-110 transition-transform" viewBox="0 0 24 24">
-                <path fill="#EA4335" d="M12 5c1.6 0 3 .6 4.1 1.6l3.1-3.1C17.3 1.7 14.8 1 12 1 7.4 1 3.5 3.6 1.6 7.4l3.7 2.9C6.2 7.4 8.9 5 12 5z" />
-                <path fill="#4285F4" d="M23.5 12.3c0-.8-.1-1.6-.2-2.3H12v4.6h6.5c-.3 1.5-1.1 2.8-2.4 3.7l3.7 2.9c2.2-2 3.7-5 3.7-8.9z" />
-                <path fill="#FBBC05" d="M5.3 14.7c-.2-.7-.4-1.5-.4-2.3s.2-1.6.4-2.3L1.6 7.2C.6 9.2 0 11.5 0 14s.6 4.8 1.6 6.8l3.7-2.9" />
-                <path fill="#34A853" d="M12 23c3.2 0 6-1.1 8-3l-3.7-2.9c-1.1.7-2.5 1.2-4.3 1.2-3.1 0-5.8-2.4-6.7-5.3L1.6 16c1.9 3.8 5.8 7 10.4 7z" />
-              </svg>
-              <div className="flex items-center gap-1.5 leading-none">
-                <span className="text-[11px] font-bold text-slate-800">
-                  Ingresar
-                </span>
-                <span className="text-[10px] font-black text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded-full border border-amber-200">
-                  +$1.00
-                </span>
-              </div>
-            </button>
+            <div className="flex items-center gap-1.5">
+              <div
+                ref={headerGoogleButtonRef}
+                className="min-h-[36px] flex items-center justify-end rounded-full overflow-hidden shadow-sm"
+              />
+              {/* Fallback de respaldo en caso de bloqueo de script o sin conexión */}
+              {!window.google?.accounts?.id && (
+                <button
+                  type="button"
+                  onClick={handleGoogleSignInClick}
+                  title="Ingresa con Google y obtén tu bono de $1.00 USD"
+                  className="px-2.5 sm:px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-900 border border-slate-200 rounded-full flex items-center gap-2 shadow-sm transition-all cursor-pointer group active:scale-95"
+                >
+                  <svg className="w-4 h-4 flex-shrink-0 group-hover:scale-110 transition-transform" viewBox="0 0 24 24">
+                    <path fill="#EA4335" d="M12 5c1.6 0 3 .6 4.1 1.6l3.1-3.1C17.3 1.7 14.8 1 12 1 7.4 1 3.5 3.6 1.6 7.4l3.7 2.9C6.2 7.4 8.9 5 12 5z" />
+                    <path fill="#4285F4" d="M23.5 12.3c0-.8-.1-1.6-.2-2.3H12v4.6h6.5c-.3 1.5-1.1 2.8-2.4 3.7l3.7 2.9c2.2-2 3.7-5 3.7-8.9z" />
+                    <path fill="#FBBC05" d="M5.3 14.7c-.2-.7-.4-1.5-.4-2.3s.2-1.6.4-2.3L1.6 7.2C.6 9.2 0 11.5 0 14s.6 4.8 1.6 6.8l3.7-2.9" />
+                    <path fill="#34A853" d="M12 23c3.2 0 6-1.1 8-3l-3.7-2.9c-1.1.7-2.5 1.2-4.3 1.2-3.1 0-5.8-2.4-6.7-5.3L1.6 16c1.9 3.8 5.8 7 10.4 7z" />
+                  </svg>
+                  <div className="flex items-center gap-1.5 leading-none">
+                    <span className="text-[11px] font-bold text-slate-800">
+                      Ingresar
+                    </span>
+                    <span className="text-[10px] font-black text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded-full border border-amber-200">
+                      +$1.00
+                    </span>
+                  </div>
+                </button>
+              )}
+            </div>
           ) : (
             <button
               type="button"
