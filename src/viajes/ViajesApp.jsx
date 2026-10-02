@@ -706,9 +706,14 @@ export default function ViajesApp() {
     // 2. Cálculo geográfico y de ruta en paralelo
     const calculationPromise = (async () => {
       let dCoords = null;
-      let dMunicipality = 'San Salvador';
       let resolvedDestinationText = spokenText;
       const oCoords = currentOriginCoords || originCoords || { lat: 13.7013, lng: -89.2244 };
+      if (!originCoords) {
+        setOriginCoords(oCoords);
+      }
+      if (!origin) {
+        setOrigin('Mi Ubicación Actual');
+      }
 
       try {
         const viewboxParam = `&viewbox=${oCoords.lng - 0.25},${oCoords.lat + 0.25},${oCoords.lng + 0.25},${oCoords.lat - 0.25}&bounded=0`;
@@ -834,10 +839,10 @@ export default function ViajesApp() {
 
     if (intent.type === 'CONFIRM_SEARCH') {
       setVoiceDialogueStep('IDLE');
-      speakAssistantMessage('Excelente. Buscando conductor cercano.', () => {
-        setIsListeningVoice(false);
-        handleSearchDrivers();
-      });
+      setIsListeningVoice(false);
+      stopVoiceDictation();
+      speakAssistantMessage('Excelente. Buscando conductor cercano.');
+      handleSearchDrivers();
       return;
     }
 
@@ -867,10 +872,10 @@ export default function ViajesApp() {
 
     if (intent.type === 'CONFIRM_SEARCH') {
       setVoiceDialogueStep('IDLE');
-      speakAssistantMessage('Excelente. Buscando conductor cercano.', () => {
-        setIsListeningVoice(false);
-        handleSearchDrivers();
-      });
+      setIsListeningVoice(false);
+      stopVoiceDictation();
+      speakAssistantMessage('Excelente. Buscando conductor cercano.');
+      handleSearchDrivers();
       return;
     }
 
@@ -1011,10 +1016,10 @@ export default function ViajesApp() {
         const reIntent = classifyUserVoiceIntent(ans);
         if (reIntent.type === 'CONFIRM_SEARCH') {
           setVoiceDialogueStep('IDLE');
-          speakAssistantMessage('Excelente. Buscando conductor cercano.', () => {
-            setIsListeningVoice(false);
-            handleSearchDrivers();
-          });
+          setIsListeningVoice(false);
+          stopVoiceDictation();
+          speakAssistantMessage('Excelente. Buscando conductor cercano.');
+          handleSearchDrivers();
         } else if (reIntent.type === 'DECLINE_SEARCH') {
           handleVoiceAnswer('no');
         } else {
@@ -1073,19 +1078,36 @@ export default function ViajesApp() {
   const handleSearchDrivers = (e) => {
     if (e && e.preventDefault) e.preventDefault();
     triggerSearchLaunchFeedback();
-    if (locationPermissionDenied || !originCoords) {
-      setShowLocationPermissionModal(true);
+
+    // Detener cualquier escucha o diálogo de voz pendiente
+    stopVoiceDictation();
+    setIsListeningVoice(false);
+    setVoiceDialogueStep('IDLE');
+
+    // Asegurar coordenadas de origen (GPS o default metropolitano)
+    const effectiveOriginCoords = originCoords || { lat: 13.7013, lng: -89.2244 };
+    if (!originCoords) {
+      setOriginCoords(effectiveOriginCoords);
+    }
+    const effectiveOrigin = origin?.trim() || 'Mi Ubicación Actual';
+    if (!origin) {
+      setOrigin(effectiveOrigin);
+    }
+
+    const effectiveDestination = destination?.trim();
+    if (!effectiveDestination) {
+      console.warn('handleSearchDrivers: No hay destino definido');
       return;
     }
-    if (!origin || !destination) return;
 
+    // TRANSICIÓN INMEDIATA A LA PANTALLA DE SUBASTA
     setAppState('AUCTION');
 
     const generatedTripId = `trip-${Date.now()}`;
     setTripId(generatedTripId);
 
-    const oLat = originCoords?.lat || 13.7013;
-    const oLng = originCoords?.lng || -89.2244;
+    const oLat = effectiveOriginCoords.lat;
+    const oLng = effectiveOriginCoords.lng;
     const dLat = destinationCoords?.lat || 13.6738;
     const dLng = destinationCoords?.lng || -89.2789;
 
@@ -1094,21 +1116,21 @@ export default function ViajesApp() {
       passengerId: userProfile?.id || 'guest-passenger',
       serviceType,
       transportType,
-      originAddress: origin,
+      originAddress: effectiveOrigin,
       originLat: oLat,
       originLng: oLng,
-      destinationAddress: destination,
+      destinationAddress: effectiveDestination,
       destinationLat: dLat,
       destinationLng: dLng,
-      destinationMunicipality,
-      distanceKm: roadDistanceKm,
-      durationMinutes: estimatedDurationMin,
-      proposedFare: parseFloat(proposedFare).toFixed(2),
-      suggestedFare: suggestedFareInfo.suggestedFare,
-      delayMinutes: trafficInfo.delayMinutes,
-      trafficLevel: trafficInfo.trafficLevel,
-      trafficLabel: trafficInfo.trafficLabel,
-      trafficColor: trafficInfo.trafficColor,
+      destinationMunicipality: destinationMunicipality || 'San Salvador',
+      distanceKm: roadDistanceKm || 5.0,
+      durationMinutes: estimatedDurationMin || 14,
+      proposedFare: parseFloat(proposedFare || 3.50).toFixed(2),
+      suggestedFare: suggestedFareInfo?.suggestedFare || '3.50',
+      delayMinutes: trafficInfo?.delayMinutes || 0,
+      trafficLevel: trafficInfo?.trafficLevel || 'FLUID',
+      trafficLabel: trafficInfo?.trafficLabel || 'Tráfico Fluido',
+      trafficColor: trafficInfo?.trafficColor || '#10B981',
       cashBill,
       changeNeeded: calculateChange(),
       preferences: tripPreferences,

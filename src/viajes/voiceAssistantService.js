@@ -305,73 +305,93 @@ export const parseNumberFromSpanish = (text) => {
 };
 
 /**
+ * Normaliza texto hablado: minúsculas, remueve tildes y signos de puntuación
+ */
+export const normalizeVoiceText = (text) => {
+  if (!text) return '';
+  return text
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^\w\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+};
+
+/**
  * Clasificador de intenciones conversacionales para Rumbo
  */
 export const classifyUserVoiceIntent = (text) => {
   if (!text) return { type: 'UNKNOWN', raw: '' };
-  const lower = text.toLowerCase().trim();
+  const norm = normalizeVoiceText(text);
+  if (!norm) return { type: 'UNKNOWN', raw: '' };
+  const padded = ' ' + norm + ' ';
 
-  // Intención de confirmación positiva: "sí", "claro", "dale", "buscar conductor", etc.
-  if (/\b(s[ií]|claro|por favor|dale|buscar|b[uú]sca|b[uú]scalo|afirmativo|de acuerdo|va|ok|bueno|perfecto|adelante|listo|ya|s[ií] por favor)\b/i.test(lower)) {
+  // 1. Intención negativa: "no", "espera", "todavía no", "detente", "cancelar"
+  if (/(^|\s)(no|espera|todavia no|aun no|detente|para|esperate|no todavia|no quiero|cancelar)(\s|$)/i.test(padded)) {
+    return { type: 'DECLINE_SEARCH', raw: text };
+  }
+
+  // 2. Intención de confirmación positiva: "sí", "claro", "dale", "buscar conductor", "búscalo", etc.
+  if (
+    /(^|\s)(si|claro|por favor|dale|dale pues|buscar|busca|buscalo|buscale|buscame|buscar conductor|busca conductor|buscame un conductor|afirmativo|de acuerdo|va|vaya|ok|okay|bueno|perfecto|adelante|listo|ya|simon|aja|correcto|asi es|si quiero|si claro|si dale|si por favor)(\s|$)/i.test(
+      padded
+    )
+  ) {
     // Si además menciona cambiar algo explícito en la misma frase:
-    if (/\b(pero cambia|pero pon|con aire|sin aire|mascota)\b/i.test(lower)) {
-      // cae en ajustes
+    if (/(^|\s)(pero cambia|pero pon|con aire|sin aire|mascota|otra tarifa)(\s|$)/i.test(padded)) {
+      // cae en ajustes posteriores
     } else {
       return { type: 'CONFIRM_SEARCH', raw: text };
     }
   }
 
-  // Intención negativa: "no", "espera", "todavía no", "detente", "cancelar"
-  if (/\b(no|espera|todav[ií]a no|a[uú]n no|detente|para|esp[eé]rate|no todav[ií]a|no quiero|cancelar)\b/i.test(lower)) {
-    return { type: 'DECLINE_SEARCH', raw: text };
-  }
-
-  // Ajuste de Tarifa / Precio
-  if (/\b(tarifa|precio|cuota|d[oó]lar|d[oó]lares|plata|cobro|costo)\b/i.test(lower)) {
-    const amount = parseNumberFromSpanish(lower);
+  // 3. Ajuste de Tarifa / Precio
+  if (/(^|\s)(tarifa|precio|cuota|dolar|dolares|plata|cobro|costo)(\s|$)/i.test(padded)) {
+    const amount = parseNumberFromSpanish(norm);
     return { type: 'CHANGE_FARE', amount, raw: text };
   }
 
-  // Ajuste de Pasajeros
-  if (/\b(pasajero|pasajeros|persona|personas|vamos|somos|gente|cupo)\b/i.test(lower)) {
-    const count = parseNumberFromSpanish(lower) || 2;
+  // 4. Ajuste de Pasajeros
+  if (/(^|\s)(pasajero|pasajeros|persona|personas|vamos|somos|gente|cupo)(\s|$)/i.test(padded)) {
+    const count = parseNumberFromSpanish(norm) || 2;
     return { type: 'CHANGE_PASSENGERS', count: Math.min(6, Math.max(1, Math.round(count))), raw: text };
   }
 
-  // Ajuste de Aire Acondicionado
-  if (/\b(aire|clima|ac|acondicionado|fr[ií]o)\b/i.test(lower)) {
-    const enabled = !/\b(sin|apaga|quitar|no quiero|sin aire)\b/i.test(lower);
+  // 5. Ajuste de Aire Acondicionado
+  if (/(^|\s)(aire|clima|ac|acondicionado|frio)(\s|$)/i.test(padded)) {
+    const enabled = !/(^|\s)(sin|apaga|quitar|no quiero|sin aire)(\s|$)/i.test(padded);
     return { type: 'CHANGE_AC', enabled, raw: text };
   }
 
-  // Ajuste de Mascotas
-  if (/\b(mascota|mascotas|perro|perrita|perrito|gato|gatito|animal)\b/i.test(lower)) {
-    const enabled = !/\b(sin|no llevo|no traigo|quitar)\b/i.test(lower);
+  // 6. Ajuste de Mascotas
+  if (/(^|\s)(mascota|mascotas|perro|perrita|perrito|gato|gatito|animal)(\s|$)/i.test(padded)) {
+    const enabled = !/(^|\s)(sin|no llevo|no traigo|quitar)(\s|$)/i.test(padded);
     return { type: 'CHANGE_PETS', enabled, raw: text };
   }
 
-  // Ajuste de Equipaje
-  if (/\b(equipaje|maleta|maletas|bulto|bultos|carga|ba[uú]l)\b/i.test(lower)) {
-    const enabled = !/\b(sin|no llevo|quitar)\b/i.test(lower);
+  // 7. Ajuste de Equipaje
+  if (/(^|\s)(equipaje|maleta|maletas|bulto|bultos|carga|baul)(\s|$)/i.test(padded)) {
+    const enabled = !/(^|\s)(sin|no llevo|quitar)(\s|$)/i.test(padded);
     return { type: 'CHANGE_LUGGAGE', enabled, raw: text };
   }
 
-  // Ajuste de Tipo de Transporte: Auto / Carro vs Moto
-  if (/\b(en moto|moto|motocicleta|mototaxi|en mototaxi)\b/i.test(lower)) {
+  // 8. Ajuste de Tipo de Transporte: Auto / Carro vs Moto
+  if (/(^|\s)(en moto|moto|motocicleta|mototaxi|en mototaxi)(\s|$)/i.test(padded)) {
     return { type: 'CHANGE_TRANSPORT', transportType: 'MOTO', raw: text };
   }
-  if (/\b(en carro|carro|en auto|auto|autom[oó]vil|veh[ií]culo)\b/i.test(lower)) {
+  if (/(^|\s)(en carro|carro|en auto|auto|automovil|vehiculo)(\s|$)/i.test(padded)) {
     return { type: 'CHANGE_TRANSPORT', transportType: 'CAR', raw: text };
   }
 
-  // Ajuste de Ida y Vuelta / Viaje Redondo
-  if (/\b(ida y vuelta|viaje redondo|con regreso|de regreso|redondo|y vuelta|con vuelta|vuelta)\b/i.test(lower)) {
-    const enabled = !/\b(solo ida|sin regreso|quitar vuelta|no redondo|sin vuelta)\b/i.test(lower);
+  // 9. Ajuste de Ida y Vuelta / Viaje Redondo
+  if (/(^|\s)(ida y vuelta|viaje redondo|con regreso|de regreso|redondo|y vuelta|con vuelta|vuelta)(\s|$)/i.test(padded)) {
+    const enabled = !/(^|\s)(solo ida|sin regreso|quitar vuelta|no redondo|sin vuelta)(\s|$)/i.test(padded);
     return { type: 'CHANGE_ROUND_TRIP', enabled, raw: text };
   }
 
-  // Si dice directamente una cifra: ej. "3 dólares", "4", "2.50"
-  const standaloneAmount = parseNumberFromSpanish(lower);
+  // 10. Si dice directamente una cifra: ej. "3 dólares", "4", "2.50"
+  const standaloneAmount = parseNumberFromSpanish(norm);
   if (standaloneAmount !== null && standaloneAmount > 0) {
     return { type: 'STANDALONE_NUMBER', amount: standaloneAmount, raw: text };
   }
