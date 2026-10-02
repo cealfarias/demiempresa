@@ -444,10 +444,20 @@ export default function DriverApp() {
               <span className="px-2.5 py-1 rounded-full bg-amber-500 text-slate-950 font-black text-xs uppercase tracking-wider">
                 Nueva Solicitud (Radio {incomingRequest.distanceKm} km)
               </span>
-              <span className="text-xs text-rose-400 font-bold flex items-center gap-1">
-                <Clock className="w-3.5 h-3.5" />
-                Responde rápido
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] text-emerald-400 font-bold flex items-center gap-1 bg-emerald-500/15 px-2.5 py-0.5 rounded-full border border-emerald-500/30">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+                  <span>En vivo</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setIncomingRequest(null)}
+                  className="text-[11px] text-slate-400 hover:text-rose-400 px-2 py-0.5 rounded-md hover:bg-slate-800 transition-colors font-medium cursor-pointer"
+                  title="Omitir solicitud"
+                >
+                  Omitir ✕
+                </button>
+              </div>
             </div>
 
             <div className="space-y-2">

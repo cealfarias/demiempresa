@@ -477,12 +477,12 @@ export default function ViajesApp() {
       socket.emit('client:register', { userId: userProfile.id, role: 'PASSENGER' });
     }
 
-    // Escuchar ofertas entrantes de conductores en tiempo real
+    // Escuchar ofertas entrantes de conductores en tiempo real (Vigencia 30s)
     socket.on('passenger:offer_received', (offer) => {
       setActiveOffers((prev) => {
         const exists = prev.find((o) => o.driverProfileId === offer.driverProfileId);
         if (exists) return prev;
-        return [...prev, { ...offer, timeLeft: offer.expiresInSeconds || 10 }];
+        return [...prev, { ...offer, timeLeft: offer.expiresInSeconds || 30 }];
       });
     });
 
@@ -2460,6 +2460,9 @@ export default function ViajesApp() {
             </div>
             <button
               onClick={() => {
+                if (tripId) {
+                  socket.emit('trip:cancel', { tripId });
+                }
                 setActiveOffers([]);
                 setAppState('DECOY_FORM');
               }}
@@ -2474,7 +2477,7 @@ export default function ViajesApp() {
               <span>Ofertas de choferes en tiempo real</span>
               <span className="flex items-center gap-1 text-amber-400 font-semibold">
                 <Clock className="w-3.5 h-3.5" />
-                TTL 10s por tarjeta
+                TTL 30s por tarjeta
               </span>
             </div>
 
@@ -2484,8 +2487,8 @@ export default function ViajesApp() {
                 <p className="text-sm text-slate-300 font-medium">
                   Notificando a choferes activos dentro de 1 km...
                 </p>
-                <p className="text-xs text-slate-500">
-                  Las ofertas de los conductores aparecerán aquí con una vigencia de 10 segundos exactos.
+                <p className="text-xs text-slate-500 max-w-xs mx-auto">
+                  Las ofertas de los conductores aparecerán aquí y se mantendrán durante 30 segundos para que puedas comparar y elegir con calma.
                 </p>
               </div>
             ) : (
@@ -2496,11 +2499,11 @@ export default function ViajesApp() {
                     offer.isMock ? 'border-amber-500/40' : 'border-emerald-500/60 ring-1 ring-emerald-500/30'
                   } rounded-2xl p-4 shadow-xl space-y-3 relative overflow-hidden transition-all`}
                 >
-                  {/* Barra de progreso de TTL (10s exactos) */}
+                  {/* Barra de progreso de TTL (30s para comparar y decidir) */}
                   <div className="absolute top-0 left-0 right-0 h-1 bg-slate-800">
                     <div
                       className="h-full bg-gradient-to-r from-amber-400 to-rose-500 transition-all duration-1000 ease-linear"
-                      style={{ width: `${(offer.timeLeft / 10) * 100}%` }}
+                      style={{ width: `${(offer.timeLeft / 30) * 100}%` }}
                     ></div>
                   </div>
 

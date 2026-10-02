@@ -188,11 +188,11 @@ export function initializeWebSockets(httpServer) {
     });
 
     /**
-     * 3. Oferta con TTL de 15 Segundos
+     * 3. Oferta del Conductor con Vigencia de 30 Segundos para el Pasajero
      */
     socket.on('driver:offer', async ({ tripId, driverProfileId, proposedFare }) => {
       try {
-        await setOfferWithTTL(tripId, driverProfileId, proposedFare, 15);
+        await setOfferWithTTL(tripId, driverProfileId, proposedFare, 30);
 
         const driverInfoRes = await pool.query(`
           SELECT dp.*, u.full_name, u.phone
@@ -215,7 +215,7 @@ export function initializeWebSockets(httpServer) {
 
         await pool.query(`
           INSERT INTO viajes_trip_offers (trip_id, driver_id, proposed_fare, status, expires_at)
-          VALUES ($1, $2, $3, 'PENDING', CURRENT_TIMESTAMP + INTERVAL '15 seconds')
+          VALUES ($1, $2, $3, 'PENDING', CURRENT_TIMESTAMP + INTERVAL '30 seconds')
           ON CONFLICT (trip_id, driver_id, created_at) DO NOTHING;
         `, [tripId, driverInfo?.id || driverProfileId, proposedFare]).catch(() => {});
 
@@ -229,7 +229,7 @@ export function initializeWebSockets(httpServer) {
           vehicleColor: driverInfo?.vehicle_color || 'Gris Plata',
           photoUrl: driverInfo?.photo_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
           proposedFare,
-          expiresInSeconds: 15
+          expiresInSeconds: 30
         });
       } catch (err) {
         console.error('Error en driver:offer:', err);
@@ -333,11 +333,26 @@ export function initializeWebSockets(httpServer) {
         });
 
         socket.to(`trip:${tripId}`).emit('offer:rejected_other_won', { tripId });
+        io.to('drivers_channel').emit('offer:rejected_other_won', { tripId });
 
         if (callback) callback({ success: true, tripId });
       } catch (err) {
         console.error('Error en passenger:accept_offer:', err);
         if (callback) callback({ success: false, error: err.message });
+      }
+    });
+
+    /**
+     * 4.1 Cancelación de Viaje por el Pasajero
+     */
+    socket.on('trip:cancel', async ({ tripId }) => {
+      try {
+        await pool.query("UPDATE viajes_trips SET status = 'CANCELLED' WHERE id::text = $1", [tripId]).catch(() => {});
+        io.to(`trip:${tripId}`).emit('trip:canceled', { tripId });
+        io.to('drivers_channel').emit('trip:canceled', { tripId });
+        console.log(`🛑 [trip:cancel] Solicitud #${tripId} cancelada por el pasajero.`);
+      } catch (err) {
+        console.error('Error en trip:cancel:', err);
       }
     });
 
