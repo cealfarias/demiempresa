@@ -154,10 +154,10 @@ export default function DriverLandingView({ onStartRegistration, onCheckStatus }
             <div className="p-5 sm:p-6 rounded-3xl bg-slate-900/90 border border-slate-800 space-y-4 relative overflow-hidden">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-                  Otras Plataformas Tradicionales
+                  Otras Plataformas (Modelo Tradicional)
                 </span>
                 <span className="px-2 py-0.5 rounded-full bg-rose-500/15 text-rose-400 text-[11px] font-bold">
-                  25% a 30% Comisión
+                  13.34% a 28%+ Comisión
                 </span>
               </div>
 
@@ -167,7 +167,7 @@ export default function DriverLandingView({ onStartRegistration, onCheckStatus }
                   <span className="font-bold text-white">${weeklyGross.toFixed(2)} USD</span>
                 </div>
                 <div className="flex justify-between py-1.5 border-b border-slate-800 text-rose-400 font-bold">
-                  <span>Comisión que te quitan (~28%):</span>
+                  <span>Comisión por viaje (13.34% a 28%):</span>
                   <span>-${traditionalCommissionLost.toFixed(2)} USD</span>
                 </div>
                 <div className="flex justify-between py-1.5 border-b border-slate-800 text-rose-300">
@@ -175,8 +175,8 @@ export default function DriverLandingView({ onStartRegistration, onCheckStatus }
                   <span className="font-mono font-bold">-$100.00 USD/sem</span>
                 </div>
                 <div className="flex justify-between py-1.5 text-slate-400">
-                  <span>Gasto en gasolina asumido por ti:</span>
-                  <span className="text-slate-300">100% de tu bolsillo</span>
+                  <span>Recargas previas obligatorias:</span>
+                  <span className="text-slate-300">De tu dinero anticipado</span>
                 </div>
               </div>
 
@@ -187,7 +187,7 @@ export default function DriverLandingView({ onStartRegistration, onCheckStatus }
                 </span>
               </div>
               <p className="text-[11px] text-slate-500 leading-tight">
-                Al mes, tras pagar ~$100 de alquiler y entregar más de <strong className="text-rose-400">${(traditionalCommissionLost * 4).toFixed(2)} USD</strong> en comisiones, prácticamente trabajas para el dueño del carro y la app.
+                Incluso en apps que dicen cobrar "pagos bajos", te descuentan el <strong className="text-rose-400">13.34%</strong> de tu saldo prepagado. Al sumar el alquiler y la gasolina, prácticamente trabajas para otros.
               </p>
             </div>
 
@@ -224,8 +224,8 @@ export default function DriverLandingView({ onStartRegistration, onCheckStatus }
                   <span className="font-mono font-bold text-emerald-300">-$100.00 (Cubierto con holgura)</span>
                 </div>
                 <div className="flex justify-between py-1.5 text-slate-400">
-                  <span>Cuota regular posterior:</span>
-                  <span className="text-white font-bold">$10.00/sem (amortizable con bonos)</span>
+                  <span>Sin recargas prepagadas:</span>
+                  <span className="text-emerald-400 font-bold">Nunca te bloqueamos por saldo</span>
                 </div>
               </div>
 
@@ -241,6 +241,63 @@ export default function DriverLandingView({ onStartRegistration, onCheckStatus }
                 <span className="text-sm font-black text-emerald-400">+${monthlyExtraInPocket.toFixed(2)} USD</span>
               </div>
             </div>
+          </div>
+
+          {/* CASO REAL DE LA CALLE: LA DURA REALIDAD DEL CONDUCTOR */}
+          <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-5 sm:p-6 space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-rose-500/20 text-rose-400 flex items-center justify-center font-bold">
+                  <AlertCircle className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className="font-black text-sm text-white">La Realidad de la Calle: Análisis de un Viaje Real en San Salvador</h4>
+                  <p className="text-[11px] text-slate-400">Recibo auténtico de viaje: Calle San José a Av. Olímpica</p>
+                </div>
+              </div>
+              <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded bg-rose-500/15 text-rose-300 border border-rose-500/30 font-bold">
+                13.34% Comisión Real
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+              <div className="p-3 rounded-2xl bg-slate-950 border border-slate-800">
+                <span className="text-slate-500 block text-[10px] uppercase font-bold">Distancia Recorrida</span>
+                <span className="text-sm font-black text-slate-200">10.8 km</span>
+              </div>
+              <div className="p-3 rounded-2xl bg-slate-950 border border-slate-800">
+                <span className="text-slate-500 block text-[10px] uppercase font-bold">Tiempo en Tráfico</span>
+                <span className="text-sm font-black text-amber-400">66 min (1h 06m)</span>
+              </div>
+              <div className="p-3 rounded-2xl bg-slate-950 border border-slate-800">
+                <span className="text-slate-500 block text-[10px] uppercase font-bold">Tarifa del Pasajero</span>
+                <span className="text-sm font-black text-white">$5.20 USD</span>
+              </div>
+              <div className="p-3 rounded-2xl bg-slate-950 border border-rose-500/30">
+                <span className="text-rose-400 block text-[10px] uppercase font-bold">Comisión App (13.34%)</span>
+                <span className="text-sm font-black text-rose-400">-$0.69 USD</span>
+              </div>
+            </div>
+
+            <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/25 text-xs space-y-1.5">
+              <div className="flex justify-between text-slate-300">
+                <span>Ingreso que le quedó al chofer tras la comisión:</span>
+                <span className="font-bold text-white">$4.51 USD</span>
+              </div>
+              <div className="flex justify-between text-amber-300">
+                <span>Gasolina consumida en 66 min de tráfico (10.8 km):</span>
+                <span className="font-bold">-$1.35 USD aprox.</span>
+              </div>
+              <div className="flex justify-between text-rose-400 font-bold pt-1 border-t border-amber-500/20">
+                <span>Lo que realmente le quedó al chofer por 66 minutos de su vida:</span>
+                <span className="text-sm font-black text-rose-300">$3.16 USD</span>
+              </div>
+            </div>
+
+            <p className="text-[11px] text-slate-400 leading-relaxed">
+              👉 Si a eso le sumas los <strong>$100 semanales de alquiler o financiamiento del auto</strong> (~$2.00 por hora), el chofer ganó apenas <strong>$1.16 por más de una hora de desgaste físico y mecánico</strong>. 
+              En <strong>Rumbo a mi Destino</strong> la comisión es <strong>$0.00</strong>: los $5.20 entran íntegros en tu bolsa de efectivo y la tarifa toma en cuenta el tráfico real para que tu tiempo valga.
+            </p>
           </div>
         </div>
       </section>
