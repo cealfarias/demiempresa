@@ -26,17 +26,20 @@ export default function DriverLandingView({ onStartRegistration, onCheckStatus }
   const [tripsPerDay, setTripsPerDay] = useState(12);
   const [avgFare, setAvgFare] = useState(4.50);
   const [daysWorking, setDaysWorking] = useState(6);
+  const [hasCarRentalOrLoan, setHasCarRentalOrLoan] = useState(true); // Alquiler del carro o cuota de financiamiento (~$100 semanales)
 
   const weeklyGross = tripsPerDay * avgFare * daysWorking;
+  const carRentalCost = hasCarRentalOrLoan ? 100.00 : 0.00;
+
   // En plataformas tradicionales quitan entre 25% y 30%
   const traditionalCommissionRate = 0.28; // 28% promedio
   const traditionalCommissionLost = weeklyGross * traditionalCommissionRate;
-  const traditionalNetWeekly = weeklyGross - traditionalCommissionLost;
+  const traditionalNetWeekly = Math.max(0, weeklyGross - traditionalCommissionLost - carRentalCost);
 
   // En Rumbo: 0% de comisión. Cuota fija de $10 (y $0 en su primera semana de bienvenida)
   const rumboFeeFirstWeek = 0.00; // Semana de bienvenida bonificada
-  const rumboNetFirstWeek = weeklyGross - rumboFeeFirstWeek;
-  const weeklyExtraInPocket = rumboNetFirstWeek - traditionalNetWeekly;
+  const rumboNetFirstWeek = Math.max(0, weeklyGross - rumboFeeFirstWeek - carRentalCost);
+  const weeklyExtraInPocket = traditionalCommissionLost; // Lo que antes te quitaban ahora va a tu bolsa
   const monthlyExtraInPocket = weeklyExtraInPocket * 4;
 
   return (
@@ -87,10 +90,11 @@ export default function DriverLandingView({ onStartRegistration, onCheckStatus }
         </h1>
 
         <p className="text-sm sm:text-base lg:text-lg text-slate-300 max-w-2xl mx-auto leading-relaxed font-normal">
-          Sabemos lo duro que es lidiar con el tráfico diario, el desgaste de tu vehículo y 
-          <strong className="text-amber-300 font-semibold"> el alza desmesurada de la gasolina</strong>. 
-          No tiene sentido que además te descuenten el 25% o 30% de cada viaje que sudas en la calle. 
-          <strong> Rumbo nació para cambiar esa historia.</strong>
+          Sabemos lo duro que es lidiar con el tráfico diario, el desgaste de tu vehículo, 
+          <strong className="text-amber-300 font-semibold"> el alza desmesurada de la gasolina</strong> y el compromiso implacable del 
+          <strong className="text-amber-300 font-semibold"> alquiler del carro o la cuota de financiamiento (~$100 semanales)</strong>. 
+          No tiene sentido que sobre todo eso, una aplicación te quite el 25% o 30% de cada viaje que sudas en la calle. 
+          <strong className="text-white font-black"> Rumbo nació para cambiar tu Destino.</strong>
         </p>
 
         {/* CTA Principal Hero */}
@@ -166,6 +170,10 @@ export default function DriverLandingView({ onStartRegistration, onCheckStatus }
                   <span>Comisión que te quitan (~28%):</span>
                   <span>-${traditionalCommissionLost.toFixed(2)} USD</span>
                 </div>
+                <div className="flex justify-between py-1.5 border-b border-slate-800 text-rose-300">
+                  <span>Alquiler del carro o cuota financiamiento:</span>
+                  <span className="font-mono font-bold">-$100.00 USD/sem</span>
+                </div>
                 <div className="flex justify-between py-1.5 text-slate-400">
                   <span>Gasto en gasolina asumido por ti:</span>
                   <span className="text-slate-300">100% de tu bolsillo</span>
@@ -173,13 +181,13 @@ export default function DriverLandingView({ onStartRegistration, onCheckStatus }
               </div>
 
               <div className="pt-3 border-t border-slate-800 flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-400">Te queda en mano:</span>
-                <span className="text-xl sm:text-2xl font-black text-slate-300">
-                  ${traditionalNetWeekly.toFixed(2)} USD
+                <span className="text-xs font-bold text-slate-400">Te queda libre para tu familia:</span>
+                <span className="text-xl sm:text-2xl font-black text-rose-300">
+                  ${Math.max(0, traditionalNetWeekly).toFixed(2)} USD
                 </span>
               </div>
               <p className="text-[11px] text-slate-500 leading-tight">
-                Al mes, habrás entregado más de <strong className="text-rose-400">${(traditionalCommissionLost * 4).toFixed(2)} USD</strong> en puras comisiones intermediarias.
+                Al mes, tras pagar ~$100 de alquiler y entregar más de <strong className="text-rose-400">${(traditionalCommissionLost * 4).toFixed(2)} USD</strong> en comisiones, prácticamente trabajas para el dueño del carro y la app.
               </p>
             </div>
 
@@ -209,7 +217,11 @@ export default function DriverLandingView({ onStartRegistration, onCheckStatus }
                 </div>
                 <div className="flex justify-between py-1.5 border-b border-slate-800 text-amber-300 font-bold">
                   <span>Tu 1ª Semana de Bienvenida:</span>
-                  <span className="uppercase">GRATIS ($0.00)</span>
+                  <span className="uppercase">GRATIS ($0.00 Cuota)</span>
+                </div>
+                <div className="flex justify-between py-1.5 border-b border-slate-800 text-slate-300">
+                  <span>Alquiler / Financiamiento semanal:</span>
+                  <span className="font-mono font-bold text-emerald-300">-$100.00 (Cubierto con holgura)</span>
                 </div>
                 <div className="flex justify-between py-1.5 text-slate-400">
                   <span>Cuota regular posterior:</span>
@@ -218,7 +230,7 @@ export default function DriverLandingView({ onStartRegistration, onCheckStatus }
               </div>
 
               <div className="pt-3 border-t border-slate-800 flex items-center justify-between">
-                <span className="text-xs font-bold text-amber-300">Te queda en mano (1ª sem):</span>
+                <span className="text-xs font-bold text-amber-300">Te queda libre en mano (1ª sem):</span>
                 <span className="text-xl sm:text-2xl font-black text-emerald-400">
                   ${rumboNetFirstWeek.toFixed(2)} USD
                 </span>
@@ -243,6 +255,29 @@ export default function DriverLandingView({ onStartRegistration, onCheckStatus }
             <h3 className="text-lg sm:text-xl font-black text-white">Calcula tu Ganancia Real en Rumbo</h3>
             <p className="text-xs text-slate-400">Ajusta los deslizadores según tu ritmo de trabajo habitual</p>
           </div>
+        </div>
+
+        {/* Selector de Gasto de Alquiler / Financiamiento del Auto */}
+        <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <label className="flex items-center gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={hasCarRentalOrLoan}
+              onChange={(e) => setHasCarRentalOrLoan(e.target.checked)}
+              className="w-4 h-4 text-amber-500 rounded bg-slate-950 border-slate-700 cursor-pointer focus:ring-0"
+            />
+            <div>
+              <span className="text-xs font-bold text-slate-200 block">
+                ¿Pagas alquiler del vehículo o cuota de financiamiento semanal?
+              </span>
+              <span className="text-[11px] text-slate-400">
+                Calculado con base en el promedio real de El Salvador: $100.00 USD semanales ($400/mes)
+              </span>
+            </div>
+          </label>
+          <span className={`text-xs font-mono font-bold px-3 py-1.5 rounded-xl ${hasCarRentalOrLoan ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' : 'bg-slate-800 text-slate-400'}`}>
+            {hasCarRentalOrLoan ? '-$100.00 USD/sem' : '$0.00 (Auto propio sin deuda)'}
+          </span>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-slate-900/80 border border-slate-800 rounded-3xl p-5 sm:p-6">
@@ -311,13 +346,13 @@ export default function DriverLandingView({ onStartRegistration, onCheckStatus }
         {/* Resultado Destacado */}
         <div className="p-5 rounded-3xl bg-gradient-to-r from-emerald-950/40 via-slate-900 to-amber-950/40 border border-emerald-500/30 text-center space-y-1">
           <span className="text-xs text-slate-400 font-bold uppercase tracking-wider block">
-            Ingreso Neto Estimado para tu bolsillo en tu 1ª Semana:
+            Ingreso Neto Estimado para tu bolsillo en tu 1ª Semana {hasCarRentalOrLoan ? '(después de pagar los $100 del auto)' : ''}:
           </span>
           <div className="text-3xl sm:text-4xl font-black text-emerald-400">
-            ${rumboNetFirstWeek.toFixed(2)} USD <span className="text-xs text-slate-400 font-normal">en efectivo</span>
+            ${rumboNetFirstWeek.toFixed(2)} USD <span className="text-xs text-slate-400 font-normal">en efectivo limpio</span>
           </div>
           <p className="text-[11px] text-slate-400">
-            Frente al modelo de porcentajes, ahorras <strong className="text-emerald-300">${weeklyExtraInPocket.toFixed(2)} USD semanales</strong> que se quedan contigo.
+            Frente al modelo tradicional de comisiones, te ahorras <strong className="text-emerald-300">${weeklyExtraInPocket.toFixed(2)} USD semanales</strong> que van directos a tu hogar.
           </p>
         </div>
       </section>
