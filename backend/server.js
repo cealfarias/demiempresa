@@ -6,6 +6,7 @@ import { pool } from './db.js';
 import { initializeWebSockets } from './sockets.js';
 import { ReferralService } from './services/referralService.js';
 import { AdService, AD_PRICING_PLANS } from './services/adService.js';
+import { LedgerService } from './services/ledgerService.js';
 
 dotenv.config();
 
@@ -81,22 +82,42 @@ app.post('/api/users/register', async (req, res) => {
 
     const user = userRes.rows[0];
 
+    // 1. Crear Wallet Criptográfica y Acreditar Bono de Bienvenida ($1.00 USD - 7 Días)
+    let walletInfo = null;
+    let welcomeBonusTx = null;
+    try {
+      const bonusRes = await LedgerService.grantWelcomeBonus(user.id);
+      walletInfo = bonusRes.wallet;
+      welcomeBonusTx = bonusRes.transaction;
+    } catch (ledgerErr) {
+      console.warn('⚠️ No se pudo generar bono en el Ledger criptográfico:', ledgerErr.message);
+    }
+
+    // 2. Acreditar Bono al Anfitrión si viene con Referido válido
     if (referrerCode && referrerCode !== dui) {
       try {
         const referrerRes = await pool.query('SELECT id FROM viajes_users WHERE dui = $1 OR id::text = $1', [referrerCode]);
         if (referrerRes.rows.length > 0) {
+          const hostId = referrerRes.rows[0].id;
           await ReferralService.createReferral({
-            referrerUserId: referrerRes.rows[0].id,
+            referrerUserId: hostId,
             referredUserId: user.id,
             referralType: 'PASSENGER_TO_PASSENGER'
           });
+          // Acreditar bono criptográfico inmutable de $1.00 USD al anfitrión
+          await LedgerService.grantReferralBonus(hostId, user.id);
         }
       } catch (refErr) {
         console.warn('No se pudo registrar la referencia:', refErr.message);
       }
     }
 
-    res.json({ success: true, user });
+    res.json({
+      success: true,
+      user,
+      wallet: walletInfo ? { address: walletInfo.address, referralCode: walletInfo.referral_code } : null,
+      welcomeBonus: welcomeBonusTx
+    });
   } catch (err) {
     console.error('Error al registrar usuario:', err);
     res.status(500).json({ error: 'Error al registrar el usuario en base de datos' });
@@ -284,7 +305,108 @@ app.post('/api/gas/report', async (req, res) => {
   }
 });
 
-// 6. INICIALIZACIÓN AUTOMÁTICA DE BASE DE DATOS Y ENDPOINT ADMIN
+// =====================================================================
+// 6. RUTAS DEL LIBRO MAYOR CRIPTOGRÁFICO Y WALLET (UTXO INMUTABLE)
+// =====================================================================
+
+// GET /api/wallet/summary - Saldo activo, días restantes y dirección pública
+app.get(['/api/wallet/summary', '/api/wallet/summary/:userId'], async (req, res) => {
+  try {
+    const userId = req.params.userId || req.query.userId || req.headers['x-user-id'];
+    if (!userId) return res.status(400).json({ error: 'userId es requerido' });
+
+    const summary = await LedgerService.getWalletSummary(userId);
+    res.json(summary);
+  } catch (err) {
+    console.error('Error en /api/wallet/summary:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/wallet/history - Historial con hashes criptográficos SHA-256
+app.get(['/api/wallet/history', '/api/wallet/history/:userId'], async (req, res) => {
+  try {
+    const userId = req.params.userId || req.query.userId || req.headers['x-user-id'];
+    if (!userId) return res.status(400).json({ error: 'userId es requerido' });
+
+    const history = await LedgerService.getWalletHistory(userId);
+    res.json(history);
+  } catch (err) {
+    console.error('Error en /api/wallet/history:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/wallet/welcome-bonus - Solicitar bono de bienvenida explícito
+app.post('/api/wallet/welcome-bonus', async (req, res) => {
+  try {
+    const { userId } = req.body;
+    if (!userId) return res.status(400).json({ error: 'userId es requerido' });
+
+    const result = await LedgerService.grantWelcomeBonus(userId);
+    res.json(result);
+  } catch (err) {
+    console.error('Error en /api/wallet/welcome-bonus:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/wallet/transfer-trip - Transferir bono para pago de carrera (Pasajero -> Chofer)
+app.post('/api/wallet/transfer-trip', async (req, res) => {
+  try {
+    const { passengerId, driverId, tripId, amount = 1.00 } = req.body;
+    if (!passengerId || !driverId) {
+      return res.status(400).json({ error: 'passengerId y driverId son requeridos' });
+    }
+
+    const result = await LedgerService.transferTripPayment(passengerId, driverId, tripId || `TRIP-${Date.now()}`, parseFloat(amount));
+    res.json(result);
+  } catch (err) {
+    console.error('Error en /api/wallet/transfer-trip:', err);
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// POST /api/wallet/driver/pay-weekly-fee - Chofer paga su cuota de $10 con sus bonos
+app.post('/api/wallet/driver/pay-weekly-fee', async (req, res) => {
+  try {
+    const { driverId, bonusesToUse = 10, totalWeeklyFee = 10.00 } = req.body;
+    if (!driverId) return res.status(400).json({ error: 'driverId es requerido' });
+
+    const result = await LedgerService.payWeeklyFeeWithBonuses(driverId, parseInt(bonusesToUse, 10), parseFloat(totalWeeklyFee));
+    res.json(result);
+  } catch (err) {
+    console.error('Error en /api/wallet/driver/pay-weekly-fee:', err);
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// POST /api/wallet/driver/redeem-day - Chofer canjea 1 bono por 1 día de plataforma gratis
+app.post('/api/wallet/driver/redeem-day', async (req, res) => {
+  try {
+    const { driverId } = req.body;
+    if (!driverId) return res.status(400).json({ error: 'driverId es requerido' });
+
+    const result = await LedgerService.redeemDriverFreeDay(driverId);
+    res.json(result);
+  } catch (err) {
+    console.error('Error en /api/wallet/driver/redeem-day:', err);
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// GET /api/wallet/audit - Verificación matemática integral de la cadena SHA-256
+app.get('/api/wallet/audit', async (req, res) => {
+  try {
+    const audit = await LedgerService.verifyLedgerIntegrity();
+    res.json(audit);
+  } catch (err) {
+    console.error('Error en /api/wallet/audit:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 7. INICIALIZACIÓN AUTOMÁTICA DE BASE DE DATOS Y ENDPOINT ADMIN
 async function initializeDatabase() {
   if (!process.env.DATABASE_URL) {
     console.warn('⚠️ DATABASE_URL no definida. Saltando migración automática.');

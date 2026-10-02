@@ -100,3 +100,103 @@ export async function fetchDriverSubscriptionApi(driverProfileId) {
     return null;
   }
 }
+
+/**
+ * 6. Consulta de Wallet Criptográfica (Saldo, UTXOs y Caducidad de 7 Días)
+ */
+export async function fetchWalletSummaryApi(userId) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/wallet/summary/${encodeURIComponent(userId)}`);
+    if (!res.ok) return null;
+    return await res.json();
+  } catch (err) {
+    console.warn('API Error fetchWalletSummary:', err);
+    return null;
+  }
+}
+
+/**
+ * 7. Historial Criptográfico de la Wallet con Hashes SHA-256
+ */
+export async function fetchWalletHistoryApi(userId) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/wallet/history/${encodeURIComponent(userId)}`);
+    if (!res.ok) return { transactions: [] };
+    return await res.json();
+  } catch (err) {
+    console.warn('API Error fetchWalletHistory:', err);
+    return { transactions: [] };
+  }
+}
+
+/**
+ * 8. Transferir Bono para Pago de Carrera (Pasajero -> Conductor)
+ */
+export async function transferTripBonusApi({ passengerId, driverId, tripId, amount = 1.00 }) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/wallet/transfer-trip`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ passengerId, driverId, tripId, amount })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Error al transferir bono');
+    return data;
+  } catch (err) {
+    console.error('API Error transferTripBonus:', err);
+    throw err;
+  }
+}
+
+/**
+ * 9. Conductor Paga Cuota Semanal ($10 Base) con Bonos Acumulados
+ */
+export async function payDriverWeeklyFeeWithBonusesApi({ driverId, bonusesToUse = 10, totalWeeklyFee = 10.00 }) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/wallet/driver/pay-weekly-fee`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ driverId, bonusesToUse, totalWeeklyFee })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Error al pagar cuota con bonos');
+    return data;
+  } catch (err) {
+    console.error('API Error payDriverWeeklyFeeWithBonuses:', err);
+    throw err;
+  }
+}
+
+/**
+ * 10. Conductor Canjea 1 Bono por 1 Día Gratis en la Plataforma
+ */
+export async function redeemDriverFreeDayApi(driverId) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/wallet/driver/redeem-day`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ driverId })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Error al canjear día gratis');
+    return data;
+  } catch (err) {
+    console.error('API Error redeemDriverFreeDay:', err);
+    throw err;
+  }
+}
+
+/**
+ * 11. Auditoría Matemática de Integridad de la Cadena
+ */
+export async function verifyLedgerAuditApi() {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/wallet/audit`);
+    if (!res.ok) return null;
+    return await res.json();
+  } catch (err) {
+    console.warn('API Error verifyLedgerAudit:', err);
+    return null;
+  }
+}
+

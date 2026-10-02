@@ -320,3 +320,56 @@ BEGIN
         ('Uno', 'Uno Soyapango Blvd. del Ejército', 'Boulevard del Ejército Km 4.5', 'Soyapango', 13.7080, -89.1550, 3.76, 4.11, 3.46, 3.82, 4.18, 3.52, 11);
     END IF;
 END $$;
+
+-- =====================================================================
+-- 14. LIBRO MAYOR CRIPTOGRÁFICO INMUTABLE (LEDGER UTXO & WALLETS)
+-- =====================================================================
+
+CREATE TABLE IF NOT EXISTS viajes_wallet_identities (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id VARCHAR(64) UNIQUE NOT NULL,
+    public_key TEXT NOT NULL,
+    encrypted_private_key TEXT NOT NULL,
+    address VARCHAR(64) UNIQUE NOT NULL,
+    referral_code VARCHAR(16) UNIQUE NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_viajes_wallet_user_id ON viajes_wallet_identities(user_id);
+CREATE INDEX IF NOT EXISTS idx_viajes_wallet_address ON viajes_wallet_identities(address);
+CREATE INDEX IF NOT EXISTS idx_viajes_wallet_referral ON viajes_wallet_identities(referral_code);
+
+CREATE TABLE IF NOT EXISTS viajes_ledger_transactions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    sequence_number BIGSERIAL UNIQUE NOT NULL,
+    previous_hash VARCHAR(64) NOT NULL,
+    from_address VARCHAR(64) NOT NULL,
+    to_address VARCHAR(64) NOT NULL,
+    amount NUMERIC(12, 2) NOT NULL CHECK (amount > 0),
+    input_ref UUID NULL REFERENCES viajes_ledger_transactions(id),
+    is_spent BOOLEAN DEFAULT FALSE NOT NULL,
+    spent_at TIMESTAMP WITH TIME ZONE NULL,
+    spending_tx_id UUID NULL,
+    expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    transaction_type VARCHAR(32) NOT NULL CHECK (
+        transaction_type IN (
+            'WELCOME_BONUS',
+            'REFERRAL_BONUS',
+            'TRIP_PAYMENT',
+            'WEEKLY_FEE_PAYMENT',
+            'DRIVER_FEE_WAIVER',
+            'CHANGE_OUTPUT',
+            'EXPIRED_SWEEP'
+        )
+    ),
+    reference_id VARCHAR(64) NULL,
+    signature TEXT NOT NULL,
+    current_hash VARCHAR(64) NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_viajes_ledger_to_unspent ON viajes_ledger_transactions(to_address, is_spent, expires_at);
+CREATE INDEX IF NOT EXISTS idx_viajes_ledger_from_address ON viajes_ledger_transactions(from_address);
+CREATE INDEX IF NOT EXISTS idx_viajes_ledger_sequence ON viajes_ledger_transactions(sequence_number DESC);
+CREATE INDEX IF NOT EXISTS idx_viajes_ledger_input_ref ON viajes_ledger_transactions(input_ref);
+

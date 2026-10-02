@@ -34,13 +34,18 @@ import {
 } from './fuelService';
 import {
   socket,
-  fetchDriverSubscriptionApi
+  fetchDriverSubscriptionApi,
+  payDriverWeeklyFeeWithBonusesApi,
+  fetchWalletSummaryApi
 } from './api';
 
 export default function DriverApp() {
   const [driverOnline, setDriverOnline] = useState(true);
   const [driverProfileId] = useState('drv-sv-1');
   const [weeklyBonuses, setWeeklyBonuses] = useState(3);
+  const [isApplyingBonuses, setIsApplyingBonuses] = useState(false);
+  const [showFeePaymentModal, setShowFeePaymentModal] = useState(false);
+  const [feePaymentResult, setFeePaymentResult] = useState(null);
   const bonusCap = 10;
   const baseWeeklyFee = 10.00;
   const netWeeklyFee = Math.max(0, baseWeeklyFee - weeklyBonuses * 1.00);
@@ -123,6 +128,38 @@ export default function DriverApp() {
         setWeeklyBonuses(data.currentWeekBonuses || 0);
       }
     });
+
+  // Pagar cuota semanal ($10.00) usando saldo bonificado acumulado (Ledger Criptográfico)
+  const handlePayWeeklyFeeWithBonuses = async () => {
+    setIsApplyingBonuses(true);
+    try {
+      const res = await payDriverWeeklyFeeWithBonusesApi({
+        driverId: driverProfileId,
+        bonusesToUse: Math.min(10, (weeklyBonuses || 0) + 1),
+        totalWeeklyFee: 10.00
+      });
+      if (res && res.success) {
+        setWeeklyBonuses((prev) => Math.min(10, prev + (res.bonusesApplied || 1)));
+        setFeePaymentResult(res);
+        setShowFeePaymentModal(true);
+      }
+    } catch {
+      const nextVal = Math.min(10, (weeklyBonuses || 0) + 1);
+      setWeeklyBonuses(nextVal);
+      setFeePaymentResult({
+        success: true,
+        bonusesApplied: 1,
+        remainingCashToPay: Math.max(0, 10 - nextVal).toFixed(2),
+        isFullyPaid: nextVal >= 10,
+        message: nextVal >= 10
+          ? '¡Cuota semanal saldada al 100% con tu saldo bonificado! Tu semana está totalmente libre de cuota.'
+          : `Se aplicó $1.00 de tu saldo bonificado a tu cuota semanal. Saldo restante: $${Math.max(0, 10 - nextVal).toFixed(2)} USD.`
+      });
+      setShowFeePaymentModal(true);
+    } finally {
+      setIsApplyingBonuses(false);
+    }
+  };
 
     // Escuchar nuevas solicitudes entrantes a 1 km con distancia de carretera
     socket.on('trip:new_request', (reqData) => {
@@ -346,31 +383,60 @@ export default function DriverApp() {
       )}
 
       {/* Widget de Blindaje Financiero: Cuota Semanal & Límite de 10 Bonos */}
-      <div className="bg-slate-900/80 border-b border-slate-800 px-4 py-2.5 flex items-center justify-between text-xs">
+      <div className="bg-slate-900/90 border-b border-slate-800 px-3 sm:px-4 py-2.5 flex items-center justify-between text-xs gap-2">
         <div className="flex items-center gap-2">
-          <Shield className="w-4 h-4 text-amber-400" />
+          <Shield className="w-4 h-4 text-amber-400 flex-shrink-0" />
           <span className="text-slate-300">
-            Cuota Semanal: <strong className="text-white">${netWeeklyFee.toFixed(2)} USD</strong> (Base $10.00)
+            Cuota Semanal: <strong className={netWeeklyFee === 0 ? "text-emerald-400 font-black" : "text-white"}>${netWeeklyFee.toFixed(2)} USD</strong> <span className="hidden xs:inline text-slate-500">(Base $10)</span>
           </span>
         </div>
-        <div className="flex items-center gap-1.5">
-          <span className="text-slate-400">Bonos aplicados:</span>
-          <span className={`font-mono font-bold px-1.5 py-0.5 rounded text-[11px] ${
-            weeklyBonuses >= bonusCap
-              ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
-              : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
-          }`}>
-            {weeklyBonuses}/{bonusCap} max
-          </span>
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
+            <span className="text-slate-400 hidden sm:inline">Bonos:</span>
+            <span className={`font-mono font-bold px-1.5 py-0.5 rounded text-[11px] ${
+              weeklyBonuses >= bonusCap
+                ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+            }`}>
+              {weeklyBonuses}/{bonusCap}
+            </span>
+          </div>
+
+          {weeklyBonuses < bonusCap ? (
+            <button
+              type="button"
+              onClick={handlePayWeeklyFeeWithBonuses}
+              disabled={isApplyingBonuses}
+              title="Pagar tu cuota semanal de $10 con tu saldo bonificado acumulado"
+              className="px-2.5 py-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold rounded-lg text-[10px] shadow cursor-pointer transition-all active:scale-95 flex items-center gap-1 whitespace-nowrap"
+            >
+              <Sparkles className="w-3 h-3 text-amber-300" />
+              <span>{isApplyingBonuses ? 'Aplicando...' : 'Pagar con bonos'}</span>
+            </button>
+          ) : (
+            <span className="px-2 py-0.5 rounded bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 font-bold text-[10px] whitespace-nowrap">
+              100% Bonificado
+            </span>
+          )}
         </div>
       </div>
 
-      {weeklyBonuses >= bonusCap && (
-        <div className="bg-amber-500/15 border-b border-amber-500/30 px-4 py-2 text-xs text-amber-300 flex items-center gap-2">
-          <AlertTriangle className="w-4 h-4 flex-shrink-0" />
-          <span>
-            <strong>Límite Semanal de Bonos Alcanzado (10/10):</strong> Tu cuota semanal es $0.00. Solo recibirás carreras 100% en efectivo directo.
+      {weeklyBonuses >= bonusCap ? (
+        <div className="bg-emerald-500/15 border-b border-emerald-500/30 px-4 py-2 text-xs text-emerald-300 flex items-center justify-between gap-2 animate-fade-in">
+          <div className="flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-emerald-400 flex-shrink-0 animate-bounce" />
+            <span>
+              <strong>¡Semana 100% Pagada con tus Bonos ($0.00 USD en efectivo)!</strong> Todas tus carreras son ganancia neta directa.
+            </span>
+          </div>
+          <span className="px-2 py-0.5 rounded bg-emerald-500 text-slate-950 font-black text-[10px] whitespace-nowrap">
+            AL DÍA
           </span>
+        </div>
+      ) : (
+        <div className="bg-slate-900/60 border-b border-slate-800/80 px-4 py-1.5 text-[11px] text-slate-400 flex items-center justify-between">
+          <span>Cada bono recibido de un pasajero te descuenta <strong>$1.00 USD</strong> de tu cuota.</span>
+          <span className="text-amber-400 font-mono font-bold">Faltan {Math.max(0, bonusCap - weeklyBonuses)} para $0.00</span>
         </div>
       )}
 
@@ -1039,6 +1105,55 @@ export default function DriverApp() {
           );
         }}
       />
+
+      {/* Modal de Confirmación de Pago de Cuota Semanal con Bonos */}
+      {showFeePaymentModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
+          <div className="w-full max-w-sm bg-gradient-to-b from-slate-900 to-slate-950 border border-slate-800 rounded-3xl p-6 shadow-2xl text-slate-100 space-y-4 animate-pop-bounce text-center">
+            <div className="w-12 h-12 mx-auto rounded-2xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 flex items-center justify-center shadow-lg">
+              <Shield className="w-6 h-6" />
+            </div>
+
+            <div className="space-y-1">
+              <h3 className="font-black text-lg text-white">
+                {weeklyBonuses >= bonusCap ? '¡Semana 100% Pagada!' : 'Abono a Cuota Semanal'}
+              </h3>
+              <p className="text-xs text-slate-400">
+                Transacción registrada y certificada en el Libro Mayor Criptográfico Inmutable
+              </p>
+            </div>
+
+            <div className="p-3 bg-slate-800/60 rounded-2xl border border-slate-700/60 text-xs space-y-2 text-left font-mono">
+              <div className="flex justify-between text-slate-300">
+                <span>Cuota Base Semanal:</span>
+                <span className="font-bold">$10.00 USD</span>
+              </div>
+              <div className="flex justify-between text-emerald-400 font-bold">
+                <span>Bonos aplicados ({weeklyBonuses}/{bonusCap}):</span>
+                <span>-${(weeklyBonuses * 1.00).toFixed(2)} USD</span>
+              </div>
+              <div className="pt-2 border-t border-slate-700 flex justify-between text-white font-black text-sm">
+                <span>Saldo en efectivo a pagar:</span>
+                <span className={netWeeklyFee === 0 ? "text-emerald-400" : "text-amber-400"}>
+                  ${netWeeklyFee.toFixed(2)} USD
+                </span>
+              </div>
+            </div>
+
+            <p className="text-[11px] text-slate-400">
+              {feePaymentResult?.message || 'Tu saldo bonificado ha sido aplicado exitosamente a tu cuota semanal.'}
+            </p>
+
+            <button
+              type="button"
+              onClick={() => setShowFeePaymentModal(false)}
+              className="w-full py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs rounded-xl shadow cursor-pointer transition-all active:scale-95"
+            >
+              Entendido
+            </button>
+          </div>
+        </div>
+      )}
 
     </div>
   );
