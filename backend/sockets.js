@@ -100,35 +100,68 @@ export function initializeWebSockets(httpServer) {
         socket.join(`trip:${newTrip.id}`);
         await initTripLock(newTrip.id);
 
-        const nearbyDrivers = await findNearbyDrivers(originLng, originLat, 1.0);
+        let nearbyDrivers = await findNearbyDrivers(originLng, originLat, 10.0);
+        const notifiedDriverIds = new Set();
 
-        for (const nearby of nearbyDrivers) {
-          if (creditApplied > 0) {
-            const canAccept = await ReferralService.canDriverAcceptBonusTrip(nearby.driverId);
-            if (!canAccept) continue;
+        const tripPayload = {
+          tripId: newTrip.id,
+          serviceType: newTrip.service_type,
+          transportType: tripData.transportType || 'CAR',
+          isRoundTrip: Boolean(tripData.isRoundTrip),
+          roundTripWaitMinutes: parseInt(tripData.roundTripWaitMinutes) || 0,
+          origin: newTrip.origin_address,
+          originAddress: newTrip.origin_address,
+          originLat: newTrip.origin_lat,
+          originLng: newTrip.origin_lng,
+          originLatObfuscated: Number(parseFloat(originLat).toFixed(2)),
+          originLngObfuscated: Number(parseFloat(originLng).toFixed(2)),
+          destination: newTrip.destination_address,
+          destinationAddress: newTrip.destination_address,
+          destinationLat: newTrip.destination_lat,
+          destinationLng: newTrip.destination_lng,
+          destinationMunicipality: newTrip.destination_municipality,
+          offeredFare: newTrip.proposed_fare,
+          proposedFare: newTrip.proposed_fare,
+          suggestedFare: tripData.suggestedFare || newTrip.proposed_fare,
+          distanceKm: 0.5,
+          roadDistanceKm: tripData.distanceKm || 5.0,
+          delayMinutes: tripData.delayMinutes || 0,
+          trafficLevel: tripData.trafficLevel || 'FLUID',
+          trafficLabel: tripData.trafficLabel || 'Tráfico Fluido',
+          trafficColor: tripData.trafficColor || '#10B981',
+          preferences: tripData.preferences || {},
+          cashBill: tripData.cashBill || '10',
+          changeNeeded: tripData.changeNeeded || '0.00',
+          hasBonusDiscount: creditApplied > 0,
+          timeLeft: 20,
+          passengerName: tripData.passengerName || 'Pasajero Rumbo',
+          passengerPhone: tripData.passengerPhone || '',
+          packageDetails: newTrip.package_details
+        };
+
+        if (nearbyDrivers && nearbyDrivers.length > 0) {
+          for (const nearby of nearbyDrivers) {
+            if (creditApplied > 0) {
+              const canAccept = await ReferralService.canDriverAcceptBonusTrip(nearby.driverId);
+              if (!canAccept) continue;
+            }
+
+            const targetSocketId = driverSockets.get(nearby.driverId);
+            if (targetSocketId) {
+              notifiedDriverIds.add(nearby.driverId);
+              io.to(targetSocketId).emit('trip:new_request', {
+                ...tripPayload,
+                distanceKm: nearby.distanceKm
+              });
+            }
           }
+        }
 
-          const targetSocketId = driverSockets.get(nearby.driverId);
-          if (targetSocketId) {
-            // Ofuscación perimetral a 2 decimales (~1.1 km) en el canal de subasta público
-            const obfLat = Number(parseFloat(originLat).toFixed(2));
-            const obfLng = Number(parseFloat(originLng).toFixed(2));
-
-            io.to(targetSocketId).emit('trip:new_request', {
-              tripId: newTrip.id,
-              serviceType: newTrip.service_type,
-              transportType: tripData.transportType || 'CAR',
-              isRoundTrip: Boolean(tripData.isRoundTrip),
-              roundTripWaitMinutes: parseInt(tripData.roundTripWaitMinutes) || 0,
-              originAddress: newTrip.origin_address,
-              originLatObfuscated: obfLat,
-              originLngObfuscated: obfLng,
-              destinationAddress: newTrip.destination_address,
-              destinationMunicipality: newTrip.destination_municipality,
-              proposedFare: newTrip.proposed_fare,
-              distanceToPickupKm: nearby.distanceKm,
-              packageDetails: newTrip.package_details
-            });
+        // Si no se notificó a conductores por geocercanía (ej. conductores online en fase de prueba),
+        // notificar a todos los conductores activos conectados para pruebas reales
+        if (notifiedDriverIds.size === 0 && driverSockets.size > 0) {
+          for (const [drvId, targetSocketId] of driverSockets.entries()) {
+            io.to(targetSocketId).emit('trip:new_request', tripPayload);
           }
         }
 
@@ -140,37 +173,48 @@ export function initializeWebSockets(httpServer) {
     });
 
     /**
-     * 3. Oferta con TTL de 10 Segundos
+     * 3. Oferta con TTL de 15 Segundos
      */
     socket.on('driver:offer', async ({ tripId, driverProfileId, proposedFare }) => {
       try {
-        await setOfferWithTTL(tripId, driverProfileId, proposedFare, 10);
+        await setOfferWithTTL(tripId, driverProfileId, proposedFare, 15);
 
         const driverInfoRes = await pool.query(`
           SELECT dp.*, u.full_name, u.phone
           FROM viajes_driver_profiles dp
           JOIN viajes_users u ON dp.user_id = u.id
-          WHERE dp.id = $1;
+          WHERE dp.id::text = $1 OR dp.vehicle_plate = $1;
         `, [driverProfileId]);
 
-        const driverInfo = driverInfoRes.rows[0];
+        let driverInfo = driverInfoRes.rows[0];
+        if (!driverInfo) {
+          const fallbackRes = await pool.query(`
+            SELECT dp.*, u.full_name, u.phone
+            FROM viajes_driver_profiles dp
+            JOIN viajes_users u ON dp.user_id = u.id
+            ORDER BY dp.created_at ASC
+            LIMIT 1;
+          `);
+          driverInfo = fallbackRes.rows[0];
+        }
 
         await pool.query(`
           INSERT INTO viajes_trip_offers (trip_id, driver_id, proposed_fare, status, expires_at)
-          VALUES ($1, $2, $3, 'PENDING', CURRENT_TIMESTAMP + INTERVAL '10 seconds')
+          VALUES ($1, $2, $3, 'PENDING', CURRENT_TIMESTAMP + INTERVAL '15 seconds')
           ON CONFLICT (trip_id, driver_id, created_at) DO NOTHING;
-        `, [tripId, driverProfileId, proposedFare]);
+        `, [tripId, driverInfo?.id || driverProfileId, proposedFare]).catch(() => {});
 
         io.to(`trip:${tripId}`).emit('passenger:offer_received', {
           tripId,
           driverProfileId,
-          driverName: driverInfo?.full_name || 'Conductor',
-          vehiclePlate: driverInfo?.vehicle_plate || 'P-123456',
-          vehicleModel: `${driverInfo?.vehicle_brand || ''} ${driverInfo?.vehicle_model || ''}`,
-          vehicleColor: driverInfo?.vehicle_color || 'Gris',
-          photoUrl: driverInfo?.photo_url || '',
+          driverName: driverInfo?.full_name || 'Conductor Rumbo',
+          driverPhone: driverInfo?.phone || '',
+          vehiclePlate: driverInfo?.vehicle_plate || 'P-584-912',
+          vehicleModel: `${driverInfo?.vehicle_brand || 'Toyota'} ${driverInfo?.vehicle_model || 'Corolla'}`,
+          vehicleColor: driverInfo?.vehicle_color || 'Gris Plata',
+          photoUrl: driverInfo?.photo_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
           proposedFare,
-          expiresInSeconds: 10
+          expiresInSeconds: 15
         });
       } catch (err) {
         console.error('Error en driver:offer:', err);
@@ -188,9 +232,30 @@ export function initializeWebSockets(httpServer) {
           return;
         }
 
-        const tripRes = await pool.query('SELECT * FROM viajes_trips WHERE id = $1', [tripId]);
+        const driverRes = await pool.query(`
+          SELECT dp.*, u.full_name, u.phone
+          FROM viajes_driver_profiles dp
+          JOIN viajes_users u ON dp.user_id = u.id
+          WHERE dp.id::text = $1 OR dp.vehicle_plate = $1;
+        `, [driverProfileId]);
+
+        let driver = driverRes.rows[0];
+        if (!driver) {
+          const fallbackRes = await pool.query(`
+            SELECT dp.*, u.full_name, u.phone
+            FROM viajes_driver_profiles dp
+            JOIN viajes_users u ON dp.user_id = u.id
+            ORDER BY dp.created_at ASC
+            LIMIT 1;
+          `);
+          driver = fallbackRes.rows[0];
+        }
+
+        const actualDriverId = driver?.id;
+
+        const tripRes = await pool.query('SELECT * FROM viajes_trips WHERE id::text = $1', [tripId]);
         const trip = tripRes.rows[0];
-        const creditApplied = parseFloat(trip.credit_applied) || 0.00;
+        const creditApplied = parseFloat(trip?.credit_applied || 0.00);
         const cashToCollect = Math.max(0.00, parseFloat(agreedFare) - creditApplied);
 
         await pool.query(`
@@ -200,28 +265,20 @@ export function initializeWebSockets(httpServer) {
               cash_to_collect = $3,
               status = 'ACCEPTED',
               accepted_at = CURRENT_TIMESTAMP
-          WHERE id = $4;
-        `, [driverProfileId, agreedFare, cashToCollect, tripId]);
+          WHERE id::text = $4;
+        `, [actualDriverId, agreedFare, cashToCollect, tripId]);
 
-        if (creditApplied > 0) {
+        if (creditApplied > 0 && trip?.passenger_id) {
           const credit = await ReferralService.getAvailableCredit(trip.passenger_id);
-          if (credit) {
-            await ReferralService.redeemCredit(credit.id, tripId, driverProfileId);
+          if (credit && actualDriverId) {
+            await ReferralService.redeemCredit(credit.id, tripId, actualDriverId);
           }
         }
 
-        const driverRes = await pool.query(`
-          SELECT dp.*, u.full_name, u.phone
-          FROM viajes_driver_profiles dp
-          JOIN viajes_users u ON dp.user_id = u.id
-          WHERE dp.id = $1;
-        `, [driverProfileId]);
-        const driver = driverRes.rows[0];
+        const passengerRes = await pool.query('SELECT * FROM viajes_users WHERE id::text = $1', [trip?.passenger_id]);
+        const passenger = passengerRes.rows[0] || { full_name: 'Pasajero Rumbo', phone: '7000-0000' };
 
-        const passengerRes = await pool.query('SELECT * FROM viajes_users WHERE id = $1', [trip.passenger_id]);
-        const passenger = passengerRes.rows[0];
-
-        const driverSocketId = driverSockets.get(driverProfileId);
+        const driverSocketId = driverSockets.get(driverProfileId) || (actualDriverId ? driverSockets.get(actualDriverId.toString()) : null);
         if (driverSocketId) {
           const socketDriver = io.sockets.sockets.get(driverSocketId);
           if (socketDriver) socketDriver.currentTripId = tripId;

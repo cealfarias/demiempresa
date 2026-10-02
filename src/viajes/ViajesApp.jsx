@@ -1151,9 +1151,11 @@ export default function ViajesApp() {
     const dLat = destinationCoords?.lat || 13.6738;
     const dLng = destinationCoords?.lng || -89.2789;
 
-    // Emitir solicitud al WebSocket Gateway
+    // Emitir solicitud al WebSocket Gateway (Despacho a Conductores Reales)
     socket.emit('trip:request', {
       passengerId: userProfile?.id || 'guest-passenger',
+      passengerName: userProfile?.full_name || userProfile?.name || 'Pasajero Rumbo',
+      passengerPhone: userProfile?.phone || '',
       serviceType,
       transportType,
       originAddress: effectiveOrigin,
@@ -1179,39 +1181,6 @@ export default function ViajesApp() {
       packageDetails,
       paymentTiming
     });
-
-    // Simulación complementaria de recepción de choferes dentro de 1 km (Modo Demo / Prueba)
-    setTimeout(() => {
-      setActiveOffers((current) => {
-        if (current.length > 0) return current;
-        return [
-          {
-            driverProfileId: 'drv-sv-1',
-            driverName: 'Carlos Mendoza',
-            photoUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
-            vehiclePlate: 'P-584-912',
-            vehicleModel: 'Toyota Corolla 2021',
-            vehicleColor: 'Gris Plata',
-            distanceMeters: 380,
-            proposedFare: parseFloat(proposedFare).toFixed(2),
-            timeLeft: 10,
-            isMock: true
-          },
-          {
-            driverProfileId: 'drv-sv-2',
-            driverName: 'Roberto Henríquez',
-            photoUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80',
-            vehiclePlate: 'P-910-334',
-            vehicleModel: 'Nissan Versa 2020',
-            vehicleColor: 'Blanco',
-            distanceMeters: 620,
-            proposedFare: (parseFloat(proposedFare) + 0.50).toFixed(2),
-            timeLeft: 10,
-            isMock: true
-          }
-        ];
-      });
-    }, 1800);
   };
 
   // Contador de TTL de 10 segundos para cada oferta activa

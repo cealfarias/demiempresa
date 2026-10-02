@@ -42,7 +42,7 @@ import {
 export default function DriverApp() {
   const [driverOnline, setDriverOnline] = useState(true);
   const [driverProfileId] = useState('drv-sv-1');
-  const [weeklyBonuses, setWeeklyBonuses] = useState(3);
+  const [weeklyBonuses, setWeeklyBonuses] = useState(0);
   const [isApplyingBonuses, setIsApplyingBonuses] = useState(false);
   const [showFeePaymentModal, setShowFeePaymentModal] = useState(false);
   const [feePaymentResult, setFeePaymentResult] = useState(null);
@@ -50,19 +50,9 @@ export default function DriverApp() {
   const baseWeeklyFee = 10.00;
   const netWeeklyFee = Math.max(0, baseWeeklyFee - weeklyBonuses * 1.00);
 
-  // Solicitud entrante a 1 km
-  const [incomingRequest, setIncomingRequest] = useState({
-    id: 'trip-req-101',
-    serviceType: 'PASSENGER',
-    origin: 'Metrocentro San Salvador, 8a Etapa',
-    distanceKm: 0.45,
-    roadDistanceKm: 7.8,
-    offeredFare: '3.50',
-    cashBill: '10',
-    changeNeeded: '6.50',
-    hasBonusDiscount: true,
-    timeLeft: 10
-  });
+  // Solicitud entrante real (se llena únicamente vía WebSockets cuando un pasajero solicita viaje)
+  const [incomingRequest, setIncomingRequest] = useState(null);
+  const [pendingOffer, setPendingOffer] = useState(null);
 
   // Configuración de Vehículo & Consumo Probabilístico de Gasolina
   const [vehicleYear, setVehicleYear] = useState(2018);
@@ -189,22 +179,34 @@ export default function DriverApp() {
     socket.on('trip:assigned', (assignedData) => {
       setActiveTrip({
         id: assignedData.tripId,
-        passengerName: assignedData.passengerName,
-        passengerPhone: assignedData.passengerPhone,
+        passengerName: assignedData.passengerName || 'Pasajero Rumbo',
+        passengerPhone: assignedData.passengerPhone || '',
         origin: assignedData.originAddress,
         originLat: assignedData.originLat || 13.7013,
         originLng: assignedData.originLng || -89.2244,
         destination: assignedData.destinationAddress,
-        roadDistanceKm: assignedData.distanceKm || 7.8,
+        roadDistanceKm: assignedData.roadDistanceKm || assignedData.distanceKm || 7.8,
         delayMinutes: assignedData.delayMinutes || 0,
         suggestedFare: assignedData.suggestedFare,
         preferences: assignedData.preferences || {},
         cashBill: assignedData.cashBill || '10',
-        changeNeeded: assignedData.changeNeeded || '6.50',
+        changeNeeded: assignedData.changeNeeded || '0.00',
         agreedFare: assignedData.agreedFare,
         cashToCollect: assignedData.cashToCollect,
         creditApplied: assignedData.creditApplied || '0.00'
       });
+      setIncomingRequest(null);
+      setPendingOffer(null);
+      setTripState('EN_ROUTE_TO_PICKUP');
+    });
+
+    socket.on('offer:rejected_other_won', () => {
+      setPendingOffer(null);
+    });
+
+    socket.on('trip:canceled', () => {
+      setActiveTrip(null);
+      setPendingOffer(null);
       setIncomingRequest(null);
       setTripState('EN_ROUTE_TO_PICKUP');
     });
@@ -212,6 +214,8 @@ export default function DriverApp() {
     return () => {
       socket.off('trip:new_request');
       socket.off('trip:assigned');
+      socket.off('offer:rejected_other_won');
+      socket.off('trip:canceled');
     };
   }, [driverProfileId]);
 
@@ -264,36 +268,25 @@ export default function DriverApp() {
 
   // Conductor responde a solicitud (acepta tarifa o contraoferta)
   const handleAcceptFare = (fare) => {
-    if (incomingRequest) {
-      // Emitir oferta a través de WebSockets hacia el pasajero
-      socket.emit('driver:offer', {
-        tripId: incomingRequest.id,
-        driverProfileId,
-        proposedFare: fare
-      });
-    }
+    if (!incomingRequest) return;
 
-    // Estado local para control en pantalla
-    setActiveTrip({
-      id: incomingRequest?.id || 'active-trip-902',
-      passengerName: 'Andrea Martínez',
-      passengerPhone: '7123-4567',
-      origin: incomingRequest?.origin || 'Metrocentro San Salvador',
-      originLat: 13.7013,
-      originLng: -89.2244,
-      destination: incomingRequest?.destination || 'Plaza Merliot, Santa Tecla',
-      roadDistanceKm: incomingRequest?.roadDistanceKm || 7.8,
-      delayMinutes: incomingRequest?.delayMinutes || 0,
-      suggestedFare: incomingRequest?.suggestedFare,
-      preferences: incomingRequest?.preferences || {},
-      cashBill: incomingRequest?.cashBill || '10',
-      changeNeeded: incomingRequest?.changeNeeded || '6.50',
-      agreedFare: fare,
-      cashToCollect: (parseFloat(fare) - (incomingRequest?.hasBonusDiscount ? 1.00 : 0.00)).toFixed(2),
-      creditApplied: incomingRequest?.hasBonusDiscount ? '1.00' : '0.00'
+    // Emitir oferta a través de WebSockets hacia el pasajero
+    socket.emit('driver:offer', {
+      tripId: incomingRequest.id,
+      driverProfileId,
+      proposedFare: fare
     });
+
+    // Guardar oferta pendiente mientras el pasajero confirma en su pantalla
+    setPendingOffer({
+      tripId: incomingRequest.id,
+      offeredFare: fare,
+      origin: incomingRequest.origin,
+      destination: incomingRequest.destination,
+      roadDistanceKm: incomingRequest.roadDistanceKm
+    });
+
     setIncomingRequest(null);
-    setTripState('EN_ROUTE_TO_PICKUP');
   };
 
   // Controles de estado del viaje
@@ -957,14 +950,39 @@ export default function DriverApp() {
           </div>
         )}
 
-        {!activeTrip && !incomingRequest && (
+        {/* Caso C: Oferta enviada, esperando confirmación del pasajero */}
+        {!activeTrip && pendingOffer && driverOnline && (
+          <div className="bg-slate-900 border-2 border-emerald-500/60 rounded-3xl p-6 shadow-2xl space-y-4 text-center animate-fade-in">
+            <div className="w-14 h-14 rounded-full bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center mx-auto text-emerald-400">
+              <Loader2 className="w-7 h-7 animate-spin" />
+            </div>
+            <div>
+              <span className="px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 font-bold text-xs uppercase tracking-wider">
+                Oferta Enviada: ${pendingOffer.offeredFare} USD
+              </span>
+              <h3 className="text-lg font-black text-white mt-2">Esperando que el Pasajero Confirme</h3>
+              <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
+                El pasajero está evaluando tu tarifa. Cuando acepte, la aplicación cambiará automáticamente a la ruta de recogida hacia <strong>{pendingOffer.origin}</strong>.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setPendingOffer(null)}
+              className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold cursor-pointer transition-colors"
+            >
+              Cancelar Oferta
+            </button>
+          </div>
+        )}
+
+        {!activeTrip && !incomingRequest && !pendingOffer && (
           <div className="p-8 bg-slate-900 border border-slate-800 rounded-3xl text-center space-y-3">
             <div className="w-12 h-12 rounded-full bg-slate-800 flex items-center justify-center mx-auto text-amber-400">
               <Navigation className="w-6 h-6 animate-pulse" />
             </div>
-            <h4 className="font-bold text-white text-base">Esperando Solicitudes en 1 km</h4>
+            <h4 className="font-bold text-white text-base">Esperando Solicitudes Reales en Línea</h4>
             <p className="text-xs text-slate-400 max-w-xs mx-auto">
-              Tu posición GPS se transmite cada 3-5s. Cuando un pasajero a menos de 1 km solicite viaje o encomienda, sonará tu alerta inmediata.
+              Tu radar GPS está activo. En cuanto un pasajero solicite un viaje o encomienda, verás la tarjeta de solicitud al instante con el cálculo de gasolina y tu ganancia limpia.
             </p>
           </div>
         )}
