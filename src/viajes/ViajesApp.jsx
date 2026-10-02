@@ -37,7 +37,8 @@ import {
   Bike,
   RotateCcw,
   User,
-  Gift
+  Gift,
+  LogOut
 } from 'lucide-react';
 import RumboLogo from './RumboLogo';
 import AdModal from './AdModal';
@@ -396,6 +397,27 @@ export default function ViajesApp() {
   const [refContactName, setRefContactName] = useState('');
   const [refContactPhone, setRefContactPhone] = useState('');
   const [referralBonusAwarded, setReferralBonusAwarded] = useState(false);
+  const [showBonusesAccountModal, setShowBonusesAccountModal] = useState(false);
+
+  // Calcular días restantes de un bono a partir de su fecha ISO (7 días)
+  const getDaysRemaining = (isoDate) => {
+    if (!isoDate) return 7;
+    const diff = new Date(isoDate).getTime() - Date.now();
+    return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
+  };
+
+  const formatBonusDate = (isoDate) => {
+    if (!isoDate) return '';
+    try {
+      return new Date(isoDate).toLocaleDateString('es-SV', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric'
+      });
+    } catch {
+      return '';
+    }
+  };
 
   // Subasta y Ofertas (TTL 10s)
   const [activeOffers, setActiveOffers] = useState([]);
@@ -1286,11 +1308,23 @@ export default function ViajesApp() {
 
   // Completar inscripción con todos los datos (nombre, dui, email) y disparar celebración de bono
   const handleCompleteRegistrationWithBonus = (profileData) => {
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
     const fullProfile = {
       ...profileData,
       hasBonus: true,
       bonusAmount: '1.00',
-      bonusExpiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+      bonusExpiresAt: expiresAt,
+      bonuses: [
+        {
+          id: `bonus-welcome-${Date.now()}`,
+          title: 'Bono de Bienvenida',
+          amount: '1.00',
+          createdAt: new Date().toISOString(),
+          expiresAt: expiresAt,
+          status: 'ACTIVE',
+          description: 'Acreditado por registro oficial con Google y DUI'
+        }
+      ]
     };
     setUserProfile(fullProfile);
     localStorage.setItem('demiempresa_passenger', JSON.stringify(fullProfile));
@@ -1526,6 +1560,36 @@ export default function ViajesApp() {
 
     setReferralBonusAwarded(true);
 
+    // Registrar nuevo bono de referido en el perfil del usuario
+    setUserProfile((prev) => {
+      const current = prev || {
+        fullName: 'Pasajero',
+        email: '',
+        dui: '',
+        bonusAmount: '0.00',
+        bonuses: []
+      };
+      const existingBonuses = current.bonuses || [];
+      const newRefBonus = {
+        id: `bonus-ref-${Date.now()}`,
+        title: `Referido: ${refContactName || 'Invitado WhatsApp'}`,
+        amount: '1.00',
+        createdAt: new Date().toISOString(),
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+        status: 'PENDING_TRIP',
+        condition: 'Válido 7 días al completar viaje de $3.00+'
+      };
+      const updatedTotal = (parseFloat(current.bonusAmount || '0') + 1.00).toFixed(2);
+      const updated = {
+        ...current,
+        hasBonus: true,
+        bonusAmount: updatedTotal,
+        bonuses: [...existingBonuses, newRefBonus]
+      };
+      localStorage.setItem('demiempresa_passenger', JSON.stringify(updated));
+      return updated;
+    });
+
     // 3. Locución del asistente
     speakAssistantMessage(
       '¡Excelente! Se ha abonado un dólar a tu cuenta con una vigencia de 7 días, siempre y cuando tu referido realice un viaje pagado por un mínimo de 3 dólares en los próximos 7 días.'
@@ -1658,10 +1722,58 @@ export default function ViajesApp() {
             </button>
           </div>
 
-          <span className="text-[11px] font-bold text-lime-400 bg-lime-500/10 border border-lime-500/30 px-2.5 py-1 rounded-full flex items-center gap-1.5 shadow-sm">
-            <span className="w-1.5 h-1.5 rounded-full bg-lime-400 animate-pulse"></span>
-            <span>100% Efectivo</span>
-          </span>
+          {/* BOTÓN ENCABEZADO SUPERIOR DERECHO: INGRESO CON GOOGLE O SALDO DE BONOS */}
+          {!userProfile ? (
+            <button
+              type="button"
+              onClick={handleGoogleSignInClick}
+              title="Ingresa con Google y obtén tu bono de $1.00 USD"
+              className="px-2.5 sm:px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-900 border border-slate-200 rounded-full flex items-center gap-2 shadow-sm transition-all cursor-pointer group active:scale-95"
+            >
+              <svg className="w-4 h-4 flex-shrink-0 group-hover:scale-110 transition-transform" viewBox="0 0 24 24">
+                <path fill="#EA4335" d="M12 5c1.6 0 3 .6 4.1 1.6l3.1-3.1C17.3 1.7 14.8 1 12 1 7.4 1 3.5 3.6 1.6 7.4l3.7 2.9C6.2 7.4 8.9 5 12 5z" />
+                <path fill="#4285F4" d="M23.5 12.3c0-.8-.1-1.6-.2-2.3H12v4.6h6.5c-.3 1.5-1.1 2.8-2.4 3.7l3.7 2.9c2.2-2 3.7-5 3.7-8.9z" />
+                <path fill="#FBBC05" d="M5.3 14.7c-.2-.7-.4-1.5-.4-2.3s.2-1.6.4-2.3L1.6 7.2C.6 9.2 0 11.5 0 14s.6 4.8 1.6 6.8l3.7-2.9" />
+                <path fill="#34A853" d="M12 23c3.2 0 6-1.1 8-3l-3.7-2.9c-1.1.7-2.5 1.2-4.3 1.2-3.1 0-5.8-2.4-6.7-5.3L1.6 16c1.9 3.8 5.8 7 10.4 7z" />
+              </svg>
+              <div className="flex items-center gap-1.5 leading-none">
+                <span className="text-[11px] font-bold text-slate-800">
+                  Ingresar
+                </span>
+                <span className="text-[10px] font-black text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded-full border border-amber-200">
+                  +$1.00
+                </span>
+              </div>
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setShowBonusesAccountModal(true)}
+              title="Ver crédito de bonos, vencimiento y referir amigos"
+              className="px-2 sm:px-3 py-1 bg-gradient-to-r from-amber-500/15 to-yellow-500/15 hover:from-amber-500/25 hover:to-yellow-500/25 border border-amber-400/50 rounded-full flex items-center gap-2 shadow-sm transition-all cursor-pointer active:scale-95"
+            >
+              {userProfile.photoUrl ? (
+                <img
+                  src={userProfile.photoUrl}
+                  alt={userProfile.fullName || 'Usuario'}
+                  className="w-5 h-5 rounded-full object-cover border border-amber-400 flex-shrink-0"
+                />
+              ) : (
+                <div className="w-5 h-5 rounded-full bg-gradient-to-tr from-amber-500 to-yellow-400 text-slate-950 font-black text-[10px] flex items-center justify-center flex-shrink-0">
+                  {userProfile.fullName ? userProfile.fullName[0].toUpperCase() : 'G'}
+                </div>
+              )}
+              <div className="flex items-center gap-1.5 leading-none">
+                <span className="text-[11px] font-bold text-white hidden sm:inline truncate max-w-[85px]">
+                  {userProfile.fullName?.split(' ')[0] || 'Mi Cuenta'}
+                </span>
+                <span className="text-[11px] font-black text-amber-300 font-mono bg-amber-500/20 px-1.5 py-0.5 rounded-full border border-amber-400/40 flex items-center gap-1">
+                  <Gift className="w-3 h-3 text-amber-400" />
+                  <span>${userProfile.bonusAmount || '1.00'}</span>
+                </span>
+              </div>
+            </button>
+          )}
         </div>
       </header>
 
@@ -3049,6 +3161,186 @@ export default function ViajesApp() {
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ============================================================== */}
+      {/* MODAL MI CUENTA, CRÉDITOS POR BONOS Y VENCIMIENTO DE CADA DÓLAR*/}
+      {/* ============================================================== */}
+      {showBonusesAccountModal && userProfile && (
+        <div className="fixed inset-0 z-[75] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in">
+          <div className="w-full max-w-md bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950 border border-slate-700/80 rounded-3xl p-6 shadow-2xl text-slate-100 space-y-4 animate-pop-bounce relative overflow-hidden">
+            {/* Header del modal */}
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <div className="flex items-center gap-3">
+                {userProfile.photoUrl ? (
+                  <img
+                    src={userProfile.photoUrl}
+                    alt={userProfile.fullName || 'Usuario'}
+                    className="w-11 h-11 rounded-full object-cover border-2 border-amber-400 shadow-md"
+                  />
+                ) : (
+                  <div className="w-11 h-11 rounded-full bg-gradient-to-tr from-amber-500 to-yellow-400 text-slate-950 font-black text-lg flex items-center justify-center shadow-md">
+                    {userProfile.fullName ? userProfile.fullName[0].toUpperCase() : 'G'}
+                  </div>
+                )}
+                <div>
+                  <div className="font-bold text-white text-base flex items-center gap-1.5">
+                    <span>{userProfile.fullName || 'Pasajero Rumbo'}</span>
+                    <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-1.5 py-0.5 rounded-full font-semibold">
+                      Google
+                    </span>
+                  </div>
+                  <div className="text-xs text-slate-400">
+                    {userProfile.email || 'Cuenta conectada'}
+                  </div>
+                  {userProfile.dui && (
+                    <div className="text-[11px] text-emerald-400 flex items-center gap-1 mt-0.5 font-mono">
+                      <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>DUI: {userProfile.dui}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowBonusesAccountModal(false)}
+                className="text-slate-400 hover:text-white p-1 text-sm font-bold cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Saldo de Crédito Total */}
+            <div className="bg-gradient-to-r from-amber-500/15 via-yellow-500/10 to-amber-500/15 border-2 border-amber-400/40 rounded-2xl p-4 text-center space-y-1 shadow-inner relative overflow-hidden">
+              <span className="text-[11px] font-bold text-amber-300 uppercase tracking-wider block">
+                Crédito Total en Bonos para Viajar
+              </span>
+              <div className="text-4xl font-black text-amber-400 font-mono tracking-tight drop-shadow-sm">
+                ${userProfile.bonusAmount || '1.00'} <span className="text-lg font-bold text-amber-200">USD</span>
+              </div>
+              <p className="text-xs text-slate-300 font-medium">
+                Se aplicará automáticamente como descuento en tu próximo viaje
+              </p>
+            </div>
+
+            {/* Vencimiento de cada Dólar (Lista de Bonos) */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-xs font-bold text-slate-300 px-1">
+                <span className="flex items-center gap-1.5">
+                  <Clock className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Vencimiento de cada Dólar (Vigencia 7 días)</span>
+                </span>
+                <span className="text-[10px] text-slate-400">
+                  {(userProfile.bonuses?.length || 1)} {userProfile.bonuses?.length === 1 ? 'bono' : 'bonos'}
+                </span>
+              </div>
+
+              <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                {(userProfile.bonuses && userProfile.bonuses.length > 0
+                  ? userProfile.bonuses
+                  : [
+                      {
+                        id: 'bonus-default-welcome',
+                        title: 'Bono de Bienvenida',
+                        amount: '1.00',
+                        expiresAt: userProfile.bonusExpiresAt || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+                        description: 'Acreditado por registro oficial con Google y DUI'
+                      }
+                    ]
+                ).map((b, idx) => {
+                  const daysLeft = getDaysRemaining(b.expiresAt);
+                  const formattedExp = formatBonusDate(b.expiresAt);
+                  return (
+                    <div
+                      key={b.id || idx}
+                      className="bg-slate-950/70 border border-slate-800 rounded-xl p-3 flex items-center justify-between gap-3 text-xs"
+                    >
+                      <div className="space-y-0.5">
+                        <div className="font-bold text-white flex items-center gap-1.5">
+                          <span>{b.title || 'Bono de Viaje'}</span>
+                          <span className="text-[10px] font-black text-emerald-400 font-mono bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">
+                            +${b.amount || '1.00'}
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-slate-400">
+                          {b.condition || b.description || 'Válido para descuento en viaje'}
+                        </div>
+                        {formattedExp && (
+                          <div className="text-[10px] text-slate-500">
+                            Vence el: {formattedExp}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="text-right flex-shrink-0">
+                        <span
+                          className={`text-[10px] font-bold px-2 py-1 rounded-full border flex items-center gap-1 ${
+                            daysLeft <= 2
+                              ? 'bg-rose-500/10 text-rose-300 border-rose-500/30'
+                              : 'bg-amber-500/10 text-amber-300 border-amber-500/30'
+                          }`}
+                        >
+                          <Clock className="w-2.5 h-2.5" />
+                          <span>{daysLeft === 0 ? 'Vence hoy' : `${daysLeft}d restantes`}</span>
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* SECCIÓN DESTACADA: REFIERE MÁS CLIENTES PARA INCREMENTAR CRÉDITO */}
+            <div className="bg-gradient-to-r from-emerald-950/40 via-slate-900 to-emerald-950/40 border border-emerald-500/40 rounded-2xl p-3.5 space-y-2">
+              <div className="flex items-center gap-2 text-emerald-300 text-xs font-bold">
+                <Sparkles className="w-4 h-4 text-emerald-400" />
+                <span>¿Quieres que tu crédito siga incrementando?</span>
+              </div>
+              <p className="text-[11px] text-slate-300 leading-relaxed">
+                Refiere a más amigos y familiares. Obtienes <strong className="text-amber-300">+$1.00 USD adicional</strong> por cada persona referida a la plataforma.
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowBonusesAccountModal(false);
+                  setReferralBonusAwarded(false);
+                  setShowReferralModal(true);
+                }}
+                className="w-full py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 shadow-md cursor-pointer transition-all active:scale-95"
+              >
+                <Share2 className="w-3.5 h-3.5" />
+                <span>Referir más clientes (+ $1.00 por amigo)</span>
+              </button>
+            </div>
+
+            {/* Footer con Cerrar Sesión */}
+            <div className="pt-1 flex items-center justify-between border-t border-slate-800 text-xs">
+              <button
+                type="button"
+                onClick={() => {
+                  if (confirm('¿Deseas cerrar sesión en este dispositivo?')) {
+                    setUserProfile(null);
+                    localStorage.removeItem('demiempresa_passenger');
+                    setShowBonusesAccountModal(false);
+                  }
+                }}
+                className="text-slate-400 hover:text-rose-400 flex items-center gap-1.5 py-1.5 px-2 rounded-lg hover:bg-slate-800/60 transition-colors cursor-pointer"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+                <span>Cerrar Sesión</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowBonusesAccountModal(false)}
+                className="py-1.5 px-4 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold rounded-xl cursor-pointer text-xs"
+              >
+                Listo
+              </button>
+            </div>
+
           </div>
         </div>
       )}
