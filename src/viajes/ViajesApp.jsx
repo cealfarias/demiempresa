@@ -369,7 +369,10 @@ export default function ViajesApp() {
   });
   const [showRegisterModal, setShowRegisterModal] = useState(false);
   const [googleClientId, setGoogleClientId] = useState(
-    () => import.meta.env.VITE_GOOGLE_CLIENT_ID || localStorage.getItem('demiempresa_google_client_id') || ''
+    () =>
+      import.meta.env.VITE_GOOGLE_CLIENT_ID ||
+      localStorage.getItem('demiempresa_google_client_id') ||
+      '585734148629-tdmrqos1msedm3hg0p4593fj55uhttle.apps.googleusercontent.com'
   );
   const [showGoogleConfigModal, setShowGoogleConfigModal] = useState(false);
   const [configClientIdInput, setConfigClientIdInput] = useState('');
