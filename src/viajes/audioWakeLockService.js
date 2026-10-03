@@ -32,3 +32,18 @@ export async function releaseScreenWakeLock() {
     wakeLockSentinel = null;
   }
 }
+
+/**
+ * Desbloquea de forma segura el motor SpeechSynthesis en Android/Chrome si quedó congelado o pausado
+ */
+export function safelyResetSpeech() {
+  if (typeof window === 'undefined' || !window.speechSynthesis) return;
+  try {
+    if (window.speechSynthesis.paused) {
+      window.speechSynthesis.resume();
+    }
+    window.speechSynthesis.cancel();
+  } catch (err) {
+    console.warn('safelyResetSpeech error:', err);
+  }
+}

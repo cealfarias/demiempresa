@@ -21,26 +21,27 @@ import {
   Car
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
-import { requestScreenWakeLock, releaseScreenWakeLock } from './audioWakeLockService';
+import { requestScreenWakeLock, releaseScreenWakeLock, safelyResetSpeech } from './audioWakeLockService';
 
 /**
  * Avatar Narrador Emocional del Conductor con:
- * 1. Screen Wake Lock (mantiene pantalla encendida para que no se apague durante el audio)
- * 2. Selector de Capítulos / Fases directas (para escuchar o repetir cualquier fase sin oír todo desde cero)
- * 3. Memoria de Interrupción (si el teléfono se bloquea, permite reanudar donde se quedó)
- * 4. Controles de Pausa / Reanudación
+ * 1. Arquitectura por Frases (Micro-chunks): evita al 100% el bug de congelamiento de Chrome/Android tras 15s
+ * 2. Temporizador Watchdog: si un navegador móvil no dispara onend, avanza automáticamente sin trabarse
+ * 3. Screen Wake Lock: mantiene la pantalla activa mientras habla
+ * 4. Memoria de Interrupción: si la pantalla se bloquea, cancela de inmediato y permite reanudar sin trabas
+ * 5. Selector de Capítulos Directos: 1 toque para oír cualquier fase sin repetir todo
  */
 export default function DriverAvatarNarrator({ onStartRegistration }) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [currentPhase, setCurrentPhase] = useState('IDLE'); // 'IDLE' | 'DRAMATIC' | 'EUPHORIC' | 'SOLEMN'
   const [activeSpeechText, setActiveSpeechText] = useState('');
+  const [currentSentenceText, setCurrentSentenceText] = useState('');
   const [interruptedPhase, setInterruptedPhase] = useState(null);
   const [audioSupported, setAudioSupported] = useState(true);
   const [copiedLink, setCopiedLink] = useState(null);
-  const utteranceRef = useRef(null);
 
-  // Definición de las 3 Fases Narrativas
+  // Definición de las 3 Fases con guión segmentado en oraciones cortas (3-5s cada una)
   const PHASES_DATA = {
     DRAMATIC: {
       id: 'DRAMATIC',
@@ -49,19 +50,19 @@ export default function DriverAvatarNarrator({ onStartRegistration }) {
       tag: '🔥 Fase 1: La Cruda Realidad',
       shortTitle: 'Gasolina $5.13 y comisiones abusivas',
       badgeColor: 'text-rose-400 border-rose-500/30 bg-rose-500/10',
-      rate: 0.88,
+      rate: 0.90,
       pitch: 0.90,
       soundEffect: 'GONG',
-      script:
-        "Amigo conductor... analicemos la realidad que vives todos los días en la calle. " +
-        "La Gasolina Especial está a cinco dólares con trece centavos por galón... " +
-        "Pasas más de una hora atrapado en las trabazones de San Salvador, desgastando tu auto... " +
-        "y pagando cien dólares semanales de alquiler del vehículo o cuota de financiamiento. " +
-        "Y encima de todo ese sacrificio... ¿las otras aplicaciones te quitan hasta el veintiocho por ciento de comisión? " +
-        "¡Hicimos los números de un viaje real de sesenta y seis minutos! " +
-        "Tras pagar la comisión, la gasolina a cinco trece y la cuota del auto... " +
-        "¡el chofer se llevó apenas setenta y un centavos a su casa! " +
-        "¡Setenta y un centavos por más de una hora de tu vida! ¡Eso tiene que terminar hoy!",
+      sentences: [
+        "Amigo conductor... analicemos la realidad que vives todos los días en la calle.",
+        "La Gasolina Especial está a cinco dólares con trece centavos por galón.",
+        "Pasas más de una hora atrapado en las trabazones de San Salvador, desgastando tu auto...",
+        "y pagando cien dólares semanales de alquiler del vehículo o cuota de financiamiento.",
+        "¿Y encima de todo ese sacrificio... las otras aplicaciones te quitan hasta el veintiocho por ciento de comisión?",
+        "¡Hicimos los números de un viaje real de sesenta y seis minutos!",
+        "Tras pagar la comisión, la gasolina a cinco trece y la cuota del auto... ¡el chofer se llevó apenas setenta y un centavos a su casa!",
+        "¡Setenta y un centavos por más de una hora de tu vida! ¡Eso tiene que terminar hoy!"
+      ],
       summary: "⚠️ La Cruda Realidad (Gasolina a $5.13 y comisiones que ahogan tu bolsillo)"
     },
     EUPHORIC: {
@@ -71,18 +72,19 @@ export default function DriverAvatarNarrator({ onStartRegistration }) {
       tag: '🚀 Fase 2: Victoria Rumbo',
       shortTitle: '0% Comisión y 1ª semana gratis',
       badgeColor: 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10',
-      rate: 1.08,
-      pitch: 1.15,
+      rate: 1.06,
+      pitch: 1.12,
       soundEffect: 'CHIME',
-      script:
-        "¡Pero aquí es donde cambia tu Destino! " +
-        "¡Por eso nació Rumbo a mi Destino! " +
-        "¡Escúchalo bien: CERO POR CIENTO DE COMISIÓN! ¡Cero! ¡Ni un solo centavo te quitamos! " +
-        "Cada dólar que te pague el pasajero entra íntegro y limpio en efectivo a tu propia bolsa. " +
-        "¡Y para darte la bienvenida al equipo, tu primera semana es completamente GRATIS, con cero cuota! " +
-        "Protegemos tu tiempo con tarifas que compensan el tráfico y te damos un radar en vivo para encontrar la gasolina más barata. " +
-        "¡El dinero que antes te quitaban ahora es para ti, para tu auto y para el futuro de tu familia! " +
-        "¡Toma el control y regístrate hoy mismo!",
+      sentences: [
+        "¡Pero aquí es donde cambia tu Destino!",
+        "¡Por eso nació Rumbo a mi Destino!",
+        "¡Escúchalo bien: CERO POR CIENTO DE COMISIÓN! ¡Cero! ¡Ni un solo centavo te quitamos!",
+        "Cada dólar que te pague el pasajero entra íntegro y limpio en efectivo a tu propia bolsa.",
+        "¡Y para darte la bienvenida al equipo, tu primera semana es completamente GRATIS, con cero cuota!",
+        "Protegemos tu tiempo con tarifas que compensan el tráfico y te damos un radar en vivo para encontrar la gasolina más barata.",
+        "¡El dinero que antes te quitaban ahora es para ti, para tu auto y para el futuro de tu familia!",
+        "¡Toma el control y regístrate hoy mismo!"
+      ],
       summary: "🎉 ¡La Revolución Rumbo! 0% Comisión y 100% de Ganancia en tu Mano"
     },
     SOLEMN: {
@@ -95,27 +97,59 @@ export default function DriverAvatarNarrator({ onStartRegistration }) {
       rate: 0.88,
       pitch: 0.92,
       soundEffect: 'NONE',
-      script:
-        "Y finalmente, un mensaje muy especial con absoluta seriedad: " +
-        "Agradecemos profundamente tu paciencia y tu comprensión, ya que nuestra aplicación se encuentra en su fase inicial de lanzamiento. " +
-        "Para consolidar esta alternativa y romper juntos las comisiones abusivas, te pedimos de corazón tu colaboración compartiendo los enlaces de Rumbo, tanto con viajeros para dinamizar tus carreras, como con otros conductores colegas. " +
-        "Entre más crezcamos en las calles, más nos beneficiaremos todos. ¡Caminemos juntos hacia tu destino!",
+      sentences: [
+        "Y finalmente, un mensaje muy especial con absoluta seriedad:",
+        "Agradecemos profundamente tu paciencia y tu comprensión, ya que nuestra aplicación se encuentra en su fase inicial de lanzamiento.",
+        "Para consolidar esta alternativa y romper juntos las comisiones abusivas, te pedimos de corazón tu colaboración compartiendo los enlaces de Rumbo.",
+        "Compártelos con viajeros para dinamizar tus carreras, y también con otros conductores colegas.",
+        "Entre más crezcamos en las calles, más nos beneficiaremos todos. ¡Caminemos juntos hacia tu destino!"
+      ],
       summary: "🤝 Mensaje Institucional: Gracias por tu paciencia. ¡Comparte los enlaces para beneficiarnos todos!"
     }
   };
 
+  // Motor Interno de Reproducción Secuencial (Refs para evitar cierres de estado obsoletos)
+  const engineRef = useRef({
+    isPlaying: false,
+    isPaused: false,
+    phaseKey: 'IDLE',
+    isChained: false,
+    sentenceIndex: 0,
+    sentences: [],
+    rate: 1.0,
+    pitch: 1.0,
+    watchdogTimer: null,
+    nextSentenceTimer: null
+  });
+
+  // Pre-carga de voces disponibles en el navegador
+  const [voices, setVoices] = useState([]);
   useEffect(() => {
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
       setAudioSupported(false);
+      return;
     }
 
-    // Monitoreo de Visibilidad de Pantalla (cuando el celular se apaga / bloquea)
+    const loadVoices = () => {
+      try {
+        const v = window.speechSynthesis.getVoices();
+        if (v && v.length > 0) setVoices(v);
+      } catch {}
+    };
+
+    loadVoices();
+    if (window.speechSynthesis.onvoiceschanged !== undefined) {
+      window.speechSynthesis.onvoiceschanged = loadVoices;
+    }
+
+    // Monitoreo de Visibilidad: si la pantalla del celular se apaga
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'hidden') {
-        if (isPlaying) {
-          // Recordar en qué fase quedó para no forzarlo a oír todo desde cero
-          setInterruptedPhase(currentPhase);
-          releaseScreenWakeLock();
+        if (engineRef.current.isPlaying) {
+          // Guardar fase para reanudar sin trabas
+          const phaseToSave = engineRef.current.phaseKey;
+          setInterruptedPhase(phaseToSave);
+          stopNarrative(false); // Detener audio de inmediato para no desincronizar con el SO
         }
       }
     };
@@ -124,9 +158,21 @@ export default function DriverAvatarNarrator({ onStartRegistration }) {
 
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
-      stopNarrative();
+      stopNarrative(false);
     };
-  }, [isPlaying, currentPhase]);
+  }, []);
+
+  const getBestSpanishVoice = () => {
+    const list = voices.length > 0 ? voices : (typeof window !== 'undefined' && window.speechSynthesis?.getVoices()) || [];
+    return (
+      list.find(v => v.lang === 'es-SV' || v.lang === 'es_SV') ||
+      list.find(v => v.lang.startsWith('es-419')) ||
+      list.find(v => v.lang.startsWith('es-MX')) ||
+      list.find(v => v.lang.startsWith('es-US')) ||
+      list.find(v => v.lang.startsWith('es')) ||
+      null
+    );
+  };
 
   // Sonidos sintéticos Web Audio API
   const playEuphoricChime = () => {
@@ -169,104 +215,170 @@ export default function DriverAvatarNarrator({ onStartRegistration }) {
     } catch {}
   };
 
-  const getBestSpanishVoice = () => {
-    if (typeof window === 'undefined' || !window.speechSynthesis) return null;
-    const voices = window.speechSynthesis.getVoices();
-    return (
-      voices.find(v => v.lang === 'es-SV' || v.lang === 'es_SV') ||
-      voices.find(v => v.lang.startsWith('es-419')) ||
-      voices.find(v => v.lang.startsWith('es-MX')) ||
-      voices.find(v => v.lang.startsWith('es-US')) ||
-      voices.find(v => v.lang.startsWith('es')) ||
-      null
-    );
-  };
-
-  const stopNarrative = () => {
-    if (typeof window !== 'undefined' && window.speechSynthesis) {
-      window.speechSynthesis.cancel();
-    }
+  // Detener la narración por completo y limpiar timers
+  const stopNarrative = (resetInterrupted = true) => {
+    clearTimeout(engineRef.current.watchdogTimer);
+    clearTimeout(engineRef.current.nextSentenceTimer);
+    safelyResetSpeech();
     releaseScreenWakeLock();
+
+    engineRef.current.isPlaying = false;
+    engineRef.current.isPaused = false;
+    engineRef.current.phaseKey = 'IDLE';
+    engineRef.current.sentenceIndex = 0;
+
     setIsPlaying(false);
     setIsPaused(false);
     setCurrentPhase('IDLE');
     setActiveSpeechText('');
-  };
-
-  const togglePauseResume = () => {
-    if (typeof window === 'undefined' || !window.speechSynthesis) return;
-    if (isPaused) {
-      window.speechSynthesis.resume();
-      setIsPaused(false);
-      requestScreenWakeLock();
-    } else {
-      window.speechSynthesis.pause();
-      setIsPaused(true);
-      releaseScreenWakeLock();
+    setCurrentSentenceText('');
+    if (resetInterrupted) {
+      setInterruptedPhase(null);
     }
   };
 
-  // Reproductor de Fase Específica con Encadenamiento Opcional
-  const playPhase = (phaseKey, isChained = false) => {
+  // Pausar / Reanudar sin usar el método roto speechSynthesis.pause() de Android
+  const togglePauseResume = () => {
+    if (!engineRef.current.isPlaying) return;
+
+    if (engineRef.current.isPaused) {
+      // Reanudar: volver a reproducir desde la oración actual
+      engineRef.current.isPaused = false;
+      setIsPaused(false);
+      requestScreenWakeLock();
+      speakSentence(engineRef.current.sentenceIndex);
+    } else {
+      // Pausar: detener utterance actual pero recordar el índice de la oración
+      clearTimeout(engineRef.current.watchdogTimer);
+      clearTimeout(engineRef.current.nextSentenceTimer);
+      safelyResetSpeech();
+      releaseScreenWakeLock();
+      engineRef.current.isPaused = true;
+      setIsPaused(true);
+    }
+  };
+
+  // Reproductor de una oración específica
+  const speakSentence = (index) => {
+    if (!engineRef.current.isPlaying || engineRef.current.isPaused) return;
+
+    const sentences = engineRef.current.sentences;
+    if (index >= sentences.length) {
+      // Fase actual completada
+      clearTimeout(engineRef.current.watchdogTimer);
+      if (engineRef.current.isChained) {
+        if (engineRef.current.phaseKey === 'DRAMATIC') {
+          engineRef.current.nextSentenceTimer = setTimeout(() => playPhase('EUPHORIC', true, 0), 600);
+        } else if (engineRef.current.phaseKey === 'EUPHORIC') {
+          engineRef.current.nextSentenceTimer = setTimeout(() => playPhase('SOLEMN', false, 0), 700);
+        } else {
+          stopNarrative(true);
+          setActiveSpeechText('¡Gracias por escuchar! Rumbo nació para cambiar tu Destino.');
+        }
+      } else {
+        stopNarrative(true);
+      }
+      return;
+    }
+
+    engineRef.current.sentenceIndex = index;
+    const text = sentences[index];
+    setCurrentSentenceText(text);
+
+    // Cancelar cualquier síntesis previa para no atascar la cola
+    safelyResetSpeech();
+
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = 'es-SV';
+    utterance.rate = engineRef.current.rate;
+    utterance.pitch = engineRef.current.pitch;
+    utterance.volume = 1.0;
+
+    const voice = getBestSpanishVoice();
+    if (voice) utterance.voice = voice;
+
+    // Watchdog Timer de Seguridad (10 segundos máx por frase corta)
+    // Si el navegador móvil se congela o no llama a onend, el watchdog rescata el flujo
+    clearTimeout(engineRef.current.watchdogTimer);
+    engineRef.current.watchdogTimer = setTimeout(() => {
+      console.warn('Watchdog rescató la síntesis de voz tras 10s');
+      advanceToNextSentence(index + 1);
+    }, 10000);
+
+    utterance.onend = () => {
+      clearTimeout(engineRef.current.watchdogTimer);
+      advanceToNextSentence(index + 1);
+    };
+
+    utterance.onerror = (err) => {
+      clearTimeout(engineRef.current.watchdogTimer);
+      console.warn('Speech error en frase, avanzando:', err);
+      advanceToNextSentence(index + 1);
+    };
+
+    // Anclar la referencia en window para evitar que el Garbage Collector de V8 la destruya a mitad de audio
+    window.__rumbo_active_utterance = utterance;
+
+    try {
+      window.speechSynthesis.speak(utterance);
+    } catch (e) {
+      console.warn('Error al ejecutar speak:', e);
+      advanceToNextSentence(index + 1);
+    }
+  };
+
+  const advanceToNextSentence = (nextIndex) => {
+    if (!engineRef.current.isPlaying || engineRef.current.isPaused) return;
+    engineRef.current.sentenceIndex = nextIndex;
+    // Pausa natural breve entre oraciones (160ms)
+    engineRef.current.nextSentenceTimer = setTimeout(() => {
+      speakSentence(nextIndex);
+    }, 160);
+  };
+
+  // Iniciar una fase
+  const playPhase = (phaseKey, isChained = false, startSentenceIndex = 0) => {
     const data = PHASES_DATA[phaseKey];
     if (!data) return;
 
-    window.speechSynthesis.cancel();
+    // Limpieza de cualquier audio previo
+    stopNarrative(false);
+
+    engineRef.current = {
+      isPlaying: true,
+      isPaused: false,
+      phaseKey,
+      isChained,
+      sentenceIndex: startSentenceIndex,
+      sentences: data.sentences,
+      rate: data.rate,
+      pitch: data.pitch,
+      watchdogTimer: null,
+      nextSentenceTimer: null
+    };
+
     setIsPlaying(true);
     setIsPaused(false);
     setCurrentPhase(phaseKey);
     setActiveSpeechText(data.summary);
     setInterruptedPhase(null);
 
-    // Mantener la pantalla encendida mientras habla
+    // Mantener la pantalla encendida
     requestScreenWakeLock();
 
-    // Efectos de sonido y visuales
-    if (data.soundEffect === 'GONG') playDramaticGong();
-    if (data.soundEffect === 'CHIME') {
-      playEuphoricChime();
-      try {
-        confetti({ particleCount: 75, spread: 85, origin: { y: 0.6 } });
-      } catch {}
+    // Efectos de sonido/confetti
+    if (startSentenceIndex === 0) {
+      if (data.soundEffect === 'GONG') playDramaticGong();
+      if (data.soundEffect === 'CHIME') {
+        playEuphoricChime();
+        try {
+          confetti({ particleCount: 75, spread: 85, origin: { y: 0.6 } });
+        } catch {}
+      }
     }
 
-    const utterance = new SpeechSynthesisUtterance(data.script);
-    utterance.lang = 'es-SV';
-    utterance.rate = data.rate;
-    utterance.pitch = data.pitch;
-    utterance.volume = 1.0;
-
-    const voice = getBestSpanishVoice();
-    if (voice) utterance.voice = voice;
-
-    utterance.onend = () => {
-      if (isChained) {
-        if (phaseKey === 'DRAMATIC') {
-          setTimeout(() => playPhase('EUPHORIC', true), 700);
-        } else if (phaseKey === 'EUPHORIC') {
-          setTimeout(() => playPhase('SOLEMN', false), 800);
-        } else {
-          releaseScreenWakeLock();
-          setIsPlaying(false);
-          setCurrentPhase('IDLE');
-          setActiveSpeechText('¡Gracias por escuchar! Rumbo nació para cambiar tu Destino.');
-        }
-      } else {
-        releaseScreenWakeLock();
-        setIsPlaying(false);
-        setCurrentPhase('IDLE');
-      }
-    };
-
-    utterance.onerror = () => {
-      releaseScreenWakeLock();
-      setIsPlaying(false);
-      setIsPaused(false);
-      setCurrentPhase('IDLE');
-    };
-
-    utteranceRef.current = utterance;
-    window.speechSynthesis.speak(utterance);
+    // Comenzar la secuencia de oraciones
+    speakSentence(startSentenceIndex);
   };
 
   const handleShareLink = async (type) => {
@@ -309,12 +421,12 @@ export default function DriverAvatarNarrator({ onStartRegistration }) {
         ? 'bg-gradient-to-b from-amber-950/50 via-emerald-950/30 to-slate-950 border-emerald-400/60 shadow-2xl shadow-emerald-950/50'
         : currentPhase === 'SOLEMN'
         ? 'bg-gradient-to-b from-sky-950/40 via-slate-900 to-slate-950 border-sky-400/50 shadow-2xl shadow-sky-950/40'
-        : 'bg-slate-900/90 border-slate-800'
-    } p-5 sm:p-7 space-y-5 text-center`}>
-
-      {/* Partículas y resplandor contextual */}
+        : 'bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950 border-amber-500/30 shadow-xl'
+    } p-4 sm:p-6 text-center space-y-4`}>
+      
+      {/* Luces de ambientación dinámica */}
       {currentPhase === 'DRAMATIC' && (
-        <div className="absolute inset-0 bg-rose-500/5 pointer-events-none animate-pulse" />
+        <div className="absolute inset-0 bg-rose-500/10 pointer-events-none animate-pulse" />
       )}
       {currentPhase === 'EUPHORIC' && (
         <div className="absolute inset-0 bg-emerald-500/10 pointer-events-none animate-pulse" />
@@ -331,13 +443,13 @@ export default function DriverAvatarNarrator({ onStartRegistration }) {
             <div className="text-xs">
               <span className="font-bold text-amber-300 block">¿Se apagó tu pantalla?</span>
               <span className="text-slate-300 text-[11px]">
-                Puedes continuar exactamente donde te quedaste sin repetir todo el mensaje.
+                Toca para continuar directamente en la fase donde estabas.
               </span>
             </div>
           </div>
           <button
             type="button"
-            onClick={() => playPhase(interruptedPhase, true)}
+            onClick={() => playPhase(interruptedPhase, true, 0)}
             className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs flex items-center gap-1.5 transition-colors shadow shrink-0 cursor-pointer"
           >
             <Play className="w-3.5 h-3.5 fill-slate-950" />
@@ -356,7 +468,7 @@ export default function DriverAvatarNarrator({ onStartRegistration }) {
             <button
               key={p.id}
               type="button"
-              onClick={() => playPhase(p.id, false)}
+              onClick={() => playPhase(p.id, false, 0)}
               className={`px-2.5 py-1.5 rounded-xl text-[11px] font-bold transition-all flex items-center justify-center gap-1 cursor-pointer truncate ${
                 currentPhase === p.id && isPlaying
                   ? 'bg-amber-500 text-slate-950 shadow-md font-black'
@@ -453,11 +565,11 @@ export default function DriverAvatarNarrator({ onStartRegistration }) {
             ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
             : currentPhase === 'SOLEMN'
             ? 'bg-sky-500/20 text-sky-300 border border-sky-500/30'
-            : 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
+            : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
         }`}>
-          {currentPhase === 'DRAMATIC' && <AlertCircle className="w-3.5 h-3.5 text-rose-400" />}
-          {currentPhase === 'EUPHORIC' && <Zap className="w-3.5 h-3.5 text-emerald-400" />}
-          {currentPhase === 'SOLEMN' && <HeartHandshake className="w-3.5 h-3.5 text-sky-400" />}
+          {currentPhase === 'DRAMATIC' && <Flame className="w-3.5 h-3.5 text-rose-400 animate-bounce" />}
+          {currentPhase === 'EUPHORIC' && <Sparkles className="w-3.5 h-3.5 text-emerald-400 animate-spin" />}
+          {currentPhase === 'SOLEMN' && <HeartHandshake className="w-3.5 h-3.5 text-sky-400 animate-pulse" />}
           {currentPhase === 'IDLE' && <Sparkles className="w-3.5 h-3.5 text-amber-400" />}
           <span>
             {currentPhase === 'DRAMATIC'
@@ -470,26 +582,31 @@ export default function DriverAvatarNarrator({ onStartRegistration }) {
           </span>
         </div>
 
-        <h3 className="text-lg sm:text-xl font-black text-white">
+        <h2 className="text-xl sm:text-2xl font-black text-white leading-snug">
           {currentPhase === 'DRAMATIC' ? (
-            <span className="text-rose-300">"¿Trabajar más de una hora para ganar $0.71 centavos limpios?"</span>
+            <span className="text-rose-300">¿Trabajas para las apps o para tu familia?</span>
           ) : currentPhase === 'EUPHORIC' ? (
-            <span className="text-emerald-300">"¡0% Comisión! Cada centavo del pasajero es 100% tuyo"</span>
+            <span className="text-emerald-400">¡Cero Comisión! 100% de la Ganancia en tu Mano</span>
           ) : currentPhase === 'SOLEMN' ? (
-            <span className="text-sky-300">"Alianza Comunitaria: Gracias por tu Paciencia y Colaboración"</span>
+            <span className="text-sky-300">Gracias por tu Confianza: Crecemos Juntos</span>
           ) : (
-            <span>Escucha el Mensaje que las Otras Apps No Quieren que Oigas</span>
+            <span>Conoce la Realidad y Cómo Cambiamos tu Destino</span>
           )}
-        </h3>
+        </h2>
 
-        {activeSpeechText && (
-          <p className="text-xs text-slate-300 font-medium px-4 py-2 bg-slate-950/80 rounded-xl border border-slate-800 animate-in fade-in-50">
-            {activeSpeechText}
+        {/* Subtítulo dinámico / Oración en vivo */}
+        {isPlaying && currentSentenceText ? (
+          <div className="bg-slate-950/80 p-3 rounded-2xl border border-slate-800 text-xs sm:text-sm text-slate-200 font-medium italic min-h-[50px] flex items-center justify-center shadow-inner">
+            "{currentSentenceText}"
+          </div>
+        ) : (
+          <p className="text-xs sm:text-sm text-slate-400">
+            {activeSpeechText || 'Escucha el análisis real de los costos en calle y la propuesta de Rumbo:'}
           </p>
         )}
       </div>
 
-      {/* 4. ONDAS DE AUDIO SIMULADAS CUANDO ESTÁ HABLANDO */}
+      {/* 4. ONDAS DE AUDIO SIMULADAS */}
       {isPlaying && !isPaused && (
         <div className="flex items-center justify-center gap-1.5 h-6">
           {[40, 75, 100, 60, 90, 45, 80, 50, 95, 70].map((h, i) => (
@@ -516,7 +633,7 @@ export default function DriverAvatarNarrator({ onStartRegistration }) {
       <div className="flex flex-wrap items-center justify-center gap-2.5 pt-1">
         {!isPlaying ? (
           <button
-            onClick={() => playPhase('DRAMATIC', true)}
+            onClick={() => playPhase('DRAMATIC', true, 0)}
             className="px-6 py-3 rounded-2xl bg-gradient-to-r from-amber-400 via-amber-500 to-amber-600 hover:brightness-110 text-slate-950 font-black text-xs sm:text-sm shadow-xl shadow-amber-950/40 flex items-center gap-2 cursor-pointer transition-transform transform active:scale-95"
           >
             <Play className="w-4 h-4 fill-slate-950" />
@@ -533,7 +650,7 @@ export default function DriverAvatarNarrator({ onStartRegistration }) {
             </button>
 
             <button
-              onClick={stopNarrative}
+              onClick={() => stopNarrative(true)}
               className="px-4 py-2.5 rounded-2xl bg-slate-800 hover:bg-slate-700 text-rose-300 font-bold text-xs flex items-center gap-1.5 cursor-pointer border border-rose-500/30"
             >
               <VolumeX className="w-4 h-4 text-rose-400" />
@@ -568,13 +685,17 @@ export default function DriverAvatarNarrator({ onStartRegistration }) {
           <div className="p-2.5 rounded-xl bg-slate-950 border border-sky-500/30 flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <Users className="w-4 h-4 text-sky-400 shrink-0" />
-              <span className="text-xs font-bold text-white">Enlace para Pasajeros</span>
+              <div className="text-[11px]">
+                <strong className="text-white block font-bold">1. Enlace para Pasajeros</strong>
+                <span className="text-slate-400 text-[10px]">Tarifas justas y bonos de $1.00</span>
+              </div>
             </div>
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1.5 shrink-0">
               <button
                 type="button"
                 onClick={() => handleShareLink('passenger')}
-                className="px-2.5 py-1.5 rounded-lg bg-sky-500 hover:bg-sky-400 text-slate-950 text-[11px] font-bold flex items-center gap-1 transition-colors cursor-pointer"
+                className="px-2.5 py-1.5 rounded-lg bg-sky-500 hover:bg-sky-400 text-slate-950 text-[11px] font-black flex items-center gap-1 transition-colors cursor-pointer shadow"
+                title="Compartir enlace de pasajeros por WhatsApp"
               >
                 <Share2 className="w-3 h-3" />
                 <span>Compartir</span>
@@ -582,8 +703,8 @@ export default function DriverAvatarNarrator({ onStartRegistration }) {
               <button
                 type="button"
                 onClick={() => handleCopyLink('passenger')}
-                className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] transition-colors cursor-pointer"
-                title="Copiar"
+                className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-sky-300 border border-sky-500/30 text-[11px] transition-colors cursor-pointer"
+                title="Copiar enlace"
               >
                 {copiedLink === 'passenger' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
               </button>
@@ -594,13 +715,17 @@ export default function DriverAvatarNarrator({ onStartRegistration }) {
           <div className="p-2.5 rounded-xl bg-slate-950 border border-emerald-500/30 flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <Car className="w-4 h-4 text-emerald-400 shrink-0" />
-              <span className="text-xs font-bold text-white">Enlace para Conductores</span>
+              <div className="text-[11px]">
+                <strong className="text-white block font-bold">2. Enlace para Conductores</strong>
+                <span className="text-slate-400 text-[10px]">0% comisión y 1ª semana gratis</span>
+              </div>
             </div>
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1.5 shrink-0">
               <button
                 type="button"
                 onClick={() => handleShareLink('driver')}
-                className="px-2.5 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-[11px] font-bold flex items-center gap-1 transition-colors cursor-pointer"
+                className="px-2.5 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-[11px] font-black flex items-center gap-1 transition-colors cursor-pointer shadow"
+                title="Compartir enlace de conductores por WhatsApp"
               >
                 <Share2 className="w-3 h-3" />
                 <span>Compartir</span>
@@ -608,8 +733,8 @@ export default function DriverAvatarNarrator({ onStartRegistration }) {
               <button
                 type="button"
                 onClick={() => handleCopyLink('driver')}
-                className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] transition-colors cursor-pointer"
-                title="Copiar"
+                className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-emerald-300 border border-emerald-500/30 text-[11px] transition-colors cursor-pointer"
+                title="Copiar enlace"
               >
                 {copiedLink === 'driver' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
               </button>
@@ -617,7 +742,6 @@ export default function DriverAvatarNarrator({ onStartRegistration }) {
           </div>
         </div>
       </div>
-
     </div>
   );
 }
