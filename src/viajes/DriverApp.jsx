@@ -122,7 +122,7 @@ export default function DriverApp() {
 
   // Controlar conexión en línea con validación de aprobación administrativa
   const handleToggleOnline = () => {
-    if (isPending || isRejected || (driverProfile && driverProfile.approvalStatus !== 'APPROVED')) {
+    if (isRejected) {
       setShowRegistrationModal(true);
       return;
     }
@@ -360,14 +360,22 @@ export default function DriverApp() {
     }
   };
 
-  // Si el conductor NO se ha registrado o su solicitud no está aprobada:
-  // NO le mostramos la consola operativa del radar, sino la presentación persuasiva de bienvenida
-  if (!isApproved) {
+  // Si el conductor NO tiene perfil en el dispositivo:
+  // Mostramos la presentación de bienvenida con acceso directo para registrarse o ingresar con su DUI
+  if (!driverProfile) {
     return (
       <>
         <DriverLandingView
           onStartRegistration={() => setShowRegistrationModal(true)}
           onCheckStatus={() => setShowRegistrationModal(true)}
+          onDriverLoggedIn={(loadedProfile) => {
+            setDriverProfile(loadedProfile);
+            setDriverProfileId(loadedProfile.id);
+            localStorage.setItem('rumbo_driver_profile', JSON.stringify(loadedProfile));
+            if (loadedProfile.approvalStatus === 'APPROVED') {
+              setDriverOnline(true);
+            }
+          }}
         />
 
         {/* Modal de Registro y Expediente Digital de Conductor */}
@@ -378,9 +386,8 @@ export default function DriverApp() {
           onDriverRegistered={(newProfile) => {
             setDriverProfile(newProfile);
             setDriverProfileId(newProfile.id);
-            if (newProfile.approvalStatus === 'APPROVED') {
-              setDriverOnline(true);
-            }
+            localStorage.setItem('rumbo_driver_profile', JSON.stringify(newProfile));
+            setShowRegistrationModal(false);
           }}
         />
       </>

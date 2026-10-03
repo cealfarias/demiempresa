@@ -19,14 +19,42 @@ import {
   MessageCircle,
   AlertCircle,
   LifeBuoy,
-  Navigation
+  Navigation,
+  LogIn
 } from 'lucide-react';
 import RumboLogo from './RumboLogo';
 import DriverAvatarNarrator from './DriverAvatarNarrator';
 import SupportTicketModal from './SupportTicketModal';
+import { fetchDriverStatusApi } from './api';
 
-export default function DriverLandingView({ onStartRegistration, onCheckStatus }) {
+export default function DriverLandingView({ onStartRegistration, onCheckStatus, onDriverLoggedIn }) {
   const [showSupportModal, setShowSupportModal] = useState(false);
+  const [showLoginModal, setShowLoginModal] = useState(false);
+  const [loginDui, setLoginDui] = useState('');
+  const [loginLoading, setLoginLoading] = useState(false);
+  const [loginError, setLoginError] = useState('');
+
+  const handleLoginSubmit = async (e) => {
+    e.preventDefault();
+    if (!loginDui.trim()) return;
+    setLoginLoading(true);
+    setLoginError('');
+    try {
+      const res = await fetchDriverStatusApi(loginDui.trim());
+      if (res && res.id) {
+        if (onDriverLoggedIn) {
+          onDriverLoggedIn(res);
+        }
+      } else {
+        setLoginError('No se encontró expediente registrado con ese DUI o Placa. Por favor verifica los datos o inscríbete.');
+      }
+    } catch (err) {
+      setLoginError('Error de conexión al consultar el expediente.');
+    } finally {
+      setLoginLoading(false);
+    }
+  };
+
   // Calculadora interactiva de ganancia semanal estimada
   const [tripsPerDay, setTripsPerDay] = useState(12);
   const [avgFare, setAvgFare] = useState(4.50);
@@ -59,7 +87,7 @@ export default function DriverLandingView({ onStartRegistration, onCheckStatus }
           </span>
         </div>
 
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2">
           <button
             onClick={() => setShowSupportModal(true)}
             className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-amber-300 hover:text-white hover:bg-slate-850 border border-amber-500/30 transition-colors cursor-pointer"
@@ -68,10 +96,11 @@ export default function DriverLandingView({ onStartRegistration, onCheckStatus }
             <span>Soporte Técnico</span>
           </button>
           <button
-            onClick={onCheckStatus}
-            className="px-3 py-1.5 rounded-xl text-xs font-bold text-slate-300 hover:text-white hover:bg-slate-850 border border-slate-700/60 transition-colors"
+            onClick={() => setShowLoginModal(true)}
+            className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/40 transition-colors cursor-pointer flex items-center gap-1.5 shadow-sm"
           >
-            Consultar Expediente
+            <LogIn className="w-3.5 h-3.5" />
+            <span>Ingresar a mi Consola</span>
           </button>
           <button
             onClick={onStartRegistration}
@@ -119,11 +148,23 @@ export default function DriverLandingView({ onStartRegistration, onCheckStatus }
             <ArrowRight className="w-4 h-4" />
           </button>
           <button
-            onClick={() => setShowSupportModal(true)}
-            className="w-full sm:w-auto px-6 py-4 rounded-2xl bg-slate-900 hover:bg-slate-850 border border-slate-700/80 text-slate-200 font-bold text-sm flex items-center justify-center gap-2 transition-colors cursor-pointer"
+            onClick={() => setShowLoginModal(true)}
+            className="w-full sm:w-auto px-6 py-4 rounded-2xl bg-slate-900 hover:bg-slate-850 border border-amber-500/40 text-amber-300 font-bold text-sm flex items-center justify-center gap-2 transition-colors cursor-pointer shadow-lg shadow-amber-950/30"
           >
-            <LifeBuoy className="w-4 h-4 text-amber-400" />
-            <span>Soporte Técnico (Tickets)</span>
+            <LogIn className="w-4 h-4 text-amber-400" />
+            <span>Ya estoy Inscrito • Entrar a mi Consola</span>
+          </button>
+        </div>
+
+        {/* Acceso Rápido para conductores ya inscritos */}
+        <div className="pt-1 text-xs text-slate-400">
+          ¿Ya enviaste tus documentos?{' '}
+          <button
+            type="button"
+            onClick={() => setShowLoginModal(true)}
+            className="text-amber-400 hover:underline font-bold cursor-pointer inline-flex items-center gap-1"
+          >
+            <span>Ingresa con tu DUI o Placa a tu Consola aquí</span>
           </button>
         </div>
 
@@ -589,6 +630,121 @@ export default function DriverLandingView({ onStartRegistration, onCheckStatus }
         isOpen={showSupportModal}
         onClose={() => setShowSupportModal(false)}
       />
+
+      {/* MODAL DE INGRESO A LA CONSOLA DEL CONDUCTOR */}
+      {showLoginModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in">
+          <div className="w-full max-w-sm bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950 border-2 border-amber-400/70 rounded-3xl p-6 shadow-2xl space-y-4 animate-pop-bounce relative">
+            <button
+              type="button"
+              onClick={() => {
+                setShowLoginModal(false);
+                setLoginError('');
+              }}
+              className="absolute top-4 right-4 text-slate-400 hover:text-white text-sm font-bold p-1 cursor-pointer"
+            >
+              ✕
+            </button>
+
+            <div className="text-center space-y-1.5 pt-2">
+              <div className="w-14 h-14 mx-auto rounded-full bg-amber-500/20 border border-amber-400/40 flex items-center justify-center text-amber-300 text-2xl">
+                🚗
+              </div>
+              <h3 className="text-lg font-black text-white">
+                Ingreso a la Consola de Conductor
+              </h3>
+              <p className="text-xs text-slate-300 leading-relaxed">
+                Ingresa tu número de DUI registrado o tu número de placa para abrir tu radar de viajes.
+              </p>
+            </div>
+
+            <form onSubmit={handleLoginSubmit} className="space-y-3.5">
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  Número de DUI o Placa
+                </label>
+                <input
+                  type="text"
+                  value={loginDui}
+                  onChange={(e) => setLoginDui(e.target.value)}
+                  placeholder="Ej. 01234567-8 ó P-123456"
+                  required
+                  className="w-full px-3.5 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:border-amber-400"
+                />
+              </div>
+
+              {loginError && (
+                <div className="p-2.5 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
+                  <span>{loginError}</span>
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={loginLoading}
+                className="w-full py-3 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 hover:brightness-110 text-slate-950 font-black text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg shadow-amber-500/25 transition-all cursor-pointer disabled:opacity-50"
+              >
+                {loginLoading ? (
+                  <>
+                    <span className="w-4 h-4 border-2 border-slate-950 border-t-transparent rounded-full animate-spin"></span>
+                    <span>Buscando expediente...</span>
+                  </>
+                ) : (
+                  <>
+                    <LogIn className="w-4 h-4" />
+                    <span>Entrar a mi Consola</span>
+                  </>
+                )}
+              </button>
+
+              <div className="pt-2 border-t border-slate-800 text-center space-y-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    // Cargar perfil demo para pruebas operativas inmediatas
+                    const demoProfile = {
+                      id: 'drv-sv-1',
+                      userId: 'driver-user-1',
+                      fullName: 'Carlos Mendoza',
+                      phone: '7000-0000',
+                      dui: '01234567-8',
+                      licenseNumber: '0614-120590-101-2',
+                      vehiclePlate: 'P-584-912',
+                      vehicleBrand: 'Toyota',
+                      vehicleModel: 'Corolla',
+                      vehicleYear: 2018,
+                      vehicleColor: 'Gris Plata',
+                      approvalStatus: 'APPROVED'
+                    };
+                    if (onDriverLoggedIn) {
+                      onDriverLoggedIn(demoProfile);
+                    }
+                    setShowLoginModal(false);
+                  }}
+                  className="w-full py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 text-xs font-bold border border-amber-500/30 cursor-pointer transition-colors"
+                >
+                  🚀 Entrar en Modo Demo / Vista Previa
+                </button>
+
+                <p className="text-[11px] text-slate-400">
+                  ¿Aún no te has inscrito?{' '}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowLoginModal(false);
+                      onStartRegistration();
+                    }}
+                    className="text-amber-400 hover:underline font-bold"
+                  >
+                    Regístrate aquí
+                  </button>
+                </p>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
     </div>
   );
