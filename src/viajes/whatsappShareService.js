@@ -7,12 +7,14 @@
 
 export const RUMBO_LOGO_URL = 'https://viajes.demiempresa.online/rumbo-logo.png';
 
-export function getSharePayload(type) {
+export function getSharePayload(type, referrerCode = null) {
   const isPassenger = type === 'passenger';
 
   if (isPassenger) {
     const title = '🚖 RUMBO A MI DESTINO | ¡Paga Menos con Bonos de Referencia!';
-    const url = 'https://viajes.demiempresa.online';
+    const baseUrl = 'https://viajes.demiempresa.online';
+    const cleanRef = referrerCode ? encodeURIComponent(referrerCode.trim()) : null;
+    const url = cleanRef ? `${baseUrl}?ref=${cleanRef}` : baseUrl;
     const text = 
 `🚖 *RUMBO A MI DESTINO* 🇸🇻
 _¡Tu nueva app de viajes en El Salvador!_
@@ -35,7 +37,9 @@ ${url}`;
     return { title, url, text };
   } else {
     const title = '🚗 RUMBO A MI DESTINO | 0% Comisión para Conductores';
-    const url = 'https://viajes.demiempresa.online?ref=conductor';
+    const baseUrl = 'https://viajes.demiempresa.online?ref=conductor';
+    const cleanRef = referrerCode ? encodeURIComponent(referrerCode.trim()) : null;
+    const url = cleanRef ? `${baseUrl}&promoter=${cleanRef}` : baseUrl;
     const text =
 `🚗 *RUMBO A MI DESTINO* 🇸🇻
 _La plataforma colaborativa que devuelve la dignidad al conductor_
@@ -59,8 +63,8 @@ ${url}`;
 /**
  * Abre el diálogo nativo de compartir en móviles o redirige directo a WhatsApp
  */
-export async function shareToWhatsAppOrNative(type) {
-  const { title, url, text } = getSharePayload(type);
+export async function shareToWhatsAppOrNative(type, referrerCode = null) {
+  const { title, url, text } = getSharePayload(type, referrerCode);
 
   // Intentar primero con la API nativa de compartir del celular si existe
   if (typeof navigator !== 'undefined' && navigator.share) {
@@ -88,8 +92,8 @@ export async function shareToWhatsAppOrNative(type) {
 /**
  * Copia el enlace oficial al portapapeles
  */
-export async function copyShareLink(type) {
-  const { url } = getSharePayload(type);
+export async function copyShareLink(type, referrerCode = null) {
+  const { url } = getSharePayload(type, referrerCode);
   if (typeof navigator !== 'undefined' && navigator.clipboard) {
     await navigator.clipboard.writeText(url);
     return true;

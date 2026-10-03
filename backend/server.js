@@ -102,7 +102,12 @@ app.post('/api/users/register', async (req, res) => {
     // 2. Acreditar Bono al Anfitrión si viene con Referido válido
     if (referrerCode && referrerCode !== dui) {
       try {
-        const referrerRes = await pool.query('SELECT id FROM viajes_users WHERE dui = $1 OR id::text = $1', [referrerCode]);
+        const referrerRes = await pool.query(`
+          SELECT u.id FROM viajes_users u 
+          LEFT JOIN viajes_wallet_identities w ON u.id = w.user_id 
+          WHERE u.dui = $1 OR u.id::text = $1 OR w.referral_code = $1 OR u.phone = $1
+          LIMIT 1
+        `, [referrerCode.trim()]);
         if (referrerRes.rows.length > 0) {
           const hostId = referrerRes.rows[0].id;
           await ReferralService.createReferral({

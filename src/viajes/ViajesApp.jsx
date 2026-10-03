@@ -47,6 +47,7 @@ import DestinationMapModal from './DestinationMapModal';
 import TripPreferencesModal from './TripPreferencesModal';
 import LocationPermissionModal from './LocationPermissionModal';
 import WelcomeVoiceModal from './WelcomeVoiceModal';
+import { getSharePayload } from './whatsappShareService';
 import {
   unlockAudioAndSpeech,
   speakAssistantMessage,
@@ -401,7 +402,22 @@ export default function ViajesApp() {
   const [regEmail, setRegEmail] = useState('');
   const [regDui, setRegDui] = useState('');
   const [regPhone, setRegPhone] = useState('');
-  const [referrerCode, setReferrerCode] = useState('');
+  const [referrerCode, setReferrerCode] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const refParam = params.get('ref') || params.get('codigo') || params.get('referral');
+        if (refParam && refParam !== 'conductor') {
+          localStorage.setItem('rumbo_referrer_code', refParam);
+          return refParam;
+        }
+        return localStorage.getItem('rumbo_referrer_code') || '';
+      } catch {
+        return '';
+      }
+    }
+    return '';
+  });
   const [duiError, setDuiError] = useState('');
   const [registering, setRegistering] = useState(false);
   const [googleDuiStep, setGoogleDuiStep] = useState(false);
@@ -1548,9 +1564,12 @@ export default function ViajesApp() {
 
   // Enviar invitación de referido por WhatsApp
   const handleSendWhatsAppReferral = () => {
-    const cleanPhone = (refContactPhone || '70000000').replace(/\D/g, '');
-    const msg = "Te invito a utilizar la plataforma de Rumbo a tu destino: https://demiempresa.online/viajes";
-    const waUrl = `https://wa.me/503${cleanPhone}?text=${encodeURIComponent(msg)}`;
+    const cleanPhone = (refContactPhone || '').replace(/\D/g, '');
+    const myCode = userProfile?.referralCode || userProfile?.dui || userProfile?.id || '';
+    const { text } = getSharePayload('passenger', myCode);
+    const waUrl = cleanPhone && cleanPhone.length >= 8
+      ? `https://wa.me/503${cleanPhone}?text=${encodeURIComponent(text)}`
+      : `https://wa.me/?text=${encodeURIComponent(text)}`;
     window.open(waUrl, '_blank');
 
     // 1. Sonido de caja registradora ("Cha-Ching" / moneda)
@@ -3102,13 +3121,18 @@ export default function ViajesApp() {
                 </div>
 
                 {/* Mensaje oficial predeterminado */}
-                <div className="bg-emerald-950/40 border border-emerald-500/30 rounded-xl p-3 text-xs text-emerald-200 space-y-1">
-                  <div className="font-semibold text-emerald-300 flex items-center gap-1.5">
-                    <Share2 className="w-3.5 h-3.5" />
-                    <span>Mensaje que se enviará:</span>
+                <div className="bg-emerald-950/40 border border-emerald-500/30 rounded-xl p-3 text-xs text-emerald-200 space-y-1.5">
+                  <div className="font-semibold text-emerald-300 flex items-center justify-between">
+                    <span className="flex items-center gap-1.5">
+                      <Share2 className="w-3.5 h-3.5" />
+                      <span>Mensaje oficial con Bonos y Logo:</span>
+                    </span>
+                    <span className="text-[10px] text-amber-300 font-mono">
+                      ref={userProfile?.referralCode || userProfile?.dui || 'tu-codigo'}
+                    </span>
                   </div>
-                  <p className="italic text-[11px] text-emerald-100/90 bg-black/30 p-2 rounded-lg font-mono">
-                    "Te invito a utilizar la plataforma de Rumbo a tu destino: https://demiempresa.online/viajes"
+                  <p className="italic text-[11px] text-emerald-100/90 bg-black/40 p-2.5 rounded-lg leading-relaxed">
+                    🚖 <strong>RUMBO A MI DESTINO</strong>: Paga menos por carrera con tus Bonos de Referencia ($1.00 USD por cada amigo invitado). Tu contacto se registrará con tu enlace personalizado y ambos recibirán bonos inmediatos.
                   </p>
                 </div>
 
