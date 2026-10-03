@@ -191,3 +191,46 @@ export async function rotateImage90Degrees(dataUrl) {
     img.src = dataUrl;
   });
 }
+
+/**
+ * Comprime y redimensiona una imagen en Base64 para optimizar la velocidad y evitar límites de carga
+ * @param {string} dataUrl - Imagen original en Base64
+ * @param {number} maxDimension - Dimensión máxima permitida (ancho o alto)
+ * @param {number} quality - Calidad JPEG (0.1 a 1.0)
+ * @returns {Promise<string>} Imagen comprimida en Base64
+ */
+export async function compressImage(dataUrl, maxDimension = 1280, quality = 0.82) {
+  return new Promise((resolve) => {
+    if (!dataUrl || typeof window === 'undefined') {
+      resolve(dataUrl);
+      return;
+    }
+
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      let width = img.naturalWidth || img.width;
+      let height = img.naturalHeight || img.height;
+
+      if (width > maxDimension || height > maxDimension) {
+        if (width > height) {
+          height = Math.round((height * maxDimension) / width);
+          width = maxDimension;
+        } else {
+          width = Math.round((width * maxDimension) / height);
+          height = maxDimension;
+        }
+      }
+
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, width, height);
+
+      resolve(canvas.toDataURL('image/jpeg', quality));
+    };
+    img.onerror = () => resolve(dataUrl);
+    img.src = dataUrl;
+  });
+}

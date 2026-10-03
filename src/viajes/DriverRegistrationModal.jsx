@@ -27,7 +27,8 @@ import {
   CheckCircle2,
   Wind,
   ShieldCheck,
-  LifeBuoy
+  LifeBuoy,
+  Loader2
 } from 'lucide-react';
 import { registerDriverApi, fetchDriverStatusApi } from './api';
 import {
@@ -38,9 +39,27 @@ import {
 } from './vehicleCatalog';
 import {
   validateDocumentImage,
-  rotateImage90Degrees
+  rotateImage90Degrees,
+  compressImage
 } from './documentValidatorService';
 import SupportTicketModal from './SupportTicketModal';
+
+// Anuncio de voz eufórico de bienvenida al completar el registro
+const speakWelcomeMessage = (driverName) => {
+  if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+    try {
+      window.speechSynthesis.cancel();
+      const text = `¡Felicidades ${driverName || ''}! Bienvenido con euforia a la comunidad de conductores de Rumbo a tu destino. Tu solicitud fue presentada exitosamente. En Rumbo el cien por ciento de la ganancia es dinero en efectivo en tu mano y tu primera semana es totalmente gratis sin comisión.`;
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = 'es-ES';
+      utterance.rate = 1.05;
+      utterance.pitch = 1.1;
+      window.speechSynthesis.speak(utterance);
+    } catch (e) {
+      console.warn('Speech error:', e);
+    }
+  }
+};
 
 export default function DriverRegistrationModal({ isOpen, onClose, onDriverRegistered, existingDriverId }) {
   const [step, setStep] = useState(1);
@@ -196,17 +215,18 @@ export default function DriverRegistrationModal({ isOpen, onClose, onDriverRegis
     setForm({ ...form, vehiclePlate: val });
   };
 
-  // Subida de Archivo con Validación de Calidad, Orientación y Verificación de Datos
+  // Subida de Archivo con Compresión Automática y Validación
   const handleFileUpload = (field, e, docType) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 8 * 1024 * 1024) {
-      alert('La imagen no debe superar los 8MB.');
-      return;
-    }
     const reader = new FileReader();
     reader.onloadend = async () => {
-      const dataUrl = reader.result;
+      let dataUrl = reader.result;
+      try {
+        dataUrl = await compressImage(dataUrl, 1280, 0.82);
+      } catch (err) {
+        console.warn('Compress image error:', err);
+      }
       setForm((prev) => ({ ...prev, [field]: dataUrl }));
 
       if (docType) {
@@ -281,7 +301,9 @@ export default function DriverRegistrationModal({ isOpen, onClose, onDriverRegis
     setErrorMsg(null);
 
     if (!form.termsAccepted) {
-      setErrorMsg('Debes aceptar los términos y condiciones del modelo operativo de Rumbo.');
+      const msg = 'Debes marcar la casilla para aceptar los términos y condiciones de Rumbo antes de enviar.';
+      setErrorMsg(msg);
+      alert(msg);
       return;
     }
 
@@ -291,190 +313,241 @@ export default function DriverRegistrationModal({ isOpen, onClose, onDriverRegis
         fullName: form.fullName.trim(),
         phone: form.phone.trim(),
         dui: form.dui.trim(),
-        emergencyContactName: form.emergencyContactName.trim(),
-        emergencyContactPhone: form.emergencyContactPhone.trim(),
+        emergencyContactName: form.emergencyContactName?.trim() || '',
+        emergencyContactPhone: form.emergencyContactPhone?.trim() || '',
         licenseNumber: form.licenseNumber.trim().toUpperCase(),
         vehiclePlate: form.vehiclePlate.trim().toUpperCase(),
-        vehicleBrand: form.vehicleBrand,
-        vehicleModel: form.vehicleModel,
-        vehicleYear: parseInt(form.vehicleYear, 10),
-        vehicleColor: form.vehicleColor,
-        fuelType: form.fuelType,
-        fuelKmPerGallon: parseFloat(form.fuelKmPerGallon),
+        vehicleBrand: form.vehicleBrand || 'Toyota',
+        vehicleModel: form.vehicleModel || 'Corolla',
+        vehicleYear: parseInt(form.vehicleYear, 10) || 2018,
+        vehicleColor: form.vehicleColor || 'Gris Plata',
+        fuelType: form.fuelType || 'REGULAR',
+        fuelKmPerGallon: parseFloat(form.fuelKmPerGallon) || 40.0,
         photoUrl: form.photoUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=250&q=80',
-        duiFrontUrl: form.duiFrontUrl,
-        duiBackUrl: form.duiBackUrl,
-        licenseFrontUrl: form.licenseFrontUrl,
-        licenseBackUrl: form.licenseBackUrl,
-        circulationCardUrl: form.circulationCardUrl,
-        policeRecordUrl: form.policeRecordUrl,
-        criminalRecordUrl: form.criminalRecordUrl,
-        vehiclePhotoFront: form.vehiclePhotoFront,
-        vehiclePhotoInside: form.vehiclePhotoInside
+        duiFrontUrl: form.duiFrontUrl || '',
+        duiBackUrl: form.duiBackUrl || '',
+        licenseFrontUrl: form.licenseFrontUrl || '',
+        licenseBackUrl: form.licenseBackUrl || '',
+        circulationCardUrl: form.circulationCardUrl || '',
+        policeRecordUrl: form.policeRecordUrl || '',
+        criminalRecordUrl: form.criminalRecordUrl || '',
+        vehiclePhotoFront: form.vehiclePhotoFront || '',
+        vehiclePhotoInside: form.vehiclePhotoInside || ''
       };
 
       const res = await registerDriverApi(payload);
       if (res && res.success) {
-        setSuccessData(res.driverProfile || res);
-        localStorage.setItem('rumbo_driver_profile', JSON.stringify(res.driverProfile || res));
-        if (onDriverRegistered) {
-          onDriverRegistered(res.driverProfile || res);
+        const profile = res.driverProfile || res;
+        setSuccessData(profile);
+        localStorage.setItem('rumbo_driver_profile', JSON.stringify(profile));
+        speakWelcomeMessage(profile.fullName || form.fullName);
+        if (modalScrollRef.current) {
+          modalScrollRef.current.scrollTo({ top: 0, behavior: 'smooth' });
         }
+        if (onDriverRegistered) {
+          onDriverRegistered(profile);
+        }
+      } else {
+        throw new Error(res?.error || 'No se pudo completar el registro del expediente.');
       }
     } catch (err) {
-      setErrorMsg(err.message || 'Error al enviar el expediente de registro.');
+      const msg = err.message || 'Error al enviar el expediente de registro.';
+      setErrorMsg(msg);
+      alert(`⚠️ Atención: ${msg}`);
+      if (modalScrollRef.current) {
+        modalScrollRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+      }
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div ref={modalScrollRef} className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-5">
-      <div className="bg-[#0f172a] border border-slate-800 rounded-3xl max-w-2xl w-full p-5 sm:p-7 shadow-2xl relative text-slate-100 animate-in zoom-in-95 duration-200">
+    <div
+      ref={modalScrollRef}
+      className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/85 backdrop-blur-md flex items-start sm:items-center justify-center pt-20 sm:pt-8 pb-16 px-3 sm:px-5"
+    >
+      <div className="bg-[#0f172a] border border-slate-800 rounded-3xl max-w-2xl w-full p-4 sm:p-7 shadow-2xl relative text-slate-100 animate-in zoom-in-95 duration-200 mt-2 sm:mt-0">
         
         {/* Botón de Cierre */}
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 p-2 rounded-xl bg-slate-900/80 text-slate-400 hover:text-slate-100 hover:bg-slate-800 transition-colors"
+          className="absolute top-4 right-4 p-2 rounded-xl bg-slate-900/80 text-slate-400 hover:text-slate-100 hover:bg-slate-800 transition-colors z-10"
         >
           <X className="w-5 h-5" />
         </button>
 
-        {/* Pantalla de Estado Post-Envío / Consulta */}
+        {/* Pantalla de Estado Post-Envío: BIENVENIDA EUFÓRICA */}
         {successData ? (
-          <div className="space-y-6 text-center py-4">
-            <div className="mx-auto w-16 h-16 rounded-2xl flex items-center justify-center border shadow-lg transition-transform">
-              {successData.approvalStatus === 'APPROVED' ? (
-                <div className="bg-emerald-500/20 text-emerald-400 border-emerald-500/40 w-full h-full rounded-2xl flex items-center justify-center">
-                  <CheckCircle className="w-9 h-9" />
+          <div className="space-y-6 text-center py-2 sm:py-4 animate-in zoom-in-95 duration-300">
+            {/* Cabecera Eufórica con destellos */}
+            <div className="relative mx-auto w-24 h-24 flex items-center justify-center">
+              <div className="absolute inset-0 rounded-full bg-gradient-to-tr from-amber-500/30 to-emerald-500/30 animate-ping opacity-60" />
+              <div className="w-20 h-20 rounded-3xl bg-gradient-to-tr from-amber-500 via-emerald-500 to-teal-400 p-0.5 shadow-2xl shadow-emerald-500/30 flex items-center justify-center">
+                <div className="w-full h-full bg-[#0f172a] rounded-[22px] flex items-center justify-center text-amber-400">
+                  <Sparkles className="w-10 h-10 animate-bounce" />
                 </div>
-              ) : successData.approvalStatus === 'REJECTED' ? (
-                <div className="bg-rose-500/20 text-rose-400 border-rose-500/40 w-full h-full rounded-2xl flex items-center justify-center">
-                  <AlertTriangle className="w-9 h-9" />
-                </div>
-              ) : (
-                <div className="bg-amber-500/20 text-amber-400 border-amber-500/40 w-full h-full rounded-2xl flex items-center justify-center">
-                  <Clock className="w-9 h-9 animate-pulse" />
-                </div>
-              )}
+              </div>
             </div>
 
-            <div className="space-y-2">
-              <span className={`inline-block px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider ${
-                successData.approvalStatus === 'APPROVED'
-                  ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
-                  : successData.approvalStatus === 'REJECTED'
-                  ? 'bg-rose-500/20 text-rose-400 border border-rose-500/40'
-                  : 'bg-amber-500/20 text-amber-400 border border-amber-500/40'
-              }`}>
-                {successData.approvalStatus === 'APPROVED'
-                  ? 'Conductor Aprobado'
-                  : successData.approvalStatus === 'REJECTED'
-                  ? 'Expediente Rechazado / Observado'
-                  : 'Expediente en Revisión Administrativa'}
+            <div className="space-y-2.5">
+              <span className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm">
+                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                <span>¡SOLICITUD PRESENTADA CON ÉXITO!</span>
               </span>
 
-              <h2 className="text-xl sm:text-2xl font-black text-white">
-                {successData.approvalStatus === 'APPROVED'
-                  ? `¡Bienvenido, ${successData.fullName}!`
-                  : successData.approvalStatus === 'REJECTED'
-                  ? 'Tu solicitud requiere correcciones'
-                  : 'Tu solicitud ha sido recibida'}
+              <h2 className="text-2xl sm:text-3xl font-black text-white leading-tight">
+                🎉 ¡Bienvenido a la Comunidad de Conductores Rumbo a tu Destino!
               </h2>
 
-              <p className="text-sm text-slate-400 max-w-md mx-auto">
-                {successData.approvalStatus === 'APPROVED'
-                  ? 'Tu perfil, documentación y vehículo han sido verificados. Ya puedes encender el radar para recibir carreras en vivo con 100% de ganancia en efectivo.'
-                  : successData.approvalStatus === 'REJECTED'
-                  ? successData.rejectionReason || 'Uno o más documentos no son legibles o requieren actualización. Revisa y vuelve a enviar.'
-                  : 'El equipo administrativo de Rumbo está validando tu DUI, antecedentes policiales y tarjeta de circulación. El tiempo estimado es de 2 a 12 horas.'}
+              <p className="text-sm text-slate-300 max-w-lg mx-auto leading-relaxed">
+                <strong className="text-amber-400 font-bold">{successData.fullName}</strong>, tu expediente ha sido recibido y está en la cola de activación preferencial. ¡Tu esfuerzo vale el 100%!
               </p>
             </div>
 
-            {/* Resumen de Datos Registrados */}
-            <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 text-left grid grid-cols-2 gap-3 text-xs">
+            {/* Tarjetas de Beneficios Confirmados */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-left">
+              <div className="p-3 rounded-2xl bg-slate-900/90 border border-emerald-500/30 space-y-1">
+                <span className="text-emerald-400 font-black text-sm block">100% Efectivo</span>
+                <p className="text-[10px] text-slate-400">Cero comisiones abusivas. Todo el dinero es tuyo.</p>
+              </div>
+              <div className="p-3 rounded-2xl bg-slate-900/90 border border-amber-500/30 space-y-1">
+                <span className="text-amber-400 font-black text-sm block">1ª Semana $0.00</span>
+                <p className="text-[10px] text-slate-400">Cuota 100% bonificada de bienvenida.</p>
+              </div>
+              <div className="p-3 rounded-2xl bg-slate-900/90 border border-sky-500/30 space-y-1">
+                <span className="text-sky-400 font-black text-sm block">Radio 1 km</span>
+                <p className="text-[10px] text-slate-400">Cero viajes fantasma. Pasajeros reales listos.</p>
+              </div>
+              <div className="p-3 rounded-2xl bg-slate-900/90 border border-purple-500/30 space-y-1">
+                <span className="text-purple-400 font-black text-sm block">Gasolina $5.13</span>
+                <p className="text-[10px] text-slate-400">Tarifa indexada que protege tu economía.</p>
+              </div>
+            </div>
+
+            {/* Resumen del Expediente */}
+            <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 text-left grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
               <div>
-                <span className="text-slate-500 block">Conductor</span>
-                <span className="font-bold text-slate-200">{successData.fullName}</span>
+                <span className="text-slate-500 block text-[10px]">Conductor</span>
+                <span className="font-bold text-slate-200 truncate block">{successData.fullName}</span>
               </div>
               <div>
-                <span className="text-slate-500 block">DUI</span>
-                <span className="font-bold text-slate-200">{successData.dui}</span>
+                <span className="text-slate-500 block text-[10px]">DUI</span>
+                <span className="font-bold text-slate-200 font-mono">{successData.dui}</span>
               </div>
               <div>
-                <span className="text-slate-500 block">Vehículo</span>
-                <span className="font-bold text-slate-200">{successData.vehicleBrand} {successData.vehicleModel} ({successData.vehicleYear || '2018'})</span>
+                <span className="text-slate-500 block text-[10px]">Vehículo</span>
+                <span className="font-bold text-slate-200 truncate block">{successData.vehicleBrand} {successData.vehicleModel}</span>
               </div>
               <div>
-                <span className="text-slate-500 block">Placa</span>
-                <span className="font-black text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20 inline-block">
+                <span className="text-slate-500 block text-[10px]">Placa Oficial</span>
+                <span className="font-black text-amber-400 font-mono bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/30 inline-block">
                   {successData.vehiclePlate}
                 </span>
               </div>
             </div>
 
-            {/* Acciones */}
+            {/* Mensaje de Activación */}
+            <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/25 text-left flex items-start gap-3">
+              <Clock className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+              <div className="text-xs space-y-1">
+                <h4 className="font-black text-amber-300">Tiempo Estimado de Activación: 2 a 12 Horas</h4>
+                <p className="text-slate-300 text-[11px] leading-relaxed">
+                  Nuestro equipo administrativo coteja tu solvencia y tarjeta de circulación. Recibirás tu confirmación y podrás encender el radar para tomar tus primeras carreras en vivo.
+                </p>
+              </div>
+            </div>
+
+            {/* Botones de Acción */}
             <div className="flex flex-col sm:flex-row gap-3 justify-center pt-2">
               <button
                 type="button"
-                onClick={() => setShowSupportModal(true)}
-                className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs transition-colors shadow-lg shadow-amber-950/40 cursor-pointer"
+                onClick={onClose}
+                className="inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:brightness-110 text-slate-950 font-black text-xs transition-all shadow-lg shadow-emerald-950/50 cursor-pointer"
               >
-                <LifeBuoy className="w-4 h-4" />
-                <span>Ticket de Soporte Técnico</span>
+                <CheckCircle className="w-4 h-4" />
+                <span>¡Entendido! Ir al Radar Rumbo</span>
               </button>
-
-              {successData.approvalStatus === 'REJECTED' && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSuccessData(null);
-                    setStep(1);
-                  }}
-                  className="px-5 py-3 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs transition-colors"
-                >
-                  Corregir y Reenviar
-                </button>
-              )}
 
               <button
                 type="button"
-                onClick={onClose}
-                className="px-5 py-3 rounded-2xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 font-bold text-xs transition-colors"
+                onClick={() => setShowSupportModal(true)}
+                className="inline-flex items-center justify-center gap-2 px-5 py-3.5 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs transition-colors border border-slate-700 cursor-pointer"
               >
-                Cerrar Ventana
+                <LifeBuoy className="w-4 h-4 text-amber-400" />
+                <span>Ticket de Soporte Técnico</span>
               </button>
             </div>
           </div>
         ) : (
           /* Formulario Paso a Paso */
-          <form onSubmit={handleSubmit} className="space-y-5">
-            {/* Header del Formulario */}
-            <div className="border-b border-slate-800 pb-3">
-              <div className="flex items-center gap-2.5">
-                <div className="w-10 h-10 rounded-2xl bg-amber-500/20 text-amber-400 flex items-center justify-center font-bold border border-amber-500/30">
-                  <Car className="w-5 h-5" />
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {/* Header del Modal con Barra de Seguimiento (Baja la pantalla operativa para evitar ser tapada por la barra del navegador) */}
+            <div className="border-b border-slate-800 pb-3 mb-2">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-10 h-10 rounded-2xl bg-amber-500/20 text-amber-400 flex items-center justify-center font-bold border border-amber-500/30 shrink-0">
+                    <Car className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h2 className="text-sm sm:text-base font-black text-white flex items-center gap-1.5">
+                      <span>Rumbo a mi Destino</span>
+                      <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                        Conductores
+                      </span>
+                    </h2>
+                    <p className="text-[11px] text-slate-400">
+                      Registro Oficial • 100% Efectivo • 0% Comisión
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <h2 className="text-lg sm:text-xl font-black text-white">Registro de Conductor • Rumbo</h2>
-                  <p className="text-xs text-slate-400">100% Efectivo para ti • Cuota semanal de $10 USD con saldo bonificado</p>
+
+                <div className="text-right shrink-0">
+                  <span className="text-xs font-black text-amber-400 font-mono">
+                    {step === 1 ? '25%' : step === 2 ? '50%' : step === 3 ? '75%' : '100%'}
+                  </span>
+                  <span className="block text-[10px] font-bold text-slate-400">
+                    Paso {step} de 4
+                  </span>
                 </div>
               </div>
 
-              {/* Indicador de Pasos */}
-              <div className="grid grid-cols-4 gap-2 mt-4">
+              {/* Barra de Seguimiento Gráfica Dinámica */}
+              <div className="w-full bg-slate-900 h-2 rounded-full mt-3 overflow-hidden border border-slate-800">
+                <div
+                  className="h-full bg-gradient-to-r from-amber-500 to-emerald-400 transition-all duration-300 rounded-full"
+                  style={{ width: `${(step / 4) * 100}%` }}
+                />
+              </div>
+
+              {/* Indicadores de Pasos con Nombre */}
+              <div className="grid grid-cols-4 gap-1 mt-2.5">
                 {[
                   { num: 1, label: 'Identidad' },
                   { num: 2, label: 'Vehículo' },
                   { num: 3, label: 'Documentos' },
                   { num: 4, label: 'Términos' }
                 ].map((s) => (
-                  <div
+                  <button
                     key={s.num}
-                    className={`h-1.5 rounded-full transition-all ${
-                      step >= s.num ? 'bg-amber-400' : 'bg-slate-800'
+                    type="button"
+                    onClick={() => {
+                      if (s.num < step) setStep(s.num);
+                    }}
+                    className={`text-center py-1 px-1 rounded-lg transition-all ${
+                      s.num < step ? 'cursor-pointer hover:bg-slate-800 text-emerald-400 font-medium' : ''
+                    } ${
+                      step === s.num
+                        ? 'bg-amber-500/15 border border-amber-500/30 text-amber-300 font-bold'
+                        : step < s.num
+                        ? 'text-slate-400 opacity-60'
+                        : ''
                     }`}
-                  />
+                  >
+                    <span className="text-[10px] block leading-tight truncate">
+                      {s.num}. {s.label}
+                    </span>
+                  </button>
                 ))}
               </div>
             </div>
@@ -1211,14 +1284,30 @@ export default function DriverRegistrationModal({ isOpen, onClose, onDriverRegis
                   <ChevronRight className="w-4 h-4" />
                 </button>
               ) : (
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:brightness-110 text-slate-950 font-black text-xs flex items-center gap-2 transition-all shadow-lg shadow-emerald-950/50 cursor-pointer disabled:opacity-50"
-                >
-                  {loading ? 'Enviando Expediente...' : 'Enviar Solicitud a Aprobación'}
-                  <CheckCircle className="w-4 h-4" />
-                </button>
+                <div className="flex flex-col sm:flex-row items-end sm:items-center gap-2">
+                  {errorMsg && (
+                    <span className="text-[11px] text-rose-400 font-bold bg-rose-500/10 border border-rose-500/20 px-2.5 py-1 rounded-lg">
+                      {errorMsg}
+                    </span>
+                  )}
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:brightness-110 text-slate-950 font-black text-xs flex items-center gap-2 transition-all shadow-lg shadow-emerald-950/50 cursor-pointer disabled:opacity-50"
+                  >
+                    {loading ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin text-slate-950" />
+                        <span>Enviando Expediente...</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>Enviar Solicitud a Aprobación</span>
+                        <CheckCircle className="w-4 h-4" />
+                      </>
+                    )}
+                  </button>
+                </div>
               )}
             </div>
           </form>
