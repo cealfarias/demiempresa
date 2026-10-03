@@ -28,7 +28,13 @@ import {
   Wind,
   ShieldCheck,
   LifeBuoy,
-  Loader2
+  Loader2,
+  Share2,
+  Copy,
+  Users,
+  HeartHandshake,
+  Volume2,
+  VolumeX
 } from 'lucide-react';
 import { registerDriverApi, fetchDriverStatusApi } from './api';
 import {
@@ -61,6 +67,28 @@ const speakWelcomeMessage = (driverName) => {
   }
 };
 
+// Mensaje institucional con voz de seriedad, alianza y colaboración
+const speakInstitutionalMessage = (onEndCallback) => {
+  if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+    try {
+      window.speechSynthesis.cancel();
+      const text = "Agradecemos sinceramente tu paciencia y tu comprensión, ya que esta aplicación se encuentra en su fase inicial de lanzamiento. Te pedimos de todo corazón tu valiosa colaboración al compartir nuestros enlaces oficiales, tanto con viajeros para aumentar tus solicitudes de viajes, como con otros conductores colegas para hacer más fuerte nuestra red colaborativa. Cuantos más seamos, más nos beneficiaremos todos. Juntos cambiamos tu destino.";
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = 'es-SV';
+      utterance.rate = 0.88; // Tono solemne, reflexivo y serio
+      utterance.pitch = 0.92; // Tono grave, formal y de respeto
+      if (onEndCallback) {
+        utterance.onend = onEndCallback;
+        utterance.onerror = onEndCallback;
+      }
+      window.speechSynthesis.speak(utterance);
+    } catch (e) {
+      console.warn('Speech error:', e);
+      if (onEndCallback) onEndCallback();
+    }
+  }
+};
+
 export default function DriverRegistrationModal({ isOpen, onClose, onDriverRegistered, existingDriverId }) {
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -71,7 +99,41 @@ export default function DriverRegistrationModal({ isOpen, onClose, onDriverRegis
   const [lookupError, setLookupError] = useState(null);
   const [docValidations, setDocValidations] = useState({});
   const [showSupportModal, setShowSupportModal] = useState(false);
+  const [isPlayingInstitutional, setIsPlayingInstitutional] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(null);
   const modalScrollRef = useRef(null);
+
+  const handleShareLink = async (type) => {
+    const isPassenger = type === 'passenger';
+    const title = isPassenger 
+      ? 'Viaja Seguro con Rumbo a tu Destino'
+      : 'Súmate como Conductor a Rumbo a tu Destino';
+    const text = isPassenger
+      ? '¡Hola! Te invito a viajar seguro con tarifas justas, conductores salvadoreños 100% verificados y bonos de descuento en cada carrera en Rumbo:'
+      : '¡Colega conductor! Te invito a registrarte en Rumbo a mi Destino. 100% de ganancia en efectivo en tu mano, 0% de comisión, primera semana gratis y solicitudes confirmadas a 1 km a la redonda:';
+    const url = isPassenger 
+      ? 'https://viajes.demiempresa.online'
+      : 'https://viajes.demiempresa.online?ref=conductor';
+
+    if (navigator.share) {
+      try {
+        await navigator.share({ title, text, url });
+        return;
+      } catch (err) {}
+    }
+
+    const waUrl = `https://wa.me/?text=${encodeURIComponent(`${text} ${url}`)}`;
+    window.open(waUrl, '_blank');
+  };
+
+  const handleCopyLink = (type) => {
+    const url = type === 'passenger' 
+      ? 'https://viajes.demiempresa.online'
+      : 'https://viajes.demiempresa.online?ref=conductor';
+    navigator.clipboard.writeText(url);
+    setCopiedLink(type);
+    setTimeout(() => setCopiedLink(null), 2500);
+  };
 
   // Auto-scroll al inicio del modal cada vez que cambia el paso
   useEffect(() => {
@@ -455,6 +517,131 @@ export default function DriverRegistrationModal({ isOpen, onClose, onDriverRegis
                 <p className="text-slate-300 text-[11px] leading-relaxed">
                   Nuestro equipo administrativo coteja tu solvencia y tarjeta de circulación. Recibirás tu confirmación y podrás encender el radar para tomar tus primeras carreras en vivo.
                 </p>
+              </div>
+            </div>
+
+            {/* Mensaje Institucional del Avatar con Voz de Seriedad y Enlaces Colaborativos */}
+            <div className="p-4 sm:p-5 rounded-3xl bg-gradient-to-b from-slate-900 to-slate-950 border border-amber-500/30 text-left space-y-3.5 shadow-xl shadow-amber-950/20">
+              <div className="flex items-center justify-between gap-3 border-b border-slate-800 pb-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-10 h-10 rounded-2xl bg-amber-500/20 text-amber-400 flex items-center justify-center font-bold border border-amber-500/30 shrink-0">
+                    <HeartHandshake className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-xs sm:text-sm font-black text-amber-300 uppercase tracking-wider flex items-center gap-2">
+                      <span>Alianza Comunitaria • Rumbo a tu Destino</span>
+                      <span className="text-[9px] bg-slate-800 text-slate-300 px-2 py-0.5 rounded-full border border-slate-700">Fase Inicial</span>
+                    </h3>
+                    <p className="text-[11px] text-slate-400">
+                      Mensaje del Equipo Fundador para conductores registrados
+                    </p>
+                  </div>
+                </div>
+
+                {/* Botón para Escuchar con Voz de Seriedad */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (isPlayingInstitutional) {
+                      window.speechSynthesis?.cancel();
+                      setIsPlayingInstitutional(false);
+                    } else {
+                      setIsPlayingInstitutional(true);
+                      speakInstitutionalMessage(() => setIsPlayingInstitutional(false));
+                    }
+                  }}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow cursor-pointer ${
+                    isPlayingInstitutional
+                      ? 'bg-amber-500 text-slate-950 animate-pulse'
+                      : 'bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/30'
+                  }`}
+                >
+                  {isPlayingInstitutional ? (
+                    <>
+                      <VolumeX className="w-3.5 h-3.5" />
+                      <span>Detener Voz</span>
+                    </>
+                  ) : (
+                    <>
+                      <Volume2 className="w-3.5 h-3.5" />
+                      <span>Escuchar Avatar (Voz de Seriedad)</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+              <div className="space-y-2 text-xs text-slate-300 leading-relaxed bg-slate-950/60 p-3.5 rounded-2xl border border-slate-800/80">
+                <p>
+                  <strong className="text-white">Agradecemos sinceramente tu paciencia, tu confianza y tu comprensión.</strong> Esta aplicación se encuentra actualmente en su fase inicial de lanzamiento en El Salvador y ha nacido para devolver la dignidad a tu economía ante la constante alza de los combustibles.
+                </p>
+                <p className="text-slate-400 text-[11px]">
+                  Para consolidar esta estructura colaborativa y que todos nos beneficiemos al máximo, <strong className="text-amber-300">te pedimos tu colaboración compartiendo los enlaces oficiales</strong> tanto con viajeros como con otros colegas conductores. Cuantos más seamos en las calles, mayores serán los viajes para ti y para toda la comunidad.
+                </p>
+              </div>
+
+              {/* Los Dos Botones de Enlace (Pasajeros y Conductores) */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                {/* Botón 1: Enlace para Pasajeros */}
+                <div className="p-3 rounded-2xl bg-slate-900 border border-sky-500/30 flex flex-col justify-between gap-2.5">
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-xl bg-sky-500/20 text-sky-400 flex items-center justify-center shrink-0">
+                      <Users className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-xs text-white">1. Enlace para Pasajeros / Viajeros</h4>
+                      <p className="text-[10px] text-slate-400">Tarifas justas y bonos de $1.00</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleShareLink('passenger')}
+                      className="flex-1 py-2 px-3 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-black text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer shadow"
+                    >
+                      <Share2 className="w-3.5 h-3.5" />
+                      <span>Compartir a Pasajeros</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleCopyLink('passenger')}
+                      title="Copiar enlace"
+                      className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs flex items-center justify-center transition-colors cursor-pointer border border-slate-700"
+                    >
+                      {copiedLink === 'passenger' ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Botón 2: Enlace para Conductores */}
+                <div className="p-3 rounded-2xl bg-slate-900 border border-emerald-500/30 flex flex-col justify-between gap-2.5">
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
+                      <Car className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-xs text-white">2. Enlace para Conductores Colegas</h4>
+                      <p className="text-[10px] text-slate-400">100% Efectivo, 0% Comisión, 1ª sem. gratis</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleShareLink('driver')}
+                      className="flex-1 py-2 px-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer shadow"
+                    >
+                      <Share2 className="w-3.5 h-3.5" />
+                      <span>Compartir a Conductores</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleCopyLink('driver')}
+                      title="Copiar enlace"
+                      className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs flex items-center justify-center transition-colors cursor-pointer border border-slate-700"
+                    >
+                      {copiedLink === 'driver' ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
 
