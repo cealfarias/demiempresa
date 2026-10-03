@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { requestScreenWakeLock, releaseScreenWakeLock, safelyResetSpeech } from './audioWakeLockService';
+import { shareToWhatsAppOrNative, copyShareLink, RUMBO_LOGO_URL } from './whatsappShareService';
 
 /**
  * Avatar Narrador Emocional del Conductor con:
@@ -381,33 +382,11 @@ export default function DriverAvatarNarrator({ onStartRegistration }) {
   };
 
   const handleShareLink = async (type) => {
-    const isPassenger = type === 'passenger';
-    const title = isPassenger 
-      ? 'Viaja Seguro con Rumbo a tu Destino'
-      : 'Súmate como Conductor a Rumbo a tu Destino';
-    const text = isPassenger
-      ? '¡Hola! Te invito a viajar seguro con tarifas justas, conductores salvadoreños 100% verificados y bonos de descuento en cada carrera en Rumbo:'
-      : '¡Colega conductor! Te invito a registrarte en Rumbo a mi Destino. 100% de ganancia en efectivo en tu mano, 0% de comisión, primera semana gratis y solicitudes confirmadas a 1 km a la redonda:';
-    const url = isPassenger 
-      ? 'https://viajes.demiempresa.online'
-      : 'https://viajes.demiempresa.online?ref=conductor';
-
-    if (navigator.share) {
-      try {
-        await navigator.share({ title, text, url });
-        return;
-      } catch (err) {}
-    }
-
-    const waUrl = `https://wa.me/?text=${encodeURIComponent(`${text} ${url}`)}`;
-    window.open(waUrl, '_blank');
+    await shareToWhatsAppOrNative(type);
   };
 
-  const handleCopyLink = (type) => {
-    const url = type === 'passenger' 
-      ? 'https://viajes.demiempresa.online'
-      : 'https://viajes.demiempresa.online?ref=conductor';
-    navigator.clipboard.writeText(url);
+  const handleCopyLink = async (type) => {
+    await copyShareLink(type);
     setCopiedLink(type);
     setTimeout(() => setCopiedLink(null), 2500);
   };
@@ -668,74 +647,97 @@ export default function DriverAvatarNarrator({ onStartRegistration }) {
       </div>
 
       {/* 6. ENLACES COLABORATIVOS: PASAJEROS Y CONDUCTORES */}
-      <div className="pt-3 border-t border-slate-800/80 text-left space-y-2">
-        <div className="flex items-center gap-2">
-          <HeartHandshake className="w-4 h-4 text-amber-400 shrink-0" />
-          <h4 className="text-xs font-black text-amber-300">
-            Comparte Rumbo a tu Destino (Fase Inicial de Despliegue)
-          </h4>
+      <div className="pt-3 border-t border-slate-800/80 text-left space-y-2.5">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2.5">
+            <img
+              src={RUMBO_LOGO_URL}
+              alt="Logo Rumbo a mi Destino"
+              className="w-9 h-9 rounded-xl object-contain bg-slate-900 border border-amber-400/40 p-1 shadow shrink-0"
+            />
+            <div>
+              <h4 className="text-xs font-black text-amber-300 uppercase tracking-wide flex items-center gap-1.5">
+                <span>Rumbo a mi Destino</span>
+                <span className="text-[10px] font-normal text-slate-400">| Fase Inicial</span>
+              </h4>
+              <p className="text-[11px] text-slate-300">
+                Comparte por WhatsApp y haz crecer la red colaborativa en El Salvador:
+              </p>
+            </div>
+          </div>
         </div>
-        <p className="text-[11px] text-slate-400 leading-relaxed">
-          Agradecemos tu paciencia y comprensión en este inicio. Tu colaboración compartiendo los enlaces con viajeros y otros conductores fortalece la red para beneficiarnos todos:
-        </p>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
           {/* Compartir a Pasajeros */}
-          <div className="p-2.5 rounded-xl bg-slate-950 border border-sky-500/30 flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <Users className="w-4 h-4 text-sky-400 shrink-0" />
-              <div className="text-[11px]">
-                <strong className="text-white block font-bold">1. Enlace para Pasajeros</strong>
-                <span className="text-slate-400 text-[10px]">Tarifas justas y bonos de $1.00</span>
+          <div className="p-3 rounded-2xl bg-slate-950 border border-sky-500/40 flex flex-col justify-between gap-2.5 shadow-md">
+            <div className="flex items-start gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-sky-500/20 text-sky-400 flex items-center justify-center shrink-0 mt-0.5">
+                <Users className="w-4 h-4" />
+              </div>
+              <div className="space-y-0.5">
+                <strong className="text-white block font-bold text-xs">1. Enlace para Pasajeros / Viajeros</strong>
+                <p className="text-[11px] text-sky-300 font-semibold">
+                  🎁 Paga menos por carrera con tus Bonos de Referencia
+                </p>
+                <p className="text-[10px] text-slate-400 leading-tight">
+                  Ganas $1.00 de bono de viaje por cada persona invitada que se descuenta directo de tu tarifa.
+                </p>
               </div>
             </div>
-            <div className="flex items-center gap-1.5 shrink-0">
+            <div className="flex items-center gap-2 pt-1 border-t border-slate-800/60">
               <button
                 type="button"
                 onClick={() => handleShareLink('passenger')}
-                className="px-2.5 py-1.5 rounded-lg bg-sky-500 hover:bg-sky-400 text-slate-950 text-[11px] font-black flex items-center gap-1 transition-colors cursor-pointer shadow"
-                title="Compartir enlace de pasajeros por WhatsApp"
+                className="flex-1 py-2 px-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-black flex items-center justify-center gap-1.5 transition-colors cursor-pointer shadow"
+                title="Compartir enlace con logo y bonos por WhatsApp"
               >
-                <Share2 className="w-3 h-3" />
-                <span>Compartir</span>
+                <Share2 className="w-3.5 h-3.5" />
+                <span>Enviar por WhatsApp</span>
               </button>
               <button
                 type="button"
                 onClick={() => handleCopyLink('passenger')}
-                className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-sky-300 border border-sky-500/30 text-[11px] transition-colors cursor-pointer"
+                className="p-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-sky-300 border border-sky-500/30 text-xs transition-colors cursor-pointer"
                 title="Copiar enlace"
               >
-                {copiedLink === 'passenger' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                {copiedLink === 'passenger' ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
               </button>
             </div>
           </div>
 
           {/* Compartir a Conductores */}
-          <div className="p-2.5 rounded-xl bg-slate-950 border border-emerald-500/30 flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <Car className="w-4 h-4 text-emerald-400 shrink-0" />
-              <div className="text-[11px]">
-                <strong className="text-white block font-bold">2. Enlace para Conductores</strong>
-                <span className="text-slate-400 text-[10px]">0% comisión y 1ª semana gratis</span>
+          <div className="p-3 rounded-2xl bg-slate-950 border border-amber-500/40 flex flex-col justify-between gap-2.5 shadow-md">
+            <div className="flex items-start gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center shrink-0 mt-0.5">
+                <Car className="w-4 h-4" />
+              </div>
+              <div className="space-y-0.5">
+                <strong className="text-white block font-bold text-xs">2. Enlace para Colegas Conductores</strong>
+                <p className="text-[11px] text-amber-300 font-semibold">
+                  💰 0% Comisión y 1ª Semana 100% Gratis
+                </p>
+                <p className="text-[10px] text-slate-400 leading-tight">
+                  El 100% de la ganancia en efectivo en tu mano ante la gasolina a $5.13 y radio de 1 km sin viajes fantasma.
+                </p>
               </div>
             </div>
-            <div className="flex items-center gap-1.5 shrink-0">
+            <div className="flex items-center gap-2 pt-1 border-t border-slate-800/60">
               <button
                 type="button"
                 onClick={() => handleShareLink('driver')}
-                className="px-2.5 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-[11px] font-black flex items-center gap-1 transition-colors cursor-pointer shadow"
+                className="flex-1 py-2 px-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-black flex items-center justify-center gap-1.5 transition-colors cursor-pointer shadow"
                 title="Compartir enlace de conductores por WhatsApp"
               >
-                <Share2 className="w-3 h-3" />
-                <span>Compartir</span>
+                <Share2 className="w-3.5 h-3.5" />
+                <span>Enviar por WhatsApp</span>
               </button>
               <button
                 type="button"
                 onClick={() => handleCopyLink('driver')}
-                className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-emerald-300 border border-emerald-500/30 text-[11px] transition-colors cursor-pointer"
+                className="p-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-amber-300 border border-amber-500/30 text-xs transition-colors cursor-pointer"
                 title="Copiar enlace"
               >
-                {copiedLink === 'driver' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                {copiedLink === 'driver' ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
               </button>
             </div>
           </div>

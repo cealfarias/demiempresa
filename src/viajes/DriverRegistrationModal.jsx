@@ -50,6 +50,7 @@ import {
 } from './documentValidatorService';
 import SupportTicketModal from './SupportTicketModal';
 import { requestScreenWakeLock, releaseScreenWakeLock } from './audioWakeLockService';
+import { shareToWhatsAppOrNative, copyShareLink, RUMBO_LOGO_URL } from './whatsappShareService';
 
 // Anuncio de voz eufórico de bienvenida al completar el registro
 const speakWelcomeMessage = async (driverName) => {
@@ -119,33 +120,11 @@ export default function DriverRegistrationModal({ isOpen, onClose, onDriverRegis
   const modalScrollRef = useRef(null);
 
   const handleShareLink = async (type) => {
-    const isPassenger = type === 'passenger';
-    const title = isPassenger 
-      ? 'Viaja Seguro con Rumbo a tu Destino'
-      : 'Súmate como Conductor a Rumbo a tu Destino';
-    const text = isPassenger
-      ? '¡Hola! Te invito a viajar seguro con tarifas justas, conductores salvadoreños 100% verificados y bonos de descuento en cada carrera en Rumbo:'
-      : '¡Colega conductor! Te invito a registrarte en Rumbo a mi Destino. 100% de ganancia en efectivo en tu mano, 0% de comisión, primera semana gratis y solicitudes confirmadas a 1 km a la redonda:';
-    const url = isPassenger 
-      ? 'https://viajes.demiempresa.online'
-      : 'https://viajes.demiempresa.online?ref=conductor';
-
-    if (navigator.share) {
-      try {
-        await navigator.share({ title, text, url });
-        return;
-      } catch (err) {}
-    }
-
-    const waUrl = `https://wa.me/?text=${encodeURIComponent(`${text} ${url}`)}`;
-    window.open(waUrl, '_blank');
+    await shareToWhatsAppOrNative(type);
   };
 
-  const handleCopyLink = (type) => {
-    const url = type === 'passenger' 
-      ? 'https://viajes.demiempresa.online'
-      : 'https://viajes.demiempresa.online?ref=conductor';
-    navigator.clipboard.writeText(url);
+  const handleCopyLink = async (type) => {
+    await copyShareLink(type);
     setCopiedLink(type);
     setTimeout(() => setCopiedLink(null), 2500);
   };
@@ -608,24 +587,30 @@ export default function DriverRegistrationModal({ isOpen, onClose, onDriverRegis
               {/* Los Dos Botones de Enlace (Pasajeros y Conductores) */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
                 {/* Botón 1: Enlace para Pasajeros */}
-                <div className="p-3 rounded-2xl bg-slate-900 border border-sky-500/30 flex flex-col justify-between gap-2.5">
-                  <div className="flex items-center gap-2">
-                    <div className="w-7 h-7 rounded-xl bg-sky-500/20 text-sky-400 flex items-center justify-center shrink-0">
+                <div className="p-3.5 rounded-2xl bg-slate-900 border border-sky-500/40 flex flex-col justify-between gap-3 shadow-md">
+                  <div className="flex items-start gap-2.5">
+                    <div className="w-8 h-8 rounded-xl bg-sky-500/20 text-sky-400 flex items-center justify-center shrink-0 mt-0.5">
                       <Users className="w-4 h-4" />
                     </div>
-                    <div>
+                    <div className="space-y-0.5">
                       <h4 className="font-bold text-xs text-white">1. Enlace para Pasajeros / Viajeros</h4>
-                      <p className="text-[10px] text-slate-400">Tarifas justas y bonos de $1.00</p>
+                      <p className="text-[11px] text-sky-300 font-semibold">
+                        🎁 Paga menos por carrera con tus Bonos de Referencia
+                      </p>
+                      <p className="text-[10px] text-slate-400 leading-tight">
+                        Ganas $1.00 de bono de viaje por cada persona invitada que se descuenta directo de tu tarifa.
+                      </p>
                     </div>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 pt-1 border-t border-slate-800/60">
                     <button
                       type="button"
                       onClick={() => handleShareLink('passenger')}
-                      className="flex-1 py-2 px-3 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-black text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer shadow"
+                      className="flex-1 py-2 px-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer shadow"
+                      title="Enviar por WhatsApp con logo y bonos de referencia"
                     >
                       <Share2 className="w-3.5 h-3.5" />
-                      <span>Compartir a Pasajeros</span>
+                      <span>Enviar por WhatsApp</span>
                     </button>
                     <button
                       type="button"
@@ -639,24 +624,30 @@ export default function DriverRegistrationModal({ isOpen, onClose, onDriverRegis
                 </div>
 
                 {/* Botón 2: Enlace para Conductores */}
-                <div className="p-3 rounded-2xl bg-slate-900 border border-emerald-500/30 flex flex-col justify-between gap-2.5">
-                  <div className="flex items-center gap-2">
-                    <div className="w-7 h-7 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
+                <div className="p-3.5 rounded-2xl bg-slate-900 border border-amber-500/40 flex flex-col justify-between gap-3 shadow-md">
+                  <div className="flex items-start gap-2.5">
+                    <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center shrink-0 mt-0.5">
                       <Car className="w-4 h-4" />
                     </div>
-                    <div>
+                    <div className="space-y-0.5">
                       <h4 className="font-bold text-xs text-white">2. Enlace para Conductores Colegas</h4>
-                      <p className="text-[10px] text-slate-400">100% Efectivo, 0% Comisión, 1ª sem. gratis</p>
+                      <p className="text-[11px] text-amber-300 font-semibold">
+                        💰 0% Comisión y 1ª Semana 100% Gratis
+                      </p>
+                      <p className="text-[10px] text-slate-400 leading-tight">
+                        El 100% de la ganancia en efectivo en tu mano ante la gasolina a $5.13 y radio de 1 km sin viajes fantasma.
+                      </p>
                     </div>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 pt-1 border-t border-slate-800/60">
                     <button
                       type="button"
                       onClick={() => handleShareLink('driver')}
                       className="flex-1 py-2 px-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer shadow"
+                      title="Enviar por WhatsApp"
                     >
                       <Share2 className="w-3.5 h-3.5" />
-                      <span>Compartir a Conductores</span>
+                      <span>Enviar por WhatsApp</span>
                     </button>
                     <button
                       type="button"
