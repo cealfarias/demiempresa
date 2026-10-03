@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Car,
   User,
@@ -25,7 +25,9 @@ import {
   CreditCard,
   Building,
   CheckCircle2,
-  Wind
+  Wind,
+  ShieldCheck,
+  LifeBuoy
 } from 'lucide-react';
 import { registerDriverApi, fetchDriverStatusApi } from './api';
 import {
@@ -38,6 +40,7 @@ import {
   validateDocumentImage,
   rotateImage90Degrees
 } from './documentValidatorService';
+import SupportTicketModal from './SupportTicketModal';
 
 export default function DriverRegistrationModal({ isOpen, onClose, onDriverRegistered, existingDriverId }) {
   const [step, setStep] = useState(1);
@@ -48,6 +51,15 @@ export default function DriverRegistrationModal({ isOpen, onClose, onDriverRegis
   const [isLookingUp, setIsLookingUp] = useState(false);
   const [lookupError, setLookupError] = useState(null);
   const [docValidations, setDocValidations] = useState({});
+  const [showSupportModal, setShowSupportModal] = useState(false);
+  const modalScrollRef = useRef(null);
+
+  // Auto-scroll al inicio del modal cada vez que cambia el paso
+  useEffect(() => {
+    if (modalScrollRef.current) {
+      modalScrollRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }, [step]);
 
   const handleLookupByDui = async () => {
     if (!lookupDui.trim()) return;
@@ -317,7 +329,7 @@ export default function DriverRegistrationModal({ isOpen, onClose, onDriverRegis
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-5">
+    <div ref={modalScrollRef} className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-5">
       <div className="bg-[#0f172a] border border-slate-800 rounded-3xl max-w-2xl w-full p-5 sm:p-7 shadow-2xl relative text-slate-100 animate-in zoom-in-95 duration-200">
         
         {/* Botón de Cierre */}
@@ -403,15 +415,14 @@ export default function DriverRegistrationModal({ isOpen, onClose, onDriverRegis
 
             {/* Acciones */}
             <div className="flex flex-col sm:flex-row gap-3 justify-center pt-2">
-              <a
-                href={`https://wa.me/50369893101?text=Hola,%20acabo%20de%20registrarme%20como%20conductor%20en%20Rumbo.%20Mi%20DUI%20es%20${encodeURIComponent(successData.dui || '')}%20y%20mi%20placa%20es%20${encodeURIComponent(successData.vehiclePlate || '')}.%20Quisiera%20agilizar%20la%20aprobacion.`}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-black text-xs transition-colors shadow-lg shadow-emerald-950/40"
+              <button
+                type="button"
+                onClick={() => setShowSupportModal(true)}
+                className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs transition-colors shadow-lg shadow-amber-950/40 cursor-pointer"
               >
-                <MessageCircle className="w-4 h-4" />
-                <span>Agilizar por WhatsApp (Soporte Oficial)</span>
-              </a>
+                <LifeBuoy className="w-4 h-4" />
+                <span>Ticket de Soporte Técnico</span>
+              </button>
 
               {successData.approvalStatus === 'REJECTED' && (
                 <button
@@ -547,26 +558,53 @@ export default function DriverRegistrationModal({ isOpen, onClose, onDriverRegis
                     />
                   </div>
 
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-slate-300">Foto de Perfil (Selfie de seguridad)</label>
-                    <div className="flex items-center gap-2">
-                      <label className="flex-1 cursor-pointer bg-slate-900 hover:bg-slate-800 border border-dashed border-slate-700 hover:border-amber-400 rounded-xl px-3 py-2 text-xs text-slate-300 flex items-center justify-center gap-2 transition-colors">
-                        <Camera className="w-4 h-4 text-amber-400" />
-                        <span>{form.photoUrl ? 'Cambiar foto' : 'Subir o tomar selfie'}</span>
-                        <input
-                          type="file"
-                          accept="image/*"
-                          className="hidden"
-                          onChange={(e) => handleFileUpload('photoUrl', e)}
-                        />
-                      </label>
+                  <div className="space-y-1.5 sm:col-span-2">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-slate-300">Foto de Perfil (Selfie de seguridad) *</label>
                       {form.photoUrl && (
-                        <img
-                          src={form.photoUrl}
-                          alt="Selfie"
-                          className="w-9 h-9 rounded-xl object-cover border border-amber-400/40"
-                        />
+                        <span className="text-[11px] font-bold text-emerald-400 flex items-center gap-1">
+                          <Check className="w-3.5 h-3.5" /> Foto cargada
+                        </span>
                       )}
+                    </div>
+                    
+                    <div className="flex flex-col sm:flex-row gap-2.5 items-center bg-slate-900/60 p-2.5 rounded-2xl border border-slate-800">
+                      {form.photoUrl && (
+                        <div className="relative shrink-0">
+                          <img
+                            src={form.photoUrl}
+                            alt="Selfie"
+                            className="w-14 h-14 rounded-2xl object-cover border-2 border-amber-400 shadow-md"
+                          />
+                        </div>
+                      )}
+                      
+                      <div className="grid grid-cols-2 gap-2 flex-1 w-full">
+                        {/* Botón Cámara Frontal */}
+                        <label className="cursor-pointer bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 rounded-xl px-3 py-2.5 text-xs text-amber-300 font-bold flex items-center justify-center gap-2 transition-colors text-center shadow-sm">
+                          <Camera className="w-4 h-4 text-amber-400 shrink-0" />
+                          <span>Tomar Selfie (Cámara)</span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            capture="user"
+                            className="hidden"
+                            onChange={(e) => handleFileUpload('photoUrl', e)}
+                          />
+                        </label>
+
+                        {/* Botón Galería */}
+                        <label className="cursor-pointer bg-slate-800 hover:bg-slate-700/80 border border-slate-700 rounded-xl px-3 py-2.5 text-xs text-slate-200 font-semibold flex items-center justify-center gap-2 transition-colors text-center">
+                          <Upload className="w-4 h-4 text-slate-400 shrink-0" />
+                          <span>Elegir de Galería</span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={(e) => handleFileUpload('photoUrl', e)}
+                          />
+                        </label>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -604,20 +642,29 @@ export default function DriverRegistrationModal({ isOpen, onClose, onDriverRegis
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-slate-300">Número de Licencia de Conducir *</label>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-black text-amber-300 flex items-center gap-1.5">
+                      <span className="w-5 h-5 rounded-full bg-amber-400/20 text-amber-400 inline-flex items-center justify-center text-[10px] font-black border border-amber-400/40">1</span>
+                      <span>Número de Licencia de Conducir (VMT / SERTRACEN) *</span>
+                    </label>
                     <input
                       type="text"
                       required
-                      placeholder="ej. 0123-120590-101-2"
+                      placeholder="ej. 0614-120590-101-2 o tu DUI"
                       value={form.licenseNumber}
                       onChange={(e) => setForm({ ...form, licenseNumber: e.target.value.toUpperCase() })}
                       className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-100 font-mono placeholder-slate-500 focus:outline-none focus:border-amber-400 transition-colors"
                     />
+                    <p className="text-[10px] text-slate-400">
+                      En El Salvador tu licencia suele coincidir con tu formato de NIT o tu DUI.
+                    </p>
                   </div>
 
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-slate-300">Número de Placa Oficial *</label>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-black text-amber-300 flex items-center gap-1.5">
+                      <span className="w-5 h-5 rounded-full bg-amber-400/20 text-amber-400 inline-flex items-center justify-center text-[10px] font-black border border-amber-400/40">2</span>
+                      <span>Número de Placa Oficial *</span>
+                    </label>
                     <input
                       type="text"
                       required
@@ -626,6 +673,9 @@ export default function DriverRegistrationModal({ isOpen, onClose, onDriverRegis
                       onChange={handlePlateChange}
                       className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-amber-400 font-black tracking-wider font-mono placeholder-slate-500 focus:outline-none focus:border-amber-400 transition-colors"
                     />
+                    <p className="text-[10px] text-slate-400">
+                      Placa salvadoreña según tu tarjeta de circulación (P, C, A, etc.).
+                    </p>
                   </div>
 
                   <div className="space-y-1">
@@ -823,11 +873,18 @@ export default function DriverRegistrationModal({ isOpen, onClose, onDriverRegis
                         ✓ Legible ({docValidations.duiFrontUrl.width}x{docValidations.duiFrontUrl.height}px) • Asociado a {form.dui || 'DUI'}
                       </p>
                     )}
-                    <label className="cursor-pointer bg-slate-950 hover:bg-slate-800/80 border border-dashed border-slate-700 rounded-xl p-2 flex items-center justify-center gap-2 text-slate-400 hover:text-slate-200 transition-colors">
-                      <Upload className="w-4 h-4 text-amber-400" />
-                      <span>{form.duiFrontUrl ? 'Reemplazar DUI Frente' : 'Subir DUI Frente'}</span>
-                      <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileUpload('duiFrontUrl', e, 'DUI_FRONT')} />
-                    </label>
+                    <div className="grid grid-cols-2 gap-2 pt-1">
+                      <label className="cursor-pointer bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 rounded-xl py-2 px-2 flex items-center justify-center gap-1.5 text-[11px] text-amber-300 font-bold transition-colors">
+                        <Camera className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                        <span>Cámara</span>
+                        <input type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => handleFileUpload('duiFrontUrl', e, 'DUI_FRONT')} />
+                      </label>
+                      <label className="cursor-pointer bg-slate-950 hover:bg-slate-800 border border-slate-700 rounded-xl py-2 px-2 flex items-center justify-center gap-1.5 text-[11px] text-slate-300 font-medium transition-colors">
+                        <Upload className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                        <span>Galería</span>
+                        <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileUpload('duiFrontUrl', e, 'DUI_FRONT')} />
+                      </label>
+                    </div>
                   </div>
 
                   {/* DUI Reverso */}
@@ -860,11 +917,18 @@ export default function DriverRegistrationModal({ isOpen, onClose, onDriverRegis
                     {docValidations.duiBackUrl?.valid && (
                       <p className="text-[10px] text-emerald-400 font-medium">✓ Reverso Legible y Verificado</p>
                     )}
-                    <label className="cursor-pointer bg-slate-950 hover:bg-slate-800/80 border border-dashed border-slate-700 rounded-xl p-2 flex items-center justify-center gap-2 text-slate-400 hover:text-slate-200 transition-colors">
-                      <Upload className="w-4 h-4 text-amber-400" />
-                      <span>{form.duiBackUrl ? 'Reemplazar DUI Reverso' : 'Subir DUI Reverso'}</span>
-                      <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileUpload('duiBackUrl', e, 'DUI_BACK')} />
-                    </label>
+                    <div className="grid grid-cols-2 gap-2 pt-1">
+                      <label className="cursor-pointer bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 rounded-xl py-2 px-2 flex items-center justify-center gap-1.5 text-[11px] text-amber-300 font-bold transition-colors">
+                        <Camera className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                        <span>Cámara</span>
+                        <input type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => handleFileUpload('duiBackUrl', e, 'DUI_BACK')} />
+                      </label>
+                      <label className="cursor-pointer bg-slate-950 hover:bg-slate-800 border border-slate-700 rounded-xl py-2 px-2 flex items-center justify-center gap-1.5 text-[11px] text-slate-300 font-medium transition-colors">
+                        <Upload className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                        <span>Galería</span>
+                        <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileUpload('duiBackUrl', e, 'DUI_BACK')} />
+                      </label>
+                    </div>
                   </div>
 
                   {/* Licencia de Conducir Frente */}
@@ -897,11 +961,18 @@ export default function DriverRegistrationModal({ isOpen, onClose, onDriverRegis
                     {docValidations.licenseFrontUrl?.valid && (
                       <p className="text-[10px] text-emerald-400 font-medium">✓ Licencia {form.licenseNumber || 'Verificada'}</p>
                     )}
-                    <label className="cursor-pointer bg-slate-950 hover:bg-slate-800/80 border border-dashed border-slate-700 rounded-xl p-2 flex items-center justify-center gap-2 text-slate-400 hover:text-slate-200 transition-colors">
-                      <Upload className="w-4 h-4 text-amber-400" />
-                      <span>{form.licenseFrontUrl ? 'Reemplazar Licencia' : 'Subir Licencia'}</span>
-                      <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileUpload('licenseFrontUrl', e, 'LICENSE_FRONT')} />
-                    </label>
+                    <div className="grid grid-cols-2 gap-2 pt-1">
+                      <label className="cursor-pointer bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 rounded-xl py-2 px-2 flex items-center justify-center gap-1.5 text-[11px] text-amber-300 font-bold transition-colors">
+                        <Camera className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                        <span>Cámara</span>
+                        <input type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => handleFileUpload('licenseFrontUrl', e, 'LICENSE_FRONT')} />
+                      </label>
+                      <label className="cursor-pointer bg-slate-950 hover:bg-slate-800 border border-slate-700 rounded-xl py-2 px-2 flex items-center justify-center gap-1.5 text-[11px] text-slate-300 font-medium transition-colors">
+                        <Upload className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                        <span>Galería</span>
+                        <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileUpload('licenseFrontUrl', e, 'LICENSE_FRONT')} />
+                      </label>
+                    </div>
                   </div>
 
                   {/* Tarjeta de Circulación SERTRACEN */}
@@ -931,11 +1002,18 @@ export default function DriverRegistrationModal({ isOpen, onClose, onDriverRegis
                     {docValidations.circulationCardUrl?.valid && (
                       <p className="text-[10px] text-emerald-400 font-medium">✓ Placa {form.vehiclePlate || 'SERTRACEN'}</p>
                     )}
-                    <label className="cursor-pointer bg-slate-950 hover:bg-slate-800/80 border border-dashed border-slate-700 rounded-xl p-2 flex items-center justify-center gap-2 text-slate-400 hover:text-slate-200 transition-colors">
-                      <Upload className="w-4 h-4 text-amber-400" />
-                      <span>{form.circulationCardUrl ? 'Reemplazar Tarjeta' : 'Subir Tarjeta'}</span>
-                      <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileUpload('circulationCardUrl', e, 'CIRCULATION')} />
-                    </label>
+                    <div className="grid grid-cols-2 gap-2 pt-1">
+                      <label className="cursor-pointer bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 rounded-xl py-2 px-2 flex items-center justify-center gap-1.5 text-[11px] text-amber-300 font-bold transition-colors">
+                        <Camera className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                        <span>Cámara</span>
+                        <input type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => handleFileUpload('circulationCardUrl', e, 'CIRCULATION')} />
+                      </label>
+                      <label className="cursor-pointer bg-slate-950 hover:bg-slate-800 border border-slate-700 rounded-xl py-2 px-2 flex items-center justify-center gap-1.5 text-[11px] text-slate-300 font-medium transition-colors">
+                        <Upload className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                        <span>Galería</span>
+                        <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileUpload('circulationCardUrl', e, 'CIRCULATION')} />
+                      </label>
+                    </div>
                   </div>
 
                   {/* Solvencia PNC */}
@@ -965,11 +1043,18 @@ export default function DriverRegistrationModal({ isOpen, onClose, onDriverRegis
                     {docValidations.policeRecordUrl?.valid && (
                       <p className="text-[10px] text-emerald-400 font-medium">✓ Solvencia Legible para {form.fullName || 'Titular'}</p>
                     )}
-                    <label className="cursor-pointer bg-slate-950 hover:bg-slate-800/80 border border-dashed border-slate-700 rounded-xl p-2 flex items-center justify-center gap-2 text-slate-400 hover:text-slate-200 transition-colors">
-                      <Upload className="w-4 h-4 text-amber-400" />
-                      <span>{form.policeRecordUrl ? 'Reemplazar Solvencia' : 'Subir Solvencia PNC'}</span>
-                      <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileUpload('policeRecordUrl', e, 'POLICE')} />
-                    </label>
+                    <div className="grid grid-cols-2 gap-2 pt-1">
+                      <label className="cursor-pointer bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 rounded-xl py-2 px-2 flex items-center justify-center gap-1.5 text-[11px] text-amber-300 font-bold transition-colors">
+                        <Camera className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                        <span>Cámara</span>
+                        <input type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => handleFileUpload('policeRecordUrl', e, 'POLICE')} />
+                      </label>
+                      <label className="cursor-pointer bg-slate-950 hover:bg-slate-800 border border-slate-700 rounded-xl py-2 px-2 flex items-center justify-center gap-1.5 text-[11px] text-slate-300 font-medium transition-colors">
+                        <Upload className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                        <span>Galería</span>
+                        <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileUpload('policeRecordUrl', e, 'POLICE')} />
+                      </label>
+                    </div>
                   </div>
 
                   {/* Foto Frontal del Vehículo con Placa */}
@@ -999,11 +1084,18 @@ export default function DriverRegistrationModal({ isOpen, onClose, onDriverRegis
                     {docValidations.vehiclePhotoFront?.valid && (
                       <p className="text-[10px] text-emerald-400 font-medium">✓ Vehículo {form.vehicleBrand} • Placa {form.vehiclePlate}</p>
                     )}
-                    <label className="cursor-pointer bg-slate-950 hover:bg-slate-800/80 border border-dashed border-slate-700 rounded-xl p-2 flex items-center justify-center gap-2 text-slate-400 hover:text-slate-200 transition-colors">
-                      <Camera className="w-4 h-4 text-amber-400" />
-                      <span>{form.vehiclePhotoFront ? 'Reemplazar Foto Vehículo' : 'Subir Foto Vehículo'}</span>
-                      <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileUpload('vehiclePhotoFront', e, 'VEHICLE_FRONT')} />
-                    </label>
+                    <div className="grid grid-cols-2 gap-2 pt-1">
+                      <label className="cursor-pointer bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 rounded-xl py-2 px-2 flex items-center justify-center gap-1.5 text-[11px] text-amber-300 font-bold transition-colors">
+                        <Camera className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                        <span>Cámara</span>
+                        <input type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => handleFileUpload('vehiclePhotoFront', e, 'VEHICLE_FRONT')} />
+                      </label>
+                      <label className="cursor-pointer bg-slate-950 hover:bg-slate-800 border border-slate-700 rounded-xl py-2 px-2 flex items-center justify-center gap-1.5 text-[11px] text-slate-300 font-medium transition-colors">
+                        <Upload className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                        <span>Galería</span>
+                        <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileUpload('vehiclePhotoFront', e, 'VEHICLE_FRONT')} />
+                      </label>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1132,6 +1224,12 @@ export default function DriverRegistrationModal({ isOpen, onClose, onDriverRegis
           </form>
         )}
       </div>
+
+      {/* Modal de Tickets de Soporte Técnico */}
+      <SupportTicketModal
+        isOpen={showSupportModal}
+        onClose={() => setShowSupportModal(false)}
+      />
     </div>
   );
 }

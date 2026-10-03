@@ -18,7 +18,8 @@ import {
   HeartHandshake,
   MessageCircle,
   AlertCircle,
-  LifeBuoy
+  LifeBuoy,
+  Navigation
 } from 'lucide-react';
 import RumboLogo from './RumboLogo';
 import DriverAvatarNarrator from './DriverAvatarNarrator';
@@ -451,7 +452,7 @@ export default function DriverLandingView({ onStartRegistration, onCheckStatus }
             </p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             
             {/* Pilar 1: Cálculo de Tarifa Justa */}
             <div className="p-5 rounded-3xl bg-slate-900/90 border border-slate-800 space-y-3">
@@ -483,6 +484,19 @@ export default function DriverLandingView({ onStartRegistration, onCheckStatus }
               <h3 className="font-bold text-sm text-white">3. Alianzas Automotrices Locales</h3>
               <p className="text-xs text-slate-400 leading-relaxed">
                 ¿Acumulaste más de 10 bonos en la semana? El excedente no se pierde: podrás <strong>canjearlo por descuentos en talleres, repuestos, llanterías y lubricentros aliados</strong> que forman parte de la red comercial de Rumbo.
+              </p>
+            </div>
+
+            {/* Pilar 4: Despacho a 1 km a la Redonda • Cero Solicitudes Fantasma */}
+            <div className="p-5 rounded-3xl bg-gradient-to-b from-amber-500/10 to-slate-900/90 border border-amber-500/30 space-y-3 shadow-lg shadow-amber-950/20">
+              <div className="w-10 h-10 rounded-2xl bg-amber-500/20 text-amber-400 flex items-center justify-center font-bold border border-amber-500/30">
+                <Navigation className="w-5 h-5" />
+              </div>
+              <h3 className="font-bold text-sm text-white flex items-center gap-1.5">
+                <span>4. Radio 1 km • Cero Viajes Fantasma</span>
+              </h3>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                En otras apps abundan las <strong>solicitudes fantasma</strong>: viajes que aceptas y de inmediato dicen <em>"ya fue tomada"</em> para forzar falsa demanda. En Rumbo, <strong>todas las solicitudes están 100% confirmadas a máximo 1 km a la redonda</strong>. Pasajeros reales esperando en la acera, sin engaños.
               </p>
             </div>
 
