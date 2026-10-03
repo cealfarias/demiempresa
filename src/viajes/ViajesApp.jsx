@@ -432,6 +432,7 @@ export default function ViajesApp() {
   const [refContactPhone, setRefContactPhone] = useState('');
   const [referralBonusAwarded, setReferralBonusAwarded] = useState(false);
   const [showBonusesAccountModal, setShowBonusesAccountModal] = useState(false);
+  const [dopamineBonusModal, setDopamineBonusModal] = useState(null);
 
   // Calcular días restantes de un bono a partir de su fecha ISO (7 días)
   const getDaysRemaining = (isoDate) => {
@@ -523,6 +524,50 @@ export default function ViajesApp() {
       socket.off('trip:confirmed');
       socket.off('trip:status_changed');
     };
+  }, [userProfile]);
+
+  // Verificación de Dopamina: Notificar al referente si un amigo se registró con su enlace y hacer sonar dinero
+  useEffect(() => {
+    if (!userProfile) return;
+    const userId = userProfile.id || userProfile.dui;
+    if (!userId) return;
+
+    fetchUserCreditsApi(userId).then((data) => {
+      if (data && data.referrals && data.referrals.length > 0) {
+        try {
+          const storageKey = `rumbo_celebrated_refs_${userId}`;
+          const celebratedIds = JSON.parse(localStorage.getItem(storageKey) || '[]');
+          
+          // Buscar el primer referido que aún no ha sido celebrado
+          const uncelebrated = data.referrals.find((r) => !celebratedIds.includes(r.id.toString()));
+          if (uncelebrated) {
+            celebratedIds.push(uncelebrated.id.toString());
+            localStorage.setItem(storageKey, JSON.stringify(celebratedIds));
+
+            // Retardo para máxima sorpresa tras abrir la app
+            setTimeout(() => {
+              triggerCashRewardFeedback();
+              try {
+                confetti({
+                  particleCount: 110,
+                  spread: 80,
+                  origin: { y: 0.55 },
+                  colors: ['#F59E0B', '#10B981', '#FBBF24', '#34D399', '#FCD34D'],
+                  zIndex: 99999
+                });
+              } catch {}
+              setDopamineBonusModal({
+                name: uncelebrated.referred_name || 'Un amigo invitado',
+                amount: '1.00',
+                date: uncelebrated.registered_at
+              });
+            }, 800);
+          }
+        } catch (e) {
+          console.warn('Error en verificación de dopamina de referidos:', e);
+        }
+      }
+    });
   }, [userProfile]);
 
   // Cargar feed publicitario según municipio de destino
@@ -3015,6 +3060,79 @@ export default function ViajesApp() {
             >
               ¡Excelente, gracias!
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* ============================================================== */}
+      {/* MODAL DE DOPAMINA: ¡SONIDO DE DINERO POR NUEVO REFERIDO!      */}
+      {/* ============================================================== */}
+      {dopamineBonusModal && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in">
+          <div className="w-full max-w-sm bg-gradient-to-b from-slate-900 via-slate-900 to-amber-950/60 border-2 border-amber-400 rounded-3xl p-6 sm:p-7 shadow-2xl shadow-amber-500/30 text-center space-y-4 animate-pop-bounce relative overflow-hidden">
+            {/* Destellos de fondo */}
+            <div className="absolute -top-16 -left-16 w-36 h-36 bg-amber-500/25 rounded-full blur-2xl pointer-events-none" />
+            <div className="absolute -bottom-16 -right-16 w-36 h-36 bg-emerald-500/25 rounded-full blur-2xl pointer-events-none" />
+
+            {/* Ícono de bolsa de dinero / moneda rebotona */}
+            <div className="relative inline-flex items-center justify-center">
+              <div className="w-20 h-20 rounded-full bg-gradient-to-tr from-amber-400 via-yellow-400 to-emerald-400 flex items-center justify-center shadow-xl shadow-amber-500/40 animate-bounce">
+                <span className="text-4xl">💰</span>
+              </div>
+              <span className="absolute -top-1 -right-2 text-2xl animate-spin">✨</span>
+              <span className="absolute -bottom-1 -left-2 text-2xl animate-pulse">💵</span>
+            </div>
+
+            <div className="space-y-1.5">
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 text-xs font-black uppercase tracking-wider shadow-sm">
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>¡Recompensa de Referido Ganada!</span>
+              </div>
+              <h3 className="text-2xl font-black text-white tracking-tight">
+                ¡Has ganado $1.00 USD!
+              </h3>
+              <p className="text-xs text-slate-300 leading-relaxed">
+                <strong className="text-amber-300 font-bold text-sm block mb-0.5">{dopamineBonusModal.name}</strong>
+                se acaba de registrar en Rumbo a tu Destino usando tu enlace de invitación.
+              </p>
+            </div>
+
+            {/* Tarjeta del saldo ganado */}
+            <div className="bg-slate-950/90 border border-emerald-500/40 rounded-2xl p-4 space-y-2 shadow-inner">
+              <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                Abonado directamente a tu Billetera
+              </div>
+              <div className="text-4xl font-black text-emerald-400 font-mono tracking-wider drop-shadow-md">
+                +$1.00 <span className="text-lg font-bold text-emerald-200">USD</span>
+              </div>
+              <p className="text-xs text-slate-300 font-medium">
+                🎁 Se descontará automáticamente de tu próximo viaje para que pagues menos por carrera.
+              </p>
+            </div>
+
+            {/* Botones de acción */}
+            <div className="space-y-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setDopamineBonusModal(null)}
+                className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 hover:brightness-110 text-slate-950 font-black text-sm shadow-xl shadow-amber-500/30 cursor-pointer transition-transform active:scale-95 flex items-center justify-center gap-2"
+              >
+                <span>¡Genial, gracias!</span>
+                <CheckCircle className="w-4 h-4 text-slate-950" />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setDopamineBonusModal(null);
+                  setShowReferralModal(true);
+                }}
+                className="w-full py-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-amber-300 border border-amber-500/30 font-bold text-xs cursor-pointer transition-colors flex items-center justify-center gap-1.5"
+              >
+                <Share2 className="w-3.5 h-3.5" />
+                <span>Invitar a más contactos y ganar más</span>
+              </button>
+            </div>
           </div>
         </div>
       )}

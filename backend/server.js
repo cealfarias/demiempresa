@@ -140,10 +140,13 @@ app.get('/api/referrals/user/:userId', async (req, res) => {
   try {
     const { userId } = req.params;
     const credit = await ReferralService.getAvailableCredit(userId);
-    const referralsRes = await pool.query(
-      'SELECT * FROM viajes_referrals WHERE referrer_user_id = $1 ORDER BY registered_at DESC',
-      [userId]
-    );
+    const referralsRes = await pool.query(`
+      SELECT r.*, u.full_name as referred_name, u.phone as referred_phone 
+      FROM viajes_referrals r 
+      JOIN viajes_users u ON r.referred_user_id::text = u.id::text 
+      WHERE r.referrer_user_id::text = $1::text 
+      ORDER BY r.registered_at DESC
+    `, [userId]);
 
     res.json({
       availableCredit: credit,
