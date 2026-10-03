@@ -79,12 +79,69 @@ app.post('/api/users/register', async (req, res) => {
   const role = 'PASSENGER';
 
   try {
+    const cleanDui = dui.trim();
+    const cleanPhone = phone ? phone.trim() : '';
+
+    // Comprobar si el usuario ya existía previamente en la base de datos
+    const existingCheck = await pool.query(`
+      SELECT id, full_name, phone, dui, role, created_at 
+      FROM viajes_users 
+      WHERE dui = $1 OR (phone = $2 AND $2 <> '')
+      LIMIT 1
+    `, [cleanDui, cleanPhone]);
+
+    const isExistingUser = existingCheck.rows.length > 0;
+
+    if (isExistingUser) {
+      const user = existingCheck.rows[0];
+      let referrerInfo = null;
+
+      // Si el contacto ya registrado intentó abrir el enlace de un amigo anfitrión:
+      if (referrerCode && referrerCode !== cleanDui) {
+        try {
+          const referrerRes = await pool.query(`
+            SELECT u.id, u.full_name FROM viajes_users u 
+            LEFT JOIN viajes_wallet_identities w ON u.id = w.user_id 
+            WHERE u.dui = $1 OR u.id::text = $1 OR w.referral_code = $1 OR u.phone = $1
+            LIMIT 1
+          `, [referrerCode.trim()]);
+
+          if (referrerRes.rows.length > 0) {
+            const hostId = referrerRes.rows[0].id;
+            const hostName = referrerRes.rows[0].full_name;
+            referrerInfo = { id: hostId, name: hostName };
+
+            // Registrar aviso al anfitrión de que su contacto ya estaba registrado
+            // para NO GENERAR EXPECTATIVA DE BONO FALSO
+            await pool.query(`
+              INSERT INTO viajes_referral_notices (referrer_user_id, contact_name, contact_phone, notice_type, message)
+              VALUES ($1, $2, $3, 'ALREADY_REGISTERED', $4)
+            `, [
+              hostId,
+              user.full_name,
+              user.phone,
+              `Tu conocido(a) ${user.full_name} abrió tu enlace de invitación, pero ya contaba con registro previo en Rumbo a tu Destino. No aplica bono de nuevo referido para evitar falsas expectativas.`
+            ]);
+          }
+        } catch (noticeErr) {
+          console.warn('⚠️ No se pudo registrar aviso de contacto ya registrado:', noticeErr.message);
+        }
+      }
+
+      return res.json({
+        success: true,
+        user,
+        isExistingUser: true,
+        referrer: referrerInfo,
+        message: 'Usuario ya registrado previamente. No aplica nuevo bono de bienvenida ni de referido.'
+      });
+    }
+
     const userRes = await pool.query(`
       INSERT INTO viajes_users (full_name, phone, dui, role)
       VALUES ($1, $2, $3, $4)
-      ON CONFLICT (dui) DO UPDATE SET phone = EXCLUDED.phone
       RETURNING *;
-    `, [fullName, phone, dui, role]);
+    `, [fullName, cleanPhone, cleanDui, role]);
 
     const user = userRes.rows[0];
 
@@ -101,7 +158,7 @@ app.post('/api/users/register', async (req, res) => {
 
     // 2. Acreditar Bono al Anfitrión si viene con Referido válido
     let referrerInfo = null;
-    if (referrerCode && referrerCode !== dui) {
+    if (referrerCode && referrerCode !== cleanDui) {
       try {
         const referrerRes = await pool.query(`
           SELECT u.id, u.full_name FROM viajes_users u 
@@ -129,6 +186,7 @@ app.post('/api/users/register', async (req, res) => {
     res.json({
       success: true,
       user,
+      isExistingUser: false,
       wallet: walletInfo ? { address: walletInfo.address, referralCode: walletInfo.referral_code } : null,
       welcomeBonus: welcomeBonusTx,
       referrer: referrerInfo
@@ -152,10 +210,78 @@ app.get('/api/referrals/user/:userId', async (req, res) => {
       ORDER BY r.registered_at DESC
     `, [userId]);
 
+    // Consultar avisos de contactos que ya estaban registrados para evitar falsas expectativas
+    let alreadyRegisteredNotices = [];
+    try {
+      const noticesRes = await pool.query(`
+        SELECT * FROM viajes_referral_notices
+        WHERE referrer_user_id::text = $1::text
+        ORDER BY created_at DESC
+        LIMIT 10
+      `, [userId]);
+      alreadyRegisteredNotices = noticesRes.rows;
+    } catch (e) {
+      console.warn('Avisos no disponibles:', e.message);
+    }
+
     res.json({
       availableCredit: credit,
-      referrals: referralsRes.rows
+      referrals: referralsRes.rows,
+      alreadyRegisteredNotices
     });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Endpoint para verificar en tiempo real si un contacto ya está registrado (evitar falsas expectativas)
+app.get('/api/referrals/check-contact', async (req, res) => {
+  try {
+    const { phone, dui } = req.query;
+    if (!phone && !dui) {
+      return res.status(400).json({ error: 'phone o dui es requerido' });
+    }
+    const cleanPhone = (phone || '').replace(/\D/g, '');
+    const cleanDui = (dui || '').trim();
+
+    const result = await pool.query(`
+      SELECT id, full_name, phone, dui, role, created_at
+      FROM viajes_users
+      WHERE ($1 <> '' AND (phone LIKE '%' || $1 OR phone = $2))
+         OR ($3 <> '' AND dui = $3)
+      LIMIT 1
+    `, [cleanPhone.slice(-8), phone || '', cleanDui]);
+
+    if (result.rows.length > 0) {
+      const u = result.rows[0];
+      return res.json({
+        isRegistered: true,
+        fullName: u.full_name,
+        phone: u.phone,
+        message: 'Este contacto ya está registrado en la comunidad Rumbo a tu Destino.'
+      });
+    }
+
+    return res.json({
+      isRegistered: false,
+      message: 'Contacto disponible para invitar y ganar bonos.'
+    });
+  } catch (err) {
+    console.error('Error en /api/referrals/check-contact:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Endpoint para marcar como leídos los avisos de contactos ya registrados
+app.post('/api/referrals/notices/dismiss', async (req, res) => {
+  try {
+    const { noticeId, userId } = req.body;
+    if (noticeId) {
+      await pool.query('UPDATE viajes_referral_notices SET is_read = TRUE WHERE id::text = $1', [noticeId]);
+    } else if (userId) {
+      await pool.query('UPDATE viajes_referral_notices SET is_read = TRUE WHERE referrer_user_id::text = $1', [userId]);
+    }
+    res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -828,6 +954,20 @@ async function initializeDatabase() {
         resolution_notes TEXT,
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `).catch(() => {});
+
+    // 0.1 Asegurar tabla de avisos de referidos para contactos ya registrados
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS viajes_referral_notices (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        referrer_user_id UUID NOT NULL REFERENCES viajes_users(id) ON DELETE CASCADE,
+        contact_name VARCHAR(150) NOT NULL,
+        contact_phone VARCHAR(25),
+        notice_type VARCHAR(50) NOT NULL DEFAULT 'ALREADY_REGISTERED',
+        message TEXT NOT NULL,
+        is_read BOOLEAN NOT NULL DEFAULT FALSE,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
       );
     `).catch(() => {});
 

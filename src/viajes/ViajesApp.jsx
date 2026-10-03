@@ -71,7 +71,9 @@ import {
   socket,
   registerUserApi,
   fetchUserCreditsApi,
-  fetchAdFeedApi
+  fetchAdFeedApi,
+  checkContactRegisteredApi,
+  dismissReferralNoticeApi
 } from './api';
 
 // Formatear destino resuelto por geocodificador para la cajita de punto de llegada
@@ -433,8 +435,35 @@ export default function ViajesApp() {
   const [referralBonusAwarded, setReferralBonusAwarded] = useState(false);
   const [showBonusesAccountModal, setShowBonusesAccountModal] = useState(false);
   const [dopamineBonusModal, setDopamineBonusModal] = useState(null);
+  const [alreadyRegisteredNoticeModal, setAlreadyRegisteredNoticeModal] = useState(null);
+  const [contactCheckStatus, setContactCheckStatus] = useState(null); // { isRegistered, fullName, phone, message }
+  const [checkingContact, setCheckingContact] = useState(false);
   const [celebrationStep, setCelebrationStep] = useState(1); // 1: Bienvenida | 2: Enviar dólar a tu amigo | 3: Dólar enviado
   const [referredByHostName, setReferredByHostName] = useState('');
+
+  // Verificar en tiempo real si el teléfono ingresado ya pertenece a un usuario existente (evitar falsas expectativas)
+  useEffect(() => {
+    const cleanPhone = (refContactPhone || '').replace(/\D/g, '');
+    if (cleanPhone.length >= 8) {
+      setCheckingContact(true);
+      const timer = setTimeout(() => {
+        checkContactRegisteredApi({ phone: cleanPhone })
+          .then((res) => {
+            setContactCheckStatus(res);
+          })
+          .catch(() => {
+            setContactCheckStatus(null);
+          })
+          .finally(() => {
+            setCheckingContact(false);
+          });
+      }, 350);
+      return () => clearTimeout(timer);
+    } else {
+      setContactCheckStatus(null);
+      setCheckingContact(false);
+    }
+  }, [refContactPhone]);
 
   // Formatear cuenta regresiva exacta de 7 días para el bono de referido
   const getCountdownString = (registeredDate) => {
@@ -546,6 +575,7 @@ export default function ViajesApp() {
     if (!userId) return;
 
     fetchUserCreditsApi(userId).then((data) => {
+      // 1. Verificar si hay un nuevo referido para celebrar con dopamina y sonido de dinero
       if (data && data.referrals && data.referrals.length > 0) {
         try {
           const storageKey = `rumbo_celebrated_refs_${userId}`;
@@ -579,6 +609,24 @@ export default function ViajesApp() {
           }
         } catch (e) {
           console.warn('Error en verificación de dopamina de referidos:', e);
+        }
+      }
+
+      // 2. Verificar avisos de contactos comunes que ya estaban registrados (para no generar expectativa)
+      if (data && data.alreadyRegisteredNotices && data.alreadyRegisteredNotices.length > 0) {
+        try {
+          const noticeStorageKey = `rumbo_notified_already_reg_${userId}`;
+          const notifiedNoticeIds = JSON.parse(localStorage.getItem(noticeStorageKey) || '[]');
+          const unnotified = data.alreadyRegisteredNotices.find((n) => !n.is_read && !notifiedNoticeIds.includes(n.id.toString()));
+          if (unnotified) {
+            notifiedNoticeIds.push(unnotified.id.toString());
+            localStorage.setItem(noticeStorageKey, JSON.stringify(notifiedNoticeIds));
+            setTimeout(() => {
+              setAlreadyRegisteredNoticeModal(unnotified);
+            }, 1400);
+          }
+        } catch (err) {
+          console.warn('Error al procesar avisos de contactos ya registrados:', err);
         }
       }
     });
@@ -1457,6 +1505,16 @@ export default function ViajesApp() {
         provider: googleTempUser ? 'google' : 'manual',
         isVerified: true
       };
+
+      if (regRes?.isExistingUser) {
+        // El usuario ya formaba parte de la comunidad previamente
+        setUserProfile(profile);
+        localStorage.setItem('demiempresa_passenger', JSON.stringify(profile));
+        setShowRegisterModal(false);
+        setGoogleDuiStep(false);
+        alert(`¡Bienvenido de vuelta, ${profile.fullName}! Has iniciado sesión con tu cuenta existente. Como ya estabas registrado previamente en Rumbo, no aplica nuevo bono de referido para evitar falsas expectativas.`);
+        return;
+      }
 
       const hostName = regRes?.referrer?.name || referrerCode || '';
       handleCompleteRegistrationWithBonus(profile, hostName);
@@ -3307,6 +3365,76 @@ export default function ViajesApp() {
       )}
 
       {/* ============================================================== */}
+      {/* AVISO AL REFERENTE: CONTACTO COMÚN YA REGISTRADO (SIN EXPECTATIVA) */}
+      {/* ============================================================== */}
+      {alreadyRegisteredNoticeModal && (
+        <div className="fixed inset-0 z-[85] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in">
+          <div className="w-full max-w-sm bg-gradient-to-b from-slate-900 via-slate-900 to-amber-950/50 border-2 border-amber-400/80 rounded-3xl p-6 shadow-2xl text-center space-y-4 animate-pop-bounce relative overflow-hidden">
+            {/* Destello sutil */}
+            <div className="absolute -top-12 -left-12 w-28 h-28 bg-amber-500/20 rounded-full blur-xl pointer-events-none" />
+
+            <div className="w-16 h-16 mx-auto rounded-full bg-amber-500/20 border border-amber-400/40 flex items-center justify-center text-3xl shadow-inner">
+              👥
+            </div>
+
+            <div className="space-y-1.5">
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/20 border border-amber-400/40 text-amber-300 text-[11px] font-bold uppercase tracking-wider">
+                <AlertTriangle className="w-3.5 h-3.5" />
+                <span>Aviso de Contacto Común</span>
+              </div>
+              <h3 className="text-xl font-black text-white">
+                Contacto ya registrado previamente
+              </h3>
+              <p className="text-xs text-slate-300 leading-relaxed">
+                Tu conocido(a) <strong className="text-amber-300 font-bold">{alreadyRegisteredNoticeModal.contact_name}</strong> abrió tu enlace de invitación, pero <strong>ya contaba con registro activo en Rumbo a tu Destino</strong>.
+              </p>
+            </div>
+
+            <div className="p-3.5 rounded-2xl bg-slate-950/80 border border-amber-500/30 text-left space-y-1.5 text-xs shadow-inner">
+              <div className="font-bold text-amber-400 flex items-center gap-1.5">
+                <span>ℹ️ Para no generar falsas expectativas:</span>
+              </div>
+              <p className="text-[11px] text-slate-300 leading-relaxed">
+                Como {alreadyRegisteredNoticeModal.contact_name} ya formaba parte de nuestra comunidad, <strong>no se acreditó bono de nuevo referido</strong>. Los bonos de $1.00 aplican exclusivamente para usuarios que se registran por primera vez.
+              </p>
+              <div className="pt-1 text-[10px] text-slate-400 border-t border-slate-800">
+                💡 ¡Prueba compartiendo tu enlace con otros amigos o familiares que aún no conozcan Rumbo!
+              </div>
+            </div>
+
+            <div className="space-y-2 pt-1">
+              <button
+                type="button"
+                onClick={() => {
+                  if (alreadyRegisteredNoticeModal.id) {
+                    dismissReferralNoticeApi({ noticeId: alreadyRegisteredNoticeModal.id });
+                  }
+                  setAlreadyRegisteredNoticeModal(null);
+                }}
+                className="w-full py-3 rounded-2xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs cursor-pointer shadow-lg shadow-amber-500/30 transition-transform active:scale-95"
+              >
+                ¡Entendido, muchas gracias!
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (alreadyRegisteredNoticeModal.id) {
+                    dismissReferralNoticeApi({ noticeId: alreadyRegisteredNoticeModal.id });
+                  }
+                  setAlreadyRegisteredNoticeModal(null);
+                  setShowReferralModal(true);
+                }}
+                className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs cursor-pointer"
+              >
+                Invitar a otro amigo de mis contactos
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ============================================================== */}
       {/* PREGUNTA TRAS 10 SEGUNDOS: "¿QUIERES MÁS BONOS?"               */}
       {/* ============================================================== */}
       {showMoreBonusesPrompt && (
@@ -3351,7 +3479,7 @@ export default function ViajesApp() {
       )}
 
       {/* ============================================================== */}
-      {/* RECUADRO MÁGICO DE REFERIDOS POR WHATSAPP (REGLA 7 DÍAS / $3)  */}
+      {/* RECUADRO MÁGICO DE REFERIDOS POR WHATSAPP (REGLA 7 DÍAS / $4)  */}
       {/* ============================================================== */}
       {showReferralModal && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in">
@@ -3359,7 +3487,10 @@ export default function ViajesApp() {
             {/* Botón cerrar */}
             <button
               type="button"
-              onClick={() => setShowReferralModal(false)}
+              onClick={() => {
+                setShowReferralModal(false);
+                setContactCheckStatus(null);
+              }}
               className="absolute top-4 right-4 text-slate-400 hover:text-white p-1 text-sm font-bold cursor-pointer"
             >
               ✕
@@ -3407,6 +3538,38 @@ export default function ViajesApp() {
                   />
                 </div>
 
+                {/* Estado de verificación en vivo del contacto */}
+                {checkingContact && (
+                  <div className="text-[11px] text-amber-300/80 flex items-center gap-2 px-1">
+                    <span className="w-3 h-3 border-2 border-amber-400 border-t-transparent rounded-full animate-spin"></span>
+                    <span>Comprobando si este contacto ya forma parte de Rumbo...</span>
+                  </div>
+                )}
+
+                {/* ALERTA: Contacto ya registrado previamente (Círculos entrelazados) */}
+                {contactCheckStatus?.isRegistered && (
+                  <div className="p-3.5 bg-amber-500/15 border-2 border-amber-500/50 rounded-2xl space-y-2 animate-fade-in text-left">
+                    <div className="flex items-center gap-1.5 font-bold text-amber-300 text-xs">
+                      <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+                      <span>Contacto ya registrado en la comunidad</span>
+                    </div>
+                    <p className="text-xs text-slate-200 leading-relaxed">
+                      <strong>{contactCheckStatus.fullName || refContactName || 'Este contacto'}</strong> ya cuenta con registro en Rumbo a tu Destino.
+                    </p>
+                    <div className="p-2 rounded-xl bg-slate-950/80 border border-amber-500/25 text-[11px] text-amber-200/90 leading-snug">
+                      ℹ️ <strong>Para no generar falsas expectativas:</strong> Como este contacto ya forma parte de nuestro ecosistema, los bonos de $1.00 aplican exclusivamente para <em>nuevos registros</em>. No se generará bono de referido por este contacto.
+                    </div>
+                  </div>
+                )}
+
+                {/* AVISO: Contacto nuevo disponible */}
+                {!checkingContact && !contactCheckStatus?.isRegistered && (refContactPhone || '').replace(/\D/g, '').length >= 8 && (
+                  <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-[11px] text-emerald-300 flex items-center gap-2 text-left">
+                    <CheckCircle className="w-4 h-4 shrink-0 text-emerald-400" />
+                    <span>¡Contacto nuevo disponible! Al registrarse y realizar su viaje de $4+, se activará tu $1.00 USD.</span>
+                  </div>
+                )}
+
                 {/* Mensaje oficial predeterminado */}
                 <div className="bg-emerald-950/40 border border-emerald-500/30 rounded-xl p-3 text-xs text-emerald-200 space-y-1.5">
                   <div className="font-semibold text-emerald-300 flex items-center justify-between">
@@ -3423,14 +3586,35 @@ export default function ViajesApp() {
                   </p>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={handleSendWhatsAppReferral}
-                  className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm flex items-center justify-center gap-2 transition-all cursor-pointer shadow-lg shadow-emerald-600/30"
-                >
-                  <Phone className="w-4 h-4" />
-                  <span>Enviar por WhatsApp</span>
-                </button>
+                {/* Botón condicional: Saludar contacto existente vs Enviar invitación a nuevo usuario */}
+                {contactCheckStatus?.isRegistered ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const cleanPhone = (refContactPhone || '').replace(/\D/g, '');
+                      const greeting = `¡Hola ${contactCheckStatus.fullName ? contactCheckStatus.fullName.split(' ')[0] : (refContactName || '')}! Vi que ya eres parte de la comunidad Rumbo a tu Destino. ¡Qué genial encontrarte por acá! Compartamos viajes: https://viajes.demiempresa.online`;
+                      const waUrl = cleanPhone && cleanPhone.length >= 8
+                        ? `https://wa.me/503${cleanPhone}?text=${encodeURIComponent(greeting)}`
+                        : `https://wa.me/?text=${encodeURIComponent(greeting)}`;
+                      window.open(waUrl, '_blank');
+                      setShowReferralModal(false);
+                      setContactCheckStatus(null);
+                    }}
+                    className="w-full py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-amber-500/20 transition-transform active:scale-95"
+                  >
+                    <Phone className="w-4 h-4" />
+                    <span>Saludar por WhatsApp (Contacto existente - Sin bono)</span>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleSendWhatsAppReferral}
+                    className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm flex items-center justify-center gap-2 transition-all cursor-pointer shadow-lg shadow-emerald-600/30"
+                  >
+                    <Phone className="w-4 h-4" />
+                    <span>Enviar por WhatsApp</span>
+                  </button>
+                )}
               </div>
             ) : (
               /* Recuadro de confirmación y acreditación */
@@ -3440,21 +3624,21 @@ export default function ViajesApp() {
                 </div>
 
                 <div className="space-y-1">
-                  <div className="text-2xl font-black text-emerald-400 font-mono tracking-tight">
-                    +$1.00 USD Abonado a tu cuenta
+                  <div className="text-2xl font-black text-amber-400 font-mono tracking-tight">
+                    🚀 Invitación Enviada con Éxito
                   </div>
                   <p className="text-xs text-slate-200 font-medium">
-                    ¡Mensaje de invitación enviado con éxito a {refContactName || 'tu referido'}!
+                    ¡Enlace oficial enviado a {refContactName || 'tu contacto'}!
                   </p>
                 </div>
 
                 <div className="bg-amber-500/10 border border-amber-400/30 rounded-xl p-3 text-left space-y-1.5 text-xs">
                   <div className="font-bold text-amber-300 flex items-center gap-1.5">
                     <Clock className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />
-                    <span>Regla de vigencia y canje:</span>
+                    <span>Activación del Bono de $1.00 USD:</span>
                   </div>
                   <p className="text-[11px] text-slate-300 leading-relaxed">
-                    Tiene una <strong>vigencia de 7 días</strong> para su uso, siempre y cuando el referido haya hecho un viaje pagado por un <strong>mínimo de $3.00 USD</strong> en los próximos 7 días.
+                    Tiene una <strong>vigencia de 7 días</strong>. Se activará automáticamente y se abonará a tu saldo disponible cuando tu referido complete su registro y realice un viaje de al menos <strong>$4.00 USD</strong>.
                   </p>
                 </div>
 
@@ -3465,6 +3649,7 @@ export default function ViajesApp() {
                       setReferralBonusAwarded(false);
                       setRefContactName('');
                       setRefContactPhone('');
+                      setContactCheckStatus(null);
                     }}
                     className="w-1/2 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold cursor-pointer"
                   >
@@ -3472,7 +3657,10 @@ export default function ViajesApp() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => setShowReferralModal(false)}
+                    onClick={() => {
+                      setShowReferralModal(false);
+                      setContactCheckStatus(null);
+                    }}
                     className="w-1/2 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold cursor-pointer"
                   >
                     Entendido

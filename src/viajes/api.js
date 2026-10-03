@@ -55,6 +55,40 @@ export async function fetchUserCreditsApi(userId) {
 }
 
 /**
+ * 2.1 Verificación en tiempo real si un contacto ya está registrado (Evitar falsa expectativa)
+ */
+export async function checkContactRegisteredApi({ phone, dui }) {
+  try {
+    const params = new URLSearchParams();
+    if (phone) params.append('phone', phone);
+    if (dui) params.append('dui', dui);
+    const res = await fetch(`${API_BASE_URL}/api/referrals/check-contact?${params.toString()}`);
+    if (!res.ok) return { isRegistered: false };
+    return await res.json();
+  } catch (err) {
+    console.warn('API Error checkContactRegisteredApi:', err);
+    return { isRegistered: false };
+  }
+}
+
+/**
+ * 2.2 Descartar o marcar como leído un aviso de referido ya registrado
+ */
+export async function dismissReferralNoticeApi({ noticeId, userId }) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/referrals/notices/dismiss`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ noticeId, userId })
+    });
+    return await res.json();
+  } catch (err) {
+    console.warn('API Error dismissReferralNoticeApi:', err);
+    return null;
+  }
+}
+
+/**
  * 3. Captación en Caliente B2B ("¿Tienes un negocio? Anúnciate aquí")
  */
 export async function submitLeadApi({ businessName, whatsapp, municipality }) {
