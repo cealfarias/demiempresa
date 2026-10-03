@@ -235,6 +235,25 @@ export async function redeemDriverFreeDayApi(driverId) {
 }
 
 /**
+ * 10.1 Conductor Paga Pase Diario ($3.00 Base o 3 Bonos) Válido por 24 Horas
+ */
+export async function payDriverDailyPassApi({ driverId, bonusesToUse = 3, totalDailyFee = 3.00 }) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/wallet/driver/pay-daily-pass`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ driverId, bonusesToUse, totalDailyFee })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Error al pagar pase diario');
+    return data;
+  } catch (err) {
+    console.warn('API Error payDriverDailyPassApi:', err);
+    throw err;
+  }
+}
+
+/**
  * 11. Auditoría Matemática de Integridad de la Cadena
  */
 export async function verifyLedgerAuditApi() {

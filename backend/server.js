@@ -885,6 +885,20 @@ app.post('/api/wallet/driver/redeem-day', async (req, res) => {
   }
 });
 
+// POST /api/wallet/driver/pay-daily-pass - Chofer paga pase diario de $3.00 con hasta 3 bonos
+app.post('/api/wallet/driver/pay-daily-pass', async (req, res) => {
+  try {
+    const { driverId, bonusesToUse = 3, totalDailyFee = 3.00 } = req.body;
+    if (!driverId) return res.status(400).json({ error: 'driverId es requerido' });
+
+    const result = await LedgerService.redeemDriverDailyPass(driverId, parseInt(bonusesToUse, 10), parseFloat(totalDailyFee));
+    res.json(result);
+  } catch (err) {
+    console.error('Error en /api/wallet/driver/pay-daily-pass:', err);
+    res.status(400).json({ error: err.message });
+  }
+});
+
 // GET /api/wallet/audit - Verificación matemática integral de la cadena SHA-256
 app.get('/api/wallet/audit', async (req, res) => {
   try {

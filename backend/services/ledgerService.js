@@ -692,6 +692,107 @@ export const LedgerService = {
   },
 
   /**
+   * 6.1 Conductor Paga Pase Diario ($3.00 USD o 3 Bonos) - Válido por 24 Horas
+   */
+  async redeemDriverDailyPass(driverUserId, bonusesToUse = 3, totalDailyFee = 3.00) {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query('SELECT pg_advisory_xact_lock($1)', [ADVISORY_LOCK_ID]);
+
+      const driverWalletRow = (await client.query('SELECT * FROM viajes_wallet_identities WHERE user_id = $1', [driverUserId.toString()])).rows[0];
+      if (!driverWalletRow) throw new Error('Wallet del conductor no encontrada.');
+
+      const countToRedeem = Math.min(3, Math.max(0, parseInt(bonusesToUse, 10) || 0));
+
+      let availableUtxos = [];
+      if (countToRedeem > 0) {
+        const utxosRes = await client.query(`
+          SELECT * FROM viajes_ledger_transactions
+          WHERE to_address = $1 AND is_spent = FALSE AND status = 'ACTIVE'
+          ORDER BY spend_expires_at ASC, created_at ASC
+          LIMIT $2
+          FOR UPDATE;
+        `, [driverWalletRow.address, countToRedeem]);
+        availableUtxos = utxosRes.rows;
+      }
+
+      const bonusDeduction = availableUtxos.length * 1.00;
+      const remainingCashToPay = Math.max(0, totalDailyFee - bonusDeduction);
+
+      const userPrivateKey = decryptPrivateKey(driverWalletRow.encrypted_private_key);
+      const burnAddress = SYSTEM_BURN_VAULT;
+      const txType = 'DRIVER_FEE_WAIVER';
+
+      let lastBlock = (await client.query(
+        'SELECT current_hash, sequence_number FROM viajes_ledger_transactions ORDER BY sequence_number DESC LIMIT 1'
+      )).rows[0];
+
+      const processedTxs = [];
+
+      for (const utxo of availableUtxos) {
+        const prevHash = lastBlock ? lastBlock.current_hash : GENESIS_PREV_HASH;
+        const nextSeq = lastBlock ? parseInt(lastBlock.sequence_number, 10) + 1 : 1;
+
+        const payload = `${prevHash}|${nextSeq}|${driverWalletRow.address}|${burnAddress}|1.00|${utxo.id}|${txType}|DAILY_PASS`;
+        const signature = signPayload(userPrivateKey, payload);
+
+        const currentHash = calculateBlockHash({
+          previous_hash: prevHash,
+          sequence_number: nextSeq,
+          from_address: driverWalletRow.address,
+          to_address: burnAddress,
+          amount: '1.00',
+          input_ref: utxo.id,
+          transaction_type: txType,
+          expires_at: new Date(Date.now() + 3650 * 24 * 60 * 60 * 1000).toISOString(),
+          signature
+        });
+
+        const burnTx = (await client.query(`
+          INSERT INTO viajes_ledger_transactions (
+            sequence_number, previous_hash, from_address, to_address, amount,
+            input_ref, is_spent, expires_at, transaction_type, reference_id,
+            signature, current_hash
+          ) VALUES ($1, $2, $3, $4, 1.00, $5, TRUE, NOW(), $6, $7, $8, $9)
+          RETURNING *;
+        `, [
+          nextSeq, prevHash, driverWalletRow.address, burnAddress, utxo.id,
+          txType, `DAILY-${new Date().toISOString().slice(0, 10)}`, signature, currentHash
+        ])).rows[0];
+
+        await client.query(
+          'UPDATE viajes_ledger_transactions SET is_spent = TRUE, spent_at = NOW(), spending_tx_id = $1 WHERE id = $2',
+          [burnTx.id, utxo.id]
+        );
+
+        lastBlock = burnTx;
+        processedTxs.push(burnTx);
+      }
+
+      await client.query('COMMIT');
+
+      return {
+        success: true,
+        planType: 'DAILY',
+        totalFee: totalDailyFee,
+        bonusesApplied: bonusDeduction,
+        remainingCashToPay: remainingCashToPay.toFixed(2),
+        isFullyPaid: remainingCashToPay === 0,
+        transactions: processedTxs,
+        message: remainingCashToPay === 0
+          ? '¡Pase de 24 horas cubierto al 100% con 3 bonos ($0.00 USD en efectivo)! Tu acceso está activo para hoy.'
+          : `Se aplicaron $${bonusDeduction.toFixed(2)} de tus bonos. Saldo en efectivo a pagar para 24 horas: $${remainingCashToPay.toFixed(2)} USD.`
+      };
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  },
+
+  /**
    * Alias de compatibilidad para registro de referidos en estado pendiente
    */
   async grantReferralBonus(hostUserId, referredUserId) {

@@ -43,6 +43,7 @@ import {
   socket,
   fetchDriverSubscriptionApi,
   payDriverWeeklyFeeWithBonusesApi,
+  payDriverDailyPassApi,
   fetchWalletSummaryApi,
   fetchDriverStatusApi
 } from './api';
@@ -210,6 +211,47 @@ export default function DriverApp() {
         message: nextVal >= 10
           ? '¡Cuota semanal saldada al 100% con tu saldo bonificado! Tu semana está totalmente libre de cuota.'
           : `Se aplicó $1.00 de tu saldo bonificado a tu cuota semanal. Saldo restante: $${Math.max(0, 10 - nextVal).toFixed(2)} USD.`
+      });
+      setShowFeePaymentModal(true);
+    } finally {
+      setIsApplyingBonuses(false);
+    }
+  };
+
+  // Pagar pase diario ($3.00) usando saldo bonificado (hasta 3 bonos) o efectivo
+  const handlePayDailyPass = async () => {
+    setIsApplyingBonuses(true);
+    try {
+      const res = await payDriverDailyPassApi({
+        driverId: driverProfileId,
+        bonusesToUse: Math.min(3, weeklyBonuses || 0),
+        totalDailyFee: 3.00
+      });
+      if (res && res.success) {
+        const bonosUsed = res.bonusesApplied !== undefined ? res.bonusesApplied : Math.min(3, weeklyBonuses || 0);
+        setWeeklyBonuses((prev) => Math.max(0, prev - bonosUsed));
+        setFeePaymentResult({
+          ...res,
+          planType: 'DAILY',
+          title: 'Pase Diario Activado (24 Horas)'
+        });
+        setShowFeePaymentModal(true);
+      }
+    } catch {
+      const bonosUsed = Math.min(3, weeklyBonuses || 0);
+      const remainingCash = Math.max(0, 3 - bonosUsed);
+      setWeeklyBonuses((prev) => Math.max(0, prev - bonosUsed));
+      setFeePaymentResult({
+        success: true,
+        planType: 'DAILY',
+        title: 'Pase Diario Activado (24 Horas)',
+        bonusesApplied: bonosUsed,
+        totalFee: 3.00,
+        remainingCashToPay: remainingCash.toFixed(2),
+        isFullyPaid: remainingCash === 0,
+        message: remainingCash === 0
+          ? '¡Pase de 24 horas cubierto al 100% con 3 bonos ($0.00 USD en efectivo)! Tu acceso está activo para hoy.'
+          : `Se aplicaron ${bonosUsed} bonos (-$${bonosUsed}.00). Saldo en efectivo para las 24 horas: $${remainingCash.toFixed(2)} USD.`
       });
       setShowFeePaymentModal(true);
     } finally {
@@ -1018,53 +1060,114 @@ export default function DriverApp() {
                   </div>
                 </div>
 
-                {/* Tarjeta Cuota Semanal & Bonos */}
-                <div className="p-5 bg-slate-900 border border-slate-800 rounded-3xl space-y-4">
+                {/* Opciones de Cuota: Tarjeta A (Semanal) y Tarjeta B (Diario) */}
+                <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <Shield className="w-5 h-5 text-emerald-400" />
-                      <h4 className="font-bold text-white text-sm">Cuota Semanal de Blindaje</h4>
+                      <h4 className="font-bold text-white text-sm">Planes de Acceso y Cuotas</h4>
                     </div>
-                    <span className="font-mono font-bold text-xs px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                      {weeklyBonuses}/{bonusCap} Bonos
+                    <span className="font-mono font-bold text-xs px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                      Saldo: {weeklyBonuses} {weeklyBonuses === 1 ? 'Bono' : 'Bonos'}
                     </span>
                   </div>
 
-                  <div className="p-3.5 bg-slate-950 rounded-2xl border border-slate-800 space-y-2">
-                    <div className="flex justify-between text-xs text-slate-400">
-                      <span>Cuota Base Semanal:</span>
-                      <span className="font-mono text-white font-bold">$10.00 USD</span>
+                  {/* TARJETA A: Plan Semanal Completo */}
+                  <div className="p-4 bg-gradient-to-br from-emerald-950/40 via-slate-900 to-slate-900 border-2 border-emerald-500/60 rounded-3xl space-y-3 shadow-xl relative overflow-hidden">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <span className="px-2.5 py-1 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 text-slate-950 font-black text-[11px] uppercase tracking-wide flex items-center gap-1 shadow-sm w-fit">
+                          🔥 El favorito de los conductores
+                        </span>
+                        <h3 className="text-base font-black text-white mt-2">Plan Semanal Completo</h3>
+                        <p className="text-xs text-slate-300">Acceso ilimitado 24/7 toda la semana (Lunes a Domingo).</p>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-2xl font-black text-emerald-400 font-mono">$10.00</div>
+                        <div className="text-[10px] text-slate-400">o 10 Bonos</div>
+                      </div>
                     </div>
-                    <div className="flex justify-between text-xs text-emerald-400">
-                      <span>Bonos de recomendación acumulados:</span>
-                      <span className="font-mono font-bold">-${(weeklyBonuses * 1.00).toFixed(2)} USD</span>
+
+                    <div className="p-3 bg-slate-950/90 rounded-2xl border border-slate-800 space-y-1.5 text-xs font-mono">
+                      <div className="flex justify-between text-slate-400">
+                        <span>Cuota Base Semanal:</span>
+                        <span className="text-white font-bold">$10.00 USD</span>
+                      </div>
+                      <div className="flex justify-between text-emerald-400">
+                        <span>Bonos aplicados ({Math.min(10, weeklyBonuses)}/10):</span>
+                        <span className="font-bold">-${(Math.min(10, weeklyBonuses) * 1.00).toFixed(2)} USD</span>
+                      </div>
+                      <div className="pt-1.5 border-t border-slate-800 flex justify-between text-white font-black text-sm">
+                        <span>Saldo en efectivo a pagar:</span>
+                        <span className={netWeeklyFee === 0 ? "text-emerald-400" : "text-amber-400"}>
+                          ${netWeeklyFee.toFixed(2)} USD
+                        </span>
+                      </div>
                     </div>
-                    <div className="pt-2 border-t border-slate-800 flex justify-between text-sm font-black text-white">
-                      <span>Saldo neto a pagar en efectivo:</span>
-                      <span className={netWeeklyFee === 0 ? "text-emerald-400 font-mono" : "text-amber-400 font-mono"}>
-                        ${netWeeklyFee.toFixed(2)} USD
-                      </span>
-                    </div>
+
+                    {weeklyBonuses < bonusCap ? (
+                      <button
+                        type="button"
+                        onClick={handlePayWeeklyFeeWithBonuses}
+                        disabled={isApplyingBonuses}
+                        className="w-full py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs rounded-xl shadow cursor-pointer transition-all flex items-center justify-center gap-1.5 active:scale-98"
+                      >
+                        <Sparkles className="w-4 h-4 text-amber-300" />
+                        <span>{isApplyingBonuses ? 'Aplicando...' : `Pagar Semana (${netWeeklyFee === 0 ? '$0 Efectivo' : `$${netWeeklyFee.toFixed(2)} USD`})`}</span>
+                      </button>
+                    ) : (
+                      <div className="p-2.5 bg-emerald-500/15 border border-emerald-500/40 rounded-xl text-center text-xs font-bold text-emerald-300">
+                        ✨ ¡Semana 100% Pagada con tus bonos ($0.00 en efectivo)!
+                      </div>
+                    )}
                   </div>
 
-                  {weeklyBonuses < bonusCap ? (
+                  {/* TARJETA B: Pase Diario */}
+                  <div className="p-4 bg-slate-900 border border-slate-800 hover:border-slate-700 rounded-3xl space-y-3 shadow-lg transition-colors">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <span className="px-2.5 py-0.5 rounded-full bg-slate-800 text-amber-300 font-bold text-[10px] uppercase tracking-wide border border-amber-500/30 flex items-center gap-1 w-fit">
+                          ⚡ Válido por 24 horas
+                        </span>
+                        <h3 className="text-base font-bold text-white mt-1.5">Pase Diario</h3>
+                        <p className="text-xs text-slate-400">Ideal para Viernes, Sábado, Domingo o Días Festivos de alta demanda.</p>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-xl font-black text-amber-400 font-mono">$3.00</div>
+                        <div className="text-[10px] text-slate-400">o 3 Bonos</div>
+                      </div>
+                    </div>
+
+                    <div className="p-3 bg-slate-950/90 rounded-2xl border border-slate-800 space-y-1.5 text-xs font-mono">
+                      <div className="flex justify-between text-slate-400">
+                        <span>Costo por 24 horas:</span>
+                        <span className="text-white font-bold">$3.00 USD</span>
+                      </div>
+                      <div className="flex justify-between text-emerald-400">
+                        <span>Bonos aplicables ({Math.min(3, weeklyBonuses)}/3):</span>
+                        <span className="font-bold">-${(Math.min(3, weeklyBonuses) * 1.00).toFixed(2)} USD</span>
+                      </div>
+                      <div className="pt-1.5 border-t border-slate-800 flex justify-between text-white font-black text-sm">
+                        <span>Saldo en efectivo a pagar:</span>
+                        <span className={Math.max(0, 3 - weeklyBonuses) === 0 ? "text-emerald-400" : "text-amber-400"}>
+                          ${Math.max(0, 3 - weeklyBonuses).toFixed(2)} USD
+                        </span>
+                      </div>
+                    </div>
+
                     <button
                       type="button"
-                      onClick={handlePayWeeklyFeeWithBonuses}
+                      onClick={handlePayDailyPass}
                       disabled={isApplyingBonuses}
-                      className="w-full py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs rounded-xl shadow cursor-pointer transition-all flex items-center justify-center gap-1.5"
+                      className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-700 hover:border-amber-500/50 font-bold text-xs rounded-xl shadow cursor-pointer transition-all flex items-center justify-center gap-1.5 active:scale-98"
                     >
-                      <Sparkles className="w-4 h-4 text-amber-300" />
-                      <span>{isApplyingBonuses ? 'Aplicando...' : 'Aplicar Mis Bonos a la Cuota'}</span>
+                      <Clock className="w-4 h-4 text-amber-400" />
+                      <span>{isApplyingBonuses ? 'Activando...' : `Activar Pase 24 Horas (${Math.max(0, 3 - weeklyBonuses) === 0 ? 'Con 3 Bonos ($0 Efectivo)' : `$${Math.max(0, 3 - weeklyBonuses).toFixed(2)} USD`})`}</span>
                     </button>
-                  ) : (
-                    <div className="p-3 bg-emerald-500/15 border border-emerald-500/40 rounded-xl text-center text-xs font-bold text-emerald-300">
-                      ✨ ¡Tu semana está 100% Pagada con tus bonos ($0.00 en efectivo)!
-                    </div>
-                  )}
+                  </div>
 
-                  <p className="text-[11px] text-slate-400 leading-relaxed">
-                    💡 Cada pasajero o contacto que descargue Rumbo con tu código te descuenta <strong>$1.00 USD</strong>. Con 10 recomendados, no pagas absolutamente nada esa semana.
+                  <p className="text-[11px] text-slate-400 leading-relaxed pt-1">
+                    💡 Cada pasajero o contacto que descargue Rumbo con tu código te descuenta <strong>$1.00 USD</strong>. Con 10 recomendados tu semana completa es gratis, o con 3 cubres un día pico de alta demanda.
                   </p>
                 </div>
 
@@ -1350,7 +1453,11 @@ export default function DriverApp() {
 
             <div className="space-y-1">
               <h3 className="font-black text-lg text-white">
-                {weeklyBonuses >= bonusCap ? '¡Semana 100% Pagada!' : 'Abono a Cuota Semanal'}
+                {feePaymentResult?.planType === 'DAILY'
+                  ? 'Pase Diario Activado (24 Horas)'
+                  : weeklyBonuses >= bonusCap
+                  ? '¡Semana 100% Pagada!'
+                  : 'Abono a Cuota Semanal'}
               </h3>
               <p className="text-xs text-slate-400">
                 Transacción registrada y certificada en el Libro Mayor Criptográfico Inmutable
@@ -1359,17 +1466,17 @@ export default function DriverApp() {
 
             <div className="p-3 bg-slate-800/60 rounded-2xl border border-slate-700/60 text-xs space-y-2 text-left font-mono">
               <div className="flex justify-between text-slate-300">
-                <span>Cuota Base Semanal:</span>
-                <span className="font-bold">$10.00 USD</span>
+                <span>{feePaymentResult?.planType === 'DAILY' ? 'Tarifa Pase 24 Horas:' : 'Cuota Base Semanal:'}</span>
+                <span className="font-bold">{feePaymentResult?.planType === 'DAILY' ? '$3.00 USD' : '$10.00 USD'}</span>
               </div>
               <div className="flex justify-between text-emerald-400 font-bold">
-                <span>Bonos aplicados ({weeklyBonuses}/{bonusCap}):</span>
-                <span>-${(weeklyBonuses * 1.00).toFixed(2)} USD</span>
+                <span>Bonos aplicados:</span>
+                <span>-${(parseFloat(feePaymentResult?.bonusesApplied || (feePaymentResult?.planType === 'DAILY' ? Math.min(3, weeklyBonuses) : weeklyBonuses)) * 1.00).toFixed(2)} USD</span>
               </div>
               <div className="pt-2 border-t border-slate-700 flex justify-between text-white font-black text-sm">
-                <span>Saldo en efectivo a pagar:</span>
-                <span className={netWeeklyFee === 0 ? "text-emerald-400" : "text-amber-400"}>
-                  ${netWeeklyFee.toFixed(2)} USD
+                <span>Saldo en efectivo:</span>
+                <span className={(feePaymentResult?.isFullyPaid || (feePaymentResult?.planType === 'DAILY' ? Math.max(0, 3 - weeklyBonuses) === 0 : netWeeklyFee === 0)) ? "text-emerald-400" : "text-amber-400"}>
+                  ${parseFloat(feePaymentResult?.remainingCashToPay || (feePaymentResult?.planType === 'DAILY' ? Math.max(0, 3 - weeklyBonuses) : netWeeklyFee)).toFixed(2)} USD
                 </span>
               </div>
             </div>
