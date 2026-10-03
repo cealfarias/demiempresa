@@ -72,9 +72,9 @@ export default function DriverAvatarNarrator({ onStartRegistration }) {
       tag: '🚀 Fase 2: Victoria Rumbo',
       shortTitle: '0% Comisión y 1ª semana gratis',
       badgeColor: 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10',
-      rate: 1.06,
-      pitch: 1.12,
-      soundEffect: 'CHIME',
+      rate: 0.95,
+      pitch: 0.98,
+      soundEffect: 'NONE',
       sentences: [
         "¡Pero aquí es donde cambia tu Destino!",
         "¡Por eso nació Rumbo a mi Destino!",
@@ -369,8 +369,7 @@ export default function DriverAvatarNarrator({ onStartRegistration }) {
     // Efectos de sonido/confetti
     if (startSentenceIndex === 0) {
       if (data.soundEffect === 'GONG') playDramaticGong();
-      if (data.soundEffect === 'CHIME') {
-        playEuphoricChime();
+      if (phaseKey === 'EUPHORIC') {
         try {
           confetti({ particleCount: 75, spread: 85, origin: { y: 0.6 } });
         } catch {}
