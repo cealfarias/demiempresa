@@ -21,21 +21,253 @@ import {
   Car
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
+import { requestScreenWakeLock, releaseScreenWakeLock } from './audioWakeLockService';
 
 /**
- * Avatar Narrador Emocional del Conductor
- * Alterna dinámicamente entre un tono DRAMÁTICO (al exponer la dura realidad de la gasolina a $5.13,
- * el tráfico asfixiante y las comisiones abusivas), un tono EUFÓRICO (al revelar la libertad de Rumbo,
- * 0% de comisión, primera semana gratis y ganancias 100% en efectivo), y un tono SOLEMNE/SERIEDAD
- * (de agradecimiento por paciencia en fase inicial e invitación a compartir enlaces colaborativos).
+ * Avatar Narrador Emocional del Conductor con:
+ * 1. Screen Wake Lock (mantiene pantalla encendida para que no se apague durante el audio)
+ * 2. Selector de Capítulos / Fases directas (para escuchar o repetir cualquier fase sin oír todo desde cero)
+ * 3. Memoria de Interrupción (si el teléfono se bloquea, permite reanudar donde se quedó)
+ * 4. Controles de Pausa / Reanudación
  */
 export default function DriverAvatarNarrator({ onStartRegistration }) {
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
   const [currentPhase, setCurrentPhase] = useState('IDLE'); // 'IDLE' | 'DRAMATIC' | 'EUPHORIC' | 'SOLEMN'
   const [activeSpeechText, setActiveSpeechText] = useState('');
+  const [interruptedPhase, setInterruptedPhase] = useState(null);
   const [audioSupported, setAudioSupported] = useState(true);
   const [copiedLink, setCopiedLink] = useState(null);
   const utteranceRef = useRef(null);
+
+  // Definición de las 3 Fases Narrativas
+  const PHASES_DATA = {
+    DRAMATIC: {
+      id: 'DRAMATIC',
+      num: 1,
+      name: 'La Cruda Realidad',
+      tag: '🔥 Fase 1: La Cruda Realidad',
+      shortTitle: 'Gasolina $5.13 y comisiones abusivas',
+      badgeColor: 'text-rose-400 border-rose-500/30 bg-rose-500/10',
+      rate: 0.88,
+      pitch: 0.90,
+      soundEffect: 'GONG',
+      script:
+        "Amigo conductor... analicemos la realidad que vives todos los días en la calle. " +
+        "La Gasolina Especial está a cinco dólares con trece centavos por galón... " +
+        "Pasas más de una hora atrapado en las trabazones de San Salvador, desgastando tu auto... " +
+        "y pagando cien dólares semanales de alquiler del vehículo o cuota de financiamiento. " +
+        "Y encima de todo ese sacrificio... ¿las otras aplicaciones te quitan hasta el veintiocho por ciento de comisión? " +
+        "¡Hicimos los números de un viaje real de sesenta y seis minutos! " +
+        "Tras pagar la comisión, la gasolina a cinco trece y la cuota del auto... " +
+        "¡el chofer se llevó apenas setenta y un centavos a su casa! " +
+        "¡Setenta y un centavos por más de una hora de tu vida! ¡Eso tiene que terminar hoy!",
+      summary: "⚠️ La Cruda Realidad (Gasolina a $5.13 y comisiones que ahogan tu bolsillo)"
+    },
+    EUPHORIC: {
+      id: 'EUPHORIC',
+      num: 2,
+      name: 'Victoria 0% Comisión',
+      tag: '🚀 Fase 2: Victoria Rumbo',
+      shortTitle: '0% Comisión y 1ª semana gratis',
+      badgeColor: 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10',
+      rate: 1.08,
+      pitch: 1.15,
+      soundEffect: 'CHIME',
+      script:
+        "¡Pero aquí es donde cambia tu Destino! " +
+        "¡Por eso nació Rumbo a mi Destino! " +
+        "¡Escúchalo bien: CERO POR CIENTO DE COMISIÓN! ¡Cero! ¡Ni un solo centavo te quitamos! " +
+        "Cada dólar que te pague el pasajero entra íntegro y limpio en efectivo a tu propia bolsa. " +
+        "¡Y para darte la bienvenida al equipo, tu primera semana es completamente GRATIS, con cero cuota! " +
+        "Protegemos tu tiempo con tarifas que compensan el tráfico y te damos un radar en vivo para encontrar la gasolina más barata. " +
+        "¡El dinero que antes te quitaban ahora es para ti, para tu auto y para el futuro de tu familia! " +
+        "¡Toma el control y regístrate hoy mismo!",
+      summary: "🎉 ¡La Revolución Rumbo! 0% Comisión y 100% de Ganancia en tu Mano"
+    },
+    SOLEMN: {
+      id: 'SOLEMN',
+      num: 3,
+      name: 'Alianza y Paciencia',
+      tag: '🤝 Fase 3: Mensaje Institucional',
+      shortTitle: 'Paciencia en inicio y enlaces para crecer',
+      badgeColor: 'text-sky-400 border-sky-500/30 bg-sky-500/10',
+      rate: 0.88,
+      pitch: 0.92,
+      soundEffect: 'NONE',
+      script:
+        "Y finalmente, un mensaje muy especial con absoluta seriedad: " +
+        "Agradecemos profundamente tu paciencia y tu comprensión, ya que nuestra aplicación se encuentra en su fase inicial de lanzamiento. " +
+        "Para consolidar esta alternativa y romper juntos las comisiones abusivas, te pedimos de corazón tu colaboración compartiendo los enlaces de Rumbo, tanto con viajeros para dinamizar tus carreras, como con otros conductores colegas. " +
+        "Entre más crezcamos en las calles, más nos beneficiaremos todos. ¡Caminemos juntos hacia tu destino!",
+      summary: "🤝 Mensaje Institucional: Gracias por tu paciencia. ¡Comparte los enlaces para beneficiarnos todos!"
+    }
+  };
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
+      setAudioSupported(false);
+    }
+
+    // Monitoreo de Visibilidad de Pantalla (cuando el celular se apaga / bloquea)
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        if (isPlaying) {
+          // Recordar en qué fase quedó para no forzarlo a oír todo desde cero
+          setInterruptedPhase(currentPhase);
+          releaseScreenWakeLock();
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      stopNarrative();
+    };
+  }, [isPlaying, currentPhase]);
+
+  // Sonidos sintéticos Web Audio API
+  const playEuphoricChime = () => {
+    try {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      const notes = [523.25, 659.25, 783.99, 1046.50];
+      notes.forEach((freq, index) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(freq, ctx.currentTime + index * 0.12);
+        gain.gain.setValueAtTime(0.2, ctx.currentTime + index * 0.12);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + index * 0.12 + 0.6);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(ctx.currentTime + index * 0.12);
+        osc.stop(ctx.currentTime + index * 0.12 + 0.65);
+      });
+    } catch {}
+  };
+
+  const playDramaticGong = () => {
+    try {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(110.0, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(65.41, ctx.currentTime + 1.2);
+      gain.gain.setValueAtTime(0.25, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1.4);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + 1.5);
+    } catch {}
+  };
+
+  const getBestSpanishVoice = () => {
+    if (typeof window === 'undefined' || !window.speechSynthesis) return null;
+    const voices = window.speechSynthesis.getVoices();
+    return (
+      voices.find(v => v.lang === 'es-SV' || v.lang === 'es_SV') ||
+      voices.find(v => v.lang.startsWith('es-419')) ||
+      voices.find(v => v.lang.startsWith('es-MX')) ||
+      voices.find(v => v.lang.startsWith('es-US')) ||
+      voices.find(v => v.lang.startsWith('es')) ||
+      null
+    );
+  };
+
+  const stopNarrative = () => {
+    if (typeof window !== 'undefined' && window.speechSynthesis) {
+      window.speechSynthesis.cancel();
+    }
+    releaseScreenWakeLock();
+    setIsPlaying(false);
+    setIsPaused(false);
+    setCurrentPhase('IDLE');
+    setActiveSpeechText('');
+  };
+
+  const togglePauseResume = () => {
+    if (typeof window === 'undefined' || !window.speechSynthesis) return;
+    if (isPaused) {
+      window.speechSynthesis.resume();
+      setIsPaused(false);
+      requestScreenWakeLock();
+    } else {
+      window.speechSynthesis.pause();
+      setIsPaused(true);
+      releaseScreenWakeLock();
+    }
+  };
+
+  // Reproductor de Fase Específica con Encadenamiento Opcional
+  const playPhase = (phaseKey, isChained = false) => {
+    const data = PHASES_DATA[phaseKey];
+    if (!data) return;
+
+    window.speechSynthesis.cancel();
+    setIsPlaying(true);
+    setIsPaused(false);
+    setCurrentPhase(phaseKey);
+    setActiveSpeechText(data.summary);
+    setInterruptedPhase(null);
+
+    // Mantener la pantalla encendida mientras habla
+    requestScreenWakeLock();
+
+    // Efectos de sonido y visuales
+    if (data.soundEffect === 'GONG') playDramaticGong();
+    if (data.soundEffect === 'CHIME') {
+      playEuphoricChime();
+      try {
+        confetti({ particleCount: 75, spread: 85, origin: { y: 0.6 } });
+      } catch {}
+    }
+
+    const utterance = new SpeechSynthesisUtterance(data.script);
+    utterance.lang = 'es-SV';
+    utterance.rate = data.rate;
+    utterance.pitch = data.pitch;
+    utterance.volume = 1.0;
+
+    const voice = getBestSpanishVoice();
+    if (voice) utterance.voice = voice;
+
+    utterance.onend = () => {
+      if (isChained) {
+        if (phaseKey === 'DRAMATIC') {
+          setTimeout(() => playPhase('EUPHORIC', true), 700);
+        } else if (phaseKey === 'EUPHORIC') {
+          setTimeout(() => playPhase('SOLEMN', false), 800);
+        } else {
+          releaseScreenWakeLock();
+          setIsPlaying(false);
+          setCurrentPhase('IDLE');
+          setActiveSpeechText('¡Gracias por escuchar! Rumbo nació para cambiar tu Destino.');
+        }
+      } else {
+        releaseScreenWakeLock();
+        setIsPlaying(false);
+        setCurrentPhase('IDLE');
+      }
+    };
+
+    utterance.onerror = () => {
+      releaseScreenWakeLock();
+      setIsPlaying(false);
+      setIsPaused(false);
+      setCurrentPhase('IDLE');
+    };
+
+    utteranceRef.current = utterance;
+    window.speechSynthesis.speak(utterance);
+  };
 
   const handleShareLink = async (type) => {
     const isPassenger = type === 'passenger';
@@ -69,200 +301,6 @@ export default function DriverAvatarNarrator({ onStartRegistration }) {
     setTimeout(() => setCopiedLink(null), 2500);
   };
 
-  useEffect(() => {
-    if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
-      setAudioSupported(false);
-    }
-    return () => {
-      stopNarrative();
-    };
-  }, []);
-
-  // Sonido de fanfarria triunfal sintética con Web Audio API al pasar a la fase eufórica
-  const playEuphoricChime = () => {
-    try {
-      const AudioCtx = window.AudioContext || window.webkitAudioContext;
-      if (!AudioCtx) return;
-      const ctx = new AudioCtx();
-      const notes = [523.25, 659.25, 783.99, 1046.50]; // C5, E5, G5, C6 (Acorde Mayor triunfal)
-      notes.forEach((freq, index) => {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = 'triangle';
-        osc.frequency.setValueAtTime(freq, ctx.currentTime + index * 0.12);
-        gain.gain.setValueAtTime(0.2, ctx.currentTime + index * 0.12);
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + index * 0.12 + 0.6);
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.start(ctx.currentTime + index * 0.12);
-        osc.stop(ctx.currentTime + index * 0.12 + 0.65);
-      });
-    } catch {}
-  };
-
-  // Sonido sombrío dramático para la cruda realidad
-  const playDramaticGong = () => {
-    try {
-      const AudioCtx = window.AudioContext || window.webkitAudioContext;
-      if (!AudioCtx) return;
-      const ctx = new AudioCtx();
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(110.0, ctx.currentTime); // A2 bajo
-      osc.frequency.exponentialRampToValueAtTime(65.41, ctx.currentTime + 1.2); // C2
-      gain.gain.setValueAtTime(0.25, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1.4);
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start(ctx.currentTime);
-      osc.stop(ctx.currentTime + 1.5);
-    } catch {}
-  };
-
-  const getBestSpanishVoice = () => {
-    if (typeof window === 'undefined' || !window.speechSynthesis) return null;
-    const voices = window.speechSynthesis.getVoices();
-    return (
-      voices.find(v => v.lang === 'es-SV' || v.lang === 'es_SV') ||
-      voices.find(v => v.lang.startsWith('es-419')) ||
-      voices.find(v => v.lang.startsWith('es-MX')) ||
-      voices.find(v => v.lang.startsWith('es-US')) ||
-      voices.find(v => v.lang.startsWith('es')) ||
-      null
-    );
-  };
-
-  const stopNarrative = () => {
-    if (typeof window !== 'undefined' && window.speechSynthesis) {
-      window.speechSynthesis.cancel();
-    }
-    setIsPlaying(false);
-    setCurrentPhase('IDLE');
-    setActiveSpeechText('');
-  };
-
-  // Texto y Modulación por Fases
-  const startNarrative = () => {
-    if (!audioSupported) {
-      alert('Tu navegador no soporta síntesis de voz interactiva.');
-      return;
-    }
-
-    window.speechSynthesis.cancel();
-    setIsPlaying(true);
-
-    // ==================== FASE 1: DRAMÁTICA ====================
-    playDramaticGong();
-    setCurrentPhase('DRAMATIC');
-    const dramaticScript = 
-      "Amigo conductor... analicemos la realidad que vives todos los días en la calle. " +
-      "La Gasolina Especial está a cinco dólares con trece centavos por galón... " +
-      "Pasas más de una hora atrapado en las trabazones de San Salvador, desgastando tu auto... " +
-      "y pagando cien dólares semanales de alquiler del vehículo o cuota de financiamiento. " +
-      "Y encima de todo ese sacrificio... ¿las otras aplicaciones te quitan hasta el veintiocho por ciento de comisión? " +
-      "¡Hicimos los números de un viaje real de sesenta y seis minutos! " +
-      "Tras pagar la comisión, la gasolina a cinco trece y la cuota del auto... " +
-      "¡el chofer se llevó apenas setenta y un centavos a su casa! " +
-      "¡Setenta y un centavos por más de una hora de tu vida! ¡Eso tiene que terminar hoy!";
-
-    setActiveSpeechText("⚠️ Fase 1: La Cruda Realidad (Gasolina a $5.13 y comisiones que ahogan tu bolsillo)");
-
-    const utt1 = new SpeechSynthesisUtterance(dramaticScript);
-    utt1.lang = 'es-SV';
-    utt1.rate = 0.88; // Cadencia lenta, deliberada y dramática
-    utt1.pitch = 0.90; // Tono más grave y sombrío
-    utt1.volume = 1.0;
-    const voice1 = getBestSpanishVoice();
-    if (voice1) utt1.voice = voice1;
-
-    utt1.onend = () => {
-      // Breve pausa dramática de 700ms antes de la explosión de euforia
-      setTimeout(() => {
-        // ==================== FASE 2: EUFÓRICA ====================
-        playEuphoricChime();
-        try {
-          confetti({
-            particleCount: 80,
-            spread: 90,
-            origin: { y: 0.6 }
-          });
-        } catch {}
-
-        setCurrentPhase('EUPHORIC');
-        const euphoricScript = 
-          "¡Pero aquí es donde cambia tu Destino! " +
-          "¡Por eso nació Rumbo a mi Destino! " +
-          "¡Escúchalo bien: CERO POR CIENTO DE COMISIÓN! ¡Cero! ¡Ni un solo centavo te quitamos! " +
-          "Cada dólar que te pague el pasajero entra íntegro y limpio en efectivo a tu propia bolsa. " +
-          "¡Y para darte la bienvenida al equipo, tu primera semana es completamente GRATIS, con cero cuota! " +
-          "Protegemos tu tiempo con tarifas que compensan el tráfico y te damos un radar en vivo para encontrar la gasolina más barata. " +
-          "¡El dinero que antes te quitaban ahora es para ti, para tu auto y para el futuro de tu familia! " +
-          "¡Toma el control y regístrate hoy mismo!";
-
-        setActiveSpeechText("🎉 Fase 2: ¡La Revolución Rumbo! 0% Comisión y 100% de Ganancia en tu Mano");
-
-        const utt2 = new SpeechSynthesisUtterance(euphoricScript);
-        utt2.lang = 'es-SV';
-        utt2.rate = 1.08; // Ritmo ágil, lleno de optimismo y energía
-        utt2.pitch = 1.15; // Tono brillante y eufórico
-        utt2.volume = 1.0;
-        const voice2 = getBestSpanishVoice();
-        utt2.onend = () => {
-          setTimeout(() => {
-            // ==================== FASE 3: SOLEMNE / SERIEDAD & ALIANZA ====================
-            setCurrentPhase('SOLEMN');
-            const solemnScript = 
-              "Y finalmente, un mensaje muy especial con absoluta seriedad: " +
-              "Agradecemos profundamente tu paciencia y tu comprensión, ya que nuestra aplicación se encuentra en su fase inicial de lanzamiento. " +
-              "Para consolidar esta alternativa y romper juntos las comisiones abusivas, te pedimos de corazón tu colaboración compartiendo los enlaces de Rumbo, tanto con viajeros para dinamizar tus carreras, como con otros conductores colegas. " +
-              "Entre más crezcamos en las calles, más nos beneficiaremos todos. ¡Caminemos juntos hacia tu destino!";
-
-            setActiveSpeechText("🤝 Fase 3: Mensaje Institucional (Paciencia en fase inicial e invitación a compartir enlaces)");
-
-            const utt3 = new SpeechSynthesisUtterance(solemnScript);
-            utt3.lang = 'es-SV';
-            utt3.rate = 0.88; // Voz de seriedad, pausada y respetuosa
-            utt3.pitch = 0.92; // Tono solemne y formal
-            utt3.volume = 1.0;
-            const voice3 = getBestSpanishVoice();
-            if (voice3) utt3.voice = voice3;
-
-            utt3.onend = () => {
-              setIsPlaying(false);
-              setCurrentPhase('IDLE');
-              setActiveSpeechText('¡Gracias por tu apoyo! Comparte los enlaces oficiales con pasajeros y conductores.');
-            };
-
-            utt3.onerror = () => {
-              setIsPlaying(false);
-              setCurrentPhase('IDLE');
-            };
-
-            utteranceRef.current = utt3;
-            window.speechSynthesis.speak(utt3);
-          }, 800);
-        };
-
-        utt2.onerror = () => {
-          setIsPlaying(false);
-          setCurrentPhase('IDLE');
-        };
-
-        utteranceRef.current = utt2;
-        window.speechSynthesis.speak(utt2);
-      }, 700);
-    };
-
-    utt1.onerror = () => {
-      setIsPlaying(false);
-      setCurrentPhase('IDLE');
-    };
-
-    utteranceRef.current = utt1;
-    window.speechSynthesis.speak(utt1);
-  };
-
   return (
     <div className={`relative overflow-hidden rounded-3xl border transition-all duration-500 ${
       currentPhase === 'DRAMATIC'
@@ -285,7 +323,53 @@ export default function DriverAvatarNarrator({ onStartRegistration }) {
         <div className="absolute inset-0 bg-sky-500/10 pointer-events-none animate-pulse" />
       )}
 
-      {/* 1. EL AVATAR CON GESTOS Y EXPRESIONES VIVAS */}
+      {/* BANNER DE RECUPERACIÓN INTELIGENTE (Si se apagó la pantalla) */}
+      {interruptedPhase && !isPlaying && (
+        <div className="p-3 bg-amber-500/15 border border-amber-500/40 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-2.5 animate-in slide-in-from-top-2">
+          <div className="flex items-center gap-2 text-left">
+            <Sparkles className="w-4 h-4 text-amber-400 shrink-0" />
+            <div className="text-xs">
+              <span className="font-bold text-amber-300 block">¿Se apagó tu pantalla?</span>
+              <span className="text-slate-300 text-[11px]">
+                Puedes continuar exactamente donde te quedaste sin repetir todo el mensaje.
+              </span>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => playPhase(interruptedPhase, true)}
+            className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs flex items-center gap-1.5 transition-colors shadow shrink-0 cursor-pointer"
+          >
+            <Play className="w-3.5 h-3.5 fill-slate-950" />
+            <span>Reanudar en {PHASES_DATA[interruptedPhase]?.name}</span>
+          </button>
+        </div>
+      )}
+
+      {/* 1. SELECTOR DE CAPÍTULOS / FASES DIRECTAS (Nunca te obliga a oír todo desde cero) */}
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-2 bg-slate-950/70 p-2 rounded-2xl border border-slate-800">
+        <span className="text-[11px] font-black text-slate-400 uppercase tracking-wider flex items-center gap-1 pl-1">
+          <span>Capítulos:</span>
+        </span>
+        <div className="grid grid-cols-3 gap-1.5 w-full sm:w-auto">
+          {Object.values(PHASES_DATA).map((p) => (
+            <button
+              key={p.id}
+              type="button"
+              onClick={() => playPhase(p.id, false)}
+              className={`px-2.5 py-1.5 rounded-xl text-[11px] font-bold transition-all flex items-center justify-center gap-1 cursor-pointer truncate ${
+                currentPhase === p.id && isPlaying
+                  ? 'bg-amber-500 text-slate-950 shadow-md font-black'
+                  : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-700 hover:border-amber-400/50'
+              }`}
+            >
+              <span>{p.num}. {p.name}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* 2. EL AVATAR CON GESTOS Y EXPRESIONES VIVAS */}
       <div className="relative mx-auto w-24 h-24 sm:w-28 sm:h-28 flex items-center justify-center">
         {/* Halo de animación exterior */}
         <div className={`absolute inset-0 rounded-full transition-all duration-500 ${
@@ -355,12 +439,12 @@ export default function DriverAvatarNarrator({ onStartRegistration }) {
         {/* Indicador de altavoz activo */}
         {isPlaying && (
           <div className="absolute -bottom-1 -right-1 p-1.5 rounded-full bg-slate-900 border border-amber-400 text-amber-400 shadow-md">
-            <Volume2 className="w-4 h-4 animate-bounce" />
+            {isPaused ? <Pause className="w-4 h-4 text-amber-400" /> : <Volume2 className="w-4 h-4 animate-bounce" />}
           </div>
         )}
       </div>
 
-      {/* 2. TITULAR Y ESTADO NARRATIVO */}
+      {/* 3. TITULAR Y ESTADO NARRATIVO */}
       <div className="space-y-1.5 max-w-lg mx-auto">
         <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-black uppercase tracking-wider transition-colors ${
           currentPhase === 'DRAMATIC'
@@ -377,11 +461,11 @@ export default function DriverAvatarNarrator({ onStartRegistration }) {
           {currentPhase === 'IDLE' && <Sparkles className="w-3.5 h-3.5 text-amber-400" />}
           <span>
             {currentPhase === 'DRAMATIC'
-              ? 'Tono Dramático: La Cruda Realidad de las Apps'
+              ? 'Fase 1: La Cruda Realidad de las Apps'
               : currentPhase === 'EUPHORIC'
-              ? 'Tono Eufórico: La Victoria del Conductor con Rumbo'
+              ? 'Fase 2: La Victoria del Conductor con Rumbo'
               : currentPhase === 'SOLEMN'
-              ? 'Voz de Seriedad: Alianza, Paciencia y Colaboración'
+              ? 'Fase 3: Alianza, Paciencia y Colaboración'
               : 'Avatar Asesor de Conductores'}
           </span>
         </div>
@@ -405,8 +489,8 @@ export default function DriverAvatarNarrator({ onStartRegistration }) {
         )}
       </div>
 
-      {/* 3. ONDAS DE AUDIO SIMULADAS CUANDO ESTÁ HABLANDO */}
-      {isPlaying && (
+      {/* 4. ONDAS DE AUDIO SIMULADAS CUANDO ESTÁ HABLANDO */}
+      {isPlaying && !isPaused && (
         <div className="flex items-center justify-center gap-1.5 h-6">
           {[40, 75, 100, 60, 90, 45, 80, 50, 95, 70].map((h, i) => (
             <div
@@ -428,24 +512,34 @@ export default function DriverAvatarNarrator({ onStartRegistration }) {
         </div>
       )}
 
-      {/* 4. BOTONES DE ACCIÓN PARA EL CONDUCTOR */}
-      <div className="flex flex-wrap items-center justify-center gap-3 pt-1">
+      {/* 5. CONTROLES PRINCIPALES: REPRODUCIR COMPLETO / PAUSA / DETENER */}
+      <div className="flex flex-wrap items-center justify-center gap-2.5 pt-1">
         {!isPlaying ? (
           <button
-            onClick={startNarrative}
+            onClick={() => playPhase('DRAMATIC', true)}
             className="px-6 py-3 rounded-2xl bg-gradient-to-r from-amber-400 via-amber-500 to-amber-600 hover:brightness-110 text-slate-950 font-black text-xs sm:text-sm shadow-xl shadow-amber-950/40 flex items-center gap-2 cursor-pointer transition-transform transform active:scale-95"
           >
             <Play className="w-4 h-4 fill-slate-950" />
-            <span>Escuchar con Voz del Avatar (Dramática, Eufórica y Alianza)</span>
+            <span>Escuchar Todo Completo (Dramática, Eufórica y Alianza)</span>
           </button>
         ) : (
-          <button
-            onClick={stopNarrative}
-            className="px-5 py-2.5 rounded-2xl bg-slate-800 hover:bg-slate-700 text-rose-300 font-bold text-xs flex items-center gap-2 cursor-pointer border border-rose-500/30"
-          >
-            <VolumeX className="w-4 h-4 text-rose-400" />
-            <span>Detener Narración</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={togglePauseResume}
+              className="px-4 py-2.5 rounded-2xl bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold text-xs flex items-center gap-1.5 cursor-pointer border border-amber-500/30"
+            >
+              {isPaused ? <Play className="w-4 h-4 fill-amber-300" /> : <Pause className="w-4 h-4" />}
+              <span>{isPaused ? 'Reanudar' : 'Pausar'}</span>
+            </button>
+
+            <button
+              onClick={stopNarrative}
+              className="px-4 py-2.5 rounded-2xl bg-slate-800 hover:bg-slate-700 text-rose-300 font-bold text-xs flex items-center gap-1.5 cursor-pointer border border-rose-500/30"
+            >
+              <VolumeX className="w-4 h-4 text-rose-400" />
+              <span>Detener</span>
+            </button>
+          </div>
         )}
 
         <button
@@ -457,7 +551,7 @@ export default function DriverAvatarNarrator({ onStartRegistration }) {
         </button>
       </div>
 
-      {/* 5. ENLACES COLABORATIVOS: PASAJEROS Y CONDUCTORES */}
+      {/* 6. ENLACES COLABORATIVOS: PASAJEROS Y CONDUCTORES */}
       <div className="pt-3 border-t border-slate-800/80 text-left space-y-2">
         <div className="flex items-center gap-2">
           <HeartHandshake className="w-4 h-4 text-amber-400 shrink-0" />

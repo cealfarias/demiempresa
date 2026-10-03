@@ -49,41 +49,56 @@ import {
   compressImage
 } from './documentValidatorService';
 import SupportTicketModal from './SupportTicketModal';
+import { requestScreenWakeLock, releaseScreenWakeLock } from './audioWakeLockService';
 
 // Anuncio de voz eufórico de bienvenida al completar el registro
-const speakWelcomeMessage = (driverName) => {
+const speakWelcomeMessage = async (driverName) => {
   if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
     try {
       window.speechSynthesis.cancel();
+      await requestScreenWakeLock();
       const text = `¡Felicidades ${driverName || ''}! Bienvenido con euforia a la comunidad de conductores de Rumbo a tu destino. Tu solicitud fue presentada exitosamente. En Rumbo el cien por ciento de la ganancia es dinero en efectivo en tu mano y tu primera semana es totalmente gratis sin comisión.`;
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = 'es-ES';
       utterance.rate = 1.05;
       utterance.pitch = 1.1;
+      utterance.onend = () => {
+        releaseScreenWakeLock();
+      };
+      utterance.onerror = () => {
+        releaseScreenWakeLock();
+      };
       window.speechSynthesis.speak(utterance);
     } catch (e) {
       console.warn('Speech error:', e);
+      releaseScreenWakeLock();
     }
   }
 };
 
 // Mensaje institucional con voz de seriedad, alianza y colaboración
-const speakInstitutionalMessage = (onEndCallback) => {
+const speakInstitutionalMessage = async (onEndCallback) => {
   if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
     try {
       window.speechSynthesis.cancel();
+      await requestScreenWakeLock();
       const text = "Agradecemos sinceramente tu paciencia y tu comprensión, ya que esta aplicación se encuentra en su fase inicial de lanzamiento. Te pedimos de todo corazón tu valiosa colaboración al compartir nuestros enlaces oficiales, tanto con viajeros para aumentar tus solicitudes de viajes, como con otros conductores colegas para hacer más fuerte nuestra red colaborativa. Cuantos más seamos, más nos beneficiaremos todos. Juntos cambiamos tu destino.";
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = 'es-SV';
       utterance.rate = 0.88; // Tono solemne, reflexivo y serio
       utterance.pitch = 0.92; // Tono grave, formal y de respeto
-      if (onEndCallback) {
-        utterance.onend = onEndCallback;
-        utterance.onerror = onEndCallback;
-      }
+      utterance.onend = () => {
+        releaseScreenWakeLock();
+        if (onEndCallback) onEndCallback();
+      };
+      utterance.onerror = () => {
+        releaseScreenWakeLock();
+        if (onEndCallback) onEndCallback();
+      };
       window.speechSynthesis.speak(utterance);
     } catch (e) {
       console.warn('Speech error:', e);
+      releaseScreenWakeLock();
       if (onEndCallback) onEndCallback();
     }
   }
@@ -141,6 +156,16 @@ export default function DriverRegistrationModal({ isOpen, onClose, onDriverRegis
       modalScrollRef.current.scrollTo({ top: 0, behavior: 'smooth' });
     }
   }, [step]);
+
+  // Limpieza al desmontar o cerrar modal (detener voz y liberar WakeLock)
+  useEffect(() => {
+    return () => {
+      if (typeof window !== 'undefined' && window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+      }
+      releaseScreenWakeLock();
+    };
+  }, []);
 
   const handleLookupByDui = async () => {
     if (!lookupDui.trim()) return;
@@ -544,6 +569,7 @@ export default function DriverRegistrationModal({ isOpen, onClose, onDriverRegis
                   onClick={() => {
                     if (isPlayingInstitutional) {
                       window.speechSynthesis?.cancel();
+                      releaseScreenWakeLock();
                       setIsPlayingInstitutional(false);
                     } else {
                       setIsPlayingInstitutional(true);
