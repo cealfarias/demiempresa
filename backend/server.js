@@ -100,16 +100,19 @@ app.post('/api/users/register', async (req, res) => {
     }
 
     // 2. Acreditar Bono al Anfitrión si viene con Referido válido
+    let referrerInfo = null;
     if (referrerCode && referrerCode !== dui) {
       try {
         const referrerRes = await pool.query(`
-          SELECT u.id FROM viajes_users u 
+          SELECT u.id, u.full_name FROM viajes_users u 
           LEFT JOIN viajes_wallet_identities w ON u.id = w.user_id 
           WHERE u.dui = $1 OR u.id::text = $1 OR w.referral_code = $1 OR u.phone = $1
           LIMIT 1
         `, [referrerCode.trim()]);
         if (referrerRes.rows.length > 0) {
           const hostId = referrerRes.rows[0].id;
+          const hostName = referrerRes.rows[0].full_name;
+          referrerInfo = { id: hostId, name: hostName };
           await ReferralService.createReferral({
             referrerUserId: hostId,
             referredUserId: user.id,
@@ -127,7 +130,8 @@ app.post('/api/users/register', async (req, res) => {
       success: true,
       user,
       wallet: walletInfo ? { address: walletInfo.address, referralCode: walletInfo.referral_code } : null,
-      welcomeBonus: welcomeBonusTx
+      welcomeBonus: welcomeBonusTx,
+      referrer: referrerInfo
     });
   } catch (err) {
     console.error('Error al registrar usuario:', err);

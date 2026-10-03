@@ -433,6 +433,19 @@ export default function ViajesApp() {
   const [referralBonusAwarded, setReferralBonusAwarded] = useState(false);
   const [showBonusesAccountModal, setShowBonusesAccountModal] = useState(false);
   const [dopamineBonusModal, setDopamineBonusModal] = useState(null);
+  const [celebrationStep, setCelebrationStep] = useState(1); // 1: Bienvenida | 2: Enviar dólar a tu amigo | 3: Dólar enviado
+  const [referredByHostName, setReferredByHostName] = useState('');
+
+  // Formatear cuenta regresiva exacta de 7 días para el bono de referido
+  const getCountdownString = (registeredDate) => {
+    const regTime = registeredDate ? new Date(registeredDate).getTime() : Date.now();
+    const deadline = regTime + 7 * 24 * 60 * 60 * 1000;
+    const diff = deadline - Date.now();
+    if (diff <= 0) return '0d 0h restantes';
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    return `${days}d ${hours}h restantes`;
+  };
 
   // Calcular días restantes de un bono a partir de su fecha ISO (7 días)
   const getDaysRemaining = (isoDate) => {
@@ -558,6 +571,7 @@ export default function ViajesApp() {
               } catch {}
               setDopamineBonusModal({
                 name: uncelebrated.referred_name || 'Un amigo invitado',
+                phone: uncelebrated.referred_phone || '',
                 amount: '1.00',
                 date: uncelebrated.registered_at
               });
@@ -1355,7 +1369,7 @@ export default function ViajesApp() {
   };
 
   // Completar inscripción con todos los datos (nombre, dui, email) y disparar celebración de bono
-  const handleCompleteRegistrationWithBonus = (profileData) => {
+  const handleCompleteRegistrationWithBonus = (profileData, hostName = '') => {
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
     const fullProfile = {
       ...profileData,
@@ -1380,6 +1394,8 @@ export default function ViajesApp() {
     setGoogleDuiStep(false);
 
     setCelebrationName(profileData.fullName || 'Pasajero');
+    setReferredByHostName(hostName || referrerCode || '');
+    setCelebrationStep(1);
     setShowCelebrationModal(true);
 
     // Disparar fuegos artificiales y papelitos volando
@@ -1388,17 +1404,25 @@ export default function ViajesApp() {
     // Sonido de caja registradora / dólar acreditado
     triggerCashRewardFeedback();
 
-    // Locución con tono de contenta anunciando bono de $1.00 válido por 7 días
+    // Locución con tono alegre anunciando bono de $1.00
     speakAssistantMessage(
-      `¡Felicidades ${profileData.fullName}! Te has inscrito exitosamente a nuestra plataforma. Has recibido un bono de bienvenida de un dólar que será usado en tu próximo viaje, con una caducidad de 7 días.`
+      `¡Felicidades ${profileData.fullName}! Te has inscrito exitosamente a nuestra plataforma. Has recibido un bono de bienvenida de un dólar que será usado en tu próximo viaje.`
     );
+  };
 
-    // Unos 10 segundos más tarde: "¿Quieres más bonos?"
-    setTimeout(() => {
-      setShowCelebrationModal(false);
-      setShowMoreBonusesPrompt(true);
-      speakAssistantMessage('¿Quieres más bonos?');
-    }, 10000);
+  // Enviar dólar de recompensa al amigo con sonido de dinero y confeti
+  const handleSendDollarToFriend = () => {
+    triggerCashRewardFeedback(); // Cha-Ching!
+    try {
+      confetti({
+        particleCount: 110,
+        spread: 80,
+        origin: { y: 0.6 },
+        colors: ['#10B981', '#059669', '#34D399', '#F59E0B', '#FCD34D'],
+        zIndex: 99999
+      });
+    } catch {}
+    setCelebrationStep(3);
   };
 
   // Guardar datos de seguridad (Registro opcional con todos los datos: nombre, dui, email)
@@ -1415,7 +1439,7 @@ export default function ViajesApp() {
     const emailToSave = regEmail || (googleTempUser ? googleTempUser.email : `${regDui.replace('-', '')}@demiempresa.online`);
 
     try {
-      await registerUserApi({
+      const regRes = await registerUserApi({
         fullName: regFullName,
         phone: regPhone || '7000-0000',
         dui: regDui,
@@ -1434,7 +1458,8 @@ export default function ViajesApp() {
         isVerified: true
       };
 
-      handleCompleteRegistrationWithBonus(profile);
+      const hostName = regRes?.referrer?.name || referrerCode || '';
+      handleCompleteRegistrationWithBonus(profile, hostName);
     } catch (err) {
       console.warn('Fallback local al registrar:', err.message);
       const fallbackProfile = {
@@ -1447,7 +1472,7 @@ export default function ViajesApp() {
         provider: googleTempUser ? 'google' : 'manual',
         isVerified: true
       };
-      handleCompleteRegistrationWithBonus(fallbackProfile);
+      handleCompleteRegistrationWithBonus(fallbackProfile, referrerCode || '');
     } finally {
       setRegistering(false);
     }
@@ -3005,7 +3030,7 @@ export default function ViajesApp() {
       )}
 
       {/* ============================================================== */}
-      {/* MODAL REBOTÓN: CELEBRACIÓN CON FUEGOS ARTIFICIALES Y BONO $1.00*/}
+      {/* MODAL REBOTÓN: CELEBRACIÓN Y SHOW DE RECIPROCIDAD DEL DÓLAR   */}
       {/* ============================================================== */}
       {showCelebrationModal && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in">
@@ -3014,52 +3039,174 @@ export default function ViajesApp() {
             <div className="absolute -top-16 -left-16 w-36 h-36 bg-amber-500/20 rounded-full blur-2xl pointer-events-none" />
             <div className="absolute -bottom-16 -right-16 w-36 h-36 bg-emerald-500/20 rounded-full blur-2xl pointer-events-none" />
 
-            {/* Ícono de celebración rebotón */}
-            <div className="relative inline-flex items-center justify-center">
-              <div className="w-20 h-20 rounded-full bg-gradient-to-tr from-amber-500 to-yellow-300 flex items-center justify-center shadow-lg shadow-amber-500/30">
-                <Sparkles className="w-10 h-10 text-slate-950" />
-              </div>
-              <span className="absolute -top-1 -right-1 text-2xl animate-bounce">🎉</span>
-              <span className="absolute -bottom-1 -left-1 text-2xl animate-pulse">✨</span>
-            </div>
+            {/* PASO 1: CELEBRACIÓN DE BIENVENIDA */}
+            {celebrationStep === 1 && (
+              <div className="space-y-4">
+                <div className="relative inline-flex items-center justify-center">
+                  <div className="w-20 h-20 rounded-full bg-gradient-to-tr from-amber-500 to-yellow-300 flex items-center justify-center shadow-lg shadow-amber-500/30">
+                    <Sparkles className="w-10 h-10 text-slate-950" />
+                  </div>
+                  <span className="absolute -top-1 -right-1 text-2xl animate-bounce">🎉</span>
+                  <span className="absolute -bottom-1 -left-1 text-2xl animate-pulse">✨</span>
+                </div>
 
-            <div className="space-y-1">
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 text-xs font-bold uppercase tracking-wider">
-                <CheckCircle className="w-3.5 h-3.5" />
-                <span>¡Inscripción Exitosa!</span>
-              </div>
-              <h3 className="text-2xl font-black text-white tracking-tight">
-                ¡Felicidades, {celebrationName}!
-              </h3>
-              <p className="text-xs text-slate-300 leading-relaxed">
-                Te has registrado exitosamente en la plataforma de <strong className="text-amber-400">Rumbo a tu destino</strong> con tus datos oficiales completos.
-              </p>
-            </div>
+                <div className="space-y-1">
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 text-xs font-bold uppercase tracking-wider">
+                    <CheckCircle className="w-3.5 h-3.5" />
+                    <span>¡Inscripción Exitosa!</span>
+                  </div>
+                  <h3 className="text-2xl font-black text-white tracking-tight">
+                    ¡Felicidades, {celebrationName}!
+                  </h3>
+                  <p className="text-xs text-slate-300 leading-relaxed">
+                    Te has registrado exitosamente en la plataforma de <strong className="text-amber-400">Rumbo a tu destino</strong> con tus datos oficiales completos.
+                  </p>
+                </div>
 
-            {/* Tarjeta del Bono de $1.00 USD */}
-            <div className="bg-slate-950/90 border border-amber-400/50 rounded-2xl p-4 space-y-2 shadow-inner">
-              <div className="text-[11px] font-semibold text-amber-300/90 uppercase tracking-wider">
-                Has recibido un bono de bienvenida
-              </div>
-              <div className="text-4xl font-black text-amber-400 font-mono tracking-wider drop-shadow-md">
-                +$1.00 <span className="text-lg font-bold text-amber-200">USD</span>
-              </div>
-              <p className="text-xs text-slate-300 font-medium">
-                Será usado automáticamente en tu próximo viaje
-              </p>
-              <div className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-rose-300 bg-rose-500/10 px-2.5 py-1 rounded-full border border-rose-500/20">
-                <Clock className="w-3.5 h-3.5 text-rose-400" />
-                <span>Caducidad: 7 días a partir de hoy</span>
-              </div>
-            </div>
+                {/* Tarjeta del Bono de $1.00 USD */}
+                <div className="bg-slate-950/90 border border-amber-400/50 rounded-2xl p-4 space-y-2 shadow-inner">
+                  <div className="text-[11px] font-semibold text-amber-300/90 uppercase tracking-wider">
+                    Has recibido un bono de bienvenida
+                  </div>
+                  <div className="text-4xl font-black text-amber-400 font-mono tracking-wider drop-shadow-md">
+                    +$1.00 <span className="text-lg font-bold text-amber-200">USD</span>
+                  </div>
+                  <p className="text-xs text-slate-300 font-medium">
+                    Será usado automáticamente en tu próximo viaje
+                  </p>
+                  <div className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-rose-300 bg-rose-500/10 px-2.5 py-1 rounded-full border border-rose-500/20">
+                    <Clock className="w-3.5 h-3.5 text-rose-400" />
+                    <span>Caducidad: 7 días a partir de hoy</span>
+                  </div>
+                </div>
 
-            <button
-              type="button"
-              onClick={() => setShowCelebrationModal(false)}
-              className="w-full py-3 rounded-2xl bg-gradient-to-r from-amber-500 to-yellow-400 hover:from-amber-400 hover:to-yellow-300 text-slate-950 font-black text-sm shadow-lg shadow-amber-500/25 cursor-pointer transition-transform active:scale-95"
-            >
-              ¡Excelente, gracias!
-            </button>
+                {referredByHostName ? (
+                  <button
+                    type="button"
+                    onClick={() => setCelebrationStep(2)}
+                    className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:brightness-110 text-slate-950 font-black text-sm shadow-xl shadow-emerald-500/30 cursor-pointer transition-transform active:scale-95 flex items-center justify-center gap-2 border border-emerald-400"
+                  >
+                    <span>Siguiente: Recompensar a tu amigo</span>
+                    <ArrowRight className="w-4 h-4 text-slate-950" />
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setShowCelebrationModal(false)}
+                    className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-amber-500 to-yellow-400 hover:from-amber-400 hover:to-yellow-300 text-slate-950 font-black text-sm shadow-lg shadow-amber-500/25 cursor-pointer transition-transform active:scale-95"
+                  >
+                    ¡Excelente, gracias!
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* PASO 2: EL AVISO DE RECIPROCIDAD Y EL BOTÓN CON BILLETE VERDE */}
+            {celebrationStep === 2 && (
+              <div className="space-y-4">
+                <div className="relative inline-flex items-center justify-center">
+                  <div className="w-20 h-20 rounded-full bg-gradient-to-tr from-emerald-500 to-teal-300 flex items-center justify-center shadow-lg shadow-emerald-500/30">
+                    <span className="text-4xl">🤝</span>
+                  </div>
+                  <span className="absolute -top-1 -right-1 text-2xl animate-bounce">🎁</span>
+                  <span className="absolute -bottom-1 -left-1 text-2xl animate-pulse">💵</span>
+                </div>
+
+                <div className="space-y-1.5">
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 text-xs font-black uppercase tracking-wider">
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>¡Gesto de Amistad y Recompensa!</span>
+                  </div>
+                  <h3 className="text-xl sm:text-2xl font-black text-white tracking-tight leading-snug">
+                    Envíale un dólar a tu amigo
+                  </h3>
+                  <p className="text-xs text-slate-300 leading-relaxed">
+                    Tu amigo(a) <strong className="text-amber-300 font-bold">{referredByHostName || 'quien te invitó'}</strong> pensó en ti y te compartió su enlace para que hoy ganaras este primer dólar.
+                  </p>
+                  <p className="text-xs text-emerald-300 font-medium pt-1">
+                    ¡Ahora te toca a ti tener ese gran gesto! Envíale su dólar de bonificación por haberte recomendado.
+                  </p>
+                </div>
+
+                {/* BOTÓN CON BILLETE VERDE Y SONIDO DE DINERO */}
+                <div className="pt-2">
+                  <button
+                    type="button"
+                    onClick={handleSendDollarToFriend}
+                    className="w-full py-4 px-4 rounded-2xl bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:brightness-110 text-slate-950 font-black text-sm sm:text-base shadow-2xl shadow-emerald-500/40 cursor-pointer transition-transform transform active:scale-95 flex items-center justify-center gap-2.5 border-2 border-amber-300"
+                  >
+                    <span className="text-3xl animate-bounce">💵</span>
+                    <span className="tracking-tight">
+                      ¡Enviar $1.00 a {referredByHostName ? referredByHostName.split(' ')[0] : 'mi amigo'}!
+                    </span>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* PASO 3: CONFIRMACIÓN Y EXPECTATIVA PSICOLÓGICA */}
+            {celebrationStep === 3 && (
+              <div className="space-y-4">
+                <div className="relative inline-flex items-center justify-center">
+                  <div className="w-20 h-20 rounded-full bg-gradient-to-tr from-amber-400 via-yellow-400 to-emerald-400 flex items-center justify-center shadow-xl shadow-amber-500/40 animate-bounce">
+                    <span className="text-4xl">💰</span>
+                  </div>
+                  <span className="absolute -top-1 -right-2 text-2xl animate-spin">✨</span>
+                  <span className="absolute -bottom-1 -left-2 text-2xl animate-pulse">💵</span>
+                </div>
+
+                <div className="space-y-1">
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 text-xs font-black uppercase tracking-wider">
+                    <CheckCircle className="w-3.5 h-3.5" />
+                    <span>¡Dólar Enviado con Éxito!</span>
+                  </div>
+                  <h3 className="text-xl sm:text-2xl font-black text-white tracking-tight">
+                    ¡Qué gran detalle has tenido!
+                  </h3>
+                  <p className="text-xs text-slate-300 leading-relaxed">
+                    Le has enviado su dólar de bonificación a <strong className="text-amber-300 font-bold">{referredByHostName || 'tu amigo'}</strong>.
+                  </p>
+                </div>
+
+                {/* TARJETA DE EXPECTATIVA PSICOLÓGICA */}
+                <div className="bg-slate-950/90 border border-amber-500/40 rounded-2xl p-3.5 text-left space-y-2 shadow-inner">
+                  <div className="text-xs font-black text-amber-300 uppercase tracking-wide flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                    <span>¿Y a ti, cuándo te enviarán dólares?</span>
+                  </div>
+                  <p className="text-xs text-slate-200 leading-relaxed">
+                    ¡Cada vez que compartas tu propio enlace con amigos y familiares, <strong>serán ellos quienes te envíen dólares a ti</strong> al momento de registrarse!
+                  </p>
+                  <p className="text-[11px] text-slate-400">
+                    🎁 Entre más personas invites, más dólares acumularás para viajar gratis o pagar mucho menos por cada carrera.
+                  </p>
+                </div>
+
+                <div className="space-y-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowCelebrationModal(false);
+                      const myCode = userProfile?.referralCode || userProfile?.dui || userProfile?.id || '';
+                      const { text } = getSharePayload('passenger', myCode);
+                      window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+                    }}
+                    className="w-full py-3.5 px-3 rounded-2xl bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:brightness-110 text-slate-950 font-black text-xs sm:text-sm shadow-xl shadow-emerald-500/30 cursor-pointer transition-transform active:scale-95 flex items-center justify-center gap-2 border border-emerald-400"
+                  >
+                    <Share2 className="w-4 h-4 text-slate-950" />
+                    <span>¡Compartir mi enlace y empezar a recibir dólares!</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowCelebrationModal(false)}
+                    className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold cursor-pointer"
+                  >
+                    Ir a la App
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -3093,20 +3240,39 @@ export default function ViajesApp() {
               </h3>
               <p className="text-xs text-slate-300 leading-relaxed">
                 <strong className="text-amber-300 font-bold text-sm block mb-0.5">{dopamineBonusModal.name}</strong>
-                se acaba de registrar en Rumbo a tu Destino usando tu enlace de invitación.
+                se acaba de registrar en Rumbo a tu Destino usando tu enlace y te ha enviado tu dólar de bonificación.
               </p>
             </div>
 
-            {/* Tarjeta del saldo ganado */}
-            <div className="bg-slate-950/90 border border-emerald-500/40 rounded-2xl p-4 space-y-2 shadow-inner">
-              <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                Abonado directamente a tu Billetera
+            {/* Tarjeta del saldo y condición de activación (7 días / viaje $4) */}
+            <div className="bg-slate-950/90 border border-amber-500/40 rounded-2xl p-4 text-left space-y-2.5 shadow-inner">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                  Bono de Referencia
+                </span>
+                <span className="text-2xl font-black text-emerald-400 font-mono">
+                  +$1.00 USD
+                </span>
               </div>
-              <div className="text-4xl font-black text-emerald-400 font-mono tracking-wider drop-shadow-md">
-                +$1.00 <span className="text-lg font-bold text-emerald-200">USD</span>
+
+              <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/25 space-y-1 text-xs">
+                <div className="font-bold text-amber-300 flex items-center gap-1.5">
+                  <Clock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                  <span>Vigencia de 7 Días para Activarse</span>
+                </div>
+                <p className="text-[11px] text-slate-300 leading-relaxed">
+                  Para que este dólar se active en tu saldo disponible, tu amigo(a) <strong>{dopamineBonusModal.name}</strong> debe realizar su primer viaje de al menos <strong>$4.00 USD</strong>.
+                </p>
+                <div className="pt-1.5 flex items-center justify-between text-[11px] font-bold text-rose-300 border-t border-amber-500/20">
+                  <span>⏳ Cuenta Regresiva:</span>
+                  <span className="font-mono text-white bg-slate-900 px-2.5 py-0.5 rounded border border-rose-500/40 shadow-inner">
+                    {getCountdownString(dopamineBonusModal.date)}
+                  </span>
+                </div>
               </div>
-              <p className="text-xs text-slate-300 font-medium">
-                🎁 Se descontará automáticamente de tu próximo viaje para que pagues menos por carrera.
+
+              <p className="text-[10px] text-slate-400 italic leading-snug">
+                💡 ¡Se activará justo cuando tu referido complete su viaje! Escríbele a tu amigo para recordarle su viaje y asegurar tu dólar.
               </p>
             </div>
 
@@ -3114,23 +3280,26 @@ export default function ViajesApp() {
             <div className="space-y-2 pt-1">
               <button
                 type="button"
-                onClick={() => setDopamineBonusModal(null)}
-                className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 hover:brightness-110 text-slate-950 font-black text-sm shadow-xl shadow-amber-500/30 cursor-pointer transition-transform active:scale-95 flex items-center justify-center gap-2"
+                onClick={() => {
+                  const phone = (dopamineBonusModal.phone || '').replace(/\D/g, '');
+                  const greeting = `¡Hola ${dopamineBonusModal.name.split(' ')[0]}! Vi que te registraste en Rumbo a tu Destino. Recuerda que tienes $1.00 de bono esperándote para tu próximo viaje de $4 o más. ¡Aprovechémoslo! https://viajes.demiempresa.online`;
+                  const waUrl = phone && phone.length >= 8
+                    ? `https://wa.me/503${phone}?text=${encodeURIComponent(greeting)}`
+                    : `https://wa.me/?text=${encodeURIComponent(greeting)}`;
+                  window.open(waUrl, '_blank');
+                }}
+                className="w-full py-3 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-emerald-500/30 transition-transform active:scale-95"
               >
-                <span>¡Genial, gracias!</span>
-                <CheckCircle className="w-4 h-4 text-slate-950" />
+                <Phone className="w-4 h-4" />
+                <span>Saludar a {dopamineBonusModal.name.split(' ')[0]} por WhatsApp</span>
               </button>
 
               <button
                 type="button"
-                onClick={() => {
-                  setDopamineBonusModal(null);
-                  setShowReferralModal(true);
-                }}
-                className="w-full py-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-amber-300 border border-amber-500/30 font-bold text-xs cursor-pointer transition-colors flex items-center justify-center gap-1.5"
+                onClick={() => setDopamineBonusModal(null)}
+                className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs cursor-pointer"
               >
-                <Share2 className="w-3.5 h-3.5" />
-                <span>Invitar a más contactos y ganar más</span>
+                <span>¡Genial, gracias!</span>
               </button>
             </div>
           </div>
