@@ -22,12 +22,17 @@ import {
   Wind,
   Dog,
   Users,
-  Briefcase
+  Briefcase,
+  Star,
+  Coins,
+  List
 } from 'lucide-react';
 import RumboLogo from './RumboLogo';
 import GasModal from './GasModal';
 import DriverRegistrationModal from './DriverRegistrationModal';
 import DriverLandingView from './DriverLandingView';
+import DriverEarningsView from './DriverEarningsView';
+import DriverTripRequestsFeed from './DriverTripRequestsFeed';
 import {
   calculateTripFuelCost,
   estimateFuelEconomy,
@@ -68,6 +73,7 @@ export default function DriverApp() {
   const [driverOnline, setDriverOnline] = useState(() => {
     return isApproved;
   });
+  const [activeBottomTab, setActiveBottomTab] = useState('REQUESTS'); // 'REQUESTS' | 'EARNINGS' | 'PRIORITY'
   const [weeklyBonuses, setWeeklyBonuses] = useState(0);
   const [isApplyingBonuses, setIsApplyingBonuses] = useState(false);
   const [showFeePaymentModal, setShowFeePaymentModal] = useState(false);
@@ -75,6 +81,29 @@ export default function DriverApp() {
   const bonusCap = 10;
   const baseWeeklyFee = 10.00;
   const netWeeklyFee = Math.max(0, baseWeeklyFee - weeklyBonuses * 1.00);
+
+  const handleAcceptRequestFromFeed = (req, finalPrice) => {
+    const fare = parseFloat(finalPrice || req.price || 4.00);
+    setActiveTrip({
+      id: req.id,
+      passengerName: req.passengerName || 'Pasajero Rumbo',
+      passengerPhone: '7000-0000',
+      origin: req.origin,
+      originLat: 13.7013,
+      originLng: -89.2244,
+      destination: req.destination,
+      roadDistanceKm: req.tripDistanceKm || 5.0,
+      delayMinutes: req.delayMinutes || 0,
+      suggestedFare: fare,
+      preferences: {},
+      cashBill: '10',
+      changeNeeded: (10.00 - fare).toFixed(2),
+      agreedFare: fare.toFixed(2),
+      cashToCollect: fare.toFixed(2),
+      creditApplied: '0.00'
+    });
+    setTripState('EN_ROUTE_TO_PICKUP');
+  };
 
   // Solicitud entrante real (se llena únicamente vía WebSockets cuando un pasajero solicita viaje)
   const [incomingRequest, setIncomingRequest] = useState(null);
@@ -397,450 +426,223 @@ export default function DriverApp() {
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
       
-      {/* Barra Superior Conductor */}
-      <header className="border-b border-slate-800 bg-slate-900 px-3 sm:px-4 py-3 flex items-center justify-between sticky top-0 z-40">
-        <div className="flex items-center gap-3">
-          <RumboLogo textClassName="text-lg" />
-          <div className="hidden sm:block border-l border-slate-800 pl-3">
-            <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-bold border border-emerald-500/30 flex items-center gap-1">
-              <Radio className={`w-2.5 h-2.5 ${gpsActive ? 'animate-pulse text-emerald-400' : 'text-slate-500'}`} />
-              <span>GPS (3-5s)</span>
-            </span>
-            <div className="text-[10px] text-slate-400 font-mono mt-0.5">
-              {driverProfile?.vehiclePlate || 'P-584-912'} • {driverProfile?.vehicleModel || 'Corolla'}
+      {/* Barra Superior Conductor & Blindaje (visible en VIAJE ACTIVO o en pestañas INGRESOS / PRIORIDAD; en solicitudes se muestra el HUD nativo idéntico al screenshot) */}
+      {(activeTrip || activeBottomTab !== 'REQUESTS') && (
+        <>
+          <header className="border-b border-slate-800 bg-slate-900 px-3 sm:px-4 py-3 flex items-center justify-between sticky top-0 z-40">
+            <div className="flex items-center gap-3">
+              <RumboLogo textClassName="text-lg" />
+              <div className="hidden sm:block border-l border-slate-800 pl-3">
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-bold border border-emerald-500/30 flex items-center gap-1">
+                  <Radio className={`w-2.5 h-2.5 ${gpsActive ? 'animate-pulse text-emerald-400' : 'text-slate-500'}`} />
+                  <span>GPS (3-5s)</span>
+                </span>
+                <div className="text-[10px] text-slate-400 font-mono mt-0.5">
+                  {driverProfile?.vehiclePlate || 'P-584-912'} • {driverProfile?.vehicleModel || 'Corolla'}
+                </div>
+              </div>
+            </div>
+
+            {/* Botones Rápidos: Registro/Expediente, Radar Gasolina, Auto y Switch En Línea */}
+            <div className="flex items-center gap-2">
+              {/* Botón de Expediente Digital / Registro Oficial */}
+              <button
+                onClick={() => setShowRegistrationModal(true)}
+                className={`px-2.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors ${
+                  isPending
+                    ? 'bg-amber-500/20 border border-amber-500/40 text-amber-300 hover:bg-amber-500/30'
+                    : isRejected
+                    ? 'bg-rose-500/20 border border-rose-500/40 text-rose-300 hover:bg-rose-500/30'
+                    : driverProfile?.approvalStatus === 'APPROVED'
+                    ? 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/25'
+                    : 'bg-amber-500 hover:bg-amber-400 text-slate-950 font-black shadow-md shadow-amber-950/40'
+                }`}
+                title="Expediente de registro de conductor"
+              >
+                {isPending ? (
+                  <>
+                    <Clock className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
+                    <span>En Revisión</span>
+                  </>
+                ) : isRejected ? (
+                  <>
+                    <AlertTriangle className="w-3.5 h-3.5 text-rose-400" />
+                    <span>Observaciones</span>
+                  </>
+                ) : driverProfile?.approvalStatus === 'APPROVED' ? (
+                  <>
+                    <CheckCircle className="w-3.5 h-3.5 text-emerald-400" />
+                    <span className="hidden sm:inline">Verificado</span>
+                  </>
+                ) : (
+                  <>
+                    <Car className="w-3.5 h-3.5" />
+                    <span>Registro Conductor</span>
+                  </>
+                )}
+              </button>
+
+              <button
+                onClick={() => setShowGasModal(true)}
+                title="Radar de Gasolina al centavo"
+                className="p-2 sm:px-2.5 sm:py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 hover:bg-amber-500/20 text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors"
+              >
+                <Fuel className="w-4 h-4 text-amber-400" />
+                <span className="hidden md:inline">Radar Gasolina</span>
+              </button>
+
+              <button
+                onClick={() => setShowVehicleSettings(true)}
+                title="Configurar vehículo y rendimiento de gasolina"
+                className="p-2 sm:px-2.5 sm:py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors"
+              >
+                <Settings className="w-4 h-4 text-slate-400" />
+                <span className="hidden lg:inline">{vehicleYear} • {kmPerGallon} km/gal</span>
+              </button>
+
+              <button
+                onClick={handleToggleOnline}
+                className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 ${
+                  driverOnline
+                    ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20'
+                    : 'bg-slate-800 text-slate-400'
+                }`}
+              >
+                <span className={`w-2 h-2 rounded-full ${driverOnline ? 'bg-slate-950 animate-pulse' : 'bg-slate-500'}`}></span>
+                <span>{driverOnline ? 'EN LÍNEA' : 'DESCONECTADO'}</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  localStorage.removeItem('rumbo_driver_profile');
+                  setDriverProfile(null);
+                  setDriverOnline(false);
+                }}
+                title="Cerrar sesión de conductor y volver a la página de bienvenida"
+                className="p-1.5 sm:px-2.5 sm:py-1.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-slate-100 text-xs font-bold border border-slate-700/60 transition-colors"
+              >
+                Salir
+              </button>
+            </div>
+          </header>
+
+          {/* Banner Informativo si el Expediente está PENDIENTE o RECHAZADO */}
+          {isPending && (
+            <div className="bg-amber-500/15 border-b border-amber-500/30 px-4 py-2.5 text-xs text-amber-200 flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <Clock className="w-4 h-4 text-amber-400 animate-pulse shrink-0" />
+                <span>
+                  <strong>Expediente en Revisión:</strong> Tu solicitud y documentos oficiales están siendo validados por administración (plazo 2-12 hrs).
+                </span>
+              </div>
+              <button
+                onClick={() => setShowRegistrationModal(true)}
+                className="px-2.5 py-1 rounded-lg bg-amber-500 text-slate-950 font-black text-[11px] shrink-0 hover:bg-amber-400 transition-colors"
+              >
+                Ver Estatus
+              </button>
+            </div>
+          )}
+
+          {isRejected && (
+            <div className="bg-rose-500/15 border-b border-rose-500/30 px-4 py-2.5 text-xs text-rose-200 flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+                <span>
+                  <strong>Solicitud con Observaciones:</strong> {driverProfile?.rejectionReason || 'Faltan documentos legibles o actualizados.'}
+                </span>
+              </div>
+              <button
+                onClick={() => setShowRegistrationModal(true)}
+                className="px-2.5 py-1 rounded-lg bg-rose-500 text-white font-black text-[11px] shrink-0 hover:bg-rose-600 transition-colors"
+              >
+                Corregir Ahora
+              </button>
+            </div>
+          )}
+
+          {/* ALERTA HUD EN RUTA: Gasolinera Económica Detectada Frente al Conductor */}
+          {nearbyStationAlert && (
+            <div className="bg-gradient-to-r from-amber-950/80 via-slate-900 to-amber-950/80 border-b border-amber-500/40 px-4 py-2 text-xs text-amber-200 flex items-center justify-between animate-pulse">
+              <div className="flex items-center gap-2 overflow-hidden">
+                <Fuel className="w-4 h-4 text-amber-400 flex-shrink-0 animate-bounce" />
+                <span className="truncate">
+                  <strong>⛽ Estación en ruta:</strong> {nearbyStationAlert.name} • Regular: <strong className="text-white">${nearbyStationAlert.regular.toFixed(2)}/gal</strong> (-${nearbyStationAlert.savingsRegular.toFixed(2)} vs oficial)
+                </span>
+              </div>
+              <button
+                onClick={() => setShowGasModal(true)}
+                className="ml-2 px-2.5 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-lg text-[10px] whitespace-nowrap cursor-pointer transition-colors"
+              >
+                Ver Precios
+              </button>
+            </div>
+          )}
+
+          {/* Widget de Blindaje Financiero: Cuota Semanal & Límite de 10 Bonos */}
+          <div className="bg-slate-900/90 border-b border-slate-800 px-3 sm:px-4 py-2.5 flex items-center justify-between text-xs gap-2">
+            <div className="flex items-center gap-2">
+              <Shield className="w-4 h-4 text-amber-400 flex-shrink-0" />
+              <span className="text-slate-300">
+                Cuota Semanal: <strong className={netWeeklyFee === 0 ? "text-emerald-400 font-black" : "text-white"}>${netWeeklyFee.toFixed(2)} USD</strong> <span className="hidden xs:inline text-slate-500">(Base $10)</span>
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5">
+                <span className="text-slate-400 hidden sm:inline">Bonos:</span>
+                <span className={`font-mono font-bold px-1.5 py-0.5 rounded text-[11px] ${
+                  weeklyBonuses >= bonusCap
+                    ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                    : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                }`}>
+                  {weeklyBonuses}/{bonusCap}
+                </span>
+              </div>
+
+              {weeklyBonuses < bonusCap ? (
+                <button
+                  type="button"
+                  onClick={handlePayWeeklyFeeWithBonuses}
+                  disabled={isApplyingBonuses}
+                  title="Pagar tu cuota semanal de $10 con tu saldo bonificado acumulado"
+                  className="px-2.5 py-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold rounded-lg text-[10px] shadow cursor-pointer transition-all active:scale-95 flex items-center gap-1 whitespace-nowrap"
+                >
+                  <Sparkles className="w-3 h-3 text-amber-300" />
+                  <span>{isApplyingBonuses ? 'Aplicando...' : 'Pagar con bonos'}</span>
+                </button>
+              ) : (
+                <span className="px-2 py-0.5 rounded bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 font-bold text-[10px] whitespace-nowrap">
+                  100% Bonificado
+                </span>
+              )}
             </div>
           </div>
-        </div>
 
-        {/* Botones Rápidos: Registro/Expediente, Radar Gasolina, Auto y Switch En Línea */}
-        <div className="flex items-center gap-2">
-          {/* Botón de Expediente Digital / Registro Oficial */}
-          <button
-            onClick={() => setShowRegistrationModal(true)}
-            className={`px-2.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors ${
-              isPending
-                ? 'bg-amber-500/20 border border-amber-500/40 text-amber-300 hover:bg-amber-500/30'
-                : isRejected
-                ? 'bg-rose-500/20 border border-rose-500/40 text-rose-300 hover:bg-rose-500/30'
-                : driverProfile?.approvalStatus === 'APPROVED'
-                ? 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/25'
-                : 'bg-amber-500 hover:bg-amber-400 text-slate-950 font-black shadow-md shadow-amber-950/40'
-            }`}
-            title="Expediente de registro de conductor"
-          >
-            {isPending ? (
-              <>
-                <Clock className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
-                <span>En Revisión</span>
-              </>
-            ) : isRejected ? (
-              <>
-                <AlertTriangle className="w-3.5 h-3.5 text-rose-400" />
-                <span>Observaciones</span>
-              </>
-            ) : driverProfile?.approvalStatus === 'APPROVED' ? (
-              <>
-                <CheckCircle className="w-3.5 h-3.5 text-emerald-400" />
-                <span className="hidden sm:inline">Verificado</span>
-              </>
-            ) : (
-              <>
-                <Car className="w-3.5 h-3.5" />
-                <span>Registro Conductor</span>
-              </>
-            )}
-          </button>
-
-          <button
-            onClick={() => setShowGasModal(true)}
-            title="Radar de Gasolina al centavo"
-            className="p-2 sm:px-2.5 sm:py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 hover:bg-amber-500/20 text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors"
-          >
-            <Fuel className="w-4 h-4 text-amber-400" />
-            <span className="hidden md:inline">Radar Gasolina</span>
-          </button>
-
-          <button
-            onClick={() => setShowVehicleSettings(true)}
-            title="Configurar vehículo y rendimiento de gasolina"
-            className="p-2 sm:px-2.5 sm:py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors"
-          >
-            <Settings className="w-4 h-4 text-slate-400" />
-            <span className="hidden lg:inline">{vehicleYear} • {kmPerGallon} km/gal</span>
-          </button>
-
-          <button
-            onClick={handleToggleOnline}
-            className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 ${
-              driverOnline
-                ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20'
-                : 'bg-slate-800 text-slate-400'
-            }`}
-          >
-            <span className={`w-2 h-2 rounded-full ${driverOnline ? 'bg-slate-950 animate-pulse' : 'bg-slate-500'}`}></span>
-            <span>{driverOnline ? 'EN LÍNEA' : 'DESCONECTADO'}</span>
-          </button>
-
-          <button
-            onClick={() => {
-              localStorage.removeItem('rumbo_driver_profile');
-              setDriverProfile(null);
-              setDriverOnline(false);
-            }}
-            title="Cerrar sesión de conductor y volver a la página de bienvenida"
-            className="p-1.5 sm:px-2.5 sm:py-1.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-slate-100 text-xs font-bold border border-slate-700/60 transition-colors"
-          >
-            Salir
-          </button>
-        </div>
-      </header>
-
-      {/* Banner Informativo si el Expediente está PENDIENTE o RECHAZADO */}
-      {isPending && (
-        <div className="bg-amber-500/15 border-b border-amber-500/30 px-4 py-2.5 text-xs text-amber-200 flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <Clock className="w-4 h-4 text-amber-400 animate-pulse shrink-0" />
-            <span>
-              <strong>Expediente en Revisión:</strong> Tu solicitud y documentos oficiales están siendo validados por administración (plazo 2-12 hrs).
-            </span>
-          </div>
-          <button
-            onClick={() => setShowRegistrationModal(true)}
-            className="px-2.5 py-1 rounded-lg bg-amber-500 text-slate-950 font-black text-[11px] shrink-0 hover:bg-amber-400 transition-colors"
-          >
-            Ver Estatus
-          </button>
-        </div>
-      )}
-
-      {isRejected && (
-        <div className="bg-rose-500/15 border-b border-rose-500/30 px-4 py-2.5 text-xs text-rose-200 flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
-            <span>
-              <strong>Solicitud con Observaciones:</strong> {driverProfile?.rejectionReason || 'Faltan documentos legibles o actualizados.'}
-            </span>
-          </div>
-          <button
-            onClick={() => setShowRegistrationModal(true)}
-            className="px-2.5 py-1 rounded-lg bg-rose-500 text-white font-black text-[11px] shrink-0 hover:bg-rose-600 transition-colors"
-          >
-            Corregir Ahora
-          </button>
-        </div>
-      )}
-
-      {/* ALERTA HUD EN RUTA: Gasolinera Económica Detectada Frente al Conductor */}
-      {nearbyStationAlert && (
-        <div className="bg-gradient-to-r from-amber-950/80 via-slate-900 to-amber-950/80 border-b border-amber-500/40 px-4 py-2 text-xs text-amber-200 flex items-center justify-between animate-pulse">
-          <div className="flex items-center gap-2 overflow-hidden">
-            <Fuel className="w-4 h-4 text-amber-400 flex-shrink-0 animate-bounce" />
-            <span className="truncate">
-              <strong>⛽ Estación en ruta:</strong> {nearbyStationAlert.name} • Regular: <strong className="text-white">${nearbyStationAlert.regular.toFixed(2)}/gal</strong> (-${nearbyStationAlert.savingsRegular.toFixed(2)} vs oficial)
-            </span>
-          </div>
-          <button
-            onClick={() => setShowGasModal(true)}
-            className="ml-2 px-2.5 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-lg text-[10px] whitespace-nowrap cursor-pointer transition-colors"
-          >
-            Ver Precios
-          </button>
-        </div>
-      )}
-
-      {/* Widget de Blindaje Financiero: Cuota Semanal & Límite de 10 Bonos */}
-      <div className="bg-slate-900/90 border-b border-slate-800 px-3 sm:px-4 py-2.5 flex items-center justify-between text-xs gap-2">
-        <div className="flex items-center gap-2">
-          <Shield className="w-4 h-4 text-amber-400 flex-shrink-0" />
-          <span className="text-slate-300">
-            Cuota Semanal: <strong className={netWeeklyFee === 0 ? "text-emerald-400 font-black" : "text-white"}>${netWeeklyFee.toFixed(2)} USD</strong> <span className="hidden xs:inline text-slate-500">(Base $10)</span>
-          </span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1.5">
-            <span className="text-slate-400 hidden sm:inline">Bonos:</span>
-            <span className={`font-mono font-bold px-1.5 py-0.5 rounded text-[11px] ${
-              weeklyBonuses >= bonusCap
-                ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
-            }`}>
-              {weeklyBonuses}/{bonusCap}
-            </span>
-          </div>
-
-          {weeklyBonuses < bonusCap ? (
-            <button
-              type="button"
-              onClick={handlePayWeeklyFeeWithBonuses}
-              disabled={isApplyingBonuses}
-              title="Pagar tu cuota semanal de $10 con tu saldo bonificado acumulado"
-              className="px-2.5 py-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold rounded-lg text-[10px] shadow cursor-pointer transition-all active:scale-95 flex items-center gap-1 whitespace-nowrap"
-            >
-              <Sparkles className="w-3 h-3 text-amber-300" />
-              <span>{isApplyingBonuses ? 'Aplicando...' : 'Pagar con bonos'}</span>
-            </button>
+          {weeklyBonuses >= bonusCap ? (
+            <div className="bg-emerald-500/15 border-b border-emerald-500/30 px-4 py-2 text-xs text-emerald-300 flex items-center justify-between gap-2 animate-fade-in">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-emerald-400 flex-shrink-0 animate-bounce" />
+                <span>
+                  <strong>¡Semana 100% Pagada con tus Bonos ($0.00 USD en efectivo)!</strong> Todas tus carreras son ganancia neta directa.
+                </span>
+              </div>
+              <span className="px-2 py-0.5 rounded bg-emerald-500 text-slate-950 font-black text-[10px] whitespace-nowrap">
+                AL DÍA
+              </span>
+            </div>
           ) : (
-            <span className="px-2 py-0.5 rounded bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 font-bold text-[10px] whitespace-nowrap">
-              100% Bonificado
-            </span>
+            <div className="bg-slate-900/60 border-b border-slate-800/80 px-4 py-1.5 text-[11px] text-slate-400 flex items-center justify-between">
+              <span>Cada bono recibido de un pasajero te descuenta <strong>$1.00 USD</strong> de tu cuota.</span>
+              <span className="text-amber-400 font-mono font-bold">Faltan {Math.max(0, bonusCap - weeklyBonuses)} para $0.00</span>
+            </div>
           )}
-        </div>
-      </div>
-
-      {weeklyBonuses >= bonusCap ? (
-        <div className="bg-emerald-500/15 border-b border-emerald-500/30 px-4 py-2 text-xs text-emerald-300 flex items-center justify-between gap-2 animate-fade-in">
-          <div className="flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-emerald-400 flex-shrink-0 animate-bounce" />
-            <span>
-              <strong>¡Semana 100% Pagada con tus Bonos ($0.00 USD en efectivo)!</strong> Todas tus carreras son ganancia neta directa.
-            </span>
-          </div>
-          <span className="px-2 py-0.5 rounded bg-emerald-500 text-slate-950 font-black text-[10px] whitespace-nowrap">
-            AL DÍA
-          </span>
-        </div>
-      ) : (
-        <div className="bg-slate-900/60 border-b border-slate-800/80 px-4 py-1.5 text-[11px] text-slate-400 flex items-center justify-between">
-          <span>Cada bono recibido de un pasajero te descuenta <strong>$1.00 USD</strong> de tu cuota.</span>
-          <span className="text-amber-400 font-mono font-bold">Faltan {Math.max(0, bonusCap - weeklyBonuses)} para $0.00</span>
-        </div>
+        </>
       )}
 
       {/* CUERPO PRINCIPAL */}
-      <main className="flex-1 max-w-lg mx-auto w-full p-4 space-y-4">
+      <main className={`flex-1 ${activeBottomTab === 'REQUESTS' && !activeTrip ? 'w-full' : 'max-w-lg mx-auto w-full p-4 space-y-4'} ${!activeTrip ? 'pb-24' : ''}`}>
         
-        {/* Caso A: No hay viaje activo y entra solicitud de carrera a 1 km */}
-        {!activeTrip && incomingRequest && driverOnline && (
-          <div className="bg-slate-900 border-2 border-amber-500 rounded-3xl p-5 shadow-2xl space-y-4 animate-bounce-subtle">
-            <div className="flex items-center justify-between">
-              <span className="px-2.5 py-1 rounded-full bg-amber-500 text-slate-950 font-black text-xs uppercase tracking-wider">
-                Nueva Solicitud (Radio {incomingRequest.distanceKm} km)
-              </span>
-              <div className="flex items-center gap-2">
-                <span className="text-[11px] text-emerald-400 font-bold flex items-center gap-1 bg-emerald-500/15 px-2.5 py-0.5 rounded-full border border-emerald-500/30">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
-                  <span>En vivo</span>
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setIncomingRequest(null)}
-                  className="text-[11px] text-slate-400 hover:text-rose-400 px-2 py-0.5 rounded-md hover:bg-slate-800 transition-colors font-medium cursor-pointer"
-                  title="Omitir solicitud"
-                >
-                  Omitir ✕
-                </button>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <div>
-                <div className="text-[11px] font-semibold text-slate-400 uppercase">Recoger en:</div>
-                <div className="text-base font-bold text-white flex items-center gap-1.5">
-                  <MapPin className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-                  <span>{incomingRequest.origin}</span>
-                </div>
-              </div>
-
-              <div>
-                <div className="text-[11px] font-semibold text-slate-400 uppercase">Destino:</div>
-                <div className="text-base font-bold text-white flex items-center gap-1.5">
-                  <MapPin className="w-4 h-4 text-rose-400 flex-shrink-0" />
-                  <span>{incomingRequest.destination}</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Requisitos y Preferencias del Pasajero */}
-            <div className="flex flex-wrap gap-1.5 pt-0.5">
-              {/* Modalidad de Transporte: Auto vs Moto */}
-              <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold flex items-center gap-1 ${
-                incomingRequest.transportType === 'MOTO'
-                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
-                  : 'bg-blue-500/15 text-blue-300 border border-blue-500/30'
-              }`}>
-                {incomingRequest.transportType === 'MOTO' ? '🏍️ En Moto' : '🚗 En Auto'}
-              </span>
-
-              {incomingRequest.transportType !== 'MOTO' && incomingRequest.preferences?.airConditioning !== false && (
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 font-bold flex items-center gap-1">
-                  ❄️ Desea A/C
-                </span>
-              )}
-              {incomingRequest.preferences?.passengers > 4 ? (
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-300 border border-orange-500/40 font-bold flex items-center gap-1 animate-pulse">
-                  🚐 5+ Pasajeros (Camioneta/Microbús)
-                </span>
-              ) : (
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700 font-bold flex items-center gap-1">
-                  👥 {incomingRequest.preferences?.passengers || 1} Pasajeros
-                </span>
-              )}
-              {incomingRequest.preferences?.weightProfile && incomingRequest.preferences?.weightProfile !== 'NORMAL' && (
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-bold flex items-center gap-1">
-                  {incomingRequest.preferences.weightProfile === 'LIGHT' ? '🏃 Delgada (~58 kg)' : incomingRequest.preferences.weightProfile === 'HEAVY' ? '🏋️ Robusta (~100 kg)' : '⚖️ Pesada (~125 kg)'}
-                </span>
-              )}
-              {incomingRequest.preferences?.extraLuggage && (
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-500/15 text-purple-300 border border-purple-500/30 font-bold flex items-center gap-1">
-                  🧳 Equipaje Extra
-                </span>
-              )}
-              {incomingRequest.preferences?.petFriendly && (
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30 font-bold flex items-center gap-1">
-                  🐾 Lleva Mascota
-                </span>
-              )}
-            </div>
-
-            <div className="p-3 bg-slate-950 rounded-2xl border border-slate-800 space-y-2">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="text-xs text-slate-400">Oferta del Pasajero</div>
-                  <div className="text-2xl font-black text-amber-400 font-mono">
-                    ${incomingRequest.offeredFare} <span className="text-xs font-normal text-slate-400">EFECTIVO</span>
-                  </div>
-                </div>
-                {incomingRequest.hasBonusDiscount && (
-                  <div className="text-right text-[11px] text-emerald-400 max-w-[130px]">
-                    Incluye $1.00 bono abonado a tu cuota semanal
-                  </div>
-                )}
-              </div>
-
-              {/* Comparador de Tarifa Ofrecida vs Cuota Sugerida */}
-              {(() => {
-                const offered = parseFloat(incomingRequest.offeredFare) || 0;
-                const suggested = parseFloat(incomingRequest.suggestedFare) || 0;
-                if (!suggested || suggested <= 0) return null;
-                const diff = +(offered - suggested).toFixed(2);
-                return (
-                  <div className="pt-0.5 flex items-center">
-                    {diff < -0.01 ? (
-                      <span className="text-[11px] px-2.5 py-1 rounded-xl bg-rose-500/20 text-rose-300 border border-rose-500/40 font-bold flex items-center gap-1.5 shadow-sm">
-                        <span>⚠️</span>
-                        <span>
-                          <strong>-${Math.abs(diff).toFixed(2)} USD</strong> por debajo de la cuota sugerida (${suggested.toFixed(2)})
-                        </span>
-                      </span>
-                    ) : diff > 0.01 ? (
-                      <span className="text-[11px] px-2.5 py-1 rounded-xl bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-bold flex items-center gap-1.5 shadow-sm">
-                        <span>🔥</span>
-                        <span>
-                          <strong>+${diff.toFixed(2)} USD</strong> por arriba de la cuota sugerida (${suggested.toFixed(2)})
-                        </span>
-                      </span>
-                    ) : (
-                      <span className="text-[11px] px-2.5 py-1 rounded-xl bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-bold flex items-center gap-1.5 shadow-sm">
-                        <span>✅</span>
-                        <span>Cuota sugerida exacta (${suggested.toFixed(2)})</span>
-                      </span>
-                    )}
-                  </div>
-                );
-              })()}
-
-              {/* DIAMANTE ROJO: Aviso de Billete y Vuelto */}
-              <div className="pt-2 border-t border-slate-800 flex items-center justify-between text-xs bg-rose-950/20 px-2.5 py-1.5 rounded-xl border border-rose-500/20">
-                <span className="text-rose-300 font-bold flex items-center gap-1">
-                  <span>💎 Paga con:</span>
-                  <strong className="text-white">${incomingRequest.cashBill || '10.00'}</strong>
-                </span>
-                <span className="text-amber-300 font-bold">
-                  👉 Llevar vuelto: ${incomingRequest.changeNeeded || '6.50'}
-                </span>
-              </div>
-            </div>
-
-            {/* CÁLCULO PROBABILÍSTICO DE GASOLINA, TRÁFICO Y GANANCIA NETA EN BOLSILLO */}
-            {(() => {
-              const isReqMoto = incomingRequest.transportType === 'MOTO';
-              const rawDelayMins = incomingRequest.delayMinutes || (incomingRequest.trafficLevel === 'SEVERE' ? 14 : incomingRequest.trafficLevel === 'HEAVY' ? 10 : 0);
-              const delayMins = isReqMoto ? rawDelayMins * 0.35 : rawDelayMins;
-              const effectiveKpg = isReqMoto ? 115.0 : kmPerGallon;
-              const fuelCalc = calculateTripFuelCost(
-                incomingRequest.roadDistanceKm || 7.8,
-                effectiveKpg,
-                fuelPrice,
-                incomingRequest.offeredFare,
-                delayMins,
-                isReqMoto ? { ...incomingRequest.preferences, airConditioning: false, passengers: 1 } : (incomingRequest.preferences || {})
-              );
-              const trafLabel = incomingRequest.trafficLabel || 'Tráfico Moderado';
-              const trafColor = incomingRequest.trafficColor || '#F59E0B';
-              return (
-                <div className="p-3 bg-slate-950/90 rounded-2xl border border-slate-800 space-y-2 text-xs">
-                  <div className="flex items-center justify-between text-slate-400">
-                    <span className="flex items-center gap-1.5">
-                      <Navigation className="w-3.5 h-3.5 text-cyan-400" />
-                      <span>Ruta y Tráfico Actual:</span>
-                    </span>
-                    <div className="flex items-center gap-1.5">
-                      <strong className="text-white font-mono">{fuelCalc.distanceKm} km</strong>
-                      <span className="text-[10px] px-1.5 py-0.5 rounded font-bold" style={{ backgroundColor: `${trafColor}20`, color: trafColor }}>
-                        {trafLabel}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between text-slate-400">
-                    <span className="flex items-center gap-1.5">
-                      <Fuel className="w-3.5 h-3.5 text-amber-400" />
-                      <span>Gasto Gasolina ({vehicleYear} • {fuelType}):</span>
-                    </span>
-                    <div className="text-right">
-                      <span className="text-amber-300 font-mono font-bold">
-                        -${fuelCalc.fuelCostUsd} USD
-                      </span>
-                      <span className="block text-[10px] text-slate-500">
-                        ({fuelCalc.gallonsConsumed} gal{fuelCalc.weightAnalysis?.totalWeightKg ? ` • peso ~${fuelCalc.weightAnalysis.totalWeightKg}kg` : ''})
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="pt-2 border-t border-slate-800 flex items-center justify-between font-bold">
-                    <span className="text-emerald-400 flex items-center gap-1">
-                      <Flame className="w-3.5 h-3.5" />
-                      <span>Tu Ganancia Limpia en Mano:</span>
-                    </span>
-                    <div className="text-right">
-                      <span className="text-emerald-400 text-base font-mono font-black">${fuelCalc.netEarningsUsd} USD</span>
-                      <span className="block text-[10px] text-slate-500">{fuelCalc.profitMarginPercent}% de margen</span>
-                    </div>
-                  </div>
-                </div>
-              );
-            })()}
-
-            {/* Opciones Rápidas: Aceptar tarifa o Contraofertar (+0.50, +1.00) */}
-            <div className="grid grid-cols-3 gap-2">
-              <button
-                onClick={() => handleAcceptFare(incomingRequest.offeredFare)}
-                className="py-3 px-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs flex flex-col items-center justify-center gap-0.5 shadow-lg cursor-pointer"
-              >
-                <span>ACEPTAR</span>
-                <span className="text-emerald-200">${incomingRequest.offeredFare}</span>
-              </button>
-
-              <button
-                onClick={() => handleAcceptFare((parseFloat(incomingRequest.offeredFare) + 0.50).toFixed(2))}
-                className="py-3 px-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-700 font-bold text-xs flex flex-col items-center justify-center gap-0.5 cursor-pointer"
-              >
-                <span>+$0.50</span>
-                <span className="text-slate-300">${(parseFloat(incomingRequest.offeredFare) + 0.50).toFixed(2)}</span>
-              </button>
-
-              <button
-                onClick={() => handleAcceptFare((parseFloat(incomingRequest.offeredFare) + 1.00).toFixed(2))}
-                className="py-3 px-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-700 font-bold text-xs flex flex-col items-center justify-center gap-0.5 cursor-pointer"
-              >
-                <span>+$1.00</span>
-                <span className="text-slate-300">${(parseFloat(incomingRequest.offeredFare) + 1.00).toFixed(2)}</span>
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Caso B: Viaje Activo Asignado (Detalle Operativo con Monto Gigante y Deep-Links de Mapas) */}
+        {/* Caso A: Viaje Activo Asignado (Detalle Operativo con Monto Gigante y Deep-Links de Mapas) */}
         {activeTrip && (
           <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 shadow-2xl space-y-5 animate-fade-in">
             
@@ -1133,44 +935,275 @@ export default function DriverApp() {
           </div>
         )}
 
-        {/* Caso C: Oferta enviada, esperando confirmación del pasajero */}
-        {!activeTrip && pendingOffer && driverOnline && (
-          <div className="bg-slate-900 border-2 border-emerald-500/60 rounded-3xl p-6 shadow-2xl space-y-4 text-center animate-fade-in">
-            <div className="w-14 h-14 rounded-full bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center mx-auto text-emerald-400">
-              <Loader2 className="w-7 h-7 animate-spin" />
-            </div>
-            <div>
-              <span className="px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 font-bold text-xs uppercase tracking-wider">
-                Oferta Enviada: ${pendingOffer.offeredFare} USD
-              </span>
-              <h3 className="text-lg font-black text-white mt-2">Esperando que el Pasajero Confirme</h3>
-              <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
-                El pasajero está evaluando tu tarifa. Cuando acepte, la aplicación cambiará automáticamente a la ruta de recogida hacia <strong>{pendingOffer.origin}</strong>.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setPendingOffer(null)}
-              className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold cursor-pointer transition-colors"
-            >
-              Cancelar Oferta
-            </button>
-          </div>
-        )}
+        {/* Caso B: Cuando NO hay viaje activo, navegación nativa por 3 pestañas */}
+        {!activeTrip && (
+          <>
+            {/* PESTAÑA 1: SOLICITUDES DE VIAJE (FEED A 1 KM) */}
+            {activeBottomTab === 'REQUESTS' && (
+              <div className="space-y-3">
+                {pendingOffer && (
+                  <div className="p-4 mx-4 mt-3 bg-slate-900 border-2 border-emerald-500/60 rounded-3xl shadow-2xl space-y-3 text-center animate-fade-in">
+                    <div className="w-10 h-10 rounded-full bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center mx-auto text-emerald-400">
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                    </div>
+                    <div>
+                      <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-bold text-xs uppercase tracking-wider">
+                        Oferta Enviada: ${pendingOffer.offeredFare} USD
+                      </span>
+                      <h4 className="text-sm font-black text-white mt-1.5">Esperando que el Pasajero Confirme</h4>
+                      <p className="text-[11px] text-slate-400 mt-1 max-w-xs mx-auto">
+                        Evaluando tu tarifa para recoger en <strong>{pendingOffer.origin}</strong>.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setPendingOffer(null)}
+                      className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold cursor-pointer transition-colors"
+                    >
+                      Cancelar Oferta
+                    </button>
+                  </div>
+                )}
 
-        {!activeTrip && !incomingRequest && !pendingOffer && (
-          <div className="p-8 bg-slate-900 border border-slate-800 rounded-3xl text-center space-y-3">
-            <div className="w-12 h-12 rounded-full bg-slate-800 flex items-center justify-center mx-auto text-amber-400">
-              <Navigation className="w-6 h-6 animate-pulse" />
-            </div>
-            <h4 className="font-bold text-white text-base">Esperando Solicitudes Reales en Línea</h4>
-            <p className="text-xs text-slate-400 max-w-xs mx-auto">
-              Tu radar GPS está activo. En cuanto un pasajero solicite un viaje o encomienda, verás la tarjeta de solicitud al instante con el cálculo de gasolina y tu ganancia limpia.
-            </p>
-          </div>
+                <DriverTripRequestsFeed
+                  driverOnline={driverOnline}
+                  onToggleOnline={handleToggleOnline}
+                  onAcceptRequest={handleAcceptRequestFromFeed}
+                  onSendOffer={(fare) => handleAcceptFare(fare)}
+                  incomingRequest={incomingRequest}
+                  onOpenSettings={() => setShowVehicleSettings(true)}
+                  onOpenExpediente={() => setShowRegistrationModal(true)}
+                />
+              </div>
+            )}
+
+            {/* PESTAÑA 2: MIS INGRESOS & HISTORIAL */}
+            {activeBottomTab === 'EARNINGS' && (
+              <DriverEarningsView
+                driverProfile={driverProfile}
+                fuelPrice={fuelPrice}
+                kmPerGallon={kmPerGallon}
+              />
+            )}
+
+            {/* PESTAÑA 3: PRIORIDAD & BLINDAJE FINANCIERO */}
+            {activeBottomTab === 'PRIORITY' && (
+              <div className="space-y-4">
+                {/* Tarjeta de Estatus de Prioridad */}
+                <div className="p-5 bg-gradient-to-br from-amber-500/15 via-slate-900 to-slate-900 border border-amber-500/30 rounded-3xl space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="px-3 py-1 rounded-full bg-amber-500 text-slate-950 font-black text-xs uppercase tracking-wider flex items-center gap-1.5 shadow-sm">
+                      <Star className="w-3.5 h-3.5 fill-slate-950" />
+                      <span>Estatus Prioritario Activo</span>
+                    </span>
+                    <span className="text-xs font-black text-emerald-400 font-mono">0% COMISIÓN</span>
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-black text-white">Retén el 100% de tus Ganancias</h3>
+                    <p className="text-xs text-slate-300 mt-1 leading-relaxed">
+                      En Rumbo no te cobramos el 25% o 30% por cada viaje que haces. El efectivo va íntegro a tu mano al momento de cobrar.
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 pt-1">
+                    <div className="p-3 bg-slate-950/80 rounded-2xl border border-slate-800 text-center">
+                      <div className="text-[10px] text-slate-400 uppercase font-semibold">En Rumbo</div>
+                      <div className="text-emerald-400 font-black text-lg">100% Tuyo</div>
+                      <div className="text-[10px] text-slate-500">$0 comisión x viaje</div>
+                    </div>
+                    <div className="p-3 bg-slate-950/80 rounded-2xl border border-slate-800 text-center">
+                      <div className="text-[10px] text-slate-400 uppercase font-semibold">Otras Apps</div>
+                      <div className="text-rose-400 font-bold text-lg">-28% Menos</div>
+                      <div className="text-[10px] text-slate-500">Pierdes $2.80 de $10</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Tarjeta Cuota Semanal & Bonos */}
+                <div className="p-5 bg-slate-900 border border-slate-800 rounded-3xl space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Shield className="w-5 h-5 text-emerald-400" />
+                      <h4 className="font-bold text-white text-sm">Cuota Semanal de Blindaje</h4>
+                    </div>
+                    <span className="font-mono font-bold text-xs px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                      {weeklyBonuses}/{bonusCap} Bonos
+                    </span>
+                  </div>
+
+                  <div className="p-3.5 bg-slate-950 rounded-2xl border border-slate-800 space-y-2">
+                    <div className="flex justify-between text-xs text-slate-400">
+                      <span>Cuota Base Semanal:</span>
+                      <span className="font-mono text-white font-bold">$10.00 USD</span>
+                    </div>
+                    <div className="flex justify-between text-xs text-emerald-400">
+                      <span>Bonos de recomendación acumulados:</span>
+                      <span className="font-mono font-bold">-${(weeklyBonuses * 1.00).toFixed(2)} USD</span>
+                    </div>
+                    <div className="pt-2 border-t border-slate-800 flex justify-between text-sm font-black text-white">
+                      <span>Saldo neto a pagar en efectivo:</span>
+                      <span className={netWeeklyFee === 0 ? "text-emerald-400 font-mono" : "text-amber-400 font-mono"}>
+                        ${netWeeklyFee.toFixed(2)} USD
+                      </span>
+                    </div>
+                  </div>
+
+                  {weeklyBonuses < bonusCap ? (
+                    <button
+                      type="button"
+                      onClick={handlePayWeeklyFeeWithBonuses}
+                      disabled={isApplyingBonuses}
+                      className="w-full py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs rounded-xl shadow cursor-pointer transition-all flex items-center justify-center gap-1.5"
+                    >
+                      <Sparkles className="w-4 h-4 text-amber-300" />
+                      <span>{isApplyingBonuses ? 'Aplicando...' : 'Aplicar Mis Bonos a la Cuota'}</span>
+                    </button>
+                  ) : (
+                    <div className="p-3 bg-emerald-500/15 border border-emerald-500/40 rounded-xl text-center text-xs font-bold text-emerald-300">
+                      ✨ ¡Tu semana está 100% Pagada con tus bonos ($0.00 en efectivo)!
+                    </div>
+                  )}
+
+                  <p className="text-[11px] text-slate-400 leading-relaxed">
+                    💡 Cada pasajero o contacto que descargue Rumbo con tu código te descuenta <strong>$1.00 USD</strong>. Con 10 recomendados, no pagas absolutamente nada esa semana.
+                  </p>
+                </div>
+
+                {/* Accesos Rápidos: Radar Gasolina y Mi Auto */}
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setShowGasModal(true)}
+                    className="p-4 bg-slate-900 hover:bg-slate-850 border border-slate-800 rounded-2xl text-left space-y-2 cursor-pointer transition-all group"
+                  >
+                    <div className="w-9 h-9 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center group-hover:scale-105 transition-transform">
+                      <Fuel className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <div className="font-bold text-white text-xs">Radar de Gasolina</div>
+                      <div className="text-[11px] text-slate-400 mt-0.5">Precios DGEHM y ahorro en ruta</div>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowVehicleSettings(true)}
+                    className="p-4 bg-slate-900 hover:bg-slate-850 border border-slate-800 rounded-2xl text-left space-y-2 cursor-pointer transition-all group"
+                  >
+                    <div className="w-9 h-9 rounded-xl bg-cyan-500/20 text-cyan-400 flex items-center justify-center group-hover:scale-105 transition-transform">
+                      <Settings className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <div className="font-bold text-white text-xs">Mi Vehículo</div>
+                      <div className="text-[11px] text-slate-400 mt-0.5">{vehicleYear} • {kmPerGallon} km/gal</div>
+                    </div>
+                  </button>
+                </div>
+
+                {/* Expediente Digital */}
+                <div className="p-4 bg-slate-900 border border-slate-800 rounded-2xl flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold">
+                      <CheckCircle className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <div className="font-bold text-white text-xs">Expediente Oficial Verificado</div>
+                      <div className="text-[11px] text-slate-400 font-mono">DUI: {driverProfile?.dui || '01234567-8'}</div>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowRegistrationModal(true)}
+                    className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold cursor-pointer"
+                  >
+                    Ver
+                  </button>
+                </div>
+
+                {/* Cerrar Sesión */}
+                <div className="pt-2 text-center">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      localStorage.removeItem('rumbo_driver_profile');
+                      setDriverProfile(null);
+                      setDriverOnline(false);
+                    }}
+                    className="text-xs text-slate-500 hover:text-rose-400 underline cursor-pointer"
+                  >
+                    Cerrar Sesión de Conductor
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
         )}
 
       </main>
+
+      {/* BARRA DE NAVEGACIÓN INFERIOR (Oculta durante viaje activo para no estorbar la conducción) */}
+      {!activeTrip && (
+        <nav className="fixed bottom-0 inset-x-0 z-40 bg-slate-950/95 backdrop-blur-md border-t border-slate-800/80 px-4 py-2 max-w-lg mx-auto shadow-2xl">
+          <div className="grid grid-cols-3 gap-1">
+            <button
+              type="button"
+              onClick={() => setActiveBottomTab('REQUESTS')}
+              className={`flex flex-col items-center justify-center py-2 px-1 rounded-xl transition-all cursor-pointer relative ${
+                activeBottomTab === 'REQUESTS'
+                  ? 'text-emerald-400 bg-emerald-500/10 font-bold'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
+              }`}
+            >
+              <div className="relative">
+                <List className="w-5 h-5" />
+                <span className="absolute -top-1.5 -right-2.5 px-1.5 py-0.2 bg-emerald-500 text-slate-950 font-black text-[9px] rounded-full">
+                  5
+                </span>
+              </div>
+              <span className="text-[11px] mt-1 tracking-tight">Solicitudes</span>
+              {activeBottomTab === 'REQUESTS' && (
+                <span className="w-6 h-0.5 bg-emerald-400 rounded-full mt-1" />
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveBottomTab('EARNINGS')}
+              className={`flex flex-col items-center justify-center py-2 px-1 rounded-xl transition-all cursor-pointer ${
+                activeBottomTab === 'EARNINGS'
+                  ? 'text-emerald-400 bg-emerald-500/10 font-bold'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
+              }`}
+            >
+              <Coins className="w-5 h-5" />
+              <span className="text-[11px] mt-1 tracking-tight">Mis ingresos</span>
+              {activeBottomTab === 'EARNINGS' && (
+                <span className="w-6 h-0.5 bg-emerald-400 rounded-full mt-1" />
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveBottomTab('PRIORITY')}
+              className={`flex flex-col items-center justify-center py-2 px-1 rounded-xl transition-all cursor-pointer relative ${
+                activeBottomTab === 'PRIORITY'
+                  ? 'text-amber-400 bg-amber-500/10 font-bold'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
+              }`}
+            >
+              <div className="relative">
+                <Star className="w-5 h-5" />
+                <span className="absolute -top-1 -right-2 px-1 py-0.2 bg-amber-500 text-slate-950 font-black text-[8px] rounded-full">
+                  0%
+                </span>
+              </div>
+              <span className="text-[11px] mt-1 tracking-tight">Prioridad</span>
+              {activeBottomTab === 'PRIORITY' && (
+                <span className="w-6 h-0.5 bg-amber-400 rounded-full mt-1" />
+              )}
+            </button>
+          </div>
+        </nav>
+      )}
 
       {/* Modal de Configuración de Vehículo y Rendimiento de Gasolina */}
       {showVehicleSettings && (
