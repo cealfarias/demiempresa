@@ -264,6 +264,22 @@ ALTER TABLE viajes_driver_profiles ADD COLUMN IF NOT EXISTS emergency_contact_ph
 ALTER TABLE viajes_driver_profiles ADD COLUMN IF NOT EXISTS rejection_reason TEXT;
 ALTER TABLE viajes_driver_profiles ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
 
+-- 9.2 SISTEMA DE TICKETS DE SOPORTE TÉCNICO Y MEJORAS AL SISTEMA
+CREATE TABLE IF NOT EXISTS viajes_support_tickets (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    ticket_code VARCHAR(30) UNIQUE NOT NULL,
+    user_name VARCHAR(150) NOT NULL,
+    phone VARCHAR(25) NOT NULL,
+    category VARCHAR(30) NOT NULL DEFAULT 'DUDA',
+    subject VARCHAR(200) NOT NULL,
+    description TEXT NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'OPEN',
+    resolution_notes TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_viajes_support_status ON viajes_support_tickets(status);
+
 -- 10. ÍNDICES DE CONCURRENCIA Y RENDIMIENTO
 CREATE INDEX IF NOT EXISTS idx_viajes_users_phone ON viajes_users(phone);
 CREATE INDEX IF NOT EXISTS idx_viajes_driver_profiles_active ON viajes_driver_profiles(is_active, is_online);

@@ -757,6 +757,43 @@ app.get('/api/wallet/audit', async (req, res) => {
   }
 });
 
+// =====================================================================
+// 6.1 SISTEMA DE TICKETS DE SOPORTE TÉCNICO Y MEJORAS AL SISTEMA
+// =====================================================================
+
+app.post('/api/support/tickets', async (req, res) => {
+  try {
+    const { ticketCode, userName, phone, category = 'DUDA', subject, description } = req.body;
+    if (!userName || !phone || !subject || !description) {
+      return res.status(400).json({ error: 'Todos los campos son requeridos para el ticket' });
+    }
+    const code = ticketCode || `TKT-${Math.floor(100000 + Math.random() * 900000)}`;
+    const insertRes = await pool.query(`
+      INSERT INTO viajes_support_tickets (ticket_code, user_name, phone, category, subject, description)
+      VALUES ($1, $2, $3, $4, $5, $6)
+      RETURNING *;
+    `, [code, userName.trim(), phone.trim(), category, subject.trim(), description.trim()]);
+
+    res.json({ success: true, ticket: insertRes.rows[0] });
+  } catch (err) {
+    console.error('Error en POST /api/support/tickets:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/support/tickets', async (req, res) => {
+  try {
+    const ticketsRes = await pool.query(`
+      SELECT * FROM viajes_support_tickets
+      ORDER BY created_at DESC
+      LIMIT 100;
+    `);
+    res.json({ success: true, tickets: ticketsRes.rows });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // 7. INICIALIZACIÓN AUTOMÁTICA DE BASE DE DATOS Y ENDPOINT ADMIN
 async function initializeDatabase() {
   if (!process.env.DATABASE_URL) {
@@ -764,6 +801,23 @@ async function initializeDatabase() {
     return;
   }
   try {
+    // 0. Asegurar tabla de tickets de soporte técnico
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS viajes_support_tickets (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        ticket_code VARCHAR(30) UNIQUE NOT NULL,
+        user_name VARCHAR(150) NOT NULL,
+        phone VARCHAR(25) NOT NULL,
+        category VARCHAR(30) NOT NULL DEFAULT 'DUDA',
+        subject VARCHAR(200) NOT NULL,
+        description TEXT NOT NULL,
+        status VARCHAR(20) NOT NULL DEFAULT 'OPEN',
+        resolution_notes TEXT,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `).catch(() => {});
+
     // 1. Asegurar columnas de cumplimiento y expediente de conductores de inmediato
     await pool.query(`
       DO $$ BEGIN

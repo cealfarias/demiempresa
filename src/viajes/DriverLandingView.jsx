@@ -17,11 +17,15 @@ import {
   ArrowRight,
   HeartHandshake,
   MessageCircle,
-  AlertCircle
+  AlertCircle,
+  LifeBuoy
 } from 'lucide-react';
 import RumboLogo from './RumboLogo';
+import DriverAvatarNarrator from './DriverAvatarNarrator';
+import SupportTicketModal from './SupportTicketModal';
 
 export default function DriverLandingView({ onStartRegistration, onCheckStatus }) {
+  const [showSupportModal, setShowSupportModal] = useState(false);
   // Calculadora interactiva de ganancia semanal estimada
   const [tripsPerDay, setTripsPerDay] = useState(12);
   const [avgFare, setAvgFare] = useState(4.50);
@@ -55,6 +59,13 @@ export default function DriverLandingView({ onStartRegistration, onCheckStatus }
         </div>
 
         <div className="flex items-center gap-2.5">
+          <button
+            onClick={() => setShowSupportModal(true)}
+            className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-amber-300 hover:text-white hover:bg-slate-850 border border-amber-500/30 transition-colors cursor-pointer"
+          >
+            <LifeBuoy className="w-3.5 h-3.5 text-amber-400" />
+            <span>Soporte Técnico</span>
+          </button>
           <button
             onClick={onCheckStatus}
             className="px-3 py-1.5 rounded-xl text-xs font-bold text-slate-300 hover:text-white hover:bg-slate-850 border border-slate-700/60 transition-colors"
@@ -106,15 +117,13 @@ export default function DriverLandingView({ onStartRegistration, onCheckStatus }
             <span>Activar mi Semana Gratis • Registrarme</span>
             <ArrowRight className="w-4 h-4" />
           </button>
-          <a
-            href="https://wa.me/50369893101?text=Hola,%20soy%20conductor%20y%20deseo%20conocer%20mas%20sobre%20Rumbo"
-            target="_blank"
-            rel="noreferrer"
-            className="w-full sm:w-auto px-6 py-4 rounded-2xl bg-slate-900 hover:bg-slate-850 border border-slate-700/80 text-slate-200 font-bold text-sm flex items-center justify-center gap-2 transition-colors"
+          <button
+            onClick={() => setShowSupportModal(true)}
+            className="w-full sm:w-auto px-6 py-4 rounded-2xl bg-slate-900 hover:bg-slate-850 border border-slate-700/80 text-slate-200 font-bold text-sm flex items-center justify-center gap-2 transition-colors cursor-pointer"
           >
-            <MessageCircle className="w-4 h-4 text-emerald-400" />
-            <span>Hablar con un Asesor por WhatsApp</span>
-          </a>
+            <LifeBuoy className="w-4 h-4 text-amber-400" />
+            <span>Soporte Técnico (Tickets)</span>
+          </button>
         </div>
 
         {/* Mini Badges de Confianza */}
@@ -131,6 +140,11 @@ export default function DriverLandingView({ onStartRegistration, onCheckStatus }
             <CheckCircle2 className="w-4 h-4 text-emerald-400" />
             <span>Sin contratos forzosos</span>
           </div>
+        </div>
+
+        {/* 2.1 EL AVATAR NARRADOR INTERACTIVO (DRAMÁTICO Y EUFÓRICO) */}
+        <div className="pt-2 max-w-3xl mx-auto">
+          <DriverAvatarNarrator onStartRegistration={onStartRegistration} />
         </div>
       </section>
 
@@ -546,9 +560,21 @@ export default function DriverLandingView({ onStartRegistration, onCheckStatus }
 
         <div className="pt-8 text-[11px] text-slate-500 border-t border-slate-900 max-w-xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
           <span>© {new Date().getFullYear()} Rumbo a mi Destino • demiempresa.online</span>
-          <span className="text-slate-400 font-medium">Plataforma Colaborativa Salvadoreña</span>
+          <button
+            onClick={() => setShowSupportModal(true)}
+            className="text-amber-400 hover:text-amber-300 font-semibold underline underline-offset-2 cursor-pointer flex items-center gap-1"
+          >
+            <LifeBuoy className="w-3.5 h-3.5" />
+            <span>Sistema de Tickets y Soporte Técnico</span>
+          </button>
         </div>
       </section>
+
+      {/* Modal de Soporte Técnico y Creación de Tickets */}
+      <SupportTicketModal
+        isOpen={showSupportModal}
+        onClose={() => setShowSupportModal(false)}
+      />
 
     </div>
   );

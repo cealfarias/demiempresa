@@ -18,9 +18,26 @@ import {
   Info,
   ExternalLink,
   MessageCircle,
-  Check
+  Check,
+  RotateCw,
+  Sparkles,
+  Smartphone,
+  CreditCard,
+  Building,
+  CheckCircle2,
+  Wind
 } from 'lucide-react';
 import { registerDriverApi, fetchDriverStatusApi } from './api';
+import {
+  VEHICLE_BRANDS,
+  VEHICLE_MODELS_BY_BRAND,
+  VEHICLE_COLORS,
+  calculateVehicleFuelEfficiency
+} from './vehicleCatalog';
+import {
+  validateDocumentImage,
+  rotateImage90Degrees
+} from './documentValidatorService';
 
 export default function DriverRegistrationModal({ isOpen, onClose, onDriverRegistered, existingDriverId }) {
   const [step, setStep] = useState(1);
@@ -30,6 +47,7 @@ export default function DriverRegistrationModal({ isOpen, onClose, onDriverRegis
   const [lookupDui, setLookupDui] = useState('');
   const [isLookingUp, setIsLookingUp] = useState(false);
   const [lookupError, setLookupError] = useState(null);
+  const [docValidations, setDocValidations] = useState({});
 
   const handleLookupByDui = async () => {
     if (!lookupDui.trim()) return;
@@ -64,8 +82,9 @@ export default function DriverRegistrationModal({ isOpen, onClose, onDriverRegis
     vehicleModel: 'Corolla',
     vehicleYear: 2018,
     vehicleColor: 'Gris Plata',
+    hasAirConditioning: true,
     fuelType: 'REGULAR',
-    fuelKmPerGallon: 42.0,
+    fuelKmPerGallon: 37.0,
     photoUrl: '',
     duiFrontUrl: '',
     duiBackUrl: '',
@@ -110,6 +129,46 @@ export default function DriverRegistrationModal({ isOpen, onClose, onDriverRegis
 
   if (!isOpen) return null;
 
+  // Handlers para Combos Dinámicos de Marca, Modelo, Año y Clima
+  const handleBrandChange = (newBrand) => {
+    const models = VEHICLE_MODELS_BY_BRAND[newBrand] || ['Modelo Estándar'];
+    const newModel = models[0];
+    const eff = calculateVehicleFuelEfficiency(newBrand, newModel, form.vehicleYear, form.hasAirConditioning);
+    setForm((prev) => ({
+      ...prev,
+      vehicleBrand: newBrand,
+      vehicleModel: newModel,
+      fuelKmPerGallon: eff.acKpg
+    }));
+  };
+
+  const handleModelChange = (newModel) => {
+    const eff = calculateVehicleFuelEfficiency(form.vehicleBrand, newModel, form.vehicleYear, form.hasAirConditioning);
+    setForm((prev) => ({
+      ...prev,
+      vehicleModel: newModel,
+      fuelKmPerGallon: eff.acKpg
+    }));
+  };
+
+  const handleYearChange = (newYear) => {
+    const eff = calculateVehicleFuelEfficiency(form.vehicleBrand, form.vehicleModel, newYear, form.hasAirConditioning);
+    setForm((prev) => ({
+      ...prev,
+      vehicleYear: newYear,
+      fuelKmPerGallon: eff.acKpg
+    }));
+  };
+
+  const handleAirConditioningToggle = (hasAc) => {
+    const eff = calculateVehicleFuelEfficiency(form.vehicleBrand, form.vehicleModel, form.vehicleYear, hasAc);
+    setForm((prev) => ({
+      ...prev,
+      hasAirConditioning: hasAc,
+      fuelKmPerGallon: hasAc ? eff.acKpg : eff.nominalKpg
+    }));
+  };
+
   // Formato automático de DUI: 00000000-0
   const handleDuiChange = (e) => {
     let val = e.target.value.replace(/\D/g, '').slice(0, 9);
@@ -125,19 +184,49 @@ export default function DriverRegistrationModal({ isOpen, onClose, onDriverRegis
     setForm({ ...form, vehiclePlate: val });
   };
 
-  // Conversión de archivo local a base64 / DataURL para previsualización inmediata
-  const handleFileUpload = (field, e) => {
+  // Subida de Archivo con Validación de Calidad, Orientación y Verificación de Datos
+  const handleFileUpload = (field, e, docType) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 5 * 1024 * 1024) {
-      alert('La imagen no debe superar los 5MB.');
+    if (file.size > 8 * 1024 * 1024) {
+      alert('La imagen no debe superar los 8MB.');
       return;
     }
     const reader = new FileReader();
-    reader.onloadend = () => {
-      setForm((prev) => ({ ...prev, [field]: reader.result }));
+    reader.onloadend = async () => {
+      const dataUrl = reader.result;
+      setForm((prev) => ({ ...prev, [field]: dataUrl }));
+
+      if (docType) {
+        const report = await validateDocumentImage(dataUrl, docType, {
+          dui: form.dui,
+          fullName: form.fullName,
+          licenseNumber: form.licenseNumber,
+          vehiclePlate: form.vehiclePlate,
+          vehicleBrand: form.vehicleBrand
+        });
+        setDocValidations((prev) => ({ ...prev, [field]: report }));
+      }
     };
     reader.readAsDataURL(file);
+  };
+
+  // Rotación de foto 90° en canvas para corregir fotos de cabeza o de lado
+  const handleRotateDocument = async (field, docType) => {
+    const currentUrl = form[field];
+    if (!currentUrl) return;
+    const rotated = await rotateImage90Degrees(currentUrl);
+    setForm((prev) => ({ ...prev, [field]: rotated }));
+    if (docType) {
+      const report = await validateDocumentImage(rotated, docType, {
+        dui: form.dui,
+        fullName: form.fullName,
+        licenseNumber: form.licenseNumber,
+        vehiclePlate: form.vehiclePlate,
+        vehicleBrand: form.vehicleBrand
+      });
+      setDocValidations((prev) => ({ ...prev, [field]: report }));
+    }
   };
 
   const validateStep1 = () => {
@@ -541,36 +630,42 @@ export default function DriverRegistrationModal({ isOpen, onClose, onDriverRegis
 
                   <div className="space-y-1">
                     <label className="text-xs font-bold text-slate-300">Marca del Vehículo *</label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="ej. Toyota, Nissan, Hyundai, Kia"
+                    <select
                       value={form.vehicleBrand}
-                      onChange={(e) => setForm({ ...form, vehicleBrand: e.target.value })}
-                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-400 transition-colors"
-                    />
+                      onChange={(e) => handleBrandChange(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-100 font-semibold focus:outline-none focus:border-amber-400 transition-colors"
+                    >
+                      {VEHICLE_BRANDS.map((b) => (
+                        <option key={b} value={b}>
+                          {b}
+                        </option>
+                      ))}
+                    </select>
                   </div>
 
                   <div className="space-y-1">
                     <label className="text-xs font-bold text-slate-300">Modelo *</label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="ej. Corolla, Sentra, Accent, Rio"
+                    <select
                       value={form.vehicleModel}
-                      onChange={(e) => setForm({ ...form, vehicleModel: e.target.value })}
-                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-400 transition-colors"
-                    />
+                      onChange={(e) => handleModelChange(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-100 font-semibold focus:outline-none focus:border-amber-400 transition-colors"
+                    >
+                      {(VEHICLE_MODELS_BY_BRAND[form.vehicleBrand] || ['Modelo Estándar']).map((m) => (
+                        <option key={m} value={m}>
+                          {m}
+                        </option>
+                      ))}
+                    </select>
                   </div>
 
                   <div className="space-y-1">
                     <label className="text-xs font-bold text-slate-300">Año de Fabricación *</label>
                     <select
                       value={form.vehicleYear}
-                      onChange={(e) => setForm({ ...form, vehicleYear: parseInt(e.target.value, 10) })}
+                      onChange={(e) => handleYearChange(parseInt(e.target.value, 10))}
                       className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-100 focus:outline-none focus:border-amber-400 transition-colors"
                     >
-                      {Array.from({ length: 15 }, (_, i) => 2026 - i).map((yr) => (
+                      {Array.from({ length: 22 }, (_, i) => 2026 - i).map((yr) => (
                         <option key={yr} value={yr}>
                           Año {yr} {yr >= 2018 ? '✨ (Óptimo)' : ''}
                         </option>
@@ -580,38 +675,95 @@ export default function DriverRegistrationModal({ isOpen, onClose, onDriverRegis
 
                   <div className="space-y-1">
                     <label className="text-xs font-bold text-slate-300">Color del Vehículo *</label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="ej. Gris Plata, Blanco, Negro, Azul"
+                    <select
                       value={form.vehicleColor}
                       onChange={(e) => setForm({ ...form, vehicleColor: e.target.value })}
-                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-400 transition-colors"
-                    />
+                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-100 focus:outline-none focus:border-amber-400 transition-colors"
+                    >
+                      {VEHICLE_COLORS.map((c) => (
+                        <option key={c} value={c}>
+                          {c}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                 </div>
 
-                <div className="p-3 rounded-2xl bg-slate-900/60 border border-slate-800 grid grid-cols-2 gap-3 text-xs">
-                  <div className="space-y-1">
-                    <label className="font-bold text-slate-300">Tipo de Combustible</label>
-                    <select
-                      value={form.fuelType}
-                      onChange={(e) => setForm({ ...form, fuelType: e.target.value })}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100"
-                    >
-                      <option value="REGULAR">Gasolina Regular</option>
-                      <option value="ESPECIAL">Gasolina Especial (Super)</option>
-                      <option value="DIESEL">Diésel</option>
-                    </select>
+                {/* Pregunta de Aire Acondicionado & Rendimiento de Combustible Automático */}
+                <div className="p-3.5 rounded-2xl bg-slate-900/90 border border-slate-800 space-y-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <Wind className="w-4 h-4 text-sky-400" />
+                      <span className="text-xs font-bold text-slate-200">
+                        ¿Tiene Aire Acondicionado 100% Funcional?
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleAirConditioningToggle(true)}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                          form.hasAirConditioning
+                            ? 'bg-sky-500 text-slate-950 shadow-md shadow-sky-950/40'
+                            : 'bg-slate-950 text-slate-400 border border-slate-800 hover:text-white'
+                        }`}
+                      >
+                        ✓ Sí, Funcional
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleAirConditioningToggle(false)}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                          !form.hasAirConditioning
+                            ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-950/40'
+                            : 'bg-slate-950 text-slate-400 border border-slate-800 hover:text-white'
+                        }`}
+                      >
+                        Sin Aire
+                      </button>
+                    </div>
                   </div>
-                  <div className="space-y-1">
-                    <label className="font-bold text-slate-300">Rendimiento (km/galón aprox)</label>
-                    <input
-                      type="number"
-                      value={form.fuelKmPerGallon}
-                      onChange={(e) => setForm({ ...form, fuelKmPerGallon: parseFloat(e.target.value) || 40 })}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100"
-                    />
+
+                  {/* Tarjeta de Cálculo Automático de Rendimiento de Combustible */}
+                  <div className="p-3 bg-slate-950 rounded-xl border border-amber-500/30 space-y-1.5">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-amber-400 font-bold flex items-center gap-1.5">
+                        <Sparkles className="w-3.5 h-3.5" />
+                        <span>Rendimiento Estimado Automático de Fábrica:</span>
+                      </span>
+                      <span className="font-mono font-black text-white text-sm">
+                        {form.fuelKmPerGallon} km/gal
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-400 leading-relaxed">
+                      💡 Investigado y calculado según parámetros oficiales de <strong>{form.vehicleBrand} {form.vehicleModel} ({form.vehicleYear})</strong> {form.hasAirConditioning ? 'con A/C activo en ciudad' : 'sin clima'}. No tienes que adivinarlo: Rumbo lo usa para calcular el gasto exacto de tu viaje.
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3 text-xs pt-1">
+                    <div className="space-y-1">
+                      <label className="font-bold text-slate-300">Tipo de Combustible Recomendado</label>
+                      <select
+                        value={form.fuelType}
+                        onChange={(e) => setForm({ ...form, fuelType: e.target.value })}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100"
+                      >
+                        <option value="REGULAR">Gasolina Regular ($4.75)</option>
+                        <option value="ESPECIAL">Gasolina Especial ($5.13)</option>
+                        <option value="DIESEL">Diésel ($4.25)</option>
+                      </select>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="font-bold text-slate-300">Ajuste Manual si difiere (km/gal)</label>
+                      <input
+                        type="number"
+                        step="0.5"
+                        value={form.fuelKmPerGallon}
+                        onChange={(e) => setForm({ ...form, fuelKmPerGallon: parseFloat(e.target.value) || 40 })}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 font-mono font-bold"
+                      />
+                    </div>
                   </div>
                 </div>
               </div>
@@ -622,24 +774,59 @@ export default function DriverRegistrationModal({ isOpen, onClose, onDriverRegis
               <div className="space-y-4 animate-in fade-in-50 duration-200">
                 <div className="flex items-center gap-2 text-xs font-bold text-amber-400 uppercase tracking-wider">
                   <FileText className="w-4 h-4" />
-                  <span>Paso 3: Expediente Digital (Fotos de Documentos)</span>
+                  <span>Paso 3: Expediente Digital con Validación Fotográfica</span>
                 </div>
 
-                <p className="text-xs text-slate-400">
-                  Sube fotos nítidas de tus documentos salvadoreños para verificación en el registro oficial.
-                </p>
+                <div className="p-3 bg-amber-500/10 border border-amber-500/25 rounded-2xl text-[11px] text-amber-200 space-y-1">
+                  <p className="font-bold flex items-center gap-1.5">
+                    <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                    <span>Control de Calidad, Orientación y Legibilidad Automática</span>
+                  </p>
+                  <p className="text-slate-300 leading-relaxed">
+                    Sube fotos nítidas con buena luz. El sistema valida resolución, orientación (puedes rotarla si queda de lado o de cabeza) y coteja que los documentos pertenezcan a <strong>{form.fullName || 'ti'}</strong> y al vehículo placa <strong>{form.vehiclePlate || 'registrado'}</strong>.
+                  </p>
+                </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                   {/* DUI Frente */}
                   <div className="p-3 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-2">
                     <div className="flex items-center justify-between">
                       <span className="font-bold text-slate-200">DUI (Frente)</span>
-                      {form.duiFrontUrl && <Check className="w-4 h-4 text-emerald-400" />}
+                      {form.duiFrontUrl && (
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => handleRotateDocument('duiFrontUrl', 'DUI_FRONT')}
+                            title="Rotar foto 90° si está de lado o de cabeza"
+                            className="p-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-400 cursor-pointer flex items-center gap-1 text-[10px]"
+                          >
+                            <RotateCw className="w-3.5 h-3.5" />
+                            <span>Rotar 90°</span>
+                          </button>
+                          <Check className="w-4 h-4 text-emerald-400" />
+                        </div>
+                      )}
                     </div>
-                    <label className="cursor-pointer bg-slate-950 hover:bg-slate-800/80 border border-dashed border-slate-700 rounded-xl p-2.5 flex items-center justify-center gap-2 text-slate-400 hover:text-slate-200 transition-colors">
+                    {form.duiFrontUrl && (
+                      <div className="relative rounded-xl overflow-hidden border border-slate-700 max-h-24 bg-black flex items-center justify-center">
+                        <img src={form.duiFrontUrl} alt="DUI Frente" className="max-h-24 object-contain" />
+                      </div>
+                    )}
+                    {docValidations.duiFrontUrl?.error && (
+                      <p className="text-[10px] text-rose-400 font-semibold">{docValidations.duiFrontUrl.error}</p>
+                    )}
+                    {docValidations.duiFrontUrl?.orientationWarning && (
+                      <p className="text-[10px] text-amber-400 font-medium">{docValidations.duiFrontUrl.orientationWarning}</p>
+                    )}
+                    {docValidations.duiFrontUrl?.valid && (
+                      <p className="text-[10px] text-emerald-400 font-medium">
+                        ✓ Legible ({docValidations.duiFrontUrl.width}x{docValidations.duiFrontUrl.height}px) • Asociado a {form.dui || 'DUI'}
+                      </p>
+                    )}
+                    <label className="cursor-pointer bg-slate-950 hover:bg-slate-800/80 border border-dashed border-slate-700 rounded-xl p-2 flex items-center justify-center gap-2 text-slate-400 hover:text-slate-200 transition-colors">
                       <Upload className="w-4 h-4 text-amber-400" />
-                      <span>{form.duiFrontUrl ? 'Cambiar archivo' : 'Subir foto'}</span>
-                      <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileUpload('duiFrontUrl', e)} />
+                      <span>{form.duiFrontUrl ? 'Reemplazar DUI Frente' : 'Subir DUI Frente'}</span>
+                      <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileUpload('duiFrontUrl', e, 'DUI_FRONT')} />
                     </label>
                   </div>
 
@@ -647,12 +834,36 @@ export default function DriverRegistrationModal({ isOpen, onClose, onDriverRegis
                   <div className="p-3 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-2">
                     <div className="flex items-center justify-between">
                       <span className="font-bold text-slate-200">DUI (Reverso)</span>
-                      {form.duiBackUrl && <Check className="w-4 h-4 text-emerald-400" />}
+                      {form.duiBackUrl && (
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => handleRotateDocument('duiBackUrl', 'DUI_BACK')}
+                            title="Rotar foto 90°"
+                            className="p-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-400 cursor-pointer flex items-center gap-1 text-[10px]"
+                          >
+                            <RotateCw className="w-3.5 h-3.5" />
+                            <span>Rotar 90°</span>
+                          </button>
+                          <Check className="w-4 h-4 text-emerald-400" />
+                        </div>
+                      )}
                     </div>
-                    <label className="cursor-pointer bg-slate-950 hover:bg-slate-800/80 border border-dashed border-slate-700 rounded-xl p-2.5 flex items-center justify-center gap-2 text-slate-400 hover:text-slate-200 transition-colors">
+                    {form.duiBackUrl && (
+                      <div className="relative rounded-xl overflow-hidden border border-slate-700 max-h-24 bg-black flex items-center justify-center">
+                        <img src={form.duiBackUrl} alt="DUI Reverso" className="max-h-24 object-contain" />
+                      </div>
+                    )}
+                    {docValidations.duiBackUrl?.error && (
+                      <p className="text-[10px] text-rose-400 font-semibold">{docValidations.duiBackUrl.error}</p>
+                    )}
+                    {docValidations.duiBackUrl?.valid && (
+                      <p className="text-[10px] text-emerald-400 font-medium">✓ Reverso Legible y Verificado</p>
+                    )}
+                    <label className="cursor-pointer bg-slate-950 hover:bg-slate-800/80 border border-dashed border-slate-700 rounded-xl p-2 flex items-center justify-center gap-2 text-slate-400 hover:text-slate-200 transition-colors">
                       <Upload className="w-4 h-4 text-amber-400" />
-                      <span>{form.duiBackUrl ? 'Cambiar archivo' : 'Subir foto'}</span>
-                      <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileUpload('duiBackUrl', e)} />
+                      <span>{form.duiBackUrl ? 'Reemplazar DUI Reverso' : 'Subir DUI Reverso'}</span>
+                      <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileUpload('duiBackUrl', e, 'DUI_BACK')} />
                     </label>
                   </div>
 
@@ -660,25 +871,70 @@ export default function DriverRegistrationModal({ isOpen, onClose, onDriverRegis
                   <div className="p-3 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-2">
                     <div className="flex items-center justify-between">
                       <span className="font-bold text-slate-200">Licencia (Frente)</span>
-                      {form.licenseFrontUrl && <Check className="w-4 h-4 text-emerald-400" />}
+                      {form.licenseFrontUrl && (
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => handleRotateDocument('licenseFrontUrl', 'LICENSE_FRONT')}
+                            title="Rotar foto 90°"
+                            className="p-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-400 cursor-pointer flex items-center gap-1 text-[10px]"
+                          >
+                            <RotateCw className="w-3.5 h-3.5" />
+                            <span>Rotar 90°</span>
+                          </button>
+                          <Check className="w-4 h-4 text-emerald-400" />
+                        </div>
+                      )}
                     </div>
-                    <label className="cursor-pointer bg-slate-950 hover:bg-slate-800/80 border border-dashed border-slate-700 rounded-xl p-2.5 flex items-center justify-center gap-2 text-slate-400 hover:text-slate-200 transition-colors">
+                    {form.licenseFrontUrl && (
+                      <div className="relative rounded-xl overflow-hidden border border-slate-700 max-h-24 bg-black flex items-center justify-center">
+                        <img src={form.licenseFrontUrl} alt="Licencia Frente" className="max-h-24 object-contain" />
+                      </div>
+                    )}
+                    {docValidations.licenseFrontUrl?.error && (
+                      <p className="text-[10px] text-rose-400 font-semibold">{docValidations.licenseFrontUrl.error}</p>
+                    )}
+                    {docValidations.licenseFrontUrl?.valid && (
+                      <p className="text-[10px] text-emerald-400 font-medium">✓ Licencia {form.licenseNumber || 'Verificada'}</p>
+                    )}
+                    <label className="cursor-pointer bg-slate-950 hover:bg-slate-800/80 border border-dashed border-slate-700 rounded-xl p-2 flex items-center justify-center gap-2 text-slate-400 hover:text-slate-200 transition-colors">
                       <Upload className="w-4 h-4 text-amber-400" />
-                      <span>{form.licenseFrontUrl ? 'Cambiar archivo' : 'Subir foto'}</span>
-                      <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileUpload('licenseFrontUrl', e)} />
+                      <span>{form.licenseFrontUrl ? 'Reemplazar Licencia' : 'Subir Licencia'}</span>
+                      <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileUpload('licenseFrontUrl', e, 'LICENSE_FRONT')} />
                     </label>
                   </div>
 
                   {/* Tarjeta de Circulación SERTRACEN */}
                   <div className="p-3 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-2">
                     <div className="flex items-center justify-between">
-                      <span className="font-bold text-slate-200">Tarjeta de Circulación (SERTRACEN)</span>
-                      {form.circulationCardUrl && <Check className="w-4 h-4 text-emerald-400" />}
+                      <span className="font-bold text-slate-200">Tarjeta Circulación (SERTRACEN)</span>
+                      {form.circulationCardUrl && (
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => handleRotateDocument('circulationCardUrl', 'CIRCULATION')}
+                            title="Rotar foto 90°"
+                            className="p-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-400 cursor-pointer flex items-center gap-1 text-[10px]"
+                          >
+                            <RotateCw className="w-3.5 h-3.5" />
+                            <span>Rotar 90°</span>
+                          </button>
+                          <Check className="w-4 h-4 text-emerald-400" />
+                        </div>
+                      )}
                     </div>
-                    <label className="cursor-pointer bg-slate-950 hover:bg-slate-800/80 border border-dashed border-slate-700 rounded-xl p-2.5 flex items-center justify-center gap-2 text-slate-400 hover:text-slate-200 transition-colors">
+                    {form.circulationCardUrl && (
+                      <div className="relative rounded-xl overflow-hidden border border-slate-700 max-h-24 bg-black flex items-center justify-center">
+                        <img src={form.circulationCardUrl} alt="Tarjeta Circulación" className="max-h-24 object-contain" />
+                      </div>
+                    )}
+                    {docValidations.circulationCardUrl?.valid && (
+                      <p className="text-[10px] text-emerald-400 font-medium">✓ Placa {form.vehiclePlate || 'SERTRACEN'}</p>
+                    )}
+                    <label className="cursor-pointer bg-slate-950 hover:bg-slate-800/80 border border-dashed border-slate-700 rounded-xl p-2 flex items-center justify-center gap-2 text-slate-400 hover:text-slate-200 transition-colors">
                       <Upload className="w-4 h-4 text-amber-400" />
-                      <span>{form.circulationCardUrl ? 'Cambiar archivo' : 'Subir foto'}</span>
-                      <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileUpload('circulationCardUrl', e)} />
+                      <span>{form.circulationCardUrl ? 'Reemplazar Tarjeta' : 'Subir Tarjeta'}</span>
+                      <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileUpload('circulationCardUrl', e, 'CIRCULATION')} />
                     </label>
                   </div>
 
@@ -686,12 +942,33 @@ export default function DriverRegistrationModal({ isOpen, onClose, onDriverRegis
                   <div className="p-3 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-2">
                     <div className="flex items-center justify-between">
                       <span className="font-bold text-slate-200">Solvencia PNC (Vigente &lt; 90 días)</span>
-                      {form.policeRecordUrl && <Check className="w-4 h-4 text-emerald-400" />}
+                      {form.policeRecordUrl && (
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => handleRotateDocument('policeRecordUrl', 'POLICE')}
+                            title="Rotar foto 90°"
+                            className="p-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-400 cursor-pointer flex items-center gap-1 text-[10px]"
+                          >
+                            <RotateCw className="w-3.5 h-3.5" />
+                            <span>Rotar 90°</span>
+                          </button>
+                          <Check className="w-4 h-4 text-emerald-400" />
+                        </div>
+                      )}
                     </div>
-                    <label className="cursor-pointer bg-slate-950 hover:bg-slate-800/80 border border-dashed border-slate-700 rounded-xl p-2.5 flex items-center justify-center gap-2 text-slate-400 hover:text-slate-200 transition-colors">
+                    {form.policeRecordUrl && (
+                      <div className="relative rounded-xl overflow-hidden border border-slate-700 max-h-24 bg-black flex items-center justify-center">
+                        <img src={form.policeRecordUrl} alt="Solvencia PNC" className="max-h-24 object-contain" />
+                      </div>
+                    )}
+                    {docValidations.policeRecordUrl?.valid && (
+                      <p className="text-[10px] text-emerald-400 font-medium">✓ Solvencia Legible para {form.fullName || 'Titular'}</p>
+                    )}
+                    <label className="cursor-pointer bg-slate-950 hover:bg-slate-800/80 border border-dashed border-slate-700 rounded-xl p-2 flex items-center justify-center gap-2 text-slate-400 hover:text-slate-200 transition-colors">
                       <Upload className="w-4 h-4 text-amber-400" />
-                      <span>{form.policeRecordUrl ? 'Cambiar archivo' : 'Subir foto'}</span>
-                      <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileUpload('policeRecordUrl', e)} />
+                      <span>{form.policeRecordUrl ? 'Reemplazar Solvencia' : 'Subir Solvencia PNC'}</span>
+                      <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileUpload('policeRecordUrl', e, 'POLICE')} />
                     </label>
                   </div>
 
@@ -699,24 +976,45 @@ export default function DriverRegistrationModal({ isOpen, onClose, onDriverRegis
                   <div className="p-3 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-2">
                     <div className="flex items-center justify-between">
                       <span className="font-bold text-slate-200">Foto Vehículo (Placa visible)</span>
-                      {form.vehiclePhotoFront && <Check className="w-4 h-4 text-emerald-400" />}
+                      {form.vehiclePhotoFront && (
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => handleRotateDocument('vehiclePhotoFront', 'VEHICLE_FRONT')}
+                            title="Rotar foto 90°"
+                            className="p-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-400 cursor-pointer flex items-center gap-1 text-[10px]"
+                          >
+                            <RotateCw className="w-3.5 h-3.5" />
+                            <span>Rotar 90°</span>
+                          </button>
+                          <Check className="w-4 h-4 text-emerald-400" />
+                        </div>
+                      )}
                     </div>
-                    <label className="cursor-pointer bg-slate-950 hover:bg-slate-800/80 border border-dashed border-slate-700 rounded-xl p-2.5 flex items-center justify-center gap-2 text-slate-400 hover:text-slate-200 transition-colors">
+                    {form.vehiclePhotoFront && (
+                      <div className="relative rounded-xl overflow-hidden border border-slate-700 max-h-24 bg-black flex items-center justify-center">
+                        <img src={form.vehiclePhotoFront} alt="Foto Vehículo" className="max-h-24 object-contain" />
+                      </div>
+                    )}
+                    {docValidations.vehiclePhotoFront?.valid && (
+                      <p className="text-[10px] text-emerald-400 font-medium">✓ Vehículo {form.vehicleBrand} • Placa {form.vehiclePlate}</p>
+                    )}
+                    <label className="cursor-pointer bg-slate-950 hover:bg-slate-800/80 border border-dashed border-slate-700 rounded-xl p-2 flex items-center justify-center gap-2 text-slate-400 hover:text-slate-200 transition-colors">
                       <Camera className="w-4 h-4 text-amber-400" />
-                      <span>{form.vehiclePhotoFront ? 'Cambiar foto' : 'Subir foto'}</span>
-                      <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileUpload('vehiclePhotoFront', e)} />
+                      <span>{form.vehiclePhotoFront ? 'Reemplazar Foto Vehículo' : 'Subir Foto Vehículo'}</span>
+                      <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileUpload('vehiclePhotoFront', e, 'VEHICLE_FRONT')} />
                     </label>
                   </div>
                 </div>
               </div>
             )}
 
-            {/* PASO 4: MODELO DE NEGOCIO & TÉRMINOS */}
+            {/* PASO 4: MODELO DE NEGOCIO & TÉRMINOS CON MEDIOS DE PAGO OFICIALES */}
             {step === 4 && (
               <div className="space-y-4 animate-in fade-in-50 duration-200">
                 <div className="flex items-center gap-2 text-xs font-bold text-amber-400 uppercase tracking-wider">
                   <Shield className="w-4 h-4" />
-                  <span>Paso 4: Modelo de Negocio Rumbo & Términos</span>
+                  <span>Paso 4: Modelo Operativo Rumbo & Medios de Pago</span>
                 </div>
 
                 <div className="space-y-3 bg-slate-900/80 border border-slate-800 rounded-2xl p-4 text-xs">
@@ -725,9 +1023,9 @@ export default function DriverRegistrationModal({ isOpen, onClose, onDriverRegis
                       <DollarSign className="w-4 h-4" />
                     </div>
                     <div>
-                      <h4 className="font-bold text-slate-200">100% Efectivo en tu Mano</h4>
+                      <h4 className="font-bold text-slate-200">100% Efectivo en tu Mano (0% Comisión)</h4>
                       <p className="text-slate-400 text-[11px]">
-                        Rumbo no descuenta comisiones por viaje (0% comisión). Todo el efectivo cobrado al pasajero es íntegramente tuyo.
+                        Rumbo no descuenta porcentajes por carrera. Todo el dinero cobrado al pasajero es íntegramente tuyo en tu bolsillo.
                       </p>
                     </div>
                   </div>
@@ -737,27 +1035,52 @@ export default function DriverRegistrationModal({ isOpen, onClose, onDriverRegis
                       <DollarSign className="w-4 h-4" />
                     </div>
                     <div>
-                      <h4 className="font-bold text-slate-200">Cuota Semanal Fija de $10.00 USD</h4>
+                      <h4 className="font-bold text-slate-200">Membresía Semanal Fija de $10.00 USD</h4>
                       <p className="text-slate-400 text-[11px]">
-                        Pagas solo $10 por semana para operar. Además, cada bono de $1.00 recibido en carreras descuenta $1.00 de tu cuota (10 bonos = cuota en $0.00).
+                        Tu 1ª semana es 100% bonificada ($0.00 cuota). En las semanas siguientes, cada bono de $1.00 de pasajero descuenta tu cuota hasta dejarla en $0.00 (con 10 bonos recibidos, tu semana te sale gratis).
                       </p>
                     </div>
                   </div>
 
-                  <div className="flex items-start gap-3">
-                    <div className="w-8 h-8 rounded-xl bg-sky-500/20 text-sky-400 flex items-center justify-center shrink-0 font-bold border border-sky-500/30">
-                      <Shield className="w-4 h-4" />
+                  {/* CANALES OFICIALES DE CANCELACIÓN DE CUOTA EN CASO DE EFECTIVO */}
+                  <div className="p-3.5 bg-gradient-to-br from-amber-500/15 via-slate-950 to-slate-950 border border-amber-500/30 rounded-xl space-y-2">
+                    <div className="flex items-center gap-2">
+                      <CreditCard className="w-4 h-4 text-amber-400" />
+                      <h4 className="font-bold text-amber-300 text-xs">
+                        Medios Autorizados para Cancelar la Cuota Semanal ($10 USD)
+                      </h4>
                     </div>
-                    <div>
-                      <h4 className="font-bold text-slate-200">Cortafuegos y Separación Estricta de Roles</h4>
-                      <p className="text-slate-400 text-[11px]">
-                        Los conductores no acumulan bonos por invitar amigos ni tienen código de referido. Al aprobarte, tu wallet de chofer iniciará con balance transparente y seguro.
-                      </p>
+                    <p className="text-slate-300 text-[11px] leading-relaxed">
+                      En caso de ser necesario cancelar los $10.00 en efectivo o saldo remanente (si no se liquida completamente con los bonos de pasajeros), el pago se realizará exclusivamente a través de:
+                    </p>
+                    <div className="space-y-2 pt-1 text-[11px]">
+                      <div className="p-2.5 rounded-lg bg-slate-900 border border-slate-800 flex items-start gap-2.5">
+                        <Smartphone className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                        <div>
+                          <strong className="text-white">1. Transferencia 365 Móvil:</strong>
+                          <div className="text-slate-300">
+                            Banco: <strong className="text-white">DAVIVIENDA</strong> • Celular: <strong className="text-amber-300 font-mono">69893101</strong>
+                          </div>
+                          <div className="text-slate-400 text-[10px]">
+                            A nombre de: <strong className="text-slate-200">Cesar Arias</strong>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="p-2.5 rounded-lg bg-slate-900 border border-slate-800 flex items-start gap-2.5">
+                        <CreditCard className="w-4 h-4 text-sky-400 shrink-0 mt-0.5" />
+                        <div>
+                          <strong className="text-white">2. Enlace de Pago Electrónico:</strong>
+                          <div className="text-slate-300">
+                            A través de link oficial seguro de <strong className="text-sky-300">CUBO Pago</strong> con tarjeta de débito o crédito salvadoreña.
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
 
-                <label className="flex items-start gap-3 cursor-pointer p-3 rounded-2xl bg-amber-500/10 border border-amber-500/30">
+                <label className="flex items-start gap-3 cursor-pointer p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30">
                   <input
                     type="checkbox"
                     checked={form.termsAccepted}
@@ -765,7 +1088,7 @@ export default function DriverRegistrationModal({ isOpen, onClose, onDriverRegis
                     className="mt-0.5 w-4 h-4 text-amber-500 rounded bg-slate-900 border-slate-700 focus:ring-0 cursor-pointer"
                   />
                   <span className="text-xs text-slate-300 leading-relaxed">
-                    He leído y acepto el modelo de membresía semanal fija de $10.00 USD y declaro bajo juramento que los documentos y datos de vehículo presentados son verídicos y vigentes en El Salvador.
+                    He leído y acepto el modelo de membresía semanal fija de $10.00 USD (pagadera mediante compensación de bonos de pasajeros, transferencia 365 móvil Davivienda al 69893101 a nombre de Cesar Arias o link Cubo Pago), y declaro bajo juramento que los documentos subidos y datos del vehículo corresponden a mi persona y son 100% verídicos y vigentes en El Salvador.
                   </span>
                 </label>
               </div>
