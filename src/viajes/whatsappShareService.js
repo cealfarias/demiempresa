@@ -37,9 +37,9 @@ ${url}`;
     return { title, url, text };
   } else {
     const title = '🚗 RUMBO A MI DESTINO | 0% Comisión para Conductores';
-    const baseUrl = 'https://viajes.demiempresa.online?ref=conductor';
+    const baseUrl = 'https://viajes.demiempresa.online/conductor';
     const cleanRef = referrerCode ? encodeURIComponent(referrerCode.trim()) : null;
-    const url = cleanRef ? `${baseUrl}&promoter=${cleanRef}` : baseUrl;
+    const url = cleanRef ? `${baseUrl}?promoter=${cleanRef}` : baseUrl;
     const text =
 `🚗 *RUMBO A MI DESTINO* 🇸🇻
 _La plataforma colaborativa que devuelve la dignidad al conductor_

@@ -409,7 +409,11 @@ export default function ViajesApp() {
       try {
         const params = new URLSearchParams(window.location.search);
         const refParam = params.get('ref') || params.get('codigo') || params.get('referral');
-        if (refParam && refParam !== 'conductor') {
+        if (refParam === 'conductor') {
+          window.location.replace('/conductor');
+          return '';
+        }
+        if (refParam) {
           localStorage.setItem('rumbo_referrer_code', refParam);
           return refParam;
         }
@@ -1926,6 +1930,16 @@ export default function ViajesApp() {
               </div>
             </button>
           )}
+
+          {/* ACCESO DIRECTO AL MODO CONDUCTOR */}
+          <a
+            href="/conductor"
+            title="Ir a la Consola y Radar del Conductor"
+            className="px-2 sm:px-2.5 py-1 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-full flex items-center gap-1 text-[11px] font-bold transition-all shadow-sm flex-shrink-0"
+          >
+            <Car className="w-3.5 h-3.5 text-amber-400" />
+            <span className="hidden md:inline">Soy Conductor</span>
+          </a>
         </div>
       </header>
 

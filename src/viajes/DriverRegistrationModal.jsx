@@ -666,11 +666,16 @@ export default function DriverRegistrationModal({ isOpen, onClose, onDriverRegis
             <div className="flex flex-col sm:flex-row gap-3 justify-center pt-2">
               <button
                 type="button"
-                onClick={onClose}
+                onClick={() => {
+                  onClose();
+                  if (typeof window !== 'undefined' && window.location.pathname !== '/conductor') {
+                    window.location.href = '/conductor';
+                  }
+                }}
                 className="inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:brightness-110 text-slate-950 font-black text-xs transition-all shadow-lg shadow-emerald-950/50 cursor-pointer"
               >
                 <CheckCircle className="w-4 h-4" />
-                <span>¡Entendido! Ir al Radar Rumbo</span>
+                <span>¡Entendido! Ir a la Consola de Conductor</span>
               </button>
 
               <button
