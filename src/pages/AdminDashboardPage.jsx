@@ -120,9 +120,9 @@ export default function AdminDashboardPage() {
   const PASSENGER_URL = 'https://viajes.demiempresa.online/viajes';
   const DRIVER_URL = 'https://viajes.demiempresa.online/conductor';
 
-  const PASSENGER_WA_MESSAGE = `🚗 *¡Viaja seguro y paga lo justo con Rumbo a mi Destino!* 🇸🇻\n\nTe invito a probar la nueva plataforma oficial en El Salvador:\n✅ *0% comisiones abusivas:* pagas en efectivo directo la tarifa justa negociada.\n✅ *Bono de $1.00 USD de bienvenida* activo para tu primera carrera.\n✅ Calculadora con precios oficiales MINEC y subasta en tiempo real (< 1 km).\n\n👉 Pide tu viaje en 1 toque desde tu celular aquí:\n${PASSENGER_URL}`;
+  const PASSENGER_WA_MESSAGE = `🚗 *¡Viaja seguro y paga lo justo con Rumbo a mi Destino!* 🇸🇻\n\nTe invito a probar la nueva plataforma oficial en El Salvador:\n✅ *0% comisiones abusivas:* pagas en efectivo directo la tarifa justa negociada.\n✅ *Bono de $1.00 USD de bienvenida* activo para tu primera carrera.\n✅ Calculadora con precios oficiales MINEC y subasta en tiempo real (< 1 km).\n\n🚀 *Fase de Prelanzamiento y Prueba Piloto:*\nActualmente nos encontramos en etapa de prueba piloto y despliegue controlado en El Salvador, por lo que la disponibilidad de conductores cercanos se encuentra en crecimiento gradual. Si en algún momento no encuentras un conductor disponible de inmediato, te solicitamos invitar a tus amigos y conductores de confianza para expandir la cobertura en tu zona.\n\n👉 Pide tu viaje en 1 toque desde tu celular aquí:\n${PASSENGER_URL}`;
 
-  const DRIVER_WA_MESSAGE = `🚘 *¡Conserva el 100% de tus carreras en tu bolsillo!* 🇸🇻\n\nÚnete a *Rumbo Conductor*, la plataforma donde TÚ eres el dueño de tu dinero:\n🔥 *0% Comisión por viaje:* todo el dinero que cobres en efectivo va íntegro a tu mano.\n🎁 *14 Días Gratis de Bienvenida* ($0 cuota de inscripción al registrarte).\n💵 *Cuota fija semanal de $15.00* (o pase diario de $3.00), reducible hasta *$0.00* acumulando bonos de pasajeros.\n⛽ Radar de gasolineras baratas en ruta y despacho a menos de 1 km.\n\n👉 Inscríbete en 3 minutos completando tu expediente aquí:\n${DRIVER_URL}`;
+  const DRIVER_WA_MESSAGE = `🚘 *¡Conserva el 100% de tus carreras en tu bolsillo!* 🇸🇻\n\nÚnete a *Rumbo Conductor*, la plataforma donde TÚ eres el dueño de tu dinero:\n🔥 *0% Comisión por viaje:* todo el dinero que cobres en efectivo va íntegro a tu mano.\n🎁 *14 Días Gratis de Bienvenida* ($0 cuota de inscripción al registrarte).\n💵 *Cuota fija semanal de $15.00* (o pase diario de $3.00), reducible hasta *$0.00* acumulando bonos de pasajeros.\n⛽ Radar de gasolineras baratas en ruta y despacho a menos de 1 km.\n\n🚀 *Fase de Prelanzamiento y Prueba Piloto:*\nEstamos en periodo de prueba piloto oficial. El flujo de solicitudes de pasajeros está incrementando progresivamente día a día. Te invitamos a sumarte hoy para asegurar tus 14 días sin costo e invitar a más pasajeros y colegas conductores, posicionándote desde ya en las zonas de mayor demanda.\n\n👉 Inscríbete en 3 minutos completando tu expediente aquí:\n${DRIVER_URL}`;
 
   const handleCopyText = async (text, targetKey) => {
     try {
@@ -1020,6 +1020,28 @@ export default function AdminDashboardPage() {
                 <span className="text-xs font-mono font-bold text-amber-300 bg-slate-950 px-2.5 py-1 rounded-xl border border-slate-800">
                   +503 {waConfig.adminPhone}
                 </span>
+              </div>
+            </div>
+
+            {/* Aviso Oficial de Prelanzamiento y Prueba Piloto */}
+            <div className="p-4 sm:p-5 bg-gradient-to-r from-amber-500/15 via-slate-900 to-amber-500/10 border-2 border-amber-500/40 rounded-3xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-lg">
+              <div className="flex items-start gap-3.5">
+                <div className="w-10 h-10 rounded-2xl bg-amber-500/20 text-amber-400 border border-amber-500/40 flex items-center justify-center font-black shrink-0 mt-0.5">
+                  <Sparkles className="w-5 h-5" />
+                </div>
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm font-black text-amber-300 uppercase tracking-wider">
+                      Fase Oficial de Prelanzamiento y Prueba Piloto
+                    </h3>
+                    <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[10px] font-bold">
+                      COBERTURA EN EXPANSIÓN
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-300 leading-relaxed">
+                    Estamos en despliegue controlado en El Salvador. Es normal que en ciertas zonas u horarios los usuarios experimenten tiempos de espera o no encuentren conductores o pasajeros en tiempo real. Por ello, solicitamos a la comunidad compartir activamente estos enlaces para acelerar el volumen de usuarios y garantizar la disponibilidad en cada punto del país.
+                  </p>
+                </div>
               </div>
             </div>
 

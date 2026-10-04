@@ -17,7 +17,8 @@ import {
   User,
   LogOut,
   FileText,
-  Inbox
+  Inbox,
+  Share2
 } from 'lucide-react';
 import { triggerCashRewardFeedback } from './soundFeedbackService';
 
@@ -264,7 +265,7 @@ export default function DriverTripRequestsFeed({
         ))}
 
         {activeRequests.length === 0 && (
-          <div className="p-12 text-center space-y-3">
+          <div className="p-8 sm:p-10 text-center space-y-3">
             <div className={`w-16 h-16 mx-auto rounded-full border flex items-center justify-center ${
               driverOnline
                 ? 'bg-amber-500/10 border-amber-500/30 animate-pulse'
@@ -282,6 +283,33 @@ export default function DriverTripRequestsFeed({
                 ? 'Cuando un pasajero cercano pida viaje, aparecerá inmediatamente aquí con su tarifa propuesta.'
                 : 'Activa el botón "En línea" arriba para comenzar a recibir solicitudes de viajes cercanos.'}
             </p>
+
+            {driverOnline && (
+              <div className="mt-4 p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-2xl text-left space-y-2 max-w-sm mx-auto animate-fade-in text-xs">
+                <div className="flex items-center gap-2 text-amber-300 font-bold text-xs">
+                  <Sparkles className="w-4 h-4 shrink-0 text-amber-400" />
+                  <span>Fase de Prelanzamiento & Prueba Piloto</span>
+                </div>
+                <p className="text-[11px] text-slate-300 leading-relaxed">
+                  Rumbo a mi Destino se encuentra en periodo de prueba piloto oficial. El flujo de solicitudes de pasajeros está aumentando de forma gradual conforme más personas conocen la plataforma. ¡Aprovecha tus 14 días gratis e invita a tus pasajeros frecuentes y colegas conductores a sumarse para dinamizar las carreras en tu ruta!
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const shareMsg = `🚘 Únete a Rumbo Conductor en El Salvador: 0% comisión por viaje, 14 días gratis de prueba y retienes el 100% de tu dinero en efectivo. Inscríbete aquí: https://viajes.demiempresa.online/conductor`;
+                    if (navigator.share) {
+                      navigator.share({ title: 'Rumbo Conductor', text: shareMsg, url: 'https://viajes.demiempresa.online/conductor' }).catch(() => {});
+                    } else {
+                      window.open(`https://wa.me/?text=${encodeURIComponent(shareMsg)}`, '_blank');
+                    }
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 rounded-xl text-xs font-bold cursor-pointer transition-colors"
+                >
+                  <Share2 className="w-3.5 h-3.5" />
+                  <span>Compartir con Colegas por WhatsApp</span>
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>

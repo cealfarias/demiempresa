@@ -2711,7 +2711,7 @@ export default function ViajesApp() {
             </div>
 
             {activeOffers.length === 0 ? (
-              <div className="p-8 bg-slate-900/60 border border-slate-800/80 rounded-2xl text-center space-y-3">
+              <div className="p-6 sm:p-8 bg-slate-900/60 border border-slate-800/80 rounded-2xl text-center space-y-3">
                 <div className="w-10 h-10 rounded-full border-2 border-amber-500 border-t-transparent animate-spin mx-auto"></div>
                 <p className="text-sm text-slate-300 font-medium">
                   Notificando a choferes activos dentro de 1 km...
@@ -2719,6 +2719,32 @@ export default function ViajesApp() {
                 <p className="text-xs text-slate-500 max-w-xs mx-auto">
                   Las ofertas de los conductores aparecerán aquí y se mantendrán durante 30 segundos para que puedas comparar y elegir con calma.
                 </p>
+
+                {/* Aviso Profesional de Prelanzamiento y Prueba Piloto */}
+                <div className="mt-4 p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-2xl text-left space-y-2 animate-fade-in">
+                  <div className="flex items-center gap-1.5 text-amber-400 font-bold text-xs">
+                    <Sparkles className="w-4 h-4 shrink-0" />
+                    <span>Fase de Prelanzamiento & Prueba Piloto</span>
+                  </div>
+                  <p className="text-[11px] text-slate-300 leading-relaxed">
+                    Estamos en etapa de despliegue controlado en El Salvador. Es probable que en ciertos horarios o zonas la disponibilidad de conductores cercanos sea limitada. Si no encuentras un conductor disponible de inmediato, te solicitamos invitar a tus conductores de confianza y amigos para activar y acelerar la cobertura en tu zona.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const shareMsg = `🚗 Te invito a usar Rumbo a mi Destino en El Salvador: viaja con tarifa justa, 0% comisiones abusivas y $1.00 USD de bienvenida. Pide tu viaje aquí: https://viajes.demiempresa.online/viajes`;
+                      if (navigator.share) {
+                        navigator.share({ title: 'Rumbo a mi Destino', text: shareMsg, url: 'https://viajes.demiempresa.online/viajes' }).catch(() => {});
+                      } else {
+                        window.open(`https://wa.me/?text=${encodeURIComponent(shareMsg)}`, '_blank');
+                      }
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 rounded-xl text-xs font-bold cursor-pointer transition-colors"
+                  >
+                    <Share2 className="w-3.5 h-3.5" />
+                    <span>Invitar Conductores y Amigos por WhatsApp</span>
+                  </button>
+                </div>
               </div>
             ) : (
               activeOffers.map((offer) => (

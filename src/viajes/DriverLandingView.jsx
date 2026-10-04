@@ -331,7 +331,7 @@ export default function DriverLandingView({ onStartRegistration, onCheckStatus, 
 
         <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs font-black tracking-wide uppercase">
           <Sparkles className="w-4 h-4 text-emerald-400" />
-          <span>Lanzamiento Oficial • 14 Días de Uso Gratis al Inscribirte ($0 Cuota)</span>
+          <span>Prelanzamiento y Prueba Piloto • 14 Días Gratis al Inscribirte ($0 Cuota)</span>
         </div>
 
         <h1 className="text-3xl sm:text-5xl lg:text-6xl font-black text-white tracking-tight leading-[1.15]">
