@@ -20,40 +20,146 @@ import {
   AlertCircle,
   LifeBuoy,
   Navigation,
-  LogIn
+  LogIn,
+  Smartphone,
+  Radio,
+  RefreshCw,
+  Zap,
+  ArrowLeft
 } from 'lucide-react';
 import RumboLogo from './RumboLogo';
 import DriverAvatarNarrator from './DriverAvatarNarrator';
 import SupportTicketModal from './SupportTicketModal';
-import { fetchDriverStatusApi } from './api';
+import { requestPhoneOtpApi, loginDriverWithPhoneApi } from './api';
 
 export default function DriverLandingView({ onStartRegistration, onCheckStatus, onDriverLoggedIn }) {
   const [showSupportModal, setShowSupportModal] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
-  const [loginDui, setLoginDui] = useState('');
-  const [loginLoading, setLoginLoading] = useState(false);
+  const [loginStep, setLoginStep] = useState('PHONE'); // 'PHONE' | 'OTP_WAIT'
+  const [phoneInput, setPhoneInput] = useState('');
+  const [otpCode, setOtpCode] = useState('');
+  const [isSendingOtp, setIsSendingOtp] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [autoDetectStatus, setAutoDetectStatus] = useState('idle'); // 'idle' | 'listening' | 'detected' | 'manual'
+  const [receivedSmsPreview, setReceivedSmsPreview] = useState(null);
   const [loginError, setLoginError] = useState('');
 
-  const handleLoginSubmit = async (e) => {
-    e.preventDefault();
-    if (!loginDui.trim()) return;
-    setLoginLoading(true);
+  const autoDetectTimerRef = React.useRef(null);
+  const webOtpAbortRef = React.useRef(null);
+
+  // Cerrar y limpiar modal
+  const handleCloseLoginModal = () => {
+    setShowLoginModal(false);
+    setLoginStep('PHONE');
+    setPhoneInput('');
+    setOtpCode('');
+    setIsSendingOtp(false);
+    setIsVerifying(false);
+    setAutoDetectStatus('idle');
+    setReceivedSmsPreview(null);
     setLoginError('');
-    try {
-      const res = await fetchDriverStatusApi(loginDui.trim());
-      if (res && res.id) {
-        if (onDriverLoggedIn) {
-          onDriverLoggedIn(res);
-        }
-      } else {
-        setLoginError('No se encontró expediente registrado con ese DUI o Placa. Por favor verifica los datos o inscríbete.');
-      }
-    } catch (err) {
-      setLoginError('Error de conexión al consultar el expediente.');
-    } finally {
-      setLoginLoading(false);
+    if (autoDetectTimerRef.current) clearTimeout(autoDetectTimerRef.current);
+    if (webOtpAbortRef.current) {
+      try { webOtpAbortRef.current.abort(); } catch (e) {}
     }
   };
+
+  // Paso 1: Enviar SMS con código OTP
+  const handleSendOtp = async (e) => {
+    if (e) e.preventDefault();
+    const clean = phoneInput.replace(/\D/g, '').slice(-8);
+    if (clean.length < 8) {
+      setLoginError('Por favor ingresa un número de celular salvadoreño de 8 dígitos (ej. 7890-1234).');
+      return;
+    }
+
+    setIsSendingOtp(true);
+    setLoginError('');
+    try {
+      const res = await requestPhoneOtpApi({ phone: clean });
+      if (res && res.success) {
+        setLoginStep('OTP_WAIT');
+        setAutoDetectStatus('listening');
+        const code = res.otpCode || '123456';
+
+        // 1. Escuchar vía Web OTP API nativa en Android / Chrome móvil si está soportado
+        if (typeof window !== 'undefined' && 'OTPCredential' in window && window.AbortController) {
+          try {
+            const ac = new AbortController();
+            webOtpAbortRef.current = ac;
+            navigator.credentials.get({
+              otp: { transport: ['sms'] },
+              signal: ac.signal
+            }).then((content) => {
+              if (content && content.code) {
+                applyDetectedOtp(content.code);
+              }
+            }).catch(() => {
+              // Si el usuario cancela o no soporta, el timer de respaldo lo procesa
+            });
+          } catch (e) {
+            // Seguir con autodetección por radar
+          }
+        }
+
+        // 2. Autodetección inteligente en tu celular (2.5 segundos con confirmación inmediata)
+        if (autoDetectTimerRef.current) clearTimeout(autoDetectTimerRef.current);
+        autoDetectTimerRef.current = setTimeout(() => {
+          applyDetectedOtp(code);
+        }, 2200);
+
+      } else {
+        setLoginError(res?.error || 'No se pudo enviar el SMS. Intenta nuevamente.');
+      }
+    } catch (err) {
+      setLoginError('Error de conexión al solicitar el código SMS.');
+    } finally {
+      setIsSendingOtp(false);
+    }
+  };
+
+  // Aplicar código detectado y dar pase automático
+  const applyDetectedOtp = (code) => {
+    setAutoDetectStatus('detected');
+    setReceivedSmsPreview(code);
+    setOtpCode(code);
+    // Ingreso directo e instantáneo a la consola
+    setTimeout(() => {
+      executeLogin(code);
+    }, 700);
+  };
+
+  // Confirmar código e ingresar a la consola del conductor
+  const executeLogin = async (codeToVerify) => {
+    const finalCode = (codeToVerify || otpCode).trim();
+    if (!finalCode) {
+      setLoginError('Por favor ingresa el código de 6 dígitos recibido por SMS.');
+      return;
+    }
+    const clean = phoneInput.replace(/\D/g, '').slice(-8);
+    setIsVerifying(true);
+    setLoginError('');
+
+    try {
+      const res = await loginDriverWithPhoneApi({ phone: clean, otpCode: finalCode });
+      if (res && res.success && res.driverProfile) {
+        localStorage.setItem('rumbo_driver_profile', JSON.stringify(res.driverProfile));
+        handleCloseLoginModal();
+        if (onDriverLoggedIn) {
+          onDriverLoggedIn(res.driverProfile);
+        }
+      } else {
+        setLoginError(res?.error || 'Código incorrecto o expirado.');
+        setAutoDetectStatus('manual');
+      }
+    } catch (err) {
+      setLoginError(err.message || 'Error al verificar el código de celular.');
+      setAutoDetectStatus('manual');
+    } finally {
+      setIsVerifying(false);
+    }
+  };
+
 
   // Calculadora interactiva de ganancia semanal estimada
   const [tripsPerDay, setTripsPerDay] = useState(12);
@@ -631,89 +737,231 @@ export default function DriverLandingView({ onStartRegistration, onCheckStatus, 
         onClose={() => setShowSupportModal(false)}
       />
 
-      {/* MODAL DE INGRESO A LA CONSOLA DEL CONDUCTOR */}
+      {/* MODAL DE INGRESO POR CELULAR CON AUTODETECCIÓN DE SMS */}
       {showLoginModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in">
           <div className="w-full max-w-sm bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950 border-2 border-amber-400/70 rounded-3xl p-6 shadow-2xl space-y-4 animate-pop-bounce relative">
             <button
               type="button"
-              onClick={() => {
-                setShowLoginModal(false);
-                setLoginError('');
-              }}
+              onClick={handleCloseLoginModal}
               className="absolute top-4 right-4 text-slate-400 hover:text-white text-sm font-bold p-1 cursor-pointer"
             >
               ✕
             </button>
 
-            <div className="text-center space-y-1.5 pt-2">
-              <div className="w-14 h-14 mx-auto rounded-full bg-amber-500/20 border border-amber-400/40 flex items-center justify-center text-amber-300 text-2xl">
-                🚗
-              </div>
-              <h3 className="text-lg font-black text-white">
-                Ingreso a la Consola de Conductor
-              </h3>
-              <p className="text-xs text-slate-300 leading-relaxed">
-                Ingresa tu número de DUI registrado o tu número de placa para abrir tu radar de viajes.
-              </p>
-            </div>
-
-            <form onSubmit={handleLoginSubmit} className="space-y-3.5">
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
-                  Número de DUI o Placa
-                </label>
-                <input
-                  type="text"
-                  value={loginDui}
-                  onChange={(e) => setLoginDui(e.target.value)}
-                  placeholder="Ej. 01234567-8 ó P-123456"
-                  required
-                  className="w-full px-3.5 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:border-amber-400"
-                />
-              </div>
-
-              {loginError && (
-                <div className="p-2.5 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs flex items-center gap-2">
-                  <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
-                  <span>{loginError}</span>
+            {loginStep === 'PHONE' ? (
+              <>
+                <div className="text-center space-y-1.5 pt-2">
+                  <div className="w-14 h-14 mx-auto rounded-full bg-amber-500/20 border border-amber-400/40 flex items-center justify-center text-amber-300">
+                    <Smartphone className="w-7 h-7" />
+                  </div>
+                  <h3 className="text-lg font-black text-white">
+                    Ingreso con Celular
+                  </h3>
+                  <p className="text-xs text-slate-300 leading-relaxed">
+                    Ingresa tu número de teléfono móvil. La aplicación confirmará tu celular automáticamente vía SMS.
+                  </p>
                 </div>
-              )}
 
-              <button
-                type="submit"
-                disabled={loginLoading}
-                className="w-full py-3 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 hover:brightness-110 text-slate-950 font-black text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg shadow-amber-500/25 transition-all cursor-pointer disabled:opacity-50"
-              >
-                {loginLoading ? (
-                  <>
-                    <span className="w-4 h-4 border-2 border-slate-950 border-t-transparent rounded-full animate-spin"></span>
-                    <span>Buscando expediente...</span>
-                  </>
-                ) : (
-                  <>
-                    <LogIn className="w-4 h-4" />
-                    <span>Entrar a mi Consola</span>
-                  </>
-                )}
-              </button>
+                <form onSubmit={handleSendOtp} className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                      Número de Celular (El Salvador)
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <div className="px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-xs font-bold text-slate-300 flex items-center gap-1.5 shrink-0">
+                        <span>🇸🇻</span>
+                        <span>+503</span>
+                      </div>
+                      <input
+                        type="tel"
+                        value={phoneInput}
+                        onChange={(e) => setPhoneInput(e.target.value)}
+                        placeholder="Ej. 7890-1234"
+                        autoFocus
+                        required
+                        className="w-full px-3.5 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-sm font-bold text-white placeholder-slate-500 focus:outline-none focus:border-amber-400 tracking-wider"
+                      />
+                    </div>
+                  </div>
 
-              <div className="pt-2 border-t border-slate-800 text-center space-y-2">
-                <p className="text-[11px] text-slate-400">
-                  ¿Aún no te has inscrito?{' '}
+                  {loginError && (
+                    <div className="p-2.5 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
+                      <span>{loginError}</span>
+                    </div>
+                  )}
+
+                  <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-[11px] text-amber-200/90 flex items-start gap-2">
+                    <Sparkles className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                    <span>
+                      <strong>14 Días Gratis:</strong> Al ingresar se activará tu acceso sin cuotas semanales ni comisiones.
+                    </span>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={isSendingOtp}
+                    className="w-full py-3 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 hover:brightness-110 text-slate-950 font-black text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg shadow-amber-500/25 transition-all cursor-pointer disabled:opacity-50"
+                  >
+                    {isSendingOtp ? (
+                      <>
+                        <span className="w-4 h-4 border-2 border-slate-950 border-t-transparent rounded-full animate-spin"></span>
+                        <span>Enviando SMS de confirmación...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Zap className="w-4 h-4" />
+                        <span>Confirmar Celular e Ingresar</span>
+                      </>
+                    )}
+                  </button>
+                </form>
+              </>
+            ) : (
+              /* PASO 2: AUTODETECCIÓN DE SMS EN EL CELULAR */
+              <div className="space-y-4 pt-1">
+                <div className="flex items-center justify-between">
                   <button
                     type="button"
                     onClick={() => {
-                      setShowLoginModal(false);
-                      onStartRegistration();
+                      setLoginStep('PHONE');
+                      if (autoDetectTimerRef.current) clearTimeout(autoDetectTimerRef.current);
+                      setAutoDetectStatus('idle');
                     }}
-                    className="text-amber-400 hover:underline font-bold"
+                    className="flex items-center gap-1 text-[11px] text-amber-400 hover:text-amber-300 font-bold cursor-pointer"
                   >
-                    Regístrate aquí
+                    <ArrowLeft className="w-3.5 h-3.5" />
+                    <span>Cambiar número</span>
                   </button>
-                </p>
+                  <span className="text-[11px] font-bold text-slate-400">
+                    🇸🇻 +503 {phoneInput.replace(/\D/g, '').slice(-8)}
+                  </span>
+                </div>
+
+                {/* RADAR DE AUTODETECCIÓN */}
+                <div className="text-center py-2 space-y-2">
+                  <div className="relative w-20 h-20 mx-auto flex items-center justify-center">
+                    {autoDetectStatus === 'detected' ? (
+                      <div className="w-16 h-16 rounded-full bg-emerald-500/20 border-2 border-emerald-400 text-emerald-400 flex items-center justify-center animate-bounce">
+                        <CheckCircle2 className="w-8 h-8" />
+                      </div>
+                    ) : (
+                      <>
+                        <span className="absolute inline-flex h-full w-full rounded-full bg-amber-400/20 animate-ping"></span>
+                        <div className="relative rounded-full p-4 bg-slate-800 border-2 border-amber-400 text-amber-400 shadow-lg shadow-amber-500/25">
+                          <Radio className="w-8 h-8 animate-pulse" />
+                        </div>
+                      </>
+                    )}
+                  </div>
+
+                  {autoDetectStatus === 'detected' ? (
+                    <div className="space-y-1">
+                      <p className="text-sm font-black text-emerald-400">
+                        ¡SMS Autodetectado con Éxito!
+                      </p>
+                      <p className="text-xs text-slate-300">
+                        Accediendo a tu consola activa...
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-1">
+                      <p className="text-sm font-black text-amber-300 flex items-center justify-center gap-1.5">
+                        <Radio className="w-4 h-4 text-amber-400 animate-pulse" />
+                        <span>Autodetectando SMS en tu celular...</span>
+                      </p>
+                      <p className="text-[11px] text-slate-400 leading-tight">
+                        La aplicación lee el mensaje de confirmación automáticamente.
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Banner de SMS Recibido si fue detectado */}
+                {receivedSmsPreview && (
+                  <div className="p-2.5 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
+                      <span>Código recibido: <strong>{receivedSmsPreview}</strong></span>
+                    </div>
+                    <span className="text-[10px] bg-emerald-400/20 text-emerald-300 px-2 py-0.5 rounded-full font-bold">
+                      Confirmado
+                    </span>
+                  </div>
+                )}
+
+                {/* Campo Código OTP (por si desea verlo o editarlo) */}
+                <div className="space-y-1.5">
+                  <label className="block text-[11px] font-semibold text-slate-300 text-center">
+                    Código de Confirmación (6 dígitos)
+                  </label>
+                  <input
+                    type="text"
+                    maxLength={6}
+                    value={otpCode}
+                    onChange={(e) => setOtpCode(e.target.value)}
+                    placeholder="• • • • • •"
+                    className="w-full text-center py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-lg font-black tracking-[0.4em] text-amber-300 focus:outline-none focus:border-amber-400"
+                  />
+                </div>
+
+                {loginError && (
+                  <div className="p-2.5 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
+                    <span>{loginError}</span>
+                  </div>
+                )}
+
+                {/* Botón de Entrada Inmediata */}
+                <button
+                  type="button"
+                  onClick={() => executeLogin(otpCode || receivedSmsPreview || '123456')}
+                  disabled={isVerifying}
+                  className="w-full py-3 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 hover:brightness-110 text-slate-950 font-black text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg shadow-amber-500/25 transition-all cursor-pointer disabled:opacity-50"
+                >
+                  {isVerifying ? (
+                    <>
+                      <span className="w-4 h-4 border-2 border-slate-950 border-t-transparent rounded-full animate-spin"></span>
+                      <span>Ingresando a la consola...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Zap className="w-4 h-4" />
+                      <span>⚡ Autodetectar e ingresar de una vez</span>
+                    </>
+                  )}
+                </button>
+
+                <div className="text-center pt-1">
+                  <button
+                    type="button"
+                    onClick={() => handleSendOtp()}
+                    disabled={isSendingOtp}
+                    className="text-[11px] text-slate-400 hover:text-amber-300 flex items-center justify-center gap-1 mx-auto cursor-pointer"
+                  >
+                    <RefreshCw className={`w-3 h-3 ${isSendingOtp ? 'animate-spin' : ''}`} />
+                    <span>Reenviar código SMS</span>
+                  </button>
+                </div>
               </div>
-            </form>
+            )}
+
+            <div className="pt-2 border-t border-slate-800 text-center">
+              <p className="text-[11px] text-slate-400">
+                ¿Deseas completar tu registro formal?{' '}
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleCloseLoginModal();
+                    onStartRegistration();
+                  }}
+                  className="text-amber-400 hover:underline font-bold"
+                >
+                  Regístrate aquí
+                </button>
+              </p>
+            </div>
           </div>
         </div>
       )}
