@@ -571,7 +571,7 @@ export default function AdminDashboardPage() {
                   <span>Membresías de Conductores y Pagos</span>
                 </h3>
                 <p className="text-xs text-slate-300 leading-relaxed">
-                  Los conductores pagan <strong>$10.00 semanales</strong> o <strong>$3.00 diarios</strong> mediante bonos o transferencias por Transfer365 Móvil Davivienda al 69893101 y Cubo Pago.
+                  Los conductores pagan <strong>$15.00 semanales</strong> o <strong>$3.00 diarios</strong> mediante bonos o transferencias por Transfer365 Móvil Davivienda al 69893101 y Cubo Pago.
                 </p>
                 <div className="grid grid-cols-2 gap-3 font-mono text-xs pt-1">
                   <div className="p-3 bg-slate-950 rounded-2xl border border-slate-800">

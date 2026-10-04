@@ -119,8 +119,8 @@ export default function DriverAccountStatementModal({
   }, [isFreeTrialActive]);
 
   // 3. Cálculo de Cuota Semanal y Bonos
-  const baseWeeklyFee = 10.00;
-  const bonosToApplyWeekly = Math.min(10, weeklyBonuses);
+  const baseWeeklyFee = 15.00;
+  const bonosToApplyWeekly = Math.min(15, weeklyBonuses);
   const remainingWeeklyCash = Math.max(0, baseWeeklyFee - bonosToApplyWeekly);
 
   // 4. Copiar Celular Transfer365 Móvil
@@ -288,11 +288,11 @@ export default function DriverAccountStatementModal({
                 <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-bold text-[10px] uppercase border border-emerald-500/40">
                   🔥 Pago Inmediato de un Solo Clic
                 </span>
-                <h4 className="font-black text-base text-white mt-1">Cuota Semanal ($10.00 USD)</h4>
+                <h4 className="font-black text-base text-white mt-1">Cuota Semanal ($15.00 USD)</h4>
               </div>
               <div className="text-right font-mono">
                 <div className="text-xs text-slate-400">Total Cuota</div>
-                <div className="text-xl font-black text-white">$10.00</div>
+                <div className="text-xl font-black text-white">$15.00</div>
               </div>
             </div>
 
@@ -300,7 +300,7 @@ export default function DriverAccountStatementModal({
             <div className="p-3 bg-slate-950/90 rounded-2xl border border-slate-800 text-xs font-mono space-y-1.5">
               <div className="flex justify-between text-slate-400">
                 <span>Cuota semanal base:</span>
-                <span>$10.00 USD</span>
+                <span>$15.00 USD</span>
               </div>
               <div className="flex justify-between text-emerald-400 font-bold">
                 <span>Bonos a descontar de un solo golpe:</span>
@@ -315,15 +315,15 @@ export default function DriverAccountStatementModal({
             </div>
 
             {/* Botón de Acción de un Solo Golpe */}
-            {weeklyBonuses >= 10 ? (
+            {weeklyBonuses >= 15 ? (
               <button
                 type="button"
-                onClick={() => onPayWeeklyFeeWithBonuses(10)}
+                onClick={() => onPayWeeklyFeeWithBonuses(15)}
                 disabled={isApplyingBonuses}
                 className="w-full py-3.5 bg-gradient-to-r from-emerald-500 to-teal-400 hover:brightness-110 text-slate-950 font-black text-xs sm:text-sm rounded-xl shadow-lg shadow-emerald-500/20 cursor-pointer transition-all flex items-center justify-center gap-2 active:scale-98"
               >
                 <Sparkles className="w-4 h-4 text-slate-950" />
-                <span>{isApplyingBonuses ? 'Procesando en Blockchain...' : '¡Pagar Cuota Semanal al 100% con 10 Bonos ($0.00 Efectivo)!'}</span>
+                <span>{isApplyingBonuses ? 'Procesando en Blockchain...' : '¡Pagar Cuota Semanal al 100% con 15 Bonos ($0.00 Efectivo)!'}</span>
               </button>
             ) : weeklyBonuses > 0 ? (
               <button
@@ -337,7 +337,7 @@ export default function DriverAccountStatementModal({
               </button>
             ) : (
               <div className="p-3 bg-slate-950/80 rounded-xl border border-slate-800 text-center text-xs text-slate-400">
-                <span>No tienes bonos disponibles actualmente. Cancela el saldo completo ($10.00) mediante Cubo o Transfer365 abajo.</span>
+                <span>No tienes bonos disponibles actualmente. Cancela el saldo completo ($15.00) mediante Cubo o Transfer365 abajo.</span>
               </div>
             )}
 

@@ -152,7 +152,7 @@ export default function DriverLandingView({ onStartRegistration, onCheckStatus, 
         if (isSharedOrDup) {
           setWorkInvitation(res?.workInvitation || {
             title: '¿Necesitas trabajar en la plataforma?',
-            message: 'Inscríbete como conductor, solo son $10 a la semana sin cobro de comisión'
+            message: 'Inscríbete como conductor, solo son $15 a la semana sin cobro de comisión'
           });
         }
         setLoginError(res?.error || 'Enlace o código incorrecto.');
@@ -160,7 +160,7 @@ export default function DriverLandingView({ onStartRegistration, onCheckStatus, 
     } catch (err) {
       setWorkInvitation({
         title: '¿Necesitas trabajar en la plataforma?',
-        message: 'Inscríbete como conductor, solo son $10 a la semana sin cobro de comisión'
+        message: 'Inscríbete como conductor, solo son $15 a la semana sin cobro de comisión'
       });
       setLoginError(err.message || 'Error al validar el enlace mágico.');
     } finally {
@@ -279,7 +279,7 @@ export default function DriverLandingView({ onStartRegistration, onCheckStatus, 
   const traditionalCommissionLost = weeklyGross * traditionalCommissionRate;
   const traditionalNetWeekly = Math.max(0, weeklyGross - traditionalCommissionLost - carRentalCost);
 
-  // En Rumbo: 0% de comisión. Cuota fija de $10 (y $0 en su primera semana de bienvenida)
+  // En Rumbo: 0% de comisión. Cuota fija de $15 (y $0 en su primera semana de bienvenida)
   const rumboFeeFirstWeek = 0.00; // Semana de bienvenida bonificada
   const rumboNetFirstWeek = Math.max(0, weeklyGross - rumboFeeFirstWeek - carRentalCost);
   const weeklyExtraInPocket = traditionalCommissionLost; // Lo que antes te quitaban ahora va a tu bolsa
@@ -723,7 +723,7 @@ export default function DriverLandingView({ onStartRegistration, onCheckStatus, 
               </div>
               <h3 className="font-bold text-sm text-white">2. Bonos que Pagan tu Cuota</h3>
               <p className="text-xs text-slate-400 leading-relaxed">
-                Inyectamos bonos de <strong>$1.00 USD</strong> a los pasajeros para que viajen más seguido. Cuando un pasajero te entrega su bono en una carrera, <strong>lo acumulas para liquidar tu cuota semanal de $10.00</strong>. ¡Con 10 bonos recibidos, tu semana te sale a $0.00!
+                Inyectamos bonos de <strong>$1.00 USD</strong> a los pasajeros para que viajen más seguido. Cuando un pasajero te entrega su bono en una carrera, <strong>lo acumulas para liquidar tu cuota semanal de $15.00</strong>. ¡Con 15 bonos recibidos, tu semana te sale a $0.00!
               </p>
             </div>
 
@@ -734,7 +734,7 @@ export default function DriverLandingView({ onStartRegistration, onCheckStatus, 
               </div>
               <h3 className="font-bold text-sm text-white">3. Alianzas Automotrices Locales</h3>
               <p className="text-xs text-slate-400 leading-relaxed">
-                ¿Acumulaste más de 10 bonos en la semana? El excedente no se pierde: podrás <strong>canjearlo por descuentos en talleres, repuestos, llanterías y lubricentros aliados</strong> que forman parte de la red comercial de Rumbo.
+                ¿Acumulaste más de 15 bonos en la semana? El excedente no se pierde: podrás <strong>canjearlo por descuentos en talleres, repuestos, llanterías y lubricentros aliados</strong> que forman parte de la red comercial de Rumbo.
               </p>
             </div>
 
@@ -1073,7 +1073,7 @@ export default function DriverLandingView({ onStartRegistration, onCheckStatus, 
                         {workInvitation.title || '¿Necesitas trabajar en la plataforma?'}
                       </h5>
                       <p className="text-xs font-bold text-emerald-400 mt-1">
-                        {workInvitation.message || 'Inscríbete como conductor, solo son $10 a la semana sin cobro de comisión'}
+                        {workInvitation.message || 'Inscríbete como conductor, solo son $15 a la semana sin cobro de comisión'}
                       </p>
                       {loginError && (
                         <p className="text-[11px] text-slate-400 mt-1">
@@ -1090,7 +1090,7 @@ export default function DriverLandingView({ onStartRegistration, onCheckStatus, 
                       className="w-full py-2.5 bg-gradient-to-r from-amber-500 to-emerald-500 hover:brightness-110 text-slate-950 font-black text-xs rounded-xl cursor-pointer shadow flex items-center justify-center gap-1.5 transition-transform active:scale-95"
                     >
                       <Car className="w-4 h-4" />
-                      <span>Inscribirme como Conductor ($10/semana)</span>
+                      <span>Inscribirme como Conductor ($15/semana)</span>
                     </button>
                   </div>
                 ) : loginError ? (

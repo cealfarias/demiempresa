@@ -201,7 +201,7 @@ export default function SupportTicketModal({ isOpen, onClose }) {
                   onChange={(e) => setFormData({ ...formData, category: e.target.value })}
                   className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-100 focus:outline-none focus:border-amber-400"
                 >
-                  <option value="DUDA">❓ Duda sobre el modelo de negocio ($0 comisión / $10 cuota)</option>
+                  <option value="DUDA">❓ Duda sobre el modelo de negocio ($0 comisión / $15 cuota)</option>
                   <option value="INQUIETUD">📑 Inquietud sobre mi registro, fotos o aprobación</option>
                   <option value="MEJORA">💡 Sugerencia o propuesta de mejora al sistema</option>
                   <option value="OTRO">🛠️ Otro requerimiento técnico</option>

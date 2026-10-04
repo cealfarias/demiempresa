@@ -500,10 +500,10 @@ export const LedgerService = {
   },
 
   /**
-   * 5. Conductor Paga Cuota Semanal ($10.00 Base) Usando sus Bonos Acumulados
+   * 5. Conductor Paga Cuota Semanal ($15.00 Base) Usando sus Bonos Acumulados
    * Permite pago parcial (descuento) o total ($0.00 en efectivo)
    */
-  async payWeeklyFeeWithBonuses(driverUserId, requestedBonusesToUse = 10, totalWeeklyFee = 10.00) {
+  async payWeeklyFeeWithBonuses(driverUserId, requestedBonusesToUse = 15, totalWeeklyFee = 15.00) {
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
@@ -583,7 +583,7 @@ export const LedgerService = {
         processedTxs.push(burnTx);
       }
 
-      // Si cubrió los $10.00 completos con bonos, activar 7 días de membresía completa
+      // Si cubrió los $15.00 completos con bonos, activar 7 días de membresía completa
       if (remainingCashToPay === 0) {
         await client.query(`
           UPDATE viajes_driver_profiles

@@ -91,8 +91,8 @@ export default function DriverApp() {
   const [isApplyingBonuses, setIsApplyingBonuses] = useState(false);
   const [showFeePaymentModal, setShowFeePaymentModal] = useState(false);
   const [feePaymentResult, setFeePaymentResult] = useState(null);
-  const bonusCap = 10;
-  const baseWeeklyFee = 10.00;
+  const bonusCap = 15;
+  const baseWeeklyFee = 15.00;
   const netWeeklyFee = Math.max(0, baseWeeklyFee - weeklyBonuses * 1.00);
 
   // Estado y función para Cierre de Sesión Seguro
@@ -177,7 +177,7 @@ export default function DriverApp() {
           } else {
             setWorkInvitationModal({
               title: res?.workInvitation?.title || '¿Necesitas trabajar en la plataforma?',
-              message: res?.workInvitation?.message || 'Inscríbete como conductor, solo son $10 a la semana sin cobro de comisión',
+              message: res?.workInvitation?.message || 'Inscríbete como conductor, solo son $15 a la semana sin cobro de comisión',
               detail: res?.error || 'Este enlace mágico ya fue utilizado o es inválido.'
             });
             const cleanUrl = window.location.pathname;
@@ -188,7 +188,7 @@ export default function DriverApp() {
           console.warn('Error al verificar enlace mágico por URL:', err);
           setWorkInvitationModal({
             title: '¿Necesitas trabajar en la plataforma?',
-            message: 'Inscríbete como conductor, solo son $10 a la semana sin cobro de comisión',
+            message: 'Inscríbete como conductor, solo son $15 a la semana sin cobro de comisión',
             detail: err.message || 'Este enlace ya fue consumido en otro dispositivo o fue compartido.'
           });
           const cleanUrl = window.location.pathname;
@@ -250,21 +250,21 @@ export default function DriverApp() {
       .catch(() => {});
   }, []);
 
-  // Pagar cuota semanal ($10.00) usando saldo bonificado acumulado de un solo golpe
+  // Pagar cuota semanal ($15.00) usando saldo bonificado acumulado de un solo golpe
   const handlePayWeeklyFeeWithBonuses = async (customBonuses = null) => {
     setIsApplyingBonuses(true);
     const available = weeklyBonuses || 0;
-    const bonusesToUse = customBonuses !== null ? customBonuses : Math.min(10, available);
+    const bonusesToUse = customBonuses !== null ? customBonuses : Math.min(15, available);
 
     if (bonusesToUse === 0 && available === 0) {
       setFeePaymentResult({
         success: false,
         bonusesApplied: 0,
-        remainingCashToPay: '10.00',
+        remainingCashToPay: '15.00',
         isFullyPaid: false,
         planType: 'WEEKLY',
-        title: 'Pago de Cuota Semanal ($10.00 USD)',
-        message: 'No tienes saldo bonificado disponible de tus pasajeros. Debes cancelar los $10.00 USD mediante Transfer365 Móvil o Cubo Pago.'
+        title: 'Pago de Cuota Semanal ($15.00 USD)',
+        message: 'No tienes saldo bonificado disponible de tus pasajeros. Debes cancelar los $15.00 USD mediante Transfer365 Móvil o Cubo Pago.'
       });
       setShowFeePaymentModal(true);
       setIsApplyingBonuses(false);
@@ -275,12 +275,12 @@ export default function DriverApp() {
       const res = await payDriverWeeklyFeeWithBonusesApi({
         driverId: driverProfileId,
         bonusesToUse,
-        totalWeeklyFee: 10.00
+        totalWeeklyFee: 15.00
       });
       if (res && res.success) {
         const applied = res.bonusesApplied !== undefined ? res.bonusesApplied : bonusesToUse;
         setWeeklyBonuses((prev) => Math.max(0, prev - applied));
-        const rem = Math.max(0, 10 - applied);
+        const rem = Math.max(0, 15 - applied);
         setFeePaymentResult({
           ...res,
           planType: 'WEEKLY',
@@ -289,15 +289,15 @@ export default function DriverApp() {
           remainingCashToPay: rem.toFixed(2),
           isFullyPaid: rem === 0,
           message: rem === 0
-            ? '¡Cuota semanal saldada al 100% con 10 bonos de un solo golpe ($0.00 USD en efectivo)! Tu acceso 24/7 está garantizado para toda la semana.'
+            ? '¡Cuota semanal saldada al 100% con 15 bonos de un solo golpe ($0.00 USD en efectivo)! Tu acceso 24/7 está garantizado para toda la semana.'
             : `Se aplicaron ${applied} bonos (-$${applied}.00 USD) de un solo golpe. Saldo pendiente a cancelar: $${rem.toFixed(2)} USD.`
         });
         setShowFeePaymentModal(true);
       }
     } catch {
       // Fallback local garantizado: se descuentan todos los bonos aplicables de una sola vez
-      const applied = Math.min(10, available);
-      const rem = Math.max(0, 10 - applied);
+      const applied = Math.min(15, available);
+      const rem = Math.max(0, 15 - applied);
       setWeeklyBonuses((prev) => Math.max(0, prev - applied));
       setFeePaymentResult({
         success: true,
@@ -307,7 +307,7 @@ export default function DriverApp() {
         remainingCashToPay: rem.toFixed(2),
         isFullyPaid: rem === 0,
         message: rem === 0
-          ? '¡Cuota semanal saldada al 100% con 10 bonos de un solo golpe ($0.00 USD en efectivo)! Tu acceso 24/7 está garantizado para toda la semana.'
+          ? '¡Cuota semanal saldada al 100% con 15 bonos de un solo golpe ($0.00 USD en efectivo)! Tu acceso 24/7 está garantizado para toda la semana.'
           : `Se aplicaron ${applied} bonos (-$${applied}.00 USD) de un solo golpe. Saldo pendiente a cancelar: $${rem.toFixed(2)} USD.`
       });
       setShowFeePaymentModal(true);
@@ -453,7 +453,7 @@ export default function DriverApp() {
         setActiveTrip(null);
         setWorkInvitationModal({
           title: ev?.workInvitation?.title || '¿Necesitas trabajar en la plataforma?',
-          message: ev?.workInvitation?.message || 'Inscríbete como conductor, solo son $10 a la semana sin cobro de comisión',
+          message: ev?.workInvitation?.message || 'Inscríbete como conductor, solo son $15 a la semana sin cobro de comisión',
           detail: '⚠️ REGLA DE DISPOSITIVO ÚNICO: Tu cuenta de conductor fue abierta en otro dispositivo. Por seguridad, la sesión en este teléfono ha sido cerrada de inmediato.'
         });
       }
@@ -604,7 +604,7 @@ export default function DriverApp() {
               {workInvitationModal.title || '¿Necesitas trabajar en la plataforma?'}
             </h3>
             <p className="text-sm font-bold text-emerald-400 leading-snug">
-              {workInvitationModal.message || 'Inscríbete como conductor, solo son $10 a la semana sin cobro de comisión'}
+              {workInvitationModal.message || 'Inscríbete como conductor, solo son $15 a la semana sin cobro de comisión'}
             </p>
             {workInvitationModal.detail && (
               <p className="text-xs text-slate-400 pt-1">
@@ -620,7 +620,7 @@ export default function DriverApp() {
             </div>
             <ul className="text-slate-300 text-[11px] space-y-1 list-disc list-inside">
               <li><strong>0% comisión por viaje:</strong> todo lo que cobras en efectivo es 100% tuyo.</li>
-              <li><strong>Tarifa fija semanal:</strong> únicamente $10.00 a la semana.</li>
+              <li><strong>Tarifa fija semanal:</strong> únicamente $15.00 a la semana.</li>
               <li><strong>14 días de prueba gratis</strong> al inscribirte hoy.</li>
             </ul>
           </div>
@@ -887,12 +887,12 @@ export default function DriverApp() {
             </div>
           )}
 
-          {/* Widget de Blindaje Financiero: Cuota Semanal & Límite de 10 Bonos */}
+          {/* Widget de Blindaje Financiero: Cuota Semanal & Límite de 15 Bonos */}
           <div className="bg-slate-900/90 border-b border-slate-800 px-3 sm:px-4 py-2.5 flex items-center justify-between text-xs gap-2">
             <div className="flex items-center gap-2">
               <Shield className="w-4 h-4 text-amber-400 flex-shrink-0" />
               <span className="text-slate-300">
-                Cuota Semanal: <strong className={netWeeklyFee === 0 ? "text-emerald-400 font-black" : "text-white"}>${netWeeklyFee.toFixed(2)} USD</strong> <span className="hidden xs:inline text-slate-500">(Base $10)</span>
+                Cuota Semanal: <strong className={netWeeklyFee === 0 ? "text-emerald-400 font-black" : "text-white"}>${netWeeklyFee.toFixed(2)} USD</strong> <span className="hidden xs:inline text-slate-500">(Base $15)</span>
               </span>
             </div>
             <div className="flex items-center gap-2">
@@ -912,7 +912,7 @@ export default function DriverApp() {
                   type="button"
                   onClick={handlePayWeeklyFeeWithBonuses}
                   disabled={isApplyingBonuses}
-                  title="Pagar tu cuota semanal de $10 con tu saldo bonificado acumulado"
+                  title="Pagar tu cuota semanal de $15 con tu saldo bonificado acumulado"
                   className="px-2.5 py-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold rounded-lg text-[10px] shadow cursor-pointer transition-all active:scale-95 flex items-center gap-1 whitespace-nowrap"
                 >
                   <Sparkles className="w-3 h-3 text-amber-300" />
@@ -1380,19 +1380,19 @@ export default function DriverApp() {
                         <p className="text-xs text-slate-300">Acceso ilimitado 24/7 toda la semana (Lunes a Domingo).</p>
                       </div>
                       <div className="text-right">
-                        <div className="text-2xl font-black text-emerald-400 font-mono">$10.00</div>
-                        <div className="text-[10px] text-slate-400">o 10 Bonos</div>
+                        <div className="text-2xl font-black text-emerald-400 font-mono">$15.00</div>
+                        <div className="text-[10px] text-slate-400">o 15 Bonos</div>
                       </div>
                     </div>
 
                     <div className="p-3 bg-slate-950/90 rounded-2xl border border-slate-800 space-y-1.5 text-xs font-mono">
                       <div className="flex justify-between text-slate-400">
                         <span>Cuota Base Semanal:</span>
-                        <span className="text-white font-bold">$10.00 USD</span>
+                        <span className="text-white font-bold">$15.00 USD</span>
                       </div>
                       <div className="flex justify-between text-emerald-400">
-                        <span>Bonos aplicados ({Math.min(10, weeklyBonuses)}/10):</span>
-                        <span className="font-bold">-${(Math.min(10, weeklyBonuses) * 1.00).toFixed(2)} USD</span>
+                        <span>Bonos aplicados ({Math.min(15, weeklyBonuses)}/15):</span>
+                        <span className="font-bold">-${(Math.min(15, weeklyBonuses) * 1.00).toFixed(2)} USD</span>
                       </div>
                       <div className="pt-1.5 border-t border-slate-800 flex justify-between text-white font-black text-sm">
                         <span>Saldo en efectivo a pagar:</span>
@@ -1464,7 +1464,7 @@ export default function DriverApp() {
                   </div>
 
                   <p className="text-[11px] text-slate-400 leading-relaxed pt-1">
-                    💡 Cada pasajero o contacto que descargue Rumbo con tu código te descuenta <strong>$1.00 USD</strong>. Con 10 recomendados tu semana completa es gratis, o con 3 cubres un día pico de alta demanda.
+                    💡 Cada pasajero o contacto que descargue Rumbo con tu código te descuenta <strong>$1.00 USD</strong>. Con 15 recomendados tu semana completa es gratis, o con 3 cubres un día pico de alta demanda.
                   </p>
                 </div>
 
@@ -1809,7 +1809,7 @@ export default function DriverApp() {
             <div className="p-3 bg-slate-800/60 rounded-2xl border border-slate-700/60 text-xs space-y-2 text-left font-mono">
               <div className="flex justify-between text-slate-300">
                 <span>{feePaymentResult?.planType === 'DAILY' ? 'Tarifa Pase 24 Horas:' : 'Cuota Base Semanal:'}</span>
-                <span className="font-bold">{feePaymentResult?.planType === 'DAILY' ? '$3.00 USD' : '$10.00 USD'}</span>
+                <span className="font-bold">{feePaymentResult?.planType === 'DAILY' ? '$3.00 USD' : '$15.00 USD'}</span>
               </div>
               <div className="flex justify-between text-emerald-400 font-bold">
                 <span>Bonos aplicados de un solo golpe:</span>

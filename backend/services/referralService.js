@@ -165,7 +165,7 @@ export class ReferralService {
   }
 
   /**
-   * Valida si el chofer puede recibir viajes con bono (Cap máximo 10 por semana)
+   * Valida si el chofer puede recibir viajes con bono (Cap máximo 15 por semana)
    */
   static async canDriverAcceptBonusTrip(driverProfileId) {
     const res = await pool.query(
@@ -173,7 +173,7 @@ export class ReferralService {
       [driverProfileId]
     );
     if (res.rows.length === 0) return false;
-    return res.rows[0].current_week_bonuses_count < 10;
+    return res.rows[0].current_week_bonuses_count < 15;
   }
 
   /**

@@ -130,7 +130,7 @@ export default function LandingPortal() {
         {
           id: 'conductor',
           nombre: 'Rumbo Conductor (Consola Chofer)',
-          descripcion: 'Consola oficial para conductores: 0% de comisión por carrera, cobro 100% en efectivo directo, $10 cuota semanal o $3 pase diario y radar de gasolineras.',
+          descripcion: 'Consola oficial para conductores: 0% de comisión por carrera, cobro 100% en efectivo directo, $15 cuota semanal o $3 pase diario y radar de gasolineras.',
           icon: <Truck size={28} color="#F59E0B" />,
           url: 'https://viajes.demiempresa.online/conductor',
           internalRoute: '/conductor',

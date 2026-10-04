@@ -122,7 +122,7 @@ export async function fetchAdFeedApi(municipality) {
 }
 
 /**
- * 5. Consulta de Cuota Semanal del Conductor y Límite de 10 Bonos
+ * 5. Consulta de Cuota Semanal del Conductor y Límite de 15 Bonos
  */
 export async function fetchDriverSubscriptionApi(driverProfileId) {
   try {
@@ -197,9 +197,9 @@ export async function transferTripBonusApi({ passengerId, driverId, tripId, amou
 }
 
 /**
- * 9. Conductor Paga Cuota Semanal ($10 Base) con Bonos Acumulados
+ * 9. Conductor Paga Cuota Semanal ($15 Base) con Bonos Acumulados
  */
-export async function payDriverWeeklyFeeWithBonusesApi({ driverId, bonusesToUse = 10, totalWeeklyFee = 10.00 }) {
+export async function payDriverWeeklyFeeWithBonusesApi({ driverId, bonusesToUse = 15, totalWeeklyFee = 15.00 }) {
   try {
     const res = await fetch(`${API_BASE_URL}/api/wallet/driver/pay-weekly-fee`, {
       method: 'POST',

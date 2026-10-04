@@ -12,7 +12,7 @@ Sistema de transporte compartido punto a punto bajo demanda (estilo inDriver) ba
 ---
 
 ## 2. Modelo de Negocio y Monetización de Transporte
-- **Cobro al Conductor:** Suscripción plana de $10.00 USD semanales ($40.00 USD/mes), sin comisiones porcentuales sobre las carreras realizadas.
+- **Cobro al Conductor:** Suscripción plana de $15.00 USD semanales ($60.00 USD/mes) o pase diario de $3.00 USD, sin comisiones porcentuales sobre las carreras realizadas.
 - **Periodo de Prueba:** Primer mes (30 días) 100% gratuito tras el registro y validación del chofer.
 - **Pagos de Carreras:** 100% en efectivo directo del pasajero al conductor. La plataforma no retiene comisiones por viaje.
 - **Incentivos Conductor-Conductor:** Extensión de 1 semana gratuita al completar su referido los primeros viajes.
@@ -65,10 +65,10 @@ El canal "Pasajero refiere Pasajero" subsidia $1.00 USD por usuario verificado b
 - **Condición:** El referente tiene 7 días para usar ese $1.00 de descuento en su propio próximo viaje.
 - Si no viaja en 7 días, el crédito se elimina (`CREDIT_EXPIRED`).
 
-### Compensación y Límite Semanal del Conductor (Cap de 10)
+### Compensación y Límite Semanal del Conductor (Cap de 15)
 - Si el pasajero redime un bono de $1.00, entrega $1.00 menos en efectivo al chofer.
-- El sistema acredita automáticamente ese $1.00 a la cuota semanal de $10.00 del conductor.
-- **Límite de blindaje financiero:** Un conductor solo puede aceptar hasta **10 viajes bonificados por semana** ($\text{Cuota Neta} = \max(0, \$10.00 - (\text{bonos} \times \$1.00))$). Al llegar a 10, la cuota queda en $0.00 y el motor de despacho le bloquea solicitudes con bonos, dejándole solo carreras 100% en efectivo. La plataforma **nunca acumula deudas con el conductor**.
+- El sistema acredita automáticamente ese $1.00 a la cuota semanal de $15.00 del conductor.
+- **Límite de blindaje financiero:** Un conductor solo puede aceptar hasta **15 viajes bonificados por semana** ($\text{Cuota Neta} = \max(0, \$15.00 - (\text{bonos} \times \$1.00))$). Al llegar a 15, la cuota queda en $0.00 y el motor de despacho le bloquea solicitudes con bonos, dejándole solo carreras 100% en efectivo. La plataforma **nunca acumula deudas con el conductor**.
 
 ---
 

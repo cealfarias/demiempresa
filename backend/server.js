@@ -50,8 +50,8 @@ app.get('/api/health', (req, res) => {
     },
     geoRadiusKm: 1.0,
     offerTTLSeconds: 10,
-    driverWeeklySubscription: '$10.00 USD',
-    driverBonusCapWeekly: 10,
+    driverWeeklySubscription: '$15.00 USD',
+    driverBonusCapWeekly: 15,
     referralPressureDays: '7+7 Días',
     timestamp: new Date().toISOString()
   });
@@ -360,25 +360,25 @@ app.get('/api/drivers/:driverProfileId/subscription', async (req, res) => {
         driverProfileId,
         vehiclePlate: 'P-584-912',
         currentWeekBonuses: 0,
-        bonusCap: 10,
-        baseFeeWeekly: 10.00,
-        netFeeToPay: 10.00,
+        bonusCap: 15,
+        baseFeeWeekly: 15.00,
+        netFeeToPay: 15.00,
         isBonusCapReached: false,
         trialEndsAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
       });
     }
 
     const bonusesCount = profile.current_week_bonuses_count || 0;
-    const netFee = Math.max(0.00, 10.00 - bonusesCount * 1.00);
+    const netFee = Math.max(0.00, 15.00 - bonusesCount * 1.00);
 
     res.json({
       driverProfileId: profile.id,
       vehiclePlate: profile.vehicle_plate,
       currentWeekBonuses: bonusesCount,
-      bonusCap: 10,
-      baseFeeWeekly: 10.00,
+      bonusCap: 15,
+      baseFeeWeekly: 15.00,
       netFeeToPay: netFee,
-      isBonusCapReached: bonusesCount >= 10,
+      isBonusCapReached: bonusesCount >= 15,
       trialEndsAt: profile.trial_ends_at
     });
   } catch (err) {
@@ -775,7 +775,7 @@ app.post('/api/drivers/verify-magic-token', async (req, res) => {
         isSharedOrDuplicate: true,
         workInvitation: {
           title: '¿Necesitas trabajar en la plataforma?',
-          message: 'Inscríbete como conductor, solo son $10 a la semana sin cobro de comisión.',
+          message: 'Inscríbete como conductor, solo son $15 a la semana sin cobro de comisión.',
           actionUrl: '/conductor?register=true'
         }
       });
@@ -790,7 +790,7 @@ app.post('/api/drivers/verify-magic-token', async (req, res) => {
         isSharedOrDuplicate: true,
         workInvitation: {
           title: '¿Necesitas trabajar en la plataforma?',
-          message: 'Inscríbete como conductor, solo son $10 a la semana sin cobro de comisión.',
+          message: 'Inscríbete como conductor, solo son $15 a la semana sin cobro de comisión.',
           actionUrl: '/conductor?register=true'
         }
       });
@@ -804,7 +804,7 @@ app.post('/api/drivers/verify-magic-token', async (req, res) => {
         isSharedOrDuplicate: true,
         workInvitation: {
           title: '¿Necesitas trabajar en la plataforma?',
-          message: 'Inscríbete como conductor, solo son $10 a la semana sin cobro de comisión.',
+          message: 'Inscríbete como conductor, solo son $15 a la semana sin cobro de comisión.',
           actionUrl: '/conductor?register=true'
         }
       });
@@ -830,7 +830,7 @@ app.post('/api/drivers/verify-magic-token', async (req, res) => {
       activeSessionId: newSessionId,
       workInvitation: {
         title: '¿Necesitas trabajar en la plataforma?',
-        message: 'Inscríbete como conductor, solo son $10 a la semana sin cobro de comisión.',
+        message: 'Inscríbete como conductor, solo son $15 a la semana sin cobro de comisión.',
         actionUrl: '/conductor?register=true'
       }
     });
@@ -1269,10 +1269,10 @@ app.post('/api/wallet/transfer-trip', async (req, res) => {
   }
 });
 
-// POST /api/wallet/driver/pay-weekly-fee - Chofer paga su cuota de $10 con sus bonos
+// POST /api/wallet/driver/pay-weekly-fee - Chofer paga su cuota de $15 con sus bonos
 app.post('/api/wallet/driver/pay-weekly-fee', async (req, res) => {
   try {
-    const { driverId, bonusesToUse = 10, totalWeeklyFee = 10.00 } = req.body;
+    const { driverId, bonusesToUse = 15, totalWeeklyFee = 15.00 } = req.body;
     if (!driverId) return res.status(400).json({ error: 'driverId es requerido' });
 
     const result = await LedgerService.payWeeklyFeeWithBonuses(driverId, parseInt(bonusesToUse, 10), parseFloat(totalWeeklyFee));

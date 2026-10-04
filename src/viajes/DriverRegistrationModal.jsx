@@ -1446,7 +1446,7 @@ export default function DriverRegistrationModal({ isOpen, onClose, onDriverRegis
                       <DollarSign className="w-4 h-4" />
                     </div>
                     <div>
-                      <h4 className="font-bold text-slate-200">14 Días Gratis y Membresía Semanal Fija ($10.00 USD)</h4>
+                      <h4 className="font-bold text-slate-200">14 Días Gratis y Membresía Semanal Fija ($15.00 USD)</h4>
                       <p className="text-slate-400 text-[11px]">
                         Tus primeros 14 días son 100% gratis ($0.00 cuota). Luego, cada bono de $1.00 de pasajero descuenta tu cuota de un solo golpe hasta dejarla en $0.00. <strong>Importante:</strong> El pago semanal debe realizarse con 48 horas de anticipación a su vencimiento (con recordatorios a las 48h y 24h).
                       </p>
@@ -1499,7 +1499,7 @@ export default function DriverRegistrationModal({ isOpen, onClose, onDriverRegis
                     className="mt-0.5 w-4 h-4 text-amber-500 rounded bg-slate-900 border-slate-700 focus:ring-0 cursor-pointer"
                   />
                   <span className="text-xs text-slate-300 leading-relaxed">
-                    He leído y acepto el beneficio de 14 días de uso gratis y el modelo de membresía semanal fija de $10.00 USD con pago obligatorio de 48 horas de anticipación a su vencimiento (pagadera mediante compensación de bonos de pasajeros, transferencia 365 móvil Davivienda al 69893101 a nombre de Cesar Arias o link Cubo Pago), y declaro bajo juramento que los documentos subidos y datos del vehículo corresponden a mi persona y son 100% verídicos y vigentes en El Salvador.
+                    He leído y acepto el beneficio de 14 días de uso gratis y el modelo de membresía semanal fija de $15.00 USD con pago obligatorio de 48 horas de anticipación a su vencimiento (pagadera mediante compensación de bonos de pasajeros, transferencia 365 móvil Davivienda al 69893101 a nombre de Cesar Arias o link Cubo Pago), y declaro bajo juramento que los documentos subidos y datos del vehículo corresponden a mi persona y son 100% verídicos y vigentes en El Salvador.
                   </span>
                 </label>
               </div>
