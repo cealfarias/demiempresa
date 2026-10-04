@@ -1915,11 +1915,53 @@ app.get('/api/admin/stats', async (req, res) => {
       console.warn('Stats fallback en memoria:', e.message);
     }
 
+    const effectivePassengers = Math.max(totalPassengers, 48);
+    const effectiveDrivers = Math.max(totalDrivers, 16);
+    const promoDeadline = new Date('2026-11-01T00:00:00-06:00');
+    const isPromoActive = new Date() < promoDeadline;
+
+    const passengerQuotaMax = 100;
+    const passengerQuotaRemaining = Math.max(0, passengerQuotaMax - effectivePassengers);
+    const passengerPromoActive = isPromoActive && effectivePassengers < passengerQuotaMax;
+
+    const driverQuotaMax = 100;
+    const driverQuotaRemaining = Math.max(0, driverQuotaMax - effectiveDrivers);
+    const driverPromoActive = isPromoActive && effectiveDrivers < driverQuotaMax;
+
+    const prelaunchPromo = {
+      isPromoActive,
+      deadlineIso: '2026-10-31T23:59:59-06:00',
+      deadlineFormatted: '31 de Octubre de 2026',
+      quotaMaxPerRole: 100,
+      passengers: {
+        enrolledCount: effectivePassengers,
+        quotaMax: passengerQuotaMax,
+        remainingSpots: passengerQuotaRemaining,
+        percentFilled: Math.min(100, Math.round((effectivePassengers / passengerQuotaMax) * 100)),
+        isPromoActive: passengerPromoActive,
+        welcomeBonus: passengerPromoActive ? 2.00 : 1.00,
+        referralBonus: passengerPromoActive ? 2.00 : 1.00,
+        normalBonus: 1.00,
+        multiplierText: '200% ($2.00 USD)'
+      },
+      drivers: {
+        enrolledCount: effectiveDrivers,
+        quotaMax: driverQuotaMax,
+        remainingSpots: driverQuotaRemaining,
+        percentFilled: Math.min(100, Math.round((effectiveDrivers / driverQuotaMax) * 100)),
+        isPromoActive: driverPromoActive,
+        trialDays: driverPromoActive ? 30 : 14,
+        normalTrialDays: 14,
+        promoTrialDays: 30,
+        savingsText: '30 Días Gratis ($0 Cuota / 1 Mes Completo)'
+      }
+    };
+
     res.json({
       success: true,
       stats: {
-        totalPassengers: Math.max(totalPassengers, 48),
-        totalDrivers: Math.max(totalDrivers, 16),
+        totalPassengers: effectivePassengers,
+        totalDrivers: effectiveDrivers,
         approvedDrivers: Math.max(approvedDrivers, 12),
         pendingDrivers: Math.max(pendingDrivers, 4),
         completedTrips: Math.max(completedTrips, 154),
@@ -1927,6 +1969,7 @@ app.get('/api/admin/stats', async (req, res) => {
         paymentTicketsCount,
         estimatedGrossRevenue: '$1,540.00 USD',
         totalBonusesCirculating: 320,
+        prelaunchPromo,
         serverTime: new Date().toISOString()
       }
     });

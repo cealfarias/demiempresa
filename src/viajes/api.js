@@ -493,16 +493,46 @@ export async function fetchAdminStatsApi() {
     return data.stats;
   } catch (err) {
     console.warn('Fallback local stats:', err);
+    const effectivePassengers = 48;
+    const effectiveDrivers = 16;
     return {
-      totalPassengers: 48,
-      totalDrivers: 16,
+      totalPassengers: effectivePassengers,
+      totalDrivers: effectiveDrivers,
       approvedDrivers: 12,
       pendingDrivers: 4,
       completedTrips: 154,
       pendingTicketsCount: 3,
       paymentTicketsCount: 1,
       estimatedGrossRevenue: '$1,540.00 USD',
-      totalBonusesCirculating: 320
+      totalBonusesCirculating: 320,
+      prelaunchPromo: {
+        isPromoActive: true,
+        deadlineIso: '2026-10-31T23:59:59-06:00',
+        deadlineFormatted: '31 de Octubre de 2026',
+        quotaMaxPerRole: 100,
+        passengers: {
+          enrolledCount: effectivePassengers,
+          quotaMax: 100,
+          remainingSpots: 100 - effectivePassengers,
+          percentFilled: Math.round((effectivePassengers / 100) * 100),
+          isPromoActive: true,
+          welcomeBonus: 2.00,
+          referralBonus: 2.00,
+          normalBonus: 1.00,
+          multiplierText: '200% ($2.00 USD)'
+        },
+        drivers: {
+          enrolledCount: effectiveDrivers,
+          quotaMax: 100,
+          remainingSpots: 100 - effectiveDrivers,
+          percentFilled: Math.round((effectiveDrivers / 100) * 100),
+          isPromoActive: true,
+          trialDays: 30,
+          normalTrialDays: 14,
+          promoTrialDays: 30,
+          savingsText: '30 Días Gratis ($0 Cuota / 1 Mes Completo)'
+        }
+      }
     };
   }
 }

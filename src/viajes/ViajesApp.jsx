@@ -2720,29 +2720,34 @@ export default function ViajesApp() {
                   Las ofertas de los conductores aparecerán aquí y se mantendrán durante 30 segundos para que puedas comparar y elegir con calma.
                 </p>
 
-                {/* Aviso Profesional de Prelanzamiento y Prueba Piloto */}
-                <div className="mt-4 p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-2xl text-left space-y-2 animate-fade-in">
-                  <div className="flex items-center gap-1.5 text-amber-400 font-bold text-xs">
-                    <Sparkles className="w-4 h-4 shrink-0" />
-                    <span>Fase de Prelanzamiento & Prueba Piloto</span>
+                {/* Aviso Profesional de Prelanzamiento y Promoción 200% */}
+                <div className="mt-4 p-3.5 bg-gradient-to-r from-amber-500/10 via-slate-900 to-emerald-500/10 border border-amber-500/30 rounded-2xl text-left space-y-2 animate-fade-in">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 text-amber-400 font-bold text-xs">
+                      <Sparkles className="w-4 h-4 shrink-0" />
+                      <span>Promoción Prelanzamiento: Bono 200% ($2.00 USD)</span>
+                    </div>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/30">
+                      100 Primeros • Vence 31 Oct
+                    </span>
                   </div>
                   <p className="text-[11px] text-slate-300 leading-relaxed">
-                    Estamos en etapa de despliegue controlado en El Salvador. Es probable que en ciertos horarios o zonas la disponibilidad de conductores cercanos sea limitada. Si no encuentras un conductor disponible de inmediato, te solicitamos invitar a tus conductores de confianza y amigos para activar y acelerar la cobertura en tu zona.
+                    Estamos en despliegue piloto en El Salvador. Los primeros 100 viajeros reciben <strong>$2.00 USD de bienvenida</strong> y <strong>$2.00 USD por cada amigo referido</strong> (vence 31 de octubre de 2026). Si en tu zona aún no hay choferes disponibles al instante, ¡te invitamos a invitar a tus amigos y conductores conocidos para activar la cobertura local!
                   </p>
                   <button
                     type="button"
                     onClick={() => {
-                      const shareMsg = `🚗 Te invito a usar Rumbo a mi Destino en El Salvador: viaja con tarifa justa, 0% comisiones abusivas y $1.00 USD de bienvenida. Pide tu viaje aquí: https://viajes.demiempresa.online/viajes`;
+                      const shareMsg = `🚗 ¡Aprovecha la Súper Promoción de Prelanzamiento en Rumbo a mi Destino! Bono del 200% ($2.00 USD de bienvenida y $2.00 por referir para los primeros 100 usuarios, vence 31 Octubre 2026): https://viajes.demiempresa.online/viajes`;
                       if (navigator.share) {
-                        navigator.share({ title: 'Rumbo a mi Destino', text: shareMsg, url: 'https://viajes.demiempresa.online/viajes' }).catch(() => {});
+                        navigator.share({ title: 'Rumbo a mi Destino - Bono 200%', text: shareMsg, url: 'https://viajes.demiempresa.online/viajes' }).catch(() => {});
                       } else {
                         window.open(`https://wa.me/?text=${encodeURIComponent(shareMsg)}`, '_blank');
                       }
                     }}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 rounded-xl text-xs font-bold cursor-pointer transition-colors"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-amber-500/20 to-emerald-500/20 hover:brightness-110 border border-amber-500/40 text-amber-300 rounded-xl text-xs font-bold cursor-pointer transition-colors"
                   >
                     <Share2 className="w-3.5 h-3.5" />
-                    <span>Invitar Conductores y Amigos por WhatsApp</span>
+                    <span>Invitar Amigos y Conductores por WhatsApp</span>
                   </button>
                 </div>
               </div>

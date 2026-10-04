@@ -66,7 +66,18 @@ export class ReferralService {
         WHERE id = $2
       `, [tripId, referral.id]);
 
-      // 2. Conceder $1.00 USD de crédito al referente con TTL de 7 días exactos (Fase 2)
+      // Promoción Prelanzamiento: Bono 200% ($2.00 USD) por referir para primeros 100 usuarios hasta 31 Octubre 2026
+      const promoDeadline = new Date('2026-11-01T00:00:00-06:00');
+      let creditAmount = 1.00;
+      if (new Date() < promoDeadline) {
+        const pCountRes = await client.query("SELECT count(*) FROM viajes_users WHERE role = 'PASSENGER';");
+        const pCount = parseInt(pCountRes.rows[0]?.count || 0);
+        if (pCount <= 100) {
+          creditAmount = 2.00;
+        }
+      }
+
+      // 2. Conceder crédito al referente con TTL de 7 días exactos (Fase 2)
       const creditRes = await client.query(`
         INSERT INTO viajes_user_credits (
           user_id,
@@ -76,9 +87,9 @@ export class ReferralService {
           granted_at,
           credit_expires_at
         )
-        VALUES ($1, $2, 1.00, 'AVAILABLE', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP + INTERVAL '7 days')
+        VALUES ($1, $2, $3, 'AVAILABLE', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP + INTERVAL '7 days')
         RETURNING *;
-      `, [referral.referrer_user_id, referral.id]);
+      `, [referral.referrer_user_id, referral.id, creditAmount]);
 
       await client.query('COMMIT');
       return creditRes.rows[0];

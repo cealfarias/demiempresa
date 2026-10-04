@@ -285,25 +285,30 @@ export default function DriverTripRequestsFeed({
             </p>
 
             {driverOnline && (
-              <div className="mt-4 p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-2xl text-left space-y-2 max-w-sm mx-auto animate-fade-in text-xs">
-                <div className="flex items-center gap-2 text-amber-300 font-bold text-xs">
-                  <Sparkles className="w-4 h-4 shrink-0 text-amber-400" />
-                  <span>Fase de Prelanzamiento & Prueba Piloto</span>
+              <div className="mt-4 p-3.5 bg-gradient-to-r from-amber-500/10 via-slate-900 to-amber-500/15 border border-amber-500/30 rounded-2xl text-left space-y-2 max-w-sm mx-auto animate-fade-in text-xs">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 text-amber-300 font-bold text-xs">
+                    <Sparkles className="w-4 h-4 shrink-0 text-amber-400" />
+                    <span>Promoción Prelanzamiento: 30 Días Gratis</span>
+                  </div>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-bold border border-amber-500/30">
+                    100 Primeros • Vence 31 Oct
+                  </span>
                 </div>
                 <p className="text-[11px] text-slate-300 leading-relaxed">
-                  Rumbo a mi Destino se encuentra en periodo de prueba piloto oficial. El flujo de solicitudes de pasajeros está aumentando de forma gradual conforme más personas conocen la plataforma. ¡Aprovecha tus 14 días gratis e invita a tus pasajeros frecuentes y colegas conductores a sumarse para dinamizar las carreras en tu ruta!
+                  Rumbo a mi Destino está en despliegue piloto. Los primeros 100 conductores inscritos reciben <strong>30 DÍAS GRATIS de prueba ($0 cuota)</strong> hasta el 31 de octubre de 2026 (a partir del 1 de noviembre aplica periodo normal de 14 días). ¡Invita a colegas conductores y a tus pasajeros para multiplicar los viajes en tu zona!
                 </p>
                 <button
                   type="button"
                   onClick={() => {
-                    const shareMsg = `🚘 Únete a Rumbo Conductor en El Salvador: 0% comisión por viaje, 14 días gratis de prueba y retienes el 100% de tu dinero en efectivo. Inscríbete aquí: https://viajes.demiempresa.online/conductor`;
+                    const shareMsg = `🚘 ¡Aprovecha la Súper Promoción de Rumbo Conductor en El Salvador! 30 DÍAS GRATIS ($0 cuota) para los primeros 100 conductores inscritos hasta el 31 de Octubre de 2026: https://viajes.demiempresa.online/conductor`;
                     if (navigator.share) {
-                      navigator.share({ title: 'Rumbo Conductor', text: shareMsg, url: 'https://viajes.demiempresa.online/conductor' }).catch(() => {});
+                      navigator.share({ title: 'Rumbo Conductor - 30 Días Gratis', text: shareMsg, url: 'https://viajes.demiempresa.online/conductor' }).catch(() => {});
                     } else {
                       window.open(`https://wa.me/?text=${encodeURIComponent(shareMsg)}`, '_blank');
                     }
                   }}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 rounded-xl text-xs font-bold cursor-pointer transition-colors"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-amber-500/20 to-yellow-500/20 hover:brightness-110 border border-amber-500/40 text-amber-300 rounded-xl text-xs font-bold cursor-pointer transition-colors"
                 >
                   <Share2 className="w-3.5 h-3.5" />
                   <span>Compartir con Colegas por WhatsApp</span>

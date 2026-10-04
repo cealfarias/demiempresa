@@ -177,9 +177,19 @@ export const LedgerService = {
       const lastBlock = lastBlockRes.rows[0];
 
       const prevHash = lastBlock ? lastBlock.current_hash : GENESIS_PREV_HASH;
-       const nextSeq = lastBlock ? parseInt(lastBlock.sequence_number, 10) + 1 : 1;
+      const nextSeq = lastBlock ? parseInt(lastBlock.sequence_number, 10) + 1 : 1;
       const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
-      const amount = '1.00';
+
+      // Promoción Prelanzamiento Bono 200%: $2.00 USD para los primeros 100 pasajeros (vence 31 Octubre 2026)
+      const promoDeadline = new Date('2026-11-01T00:00:00-06:00');
+      let amount = '1.00';
+      if (new Date() < promoDeadline) {
+        const pCountRes = await client.query("SELECT count(*) FROM viajes_users WHERE role = 'PASSENGER';");
+        const pCount = parseInt(pCountRes.rows[0]?.count || 0);
+        if (pCount <= 100) {
+          amount = '2.00';
+        }
+      }
       const txType = 'WELCOME_BONUS';
 
       const payload = `${prevHash}|${nextSeq}|${SYSTEM_MINT_ADDRESS}|${wallet.address}|${amount}|NONE|${txType}|${expiresAt}`;
@@ -360,9 +370,18 @@ export const LedgerService = {
       );
       const lastBlock = lastBlockRes.rows[0];
       const prevHash = lastBlock.current_hash;
-      const nextSeq = parseInt(lastBlock.sequence_number, 10) + 1;
+      // Promoción Prelanzamiento: Bono 200% ($2.00 USD) por referir para los primeros 100 pasajeros (vence 31 Oct 2026)
+      const promoDeadline = new Date('2026-11-01T00:00:00-06:00');
+      let referralAmount = '1.00';
+      if (new Date() < promoDeadline) {
+        const pCountRes = await client.query("SELECT count(*) FROM viajes_users WHERE role = 'PASSENGER';");
+        const pCount = parseInt(pCountRes.rows[0]?.count || 0);
+        if (pCount <= 100) {
+          referralAmount = '2.00';
+        }
+      }
 
-      const payload = `${prevHash}|${nextSeq}|${SYSTEM_MINT_ADDRESS}|${pendingTx.to_address}|1.00|${pendingTx.id}|ACTIVATED_BONUS|${spendExpiresAt}`;
+      const payload = `${prevHash}|${nextSeq}|${SYSTEM_MINT_ADDRESS}|${pendingTx.to_address}|${referralAmount}|${pendingTx.id}|ACTIVATED_BONUS|${spendExpiresAt}`;
       const { privateKey } = getSystemAuthorityKeys();
       const signature = signPayload(privateKey, payload);
 
@@ -371,7 +390,7 @@ export const LedgerService = {
         sequence_number: nextSeq,
         from_address: SYSTEM_MINT_ADDRESS,
         to_address: pendingTx.to_address,
-        amount: '1.00',
+        amount: referralAmount,
         input_ref: pendingTx.id,
         transaction_type: 'REFERRAL_BONUS',
         expires_at: spendExpiresAt,

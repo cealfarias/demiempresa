@@ -120,9 +120,9 @@ export default function AdminDashboardPage() {
   const PASSENGER_URL = 'https://viajes.demiempresa.online/viajes';
   const DRIVER_URL = 'https://viajes.demiempresa.online/conductor';
 
-  const PASSENGER_WA_MESSAGE = `🚗 *¡Viaja seguro y paga lo justo con Rumbo a mi Destino!* 🇸🇻\n\nTe invito a probar la nueva plataforma oficial en El Salvador:\n✅ *0% comisiones abusivas:* pagas en efectivo directo la tarifa justa negociada.\n✅ *Bono de $1.00 USD de bienvenida* activo para tu primera carrera.\n✅ Calculadora con precios oficiales MINEC y subasta en tiempo real (< 1 km).\n\n🚀 *Fase de Prelanzamiento y Prueba Piloto:*\nActualmente nos encontramos en etapa de prueba piloto y despliegue controlado en El Salvador, por lo que la disponibilidad de conductores cercanos se encuentra en crecimiento gradual. Si en algún momento no encuentras un conductor disponible de inmediato, te solicitamos invitar a tus amigos y conductores de confianza para expandir la cobertura en tu zona.\n\n👉 Pide tu viaje en 1 toque desde tu celular aquí:\n${PASSENGER_URL}`;
+  const PASSENGER_WA_MESSAGE = `🚗 *¡Súper Promoción de Prelanzamiento con Rumbo a mi Destino!* 🇸🇻\n\n🎁 *¡BONO DEL 200% PARA LOS PRIMEROS 100 PASAJEROS!* (Hasta el 31 de Octubre de 2026):\n✅ *$2.00 USD de Bienvenida* activo de inmediato para tu primera carrera.\n✅ *$2.00 USD por cada amigo que refieras* para seguir viajando con descuento.\n✅ *0% comisiones abusivas:* pagas en efectivo directo la tarifa negociada con tu conductor.\n✅ Calculadora con precios justos MINEC y subasta en tiempo real (< 1 km).\n\n⏳ *Condición de la Promoción:* Válida exclusivamente para los primeros 100 viajeros inscritos o hasta el *31 de octubre de 2026*. A partir del 1 de noviembre aplica la promoción normal ($1.00 USD).\n\n🚀 *Fase de Prelanzamiento y Prueba Piloto:*\nEstamos en despliegue controlado en El Salvador. Si en tu zona aún no encuentras conductor disponible de inmediato, te solicitamos invitar a tus amigos y conductores de confianza para expandir la cobertura en tu localidad.\n\n👉 Aprovecha tus $2.00 y regístrate en 1 toque aquí:\n${PASSENGER_URL}`;
 
-  const DRIVER_WA_MESSAGE = `🚘 *¡Conserva el 100% de tus carreras en tu bolsillo!* 🇸🇻\n\nÚnete a *Rumbo Conductor*, la plataforma donde TÚ eres el dueño de tu dinero:\n🔥 *0% Comisión por viaje:* todo el dinero que cobres en efectivo va íntegro a tu mano.\n🎁 *14 Días Gratis de Bienvenida* ($0 cuota de inscripción al registrarte).\n💵 *Cuota fija semanal de $15.00* (o pase diario de $3.00), reducible hasta *$0.00* acumulando bonos de pasajeros.\n⛽ Radar de gasolineras baratas en ruta y despacho a menos de 1 km.\n\n🚀 *Fase de Prelanzamiento y Prueba Piloto:*\nEstamos en periodo de prueba piloto oficial. El flujo de solicitudes de pasajeros está incrementando progresivamente día a día. Te invitamos a sumarte hoy para asegurar tus 14 días sin costo e invitar a más pasajeros y colegas conductores, posicionándote desde ya en las zonas de mayor demanda.\n\n👉 Inscríbete en 3 minutos completando tu expediente aquí:\n${DRIVER_URL}`;
+  const DRIVER_WA_MESSAGE = `🚘 *¡Conserva el 100% de tus carreras en tu bolsillo con Rumbo Conductor!* 🇸🇻\n\n🎁 *¡30 DÍAS GRATIS PARA LOS PRIMEROS 100 CONDUCTORES!* (Hasta el 31 de Octubre de 2026):\n🔥 *1 Mes Completo a $0 Cuota:* conserva el 100% del dinero de todas tus carreras sin pagar membresía de plataforma.\n🔥 *0% Comisión por viaje:* todo el dinero que cobres en efectivo va íntegro a tu mano.\n💵 Cuota fija semanal posterior de $15.00 (o pase diario de $3.00), reducible hasta *$0.00* acumulando bonos de pasajeros.\n⛽ Radar de gasolineras baratas en ruta y despacho a menos de 1 km.\n\n⏳ *Condición de la Promoción:* Los *30 días gratis* aplican únicamente a los primeros 100 conductores que completen su expediente hasta el *31 de octubre de 2026*. A partir del 1 de noviembre aplica el periodo normal de 14 días gratis.\n\n🚀 *Fase de Prelanzamiento y Prueba Piloto:*\nEstamos en periodo de prueba piloto oficial. El flujo de solicitudes de pasajeros está aumentando día a día. Inscríbete hoy para asegurar tu mes gratis y construir tu cartera de clientes desde el inicio.\n\n👉 Inscríbete en 3 minutos completando tu expediente aquí:\n${DRIVER_URL}`;
 
   const handleCopyText = async (text, targetKey) => {
     try {
@@ -578,6 +578,135 @@ export default function AdminDashboardPage() {
         {/* ================================================================== */}
         {activeTab === 'STATS' && (
           <div className="space-y-6 animate-fade-in">
+            {/* PANEL DE CONTROL OFICIAL DE PRELANZAMIENTO: BONO 200% & 30 DÍAS GRATIS */}
+            <div className="p-5 sm:p-6 bg-gradient-to-r from-amber-500/15 via-slate-900 to-emerald-500/10 border-2 border-amber-500/40 rounded-3xl space-y-5 shadow-2xl relative overflow-hidden">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-2xl bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center justify-center font-black text-xl shadow">
+                    🎁
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-base sm:text-lg font-black text-white">
+                        Control de Prelanzamiento: Bono 200% & 30 Días Gratis
+                      </h2>
+                      <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[10px] font-black uppercase tracking-wider">
+                        VENCE 31 OCT 2026
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-300">
+                      Promoción exclusiva para los primeros 100 viajeros y primeros 100 conductores inscritos. Desde el 1 de Noviembre de 2026 aplica régimen regular.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 sm:self-center">
+                  <span className="text-[11px] text-slate-400 font-medium">Estado:</span>
+                  <span className="px-3 py-1 rounded-xl bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 text-xs font-black flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                    <span>PROMOCIÓN ACTIVA</span>
+                  </span>
+                </div>
+              </div>
+
+              {/* Medidores de Cupos: Pasajeros vs Conductores */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                
+                {/* Medidor 1: Pasajeros (Primeros 100 con Bono 200%) */}
+                <div className="p-4 bg-slate-950/80 rounded-2xl border border-slate-800 space-y-3">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider block">
+                        Pasajeros • Bono 200% ($2.00 USD)
+                      </span>
+                      <h4 className="text-base font-black text-white flex items-center gap-2">
+                        <span>{stats?.totalPassengers || 48} de 100 Inscritos</span>
+                        <span className="text-xs text-emerald-400 font-mono font-bold">
+                          ({Math.round(((stats?.totalPassengers || 48) / 100) * 100)}%)
+                        </span>
+                      </h4>
+                    </div>
+                    <span className="text-xs px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/30">
+                      {Math.max(0, 100 - (stats?.totalPassengers || 48))} Cupos Restantes
+                    </span>
+                  </div>
+
+                  {/* Barra de Progreso */}
+                  <div className="w-full h-3 bg-slate-800 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-gradient-to-r from-emerald-500 to-teal-400 transition-all duration-500"
+                      style={{ width: `${Math.min(100, Math.round(((stats?.totalPassengers || 48) / 100) * 100))}%` }}
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 text-xs pt-1">
+                    <div className="p-2.5 bg-slate-900 rounded-xl border border-slate-800/80 space-y-0.5">
+                      <span className="text-[10px] text-slate-400 block">Bono Bienvenida:</span>
+                      <strong className="text-emerald-400 font-mono text-sm">$2.00 USD</strong>
+                      <span className="text-[9px] text-slate-500 block">(Normal: $1.00 USD)</span>
+                    </div>
+                    <div className="p-2.5 bg-slate-900 rounded-xl border border-slate-800/80 space-y-0.5">
+                      <span className="text-[10px] text-slate-400 block">Bono por Referido:</span>
+                      <strong className="text-emerald-400 font-mono text-sm">$2.00 USD</strong>
+                      <span className="text-[9px] text-slate-500 block">(Normal: $1.00 USD)</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Medidor 2: Conductores (Primeros 100 con 30 Días Gratis) */}
+                <div className="p-4 bg-slate-950/80 rounded-2xl border border-slate-800 space-y-3">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider block">
+                        Conductores • 30 Días Gratis ($0 Cuota)
+                      </span>
+                      <h4 className="text-base font-black text-white flex items-center gap-2">
+                        <span>{stats?.totalDrivers || 16} de 100 Inscritos</span>
+                        <span className="text-xs text-amber-400 font-mono font-bold">
+                          ({Math.round(((stats?.totalDrivers || 16) / 100) * 100)}%)
+                        </span>
+                      </h4>
+                    </div>
+                    <span className="text-xs px-2.5 py-1 rounded-full bg-amber-500/20 text-amber-300 font-bold border border-amber-500/30">
+                      {Math.max(0, 100 - (stats?.totalDrivers || 16))} Cupos Restantes
+                    </span>
+                  </div>
+
+                  {/* Barra de Progreso */}
+                  <div className="w-full h-3 bg-slate-800 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-gradient-to-r from-amber-400 to-yellow-500 transition-all duration-500"
+                      style={{ width: `${Math.min(100, Math.round(((stats?.totalDrivers || 16) / 100) * 100))}%` }}
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 text-xs pt-1">
+                    <div className="p-2.5 bg-slate-900 rounded-xl border border-slate-800/80 space-y-0.5">
+                      <span className="text-[10px] text-slate-400 block">Periodo Gratuito:</span>
+                      <strong className="text-amber-300 font-mono text-sm">30 Días ($0)</strong>
+                      <span className="text-[9px] text-slate-500 block">(Normal: 14 Días)</span>
+                    </div>
+                    <div className="p-2.5 bg-slate-900 rounded-xl border border-slate-800/80 space-y-0.5">
+                      <span className="text-[10px] text-slate-400 block">Ahorro en Cuotas:</span>
+                      <strong className="text-amber-300 font-mono text-sm">~$60.00 USD</strong>
+                      <span className="text-[9px] text-slate-500 block">(100% cobro en mano)</span>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+
+              {/* Nota Legal y Fecha de Vencimiento */}
+              <div className="p-3 bg-slate-900 rounded-2xl border border-slate-800 flex items-center justify-between text-xs text-slate-300">
+                <div className="flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-amber-400 shrink-0" />
+                  <span>
+                    <strong>Condición de Vigencia:</strong> Esta promoción vence impostergablemente el <strong>31 de Octubre de 2026 a las 23:59:59</strong>. A partir del <strong>1 de Noviembre de 2026</strong> la plataforma aplicará los valores normales ($1.00 USD bono viajero y 14 días gratis chofer).
+                  </span>
+                </div>
+              </div>
+            </div>
+
             {/* Grid de Métricas Clave */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
               <div className="p-4 bg-slate-900 border border-slate-800 rounded-3xl space-y-1">
@@ -1023,7 +1152,7 @@ export default function AdminDashboardPage() {
               </div>
             </div>
 
-            {/* Aviso Oficial de Prelanzamiento y Prueba Piloto */}
+            {/* Aviso Oficial de Prelanzamiento y Promoción 200% */}
             <div className="p-4 sm:p-5 bg-gradient-to-r from-amber-500/15 via-slate-900 to-amber-500/10 border-2 border-amber-500/40 rounded-3xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-lg">
               <div className="flex items-start gap-3.5">
                 <div className="w-10 h-10 rounded-2xl bg-amber-500/20 text-amber-400 border border-amber-500/40 flex items-center justify-center font-black shrink-0 mt-0.5">
@@ -1032,15 +1161,27 @@ export default function AdminDashboardPage() {
                 <div className="space-y-1">
                   <div className="flex items-center gap-2">
                     <h3 className="text-sm font-black text-amber-300 uppercase tracking-wider">
-                      Fase Oficial de Prelanzamiento y Prueba Piloto
+                      Fase Oficial de Prelanzamiento • Promoción 200% & 30 Días Gratis
                     </h3>
                     <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[10px] font-bold">
-                      COBERTURA EN EXPANSIÓN
+                      VENCE 31 OCT 2026
                     </span>
                   </div>
                   <p className="text-xs text-slate-300 leading-relaxed">
-                    Estamos en despliegue controlado en El Salvador. Es normal que en ciertas zonas u horarios los usuarios experimenten tiempos de espera o no encuentren conductores o pasajeros en tiempo real. Por ello, solicitamos a la comunidad compartir activamente estos enlaces para acelerar el volumen de usuarios y garantizar la disponibilidad en cada punto del país.
+                    Estamos en despliegue controlado en El Salvador. Para los primeros <strong>100 viajeros</strong> aplicamos <strong>Bono del 200% ($2.00 por inscribirse y $2.00 por referir)</strong> y para los primeros <strong>100 conductores</strong> otorgamos <strong>30 DÍAS GRATIS</strong> ($0 cuota / 1 mes). A partir del 1 de Noviembre de 2026 rigen las condiciones normales.
                   </p>
+                </div>
+              </div>
+
+              <div className="flex sm:flex-col items-center sm:items-end gap-2 shrink-0">
+                <span className="text-[10px] text-slate-400">Cupos Disponibles:</span>
+                <div className="flex items-center gap-1.5 text-xs font-mono font-bold">
+                  <span className="px-2 py-0.5 rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                    {Math.max(0, 100 - (stats?.totalPassengers || 48))} Pasajeros
+                  </span>
+                  <span className="px-2 py-0.5 rounded-lg bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                    {Math.max(0, 100 - (stats?.totalDrivers || 16))} Choferes
+                  </span>
                 </div>
               </div>
             </div>
@@ -1061,13 +1202,13 @@ export default function AdminDashboardPage() {
                         <h3 className="text-base font-black text-white">Para Viajeros y Pasajeros</h3>
                       </div>
                     </div>
-                    <span className="px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-300 text-[11px] font-bold border border-emerald-500/30">
-                      Bono $1.00 Incluido
+                    <span className="px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 text-[11px] font-black border border-emerald-500/40">
+                      Bono 200%: $2.00 USD (100 Primeros)
                     </span>
                   </div>
 
                   <p className="text-xs text-slate-300 leading-relaxed">
-                    Invita a usuarios para que pidan carreras con tarifa justa negociada, sin comisiones del 30% y con su bono de bienvenida de $1.00 USD.
+                    Invita a usuarios a registrarse: los primeros 100 viajeros reciben <strong>$2.00 USD de bienvenida</strong> y <strong>$2.00 USD por cada amigo referido</strong> (válido hasta el 31 de octubre de 2026).
                   </p>
 
                   {/* URL Oficial */}
@@ -1157,13 +1298,13 @@ export default function AdminDashboardPage() {
                         <h3 className="text-base font-black text-white">Para Conductores / Choferes</h3>
                       </div>
                     </div>
-                    <span className="px-2.5 py-1 rounded-full bg-amber-500/15 text-amber-300 text-[11px] font-bold border border-amber-500/30">
-                      0% Comisión • 14 Días Gratis
+                    <span className="px-2.5 py-1 rounded-full bg-amber-500/20 text-amber-300 text-[11px] font-black border border-amber-500/40">
+                      30 Días Gratis • $0 Cuota (100 Primeros)
                     </span>
                   </div>
 
                   <p className="text-xs text-slate-300 leading-relaxed">
-                    Invita a conductores particulares a inscribirse para retener el 100% de su dinero en efectivo, cuota fija de $15/semana o $3/día, con 14 días iniciales de bienvenida a $0.
+                    Invita a conductores particulares: los primeros 100 choferes reciben <strong>30 DÍAS GRATIS de prueba</strong> (1 mes completo a $0 cuota), conservando el 100% de su efectivo directo. Cuota fija posterior de $15/semana o $3/día (válido hasta el 31 de octubre de 2026).
                   </p>
 
                   {/* URL Oficial */}
