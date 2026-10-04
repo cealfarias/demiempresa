@@ -1348,7 +1348,7 @@ export default function ViajesApp() {
         vehiclePlate: offer.vehiclePlate,
         vehicleModel: offer.vehicleModel,
         vehicleColor: offer.vehicleColor,
-        phone: '7123-4567'
+        phone: offer.phone || offer.driverPhone || ''
       },
       agreedFare: fare.toFixed(2),
       cashToPay: cashToPay.toFixed(2),
@@ -1493,7 +1493,7 @@ export default function ViajesApp() {
     try {
       const regRes = await registerUserApi({
         fullName: regFullName,
-        phone: regPhone || '7000-0000',
+        phone: regPhone || '',
         dui: regDui,
         role: 'PASSENGER',
         referrerCode
@@ -1504,7 +1504,7 @@ export default function ViajesApp() {
         fullName: regFullName,
         email: emailToSave,
         dui: regDui,
-        phone: regPhone || '7000-0000',
+        phone: regPhone || '',
         photoUrl: googleTempUser?.photoUrl || null,
         provider: googleTempUser ? 'google' : 'manual',
         isVerified: true
@@ -1529,7 +1529,7 @@ export default function ViajesApp() {
         fullName: regFullName,
         email: emailToSave,
         dui: regDui,
-        phone: regPhone || '7000-0000',
+        phone: regPhone || '',
         photoUrl: googleTempUser?.photoUrl || null,
         provider: googleTempUser ? 'google' : 'manual',
         isVerified: true
@@ -2656,9 +2656,7 @@ export default function ViajesApp() {
               activeOffers.map((offer) => (
                 <div
                   key={offer.driverProfileId}
-                  className={`bg-slate-900 border ${
-                    offer.isMock ? 'border-amber-500/40' : 'border-emerald-500/60 ring-1 ring-emerald-500/30'
-                  } rounded-2xl p-4 shadow-xl space-y-3 relative overflow-hidden transition-all`}
+                  className="bg-slate-900 border border-emerald-500/60 ring-1 ring-emerald-500/30 rounded-2xl p-4 shadow-xl space-y-3 relative overflow-hidden transition-all"
                 >
                   {/* Barra de progreso de TTL (30s para comparar y decidir) */}
                   <div className="absolute top-0 left-0 right-0 h-1 bg-slate-800">
@@ -2668,19 +2666,12 @@ export default function ViajesApp() {
                     ></div>
                   </div>
 
-                  {/* Viñeta Visual: Identificación de Prueba vs Chofer Real */}
+                  {/* Identificación de Conductor */}
                   <div className="flex items-center justify-between pt-1">
-                    {offer.isMock ? (
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-500/20 text-amber-300 border border-amber-500/40 uppercase tracking-wider">
-                        <Sparkles className="w-3 h-3 text-amber-400" />
-                        <span>Simulación de Prueba</span>
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/50 uppercase tracking-wider">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
-                        <span>Chofer Real en Línea</span>
-                      </span>
-                    )}
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/50 uppercase tracking-wider">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+                      <span>Conductor en Línea</span>
+                    </span>
                     <span className="text-[10px] text-rose-400 font-bold">
                       Expira en {offer.timeLeft}s
                     </span>
@@ -2688,18 +2679,24 @@ export default function ViajesApp() {
 
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <img
-                        src={offer.photoUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80'}
-                        alt={offer.driverName}
-                        className="w-12 h-12 rounded-xl object-cover border border-slate-700"
-                      />
+                      {offer.photoUrl ? (
+                        <img
+                          src={offer.photoUrl}
+                          alt={offer.driverName}
+                          className="w-12 h-12 rounded-xl object-cover border border-slate-700"
+                        />
+                      ) : (
+                        <div className="w-12 h-12 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center text-amber-400 font-bold text-sm">
+                          {offer.driverName ? offer.driverName.charAt(0).toUpperCase() : <User className="w-6 h-6 text-slate-400" />}
+                        </div>
+                      )}
                       <div>
-                        <h4 className="font-bold text-white text-sm">{offer.driverName}</h4>
+                        <h4 className="font-bold text-white text-sm">{offer.driverName || 'Conductor Rumbo'}</h4>
                         <div className="text-xs text-slate-400">
-                          {offer.vehicleModel} • <span className="text-amber-300 font-bold">{offer.vehiclePlate}</span>
+                          {offer.vehicleModel || 'Vehículo Registrado'} • <span className="text-amber-300 font-bold">{offer.vehiclePlate || 'En camino'}</span>
                         </div>
                         <div className="text-[11px] text-emerald-400">
-                          A {offer.distanceMeters || '400'} m de recogida
+                          {offer.distanceMeters ? `A ${offer.distanceMeters} m de recogida` : 'Cerca de ti'}
                         </div>
                       </div>
                     </div>
@@ -4066,76 +4063,55 @@ export default function ViajesApp() {
               </div>
             </div>
 
-            {/* Reel Vertical 10-15s en Trayecto */}
-            <div className="relative rounded-2xl overflow-hidden bg-gradient-to-b from-slate-800 to-slate-950 border border-amber-500/30 aspect-[16/10] flex flex-col justify-end p-4 shadow-lg group">
-              <img
-                src="https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=600&q=80"
-                alt="Comercio local"
-                className={`absolute inset-0 w-full h-full object-cover transition-all duration-700 ${
-                  isPlayingReel ? 'opacity-40 scale-105' : 'opacity-25'
-                }`}
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/50 to-transparent"></div>
-
-              <div className="relative z-10 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="px-2 py-0.5 rounded-full bg-amber-500 text-slate-950 text-[10px] font-black uppercase tracking-wider">
-                    Reel Patrocinado en Trayecto
-                  </span>
-                  <span className="text-[10px] text-slate-400 flex items-center gap-1">
-                    <Clock className="w-3 h-3 text-amber-400" />
-                    12s
-                  </span>
+            {adFeed && adFeed.length > 0 ? (
+              adFeed.map((ad, idx) => (
+                <div key={ad.id || idx} className="relative rounded-2xl overflow-hidden bg-gradient-to-b from-slate-800 to-slate-950 border border-amber-500/30 p-4 shadow-lg space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="px-2 py-0.5 rounded-full bg-amber-500 text-slate-950 text-[10px] font-black uppercase tracking-wider">
+                      Patrocinado en {destinationMunicipality}
+                    </span>
+                  </div>
+                  <h4 className="font-black text-lg text-white leading-tight">
+                    {ad.businessName || ad.title}
+                  </h4>
+                  <p className="text-xs text-slate-300 line-clamp-2">
+                    {ad.description || ad.copy}
+                  </p>
+                  {ad.whatsapp && (
+                    <a
+                      href={`https://wa.me/503${ad.whatsapp.replace(/\D/g, '')}?text=Hola,%20vi%20su%20anuncio%20en%20Rumbo.`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex py-2 px-4 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs items-center gap-1.5 shadow"
+                    >
+                      <MessageCircle className="w-3.5 h-3.5" />
+                      <span>Contactar por WhatsApp</span>
+                    </a>
+                  )}
                 </div>
-
-                <h4 className="font-black text-lg text-white leading-tight">
-                  Tacos & Pupusas Don Toño
-                </h4>
-                <p className="text-xs text-slate-300 line-clamp-2">
-                  ¡Haz tu pedido para recoger al llegar a {destinationMunicipality}! 2x1 en combos especiales mostrando tu viaje en demiempresa.online.
-                </p>
-
-                <div className="flex gap-2 pt-1">
-                  <a
-                    href={`https://wa.me/50369893101?text=Hola,%20vi%20su%20promoción%20en%20demiempresa.online%20mientras%20viajaba%20hacia%20${encodeURIComponent(destinationMunicipality)}.`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 shadow"
-                  >
-                    <MessageCircle className="w-3.5 h-3.5" />
-                    <span>Pedir por WhatsApp</span>
-                  </a>
-                  <button
-                    onClick={() => setShowAdModal(true)}
-                    className="px-3 py-2 bg-slate-800/90 hover:bg-slate-700 border border-slate-700 text-amber-300 font-bold rounded-xl text-xs flex items-center gap-1"
-                  >
-                    <span>Anunciarse</span>
-                    <ExternalLink className="w-3.5 h-3.5" />
-                  </button>
+              ))
+            ) : (
+              <div className="relative rounded-2xl overflow-hidden bg-gradient-to-b from-slate-900 to-slate-950 border border-slate-800 p-5 shadow-lg space-y-3 text-center">
+                <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 mx-auto">
+                  <Megaphone className="w-6 h-6" />
                 </div>
+                <div className="space-y-1">
+                  <h4 className="font-black text-base text-white">
+                    Espacio Publicitario para Negocios en {destinationMunicipality}
+                  </h4>
+                  <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                    Promociona tu comercio ante pasajeros que se trasladan en este momento. Máxima visibilidad y contacto directo por WhatsApp.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowAdModal(true)}
+                  className="px-5 py-2.5 bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-black rounded-xl text-xs inline-flex items-center gap-1.5 shadow-lg shadow-amber-500/20 cursor-pointer transition-all"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>Anunciar mi Negocio Aquí</span>
+                </button>
               </div>
-            </div>
-
-            {/* Banners Adicionales (Plan Vitrina) */}
-            <div className="p-3.5 bg-slate-950 rounded-2xl border border-slate-800 flex items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 font-black text-sm">
-                  TG
-                </div>
-                <div>
-                  <h5 className="font-bold text-white text-xs">Taller González & Asociados</h5>
-                  <p className="text-[11px] text-slate-400">Mantenimiento preventivo en {destinationMunicipality}</p>
-                </div>
-              </div>
-              <a
-                href="https://wa.me/50369893101?text=Hola,%20vi%20su%20banner%20en%20demiempresa.online."
-                target="_blank"
-                rel="noreferrer"
-                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-semibold border border-slate-700 whitespace-nowrap"
-              >
-                Contactar
-              </a>
-            </div>
+            )}
 
             {/* Micro-Enlace de Captación en Caliente al pie */}
             <div className="text-center pt-2">
