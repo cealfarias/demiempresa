@@ -57,23 +57,37 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// 2. REGISTRO & VALIDACIÓN (DUI SALVADOREÑO)
+// 2. REGISTRO & VALIDACIÓN (DUI SALVADOREÑO O PASAPORTE / RESIDENCIA PARA EXTRANJEROS)
 function isValidSalvadoranDUI(dui) {
   return /^\d{8}-\d{1}$/.test(dui);
+}
+
+function isValidIdentityDocument(doc, docType = 'DUI') {
+  if (!doc || typeof doc !== 'string') return false;
+  const clean = doc.trim();
+  if (docType === 'PASSPORT' || docType === 'PASSPORT_RESIDENCE' || !/^\d{8}-\d{1}$/.test(clean)) {
+    // Acepta formato de Pasaporte internacional o Carné de Residente DGME (6 a 25 caracteres alfanuméricos)
+    if (/^[A-Za-z0-9\-\.]{6,25}$/.test(clean)) return true;
+  }
+  return isValidSalvadoranDUI(clean);
 }
 
 // Control de Dispositivo Único para Pasajeros: dui/phone -> { sessionId, loggedAt }
 const activePassengerSessions = new Map();
 
 app.post('/api/users/register', async (req, res) => {
-  const { fullName, phone, dui, referrerCode } = req.body;
+  const { fullName, phone, dui, documentType = 'DUI', referrerCode, termsAccepted = true } = req.body;
 
   if (!fullName || !phone || !dui) {
-    return res.status(400).json({ error: 'Nombre, teléfono y DUI son obligatorios' });
+    return res.status(400).json({ error: 'Nombre, teléfono y documento de identidad (DUI o Pasaporte) son obligatorios' });
   }
 
-  if (!isValidSalvadoranDUI(dui)) {
-    return res.status(400).json({ error: 'El DUI no tiene un formato válido (ej. 01234567-8)' });
+  if (!isValidIdentityDocument(dui, documentType)) {
+    return res.status(400).json({ 
+      error: documentType === 'PASSPORT' 
+        ? 'El Pasaporte o Carné de Residencia no tiene un formato válido (mínimo 6 caracteres alfanuméricos).' 
+        : 'El DUI no tiene un formato válido (ej. 01234567-8).' 
+    });
   }
 
   // CORTAFUEGOS ESTRICTO DE ROLES:
@@ -419,8 +433,8 @@ app.post('/api/drivers/register', async (req, res) => {
       return res.status(400).json({ error: 'Nombre, teléfono, DUI, licencia y placa son obligatorios' });
     }
 
-    if (!isValidSalvadoranDUI(dui)) {
-      return res.status(400).json({ error: 'El DUI no tiene un formato salvadoreño válido (ej. 01234567-8)' });
+    if (!isValidIdentityDocument(dui, req.body.documentType)) {
+      return res.status(400).json({ error: 'El documento de identidad no tiene un formato válido (DUI salvadoreño o Pasaporte/Carné de Extranjería).' });
     }
 
     const cleanPlate = vehiclePlate.trim().toUpperCase();

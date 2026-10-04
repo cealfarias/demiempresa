@@ -31,8 +31,8 @@ import {
   Check
 } from 'lucide-react';
 import RumboLogo from './RumboLogo';
-import DriverAvatarNarrator from './DriverAvatarNarrator';
 import SupportTicketModal from './SupportTicketModal';
+import TermsAndConditionsModal from '../components/TermsAndConditionsModal';
 import {
   requestPhoneOtpApi,
   loginDriverWithPhoneApi,
@@ -43,6 +43,7 @@ import {
 
 export default function DriverLandingView({ onStartRegistration, onCheckStatus, onDriverLoggedIn }) {
   const [showSupportModal, setShowSupportModal] = useState(false);
+  const [showTermsModal, setShowTermsModal] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [loginStep, setLoginStep] = useState('PHONE'); // 'PHONE' | 'MAGIC_WAIT' | 'OTP_WAIT'
   const [phoneInput, setPhoneInput] = useState('');
@@ -823,17 +824,32 @@ export default function DriverLandingView({ onStartRegistration, onCheckStatus, 
           </button>
         </div>
 
-        <div className="pt-8 text-[11px] text-slate-500 border-t border-slate-900 max-w-xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
+        <div className="pt-8 text-[11px] text-slate-500 border-t border-slate-900 max-w-xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
           <span>© {new Date().getFullYear()} Rumbo a mi Destino • demiempresa.online</span>
-          <button
-            onClick={() => setShowSupportModal(true)}
-            className="text-amber-400 hover:text-amber-300 font-semibold underline underline-offset-2 cursor-pointer flex items-center gap-1"
-          >
-            <LifeBuoy className="w-3.5 h-3.5" />
-            <span>Sistema de Tickets y Soporte Técnico</span>
-          </button>
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => setShowTermsModal(true)}
+              className="text-amber-400 hover:text-amber-300 font-semibold underline underline-offset-2 cursor-pointer flex items-center gap-1"
+            >
+              <ShieldCheck className="w-3.5 h-3.5" />
+              <span>Términos & Políticas</span>
+            </button>
+            <button
+              onClick={() => setShowSupportModal(true)}
+              className="text-slate-400 hover:text-white font-semibold underline underline-offset-2 cursor-pointer flex items-center gap-1"
+            >
+              <LifeBuoy className="w-3.5 h-3.5" />
+              <span>Soporte Técnico</span>
+            </button>
+          </div>
         </div>
       </section>
+
+      {/* Modal Oficial de Términos de Referencia & Políticas */}
+      <TermsAndConditionsModal
+        isOpen={showTermsModal}
+        onClose={() => setShowTermsModal(false)}
+      />
 
       {/* Modal de Soporte Técnico y Creación de Tickets */}
       <SupportTicketModal

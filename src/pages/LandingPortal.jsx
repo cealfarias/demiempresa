@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Building2, Users, FileText, Scale, Zap, Shield, Sparkles, 
@@ -6,9 +6,11 @@ import {
   ChevronRight, Award, BarChart3, HelpCircle, Layers, Grid, CreditCard,
   Briefcase, Activity, Settings, PieChart, ShieldCheck, ShoppingCart, Truck, Car
 } from 'lucide-react';
+import TermsAndConditionsModal from '../components/TermsAndConditionsModal';
 
 export default function LandingPortal() {
   const navigate = useNavigate();
+  const [showTermsModal, setShowTermsModal] = useState(false);
 
   useEffect(() => {
     document.title = "demiempresa.online | Ecosistema de Gestión y Servicios Empresariales";
@@ -497,12 +499,35 @@ export default function LandingPortal() {
           <a href="/viajes" style={{ color: '#10B981', textDecoration: 'none', fontWeight: '700' }}>🚗 Rumbo Pasajeros</a>
           <a href="/conductor" style={{ color: '#F59E0B', textDecoration: 'none', fontWeight: '700' }}>🚘 Rumbo Conductor</a>
           <a href="/admin" style={{ color: '#A1A1AA', textDecoration: 'none', fontWeight: '600' }}>🔒 Control Administrativo</a>
+          <button
+            type="button"
+            onClick={() => setShowTermsModal(true)}
+            style={{ 
+              background: 'none', 
+              border: 'none', 
+              color: '#F59E0B', 
+              cursor: 'pointer', 
+              fontWeight: '700', 
+              fontSize: '0.85rem',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.25rem'
+            }}
+          >
+            📜 Términos de Referencia & Políticas
+          </button>
         </div>
 
         <p style={{ margin: 0, color: '#52525B' }}>
           © {new Date().getFullYear()} El Centro de Administración Empresarial. Todos los derechos reservados.
         </p>
       </footer>
+
+      {/* Modal Oficial de Términos de Referencia & Políticas */}
+      <TermsAndConditionsModal
+        isOpen={showTermsModal}
+        onClose={() => setShowTermsModal(false)}
+      />
     </div>
   );
 }

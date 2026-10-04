@@ -35,7 +35,8 @@ import {
   HeartHandshake,
   Volume2,
   VolumeX,
-  LogOut
+  LogOut,
+  Globe
 } from 'lucide-react';
 import { registerDriverApi, fetchDriverStatusApi } from './api';
 import {
@@ -50,6 +51,7 @@ import {
   compressImage
 } from './documentValidatorService';
 import SupportTicketModal from './SupportTicketModal';
+import TermsAndConditionsModal from '../components/TermsAndConditionsModal';
 import { requestScreenWakeLock, releaseScreenWakeLock } from './audioWakeLockService';
 import { shareToWhatsAppOrNative, copyShareLink, RUMBO_LOGO_URL } from './whatsappShareService';
 
@@ -167,11 +169,16 @@ export default function DriverRegistrationModal({ isOpen, onClose, onDriverRegis
     }
   };
 
+  // Modal de Términos de Referencia
+  const [showTermsModal, setShowTermsModal] = useState(false);
+  const [termsTab, setTermsTab] = useState('ALL');
+
   // Form State
   const [form, setForm] = useState({
     fullName: '',
     phone: '',
     dui: '',
+    documentType: 'DUI', // 'DUI' | 'PASSPORT_RESIDENCE'
     emergencyContactName: '',
     emergencyContactPhone: '',
     licenseNumber: '',
@@ -193,7 +200,10 @@ export default function DriverRegistrationModal({ isOpen, onClose, onDriverRegis
     criminalRecordUrl: '',
     vehiclePhotoFront: '',
     vehiclePhotoInside: '',
-    termsAccepted: false
+    termsAccepted: false,
+    geoConsent: true,
+    micConsent: true,
+    adsConsent: true
   });
 
   // Pre-cargar si ya existe un perfil en local o consulta
@@ -267,8 +277,13 @@ export default function DriverRegistrationModal({ isOpen, onClose, onDriverRegis
     }));
   };
 
-  // Formato automático de DUI: 00000000-0
+  // Formato de Documento: DUI (00000000-0) o Pasaporte/Carné de Extranjería
   const handleDuiChange = (e) => {
+    if (form.documentType === 'PASSPORT_RESIDENCE') {
+      const val = e.target.value.toUpperCase().replace(/[^A-Z0-9\-\.]/g, '').slice(0, 20);
+      setForm({ ...form, dui: val });
+      return;
+    }
     let val = e.target.value.replace(/\D/g, '').slice(0, 9);
     if (val.length > 8) {
       val = `${val.slice(0, 8)}-${val.slice(8)}`;
@@ -864,13 +879,44 @@ export default function DriverRegistrationModal({ isOpen, onClose, onDriverRegis
                     />
                   </div>
 
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-slate-300">Número de DUI (El Salvador) *</label>
+                  <div className="space-y-1 sm:col-span-2">
+                    <label className="text-xs font-bold text-slate-300">Tipo de Documento de Identificación *</label>
+                    <div className="grid grid-cols-2 gap-2 p-1 bg-slate-950/80 rounded-xl border border-slate-800 text-xs">
+                      <button
+                        type="button"
+                        onClick={() => setForm({ ...form, documentType: 'DUI', dui: '' })}
+                        className={`py-1.5 rounded-lg font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                          form.documentType === 'DUI'
+                            ? 'bg-amber-500 text-slate-950 shadow'
+                            : 'text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        <span>🇸🇻 DUI (El Salvador)</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setForm({ ...form, documentType: 'PASSPORT_RESIDENCE', dui: '' })}
+                        className={`py-1.5 rounded-lg font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                          form.documentType === 'PASSPORT_RESIDENCE'
+                            ? 'bg-sky-500 text-slate-950 shadow'
+                            : 'text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        <Globe className="w-3.5 h-3.5" />
+                        <span>Extranjero (Pasaporte/Carné)</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1 sm:col-span-2">
+                    <label className="text-xs font-bold text-slate-300">
+                      {form.documentType === 'DUI' ? 'Número de DUI (El Salvador) *' : 'Número de Pasaporte o Carné de Residencia (DGME) *'}
+                    </label>
                     <input
                       type="text"
                       required
-                      placeholder="00000000-0"
-                      maxLength={10}
+                      placeholder={form.documentType === 'DUI' ? '00000000-0' : 'ej. A12345678 o Carné DGME'}
+                      maxLength={form.documentType === 'DUI' ? 10 : 25}
                       value={form.dui}
                       onChange={handleDuiChange}
                       className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-100 font-mono placeholder-slate-500 focus:outline-none focus:border-amber-400 transition-colors"
@@ -1491,17 +1537,62 @@ export default function DriverRegistrationModal({ isOpen, onClose, onDriverRegis
                   </div>
                 </div>
 
-                <label className="flex items-start gap-3 cursor-pointer p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30">
-                  <input
-                    type="checkbox"
-                    checked={form.termsAccepted}
-                    onChange={(e) => setForm({ ...form, termsAccepted: e.target.checked })}
-                    className="mt-0.5 w-4 h-4 text-amber-500 rounded bg-slate-900 border-slate-700 focus:ring-0 cursor-pointer"
-                  />
-                  <span className="text-xs text-slate-300 leading-relaxed">
-                    He leído y acepto el beneficio de 14 días de uso gratis y el modelo de membresía semanal fija de $15.00 USD con pago obligatorio de 48 horas de anticipación a su vencimiento (pagadera mediante compensación de bonos de pasajeros, transferencia 365 móvil Davivienda al 69893101 a nombre de Cesar Arias o link Cubo Pago), y declaro bajo juramento que los documentos subidos y datos del vehículo corresponden a mi persona y son 100% verídicos y vigentes en El Salvador.
-                  </span>
-                </label>
+                <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 space-y-3">
+                  <label className="flex items-start gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={form.termsAccepted}
+                      onChange={(e) => setForm({ ...form, termsAccepted: e.target.checked })}
+                      className="mt-0.5 w-4 h-4 text-amber-500 rounded bg-slate-900 border-slate-700 focus:ring-0 cursor-pointer shrink-0"
+                    />
+                    <span className="text-xs text-slate-300 leading-relaxed">
+                      He leído y acepto íntegramente los{' '}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          setTermsTab('ALL');
+                          setShowTermsModal(true);
+                        }}
+                        className="text-amber-400 font-bold hover:underline inline-flex items-center gap-0.5 cursor-pointer"
+                      >
+                        Términos de Referencia & Políticas de Rumbo
+                        <ExternalLink className="w-3 h-3" />
+                      </button>
+                      , reconociendo que Rumbo es un servicio de contactos tecnológicos (0% comisión, libre oferta y demanda), beneficiario de 14 días gratis y membresía de $15.00 semanales (pagadera con hasta 15 bonos de pasajeros, Transfer365 Davivienda 69893101 o Cubo Pago), eximiendo a la plataforma de responsabilidad por conductas personales, objetos olvidados, sustancias ilícitas o trata de personas.
+                    </span>
+                  </label>
+
+                  <div className="pt-2 border-t border-slate-800/80 space-y-2 text-[11px] text-slate-400">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={form.geoConsent}
+                        onChange={(e) => setForm({ ...form, geoConsent: e.target.checked })}
+                        className="w-3.5 h-3.5 text-amber-500 rounded bg-slate-800 border-slate-700 cursor-pointer"
+                      />
+                      <span>📍 Autorizo rastreo de geolocalización GPS en primer y segundo plano durante servicio.</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={form.micConsent}
+                        onChange={(e) => setForm({ ...form, micConsent: e.target.checked })}
+                        className="w-3.5 h-3.5 text-amber-500 rounded bg-slate-800 border-slate-700 cursor-pointer"
+                      />
+                      <span>🎙️ Autorizo acceso al micrófono para protocolos preventivos de seguridad y asistencia de voz en cabina.</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={form.adsConsent}
+                        onChange={(e) => setForm({ ...form, adsConsent: e.target.checked })}
+                        className="w-3.5 h-3.5 text-amber-500 rounded bg-slate-800 border-slate-700 cursor-pointer"
+                      />
+                      <span>📢 Acepto el programa de canje de bonos en comercios aliados y publicidad geosegmentada.</span>
+                    </label>
+                  </div>
+                </div>
               </div>
             )}
 
@@ -1570,6 +1661,13 @@ export default function DriverRegistrationModal({ isOpen, onClose, onDriverRegis
       <SupportTicketModal
         isOpen={showSupportModal}
         onClose={() => setShowSupportModal(false)}
+      />
+
+      {/* Modal Oficial de Términos de Referencia, Exenciones y Políticas */}
+      <TermsAndConditionsModal
+        isOpen={showTermsModal}
+        onClose={() => setShowTermsModal(false)}
+        initialTab={termsTab}
       />
     </div>
   );

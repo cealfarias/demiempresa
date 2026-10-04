@@ -39,7 +39,9 @@ import {
   User,
   Gift,
   LogOut,
-  Inbox
+  Inbox,
+  Globe,
+  FileText
 } from 'lucide-react';
 import RumboLogo from './RumboLogo';
 import AdModal from './AdModal';
@@ -49,6 +51,7 @@ import DestinationMapModal from './DestinationMapModal';
 import TripPreferencesModal from './TripPreferencesModal';
 import LocationPermissionModal from './LocationPermissionModal';
 import WelcomeVoiceModal from './WelcomeVoiceModal';
+import TermsAndConditionsModal from '../components/TermsAndConditionsModal';
 import { getSharePayload } from './whatsappShareService';
 import {
   unlockAudioAndSpeech,
@@ -433,6 +436,15 @@ export default function ViajesApp() {
   const [googleDuiStep, setGoogleDuiStep] = useState(false);
   const [googleTempUser, setGoogleTempUser] = useState(null);
 
+  // Estados de Cumplimiento Legal y Términos de Referencia
+  const [docType, setDocType] = useState('DUI'); // 'DUI' | 'PASSPORT'
+  const [termsAccepted, setTermsAccepted] = useState(true);
+  const [geoConsent, setGeoConsent] = useState(true);
+  const [micConsent, setMicConsent] = useState(true);
+  const [adsConsent, setAdsConsent] = useState(true);
+  const [showTermsModal, setShowTermsModal] = useState(false);
+  const [termsTab, setTermsTab] = useState('ALL');
+
   // Celebración de Bienvenida, Confetti y Bonos ($1.00 por 7 días y Referidos)
   const [showCelebrationModal, setShowCelebrationModal] = useState(false);
   const [celebrationName, setCelebrationName] = useState('');
@@ -665,8 +677,14 @@ export default function ViajesApp() {
     }
   }, [appState, destinationMunicipality]);
 
-  // Formato estricto para DUI salvadoreño (00000000-0)
+  // Formato estricto para DUI salvadoreño (00000000-0) o Pasaporte/Carné extranjero
   const handleDuiChange = (e) => {
+    if (docType === 'PASSPORT') {
+      const val = e.target.value.toUpperCase().replace(/[^A-Z0-9\-\.]/g, '').slice(0, 20);
+      setRegDui(val);
+      if (val.length >= 6) setDuiError('');
+      return;
+    }
     let val = e.target.value.replace(/[^\d]/g, '');
     if (val.length > 9) val = val.slice(0, 9);
     if (val.length > 8) {
@@ -1498,23 +1516,38 @@ export default function ViajesApp() {
   // Guardar datos de seguridad (Registro opcional con todos los datos: nombre, dui, email)
   const handleSaveProfileAndAccept = async (e) => {
     e.preventDefault();
-    if (!/^\d{8}-\d{1}$/.test(regDui)) {
+    if (docType === 'DUI' && !/^\d{8}-\d{1}$/.test(regDui)) {
       setDuiError('DUI inválido. Debe tener el formato estricto 00000000-0');
+      return;
+    }
+    if (docType === 'PASSPORT' && (!regDui || regDui.trim().length < 6)) {
+      setDuiError('Ingresa un número de pasaporte o carné de residencia válido (mínimo 6 caracteres).');
+      return;
+    }
+    if (!termsAccepted) {
+      setDuiError('Debes aceptar los Términos de Referencia y Condiciones del Servicio.');
       return;
     }
 
     setRegistering(true);
     setDuiError('');
 
-    const emailToSave = regEmail || (googleTempUser ? googleTempUser.email : `${regDui.replace('-', '')}@demiempresa.online`);
+    const emailToSave = regEmail || (googleTempUser ? googleTempUser.email : `${regDui.replace(/[^A-Za-z0-9]/g, '')}@demiempresa.online`);
 
     try {
       const regRes = await registerUserApi({
         fullName: regFullName,
         phone: regPhone || '',
         dui: regDui,
+        documentType: docType === 'PASSPORT' ? 'PASSPORT_RESIDENCE' : 'DUI',
         role: 'PASSENGER',
-        referrerCode
+        referrerCode,
+        termsAccepted: true,
+        consents: {
+          geo: geoConsent,
+          mic: micConsent,
+          ads: adsConsent
+        }
       });
 
       const profile = {
@@ -2816,13 +2849,48 @@ export default function ViajesApp() {
                 </div>
 
                 <div className="bg-amber-500/10 border border-amber-400/20 rounded-xl p-3 text-xs text-amber-200/90 leading-relaxed">
-                  Para completar los 3 datos oficiales (<strong>Nombre</strong>, <strong>Email</strong> y <strong>DUI</strong>) y liberar de inmediato tu <strong>bono de bienvenida de $1.00 USD</strong>, ingresa tu documento salvadoreño:
+                  Para completar los 3 datos oficiales (<strong>Nombre</strong>, <strong>Email</strong> y <strong>Documento</strong>) y liberar de inmediato tu <strong>bono de bienvenida de $1.00 USD</strong>, confirma tu identificación:
                 </div>
 
                 <form onSubmit={handleSaveProfileAndAccept} className="space-y-3.5">
+                  {/* Selector de Tipo de Documento: DUI o Extranjero */}
+                  <div className="grid grid-cols-2 gap-2 p-1 bg-slate-950/80 rounded-xl border border-slate-800 text-xs">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDocType('DUI');
+                        setRegDui('');
+                        setDuiError('');
+                      }}
+                      className={`py-1.5 rounded-lg font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                        docType === 'DUI'
+                          ? 'bg-amber-500 text-slate-950 shadow'
+                          : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      <span>🇸🇻 DUI El Salvador</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDocType('PASSPORT');
+                        setRegDui('');
+                        setDuiError('');
+                      }}
+                      className={`py-1.5 rounded-lg font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                        docType === 'PASSPORT'
+                          ? 'bg-sky-500 text-slate-950 shadow'
+                          : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      <Globe className="w-3.5 h-3.5" />
+                      <span>Extranjero (Pasaporte)</span>
+                    </button>
+                  </div>
+
                   <div>
                     <label className="block text-xs font-semibold text-slate-300 mb-1">
-                      DUI (El Salvador: 00000000-0)
+                      {docType === 'DUI' ? 'Número de DUI (00000000-0)' : 'Pasaporte o Carné de Residencia (DGME)'}
                     </label>
                     <input
                       type="text"
@@ -2830,12 +2898,12 @@ export default function ViajesApp() {
                       autoFocus
                       value={regDui}
                       onChange={handleDuiChange}
-                      placeholder="01234567-8"
+                      placeholder={docType === 'DUI' ? '01234567-8' : 'ej. A12345678 o Carné DGME'}
                       className="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-sm text-white focus:outline-none focus:border-amber-400 font-mono tracking-wider text-center"
                     />
                     {duiError && (
                       <p className="text-[11px] text-rose-400 mt-1 flex items-center justify-center gap-1">
-                        <AlertCircle className="w-3 h-3" />
+                        <AlertCircle className="w-3 h-3 shrink-0" />
                         {duiError}
                       </p>
                     )}
@@ -2866,6 +2934,64 @@ export default function ViajesApp() {
                       placeholder="DUI o código de quien te invitó"
                       className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none"
                     />
+                  </div>
+
+                  {/* Bloque de Cumplimiento Legal y Consentimientos */}
+                  <div className="p-3 bg-slate-950/90 rounded-2xl border border-slate-800 space-y-2 text-[11px] text-slate-300">
+                    <label className="flex items-start gap-2.5 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={termsAccepted}
+                        onChange={(e) => setTermsAccepted(e.target.checked)}
+                        className="mt-0.5 w-4 h-4 text-amber-500 rounded bg-slate-800 border-slate-700 focus:ring-0 cursor-pointer shrink-0"
+                      />
+                      <span>
+                        He leído y acepto los{' '}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            setTermsTab('ALL');
+                            setShowTermsModal(true);
+                          }}
+                          className="text-amber-400 font-bold hover:underline inline-flex items-center gap-0.5 cursor-pointer"
+                        >
+                          Términos de Referencia & Políticas
+                          <ExternalLink className="w-3 h-3" />
+                        </button>
+                        , reconociendo que Rumbo es intermediario tecnológico (0% comisión, libre oferta y demanda) y no responde por objetos extraviados, conductas ni sustancias ilícitas.
+                      </span>
+                    </label>
+
+                    <div className="pt-1.5 border-t border-slate-800/80 space-y-1.5 text-[10px] text-slate-400">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={geoConsent}
+                          onChange={(e) => setGeoConsent(e.target.checked)}
+                          className="w-3.5 h-3.5 text-amber-500 rounded bg-slate-800 border-slate-700 cursor-pointer"
+                        />
+                        <span>📍 Autorizo geolocalización GPS en tiempo real para seguridad y cálculo de rutas.</span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={micConsent}
+                          onChange={(e) => setMicConsent(e.target.checked)}
+                          className="w-3.5 h-3.5 text-amber-500 rounded bg-slate-800 border-slate-700 cursor-pointer"
+                        />
+                        <span>🎙️ Autorizo acceso al micrófono como protocolo de seguridad y grabación preventiva en cabina.</span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={adsConsent}
+                          onChange={(e) => setAdsConsent(e.target.checked)}
+                          className="w-3.5 h-3.5 text-amber-500 rounded bg-slate-800 border-slate-700 cursor-pointer"
+                        />
+                        <span>📢 Autorizo despliegue de publicidad geosegmentada y comercios aliados durante el viaje.</span>
+                      </label>
+                    </div>
                   </div>
 
                   <div className="pt-2 flex gap-2">
@@ -2979,21 +3105,56 @@ export default function ViajesApp() {
                     />
                   </div>
 
+                  {/* Selector de Tipo de Documento: DUI o Extranjero */}
+                  <div className="grid grid-cols-2 gap-2 p-1 bg-slate-950/80 rounded-xl border border-slate-800 text-xs">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDocType('DUI');
+                        setRegDui('');
+                        setDuiError('');
+                      }}
+                      className={`py-1.5 rounded-lg font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                        docType === 'DUI'
+                          ? 'bg-amber-500 text-slate-950 shadow'
+                          : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      <span>🇸🇻 DUI El Salvador</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDocType('PASSPORT');
+                        setRegDui('');
+                        setDuiError('');
+                      }}
+                      className={`py-1.5 rounded-lg font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                        docType === 'PASSPORT'
+                          ? 'bg-sky-500 text-slate-950 shadow'
+                          : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      <Globe className="w-3.5 h-3.5" />
+                      <span>Extranjero (Pasaporte)</span>
+                    </button>
+                  </div>
+
                   <div>
                     <label className="block text-xs font-semibold text-slate-400 mb-1">
-                      DUI (El Salvador: 00000000-0)
+                      {docType === 'DUI' ? 'DUI (El Salvador: 00000000-0)' : 'Pasaporte o Carné de Residencia (DGME)'}
                     </label>
                     <input
                       type="text"
                       required
                       value={regDui}
                       onChange={handleDuiChange}
-                      placeholder="01234567-8"
+                      placeholder={docType === 'DUI' ? '01234567-8' : 'ej. A12345678 o Carné DGME'}
                       className="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-sm text-white focus:outline-none focus:border-amber-400 font-mono tracking-wider"
                     />
                     {duiError && (
                       <p className="text-[11px] text-rose-400 mt-1 flex items-center gap-1">
-                        <AlertCircle className="w-3 h-3" />
+                        <AlertCircle className="w-3 h-3 shrink-0" />
                         {duiError}
                       </p>
                     )}
@@ -3024,6 +3185,64 @@ export default function ViajesApp() {
                       placeholder="DUI o código de quien te invitó"
                       className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none"
                     />
+                  </div>
+
+                  {/* Bloque de Cumplimiento Legal y Consentimientos */}
+                  <div className="p-3 bg-slate-950/90 rounded-2xl border border-slate-800 space-y-2 text-[11px] text-slate-300">
+                    <label className="flex items-start gap-2.5 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={termsAccepted}
+                        onChange={(e) => setTermsAccepted(e.target.checked)}
+                        className="mt-0.5 w-4 h-4 text-amber-500 rounded bg-slate-800 border-slate-700 focus:ring-0 cursor-pointer shrink-0"
+                      />
+                      <span>
+                        He leído y acepto los{' '}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            setTermsTab('ALL');
+                            setShowTermsModal(true);
+                          }}
+                          className="text-amber-400 font-bold hover:underline inline-flex items-center gap-0.5 cursor-pointer"
+                        >
+                          Términos de Referencia & Políticas
+                          <ExternalLink className="w-3 h-3" />
+                        </button>
+                        , reconociendo la intermediación pura de Rumbo y exención de responsabilidad por objetos, conductas y sustancias prohibidas.
+                      </span>
+                    </label>
+
+                    <div className="pt-1.5 border-t border-slate-800/80 space-y-1.5 text-[10px] text-slate-400">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={geoConsent}
+                          onChange={(e) => setGeoConsent(e.target.checked)}
+                          className="w-3.5 h-3.5 text-amber-500 rounded bg-slate-800 border-slate-700 cursor-pointer"
+                        />
+                        <span>📍 Autorizo geolocalización GPS en tiempo real para seguridad y asignación.</span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={micConsent}
+                          onChange={(e) => setMicConsent(e.target.checked)}
+                          className="w-3.5 h-3.5 text-amber-500 rounded bg-slate-800 border-slate-700 cursor-pointer"
+                        />
+                        <span>🎙️ Autorizo acceso al micrófono como protocolo de grabación preventiva en cabina.</span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={adsConsent}
+                          onChange={(e) => setAdsConsent(e.target.checked)}
+                          className="w-3.5 h-3.5 text-amber-500 rounded bg-slate-800 border-slate-700 cursor-pointer"
+                        />
+                        <span>📢 Autorizo despliegue de publicidad geosegmentada de comercios locales.</span>
+                      </label>
+                    </div>
                   </div>
 
                   <div className="pt-2 flex gap-2">
@@ -4330,6 +4549,12 @@ export default function ViajesApp() {
         </div>
       )}
 
+      {/* Modal Oficial de Términos de Referencia, Exenciones y Políticas de Privacidad */}
+      <TermsAndConditionsModal
+        isOpen={showTermsModal}
+        onClose={() => setShowTermsModal(false)}
+        initialTab={termsTab}
+      />
     </div>
   );
 }
