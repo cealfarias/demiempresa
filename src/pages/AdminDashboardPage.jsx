@@ -632,12 +632,22 @@ export default function AdminDashboardPage() {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 sm:self-center">
+                <div className="flex flex-wrap items-center gap-2 sm:self-center">
                   <span className="text-[11px] text-slate-400 font-medium">Estado:</span>
                   <span className="px-3 py-1 rounded-xl bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 text-xs font-black flex items-center gap-1.5">
                     <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
                     <span>PROMOCIÓN ACTIVA</span>
                   </span>
+                  <button
+                    type="button"
+                    onClick={handleResetDatabase}
+                    disabled={resetLoading}
+                    title="Vaciar datos y reiniciar a cero"
+                    className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/40 text-rose-300 text-xs font-bold transition-all cursor-pointer"
+                  >
+                    <Trash2 className={`w-3.5 h-3.5 ${resetLoading ? 'animate-spin' : ''}`} />
+                    <span>Reiniciar a Cero</span>
+                  </button>
                 </div>
               </div>
 

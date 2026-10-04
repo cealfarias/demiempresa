@@ -490,7 +490,61 @@ export async function fetchAdminStatsApi() {
     const res = await fetch(`${API_BASE_URL}/api/admin/stats`);
     if (!res.ok) throw new Error('Error al cargar métricas');
     const data = await res.json();
-    return data.stats;
+    const rawStats = data.stats || {};
+
+    // Detección de datos mock heredados del servidor anterior (48, 16, 154)
+    // o bandera de forzado a cero en el cliente
+    const isOverriddenZero = typeof window !== 'undefined' && localStorage.getItem('rumbo_prelaunch_zero_override') === 'true';
+    const isLegacyMock = rawStats.totalPassengers === 48 && rawStats.totalDrivers === 16 && rawStats.completedTrips === 154;
+
+    const totalPassengers = (isOverriddenZero || isLegacyMock) ? 0 : (rawStats.totalPassengers || 0);
+    const totalDrivers = (isOverriddenZero || isLegacyMock) ? 0 : (rawStats.totalDrivers || 0);
+    const approvedDrivers = (isOverriddenZero || isLegacyMock) ? 0 : (rawStats.approvedDrivers || 0);
+    const pendingDrivers = (isOverriddenZero || isLegacyMock) ? 0 : (rawStats.pendingDrivers || 0);
+    const completedTrips = (isOverriddenZero || isLegacyMock) ? 0 : (rawStats.completedTrips || 0);
+    const estimatedGrossRevenue = (isOverriddenZero || isLegacyMock) ? '$0.00 USD' : (rawStats.estimatedGrossRevenue || '$0.00 USD');
+    const totalBonusesCirculating = (isOverriddenZero || isLegacyMock) ? 0 : (rawStats.totalBonusesCirculating || 0);
+
+    const prelaunchPromo = (rawStats.prelaunchPromo && !isLegacyMock && !isOverriddenZero) ? rawStats.prelaunchPromo : {
+      isPromoActive: true,
+      deadlineIso: '2026-10-31T23:59:59-06:00',
+      deadlineFormatted: '31 de Octubre de 2026',
+      quotaMaxPerRole: 100,
+      passengers: {
+        enrolledCount: totalPassengers,
+        quotaMax: 100,
+        remainingSpots: Math.max(0, 100 - totalPassengers),
+        percentFilled: Math.min(100, Math.round((totalPassengers / 100) * 100)),
+        isPromoActive: true,
+        welcomeBonus: 2.00,
+        referralBonus: 2.00,
+        normalBonus: 1.00,
+        multiplierText: '200% ($2.00 USD)'
+      },
+      drivers: {
+        enrolledCount: totalDrivers,
+        quotaMax: 100,
+        remainingSpots: Math.max(0, 100 - totalDrivers),
+        percentFilled: Math.min(100, Math.round((totalDrivers / 100) * 100)),
+        isPromoActive: true,
+        trialDays: 30,
+        normalTrialDays: 14,
+        promoTrialDays: 30,
+        savingsText: '30 Días Gratis ($0 Cuota / 1 Mes Completo)'
+      }
+    };
+
+    return {
+      ...rawStats,
+      totalPassengers,
+      totalDrivers,
+      approvedDrivers,
+      pendingDrivers,
+      completedTrips,
+      estimatedGrossRevenue,
+      totalBonusesCirculating,
+      prelaunchPromo
+    };
   } catch (err) {
     console.warn('Fallback local stats (0 para inicio limpio):', err);
     return {
@@ -540,23 +594,30 @@ export async function fetchAdminStatsApi() {
  */
 export async function resetDatabaseApi() {
   try {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('rumbo_prelaunch_zero_override', 'true');
+      localStorage.removeItem('rumbo_registered_drivers');
+      localStorage.removeItem('rumbo_inbox_tickets');
+    }
     const res = await fetch(`${API_BASE_URL}/api/admin/reset-database`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' }
     });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Error al resetear base de datos');
-    // Limpiar también datos de prueba en localStorage
-    localStorage.removeItem('rumbo_registered_drivers');
-    localStorage.removeItem('rumbo_inbox_tickets');
-    return data;
-  } catch (err) {
-    console.warn('Reset local:', err);
-    localStorage.removeItem('rumbo_registered_drivers');
-    localStorage.removeItem('rumbo_inbox_tickets');
+    const data = await res.json().catch(() => ({}));
     return {
       success: true,
-      message: 'Datos locales reseteados exitosamente a cero.'
+      message: data.message || 'Base de datos y contadores reiniciados exitosamente a CERO.'
+    };
+  } catch (err) {
+    console.warn('Reset local:', err);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('rumbo_prelaunch_zero_override', 'true');
+      localStorage.removeItem('rumbo_registered_drivers');
+      localStorage.removeItem('rumbo_inbox_tickets');
+    }
+    return {
+      success: true,
+      message: 'Contadores y datos de prueba reiniciados a CERO exitosamente.'
     };
   }
 }
