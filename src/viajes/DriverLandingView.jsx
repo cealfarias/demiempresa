@@ -54,6 +54,7 @@ export default function DriverLandingView({ onStartRegistration, onCheckStatus, 
   const [magicLinkData, setMagicLinkData] = useState(null);
   const [isCopiedLink, setIsCopiedLink] = useState(false);
   const [loginError, setLoginError] = useState('');
+  const [workInvitation, setWorkInvitation] = useState(null);
 
   const autoDetectTimerRef = React.useRef(null);
   const webOtpAbortRef = React.useRef(null);
@@ -71,6 +72,7 @@ export default function DriverLandingView({ onStartRegistration, onCheckStatus, 
     setMagicLinkData(null);
     setIsCopiedLink(false);
     setLoginError('');
+    setWorkInvitation(null);
     if (autoDetectTimerRef.current) {
       clearTimeout(autoDetectTimerRef.current);
       clearInterval(autoDetectTimerRef.current);
@@ -146,9 +148,20 @@ export default function DriverLandingView({ onStartRegistration, onCheckStatus, 
           onDriverLoggedIn(res.driverProfile);
         }
       } else {
+        const isSharedOrDup = res?.isSharedOrDuplicate || res?.error?.includes('utilizado') || res?.error?.includes('compartido') || res?.error?.includes('expirado');
+        if (isSharedOrDup) {
+          setWorkInvitation(res?.workInvitation || {
+            title: '¿Necesitas trabajar en la plataforma?',
+            message: 'Inscríbete como conductor, solo son $10 a la semana sin cobro de comisión'
+          });
+        }
         setLoginError(res?.error || 'Enlace o código incorrecto.');
       }
     } catch (err) {
+      setWorkInvitation({
+        title: '¿Necesitas trabajar en la plataforma?',
+        message: 'Inscríbete como conductor, solo son $10 a la semana sin cobro de comisión'
+      });
       setLoginError(err.message || 'Error al validar el enlace mágico.');
     } finally {
       setIsVerifying(false);
@@ -1047,12 +1060,45 @@ export default function DriverLandingView({ onStartRegistration, onCheckStatus, 
                   </div>
                 </div>
 
-                {loginError && (
+                {workInvitation ? (
+                  <div className="p-4 rounded-2xl bg-amber-950/40 border border-amber-500/50 space-y-2.5 text-center animate-fade-in">
+                    <div className="w-10 h-10 rounded-2xl bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center justify-center mx-auto">
+                      <Car className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-bold border border-amber-500/30 inline-block mb-1">
+                        Regla de Dispositivo Único
+                      </span>
+                      <h5 className="text-sm font-black text-white">
+                        {workInvitation.title || '¿Necesitas trabajar en la plataforma?'}
+                      </h5>
+                      <p className="text-xs font-bold text-emerald-400 mt-1">
+                        {workInvitation.message || 'Inscríbete como conductor, solo son $10 a la semana sin cobro de comisión'}
+                      </p>
+                      {loginError && (
+                        <p className="text-[11px] text-slate-400 mt-1">
+                          {loginError}
+                        </p>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleCloseLoginModal();
+                        if (onStartRegistration) onStartRegistration();
+                      }}
+                      className="w-full py-2.5 bg-gradient-to-r from-amber-500 to-emerald-500 hover:brightness-110 text-slate-950 font-black text-xs rounded-xl cursor-pointer shadow flex items-center justify-center gap-1.5 transition-transform active:scale-95"
+                    >
+                      <Car className="w-4 h-4" />
+                      <span>Inscribirme como Conductor ($10/semana)</span>
+                    </button>
+                  </div>
+                ) : loginError ? (
                   <div className="p-2.5 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs flex items-center gap-2">
                     <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
                     <span>{loginError}</span>
                   </div>
-                )}
+                ) : null}
               </div>
             ) : (
               /* PASO 2 ALTERNATIVO: SMS TRADICIONAL */

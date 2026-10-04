@@ -62,6 +62,9 @@ function isValidSalvadoranDUI(dui) {
   return /^\d{8}-\d{1}$/.test(dui);
 }
 
+// Control de Dispositivo Único para Pasajeros: dui/phone -> { sessionId, loggedAt }
+const activePassengerSessions = new Map();
+
 app.post('/api/users/register', async (req, res) => {
   const { fullName, phone, dui, referrerCode } = req.body;
 
@@ -92,8 +95,18 @@ app.post('/api/users/register', async (req, res) => {
 
     const isExistingUser = existingCheck.rows.length > 0;
 
+    // Regla de Dispositivo Único Implacable para Pasajeros
+    const passengerSessionId = `psess_${cleanDui}_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+    activePassengerSessions.set(cleanDui, { sessionId: passengerSessionId, loggedAt: new Date().toISOString() });
+    if (cleanPhone) {
+      activePassengerSessions.set(cleanPhone, { sessionId: passengerSessionId, loggedAt: new Date().toISOString() });
+    }
+    // Expulsar cualquier sesión previa en otro dispositivo
+    io.emit('passenger_session_revoked', { dui: cleanDui, phone: cleanPhone, activeSessionId: passengerSessionId });
+
     if (isExistingUser) {
       const user = existingCheck.rows[0];
+      user.sessionToken = passengerSessionId;
       let referrerInfo = null;
 
       // Si el contacto ya registrado intentó abrir el enlace de un amigo anfitrión:
@@ -132,6 +145,7 @@ app.post('/api/users/register', async (req, res) => {
         success: true,
         user,
         isExistingUser: true,
+        sessionToken: passengerSessionId,
         referrer: referrerInfo,
         message: 'Usuario ya registrado previamente. No aplica nuevo bono de bienvenida ni de referido.'
       });
@@ -144,6 +158,7 @@ app.post('/api/users/register', async (req, res) => {
     `, [fullName, cleanPhone, cleanDui, role]);
 
     const user = userRes.rows[0];
+    user.sessionToken = passengerSessionId;
 
     // 1. Crear Wallet Criptográfica y Acreditar Bono de Bienvenida ($1.00 USD - 7 Días)
     let walletInfo = null;
@@ -754,18 +769,45 @@ app.post('/api/drivers/verify-magic-token', async (req, res) => {
     // 1. Validar expiración de tiempo
     if (stored && stored.expiresAt && Date.now() > stored.expiresAt) {
       activeMagicLinks.delete(cleanPhone);
-      return res.status(400).json({ success: false, error: 'El enlace mágico ha expirado por tiempo (límite 15 min). Solicita uno nuevo.' });
+      return res.status(400).json({
+        success: false,
+        error: 'El enlace mágico ha expirado por tiempo (límite 15 min).',
+        isSharedOrDuplicate: true,
+        workInvitation: {
+          title: '¿Necesitas trabajar en la plataforma?',
+          message: 'Inscríbete como conductor, solo son $10 a la semana sin cobro de comisión.',
+          actionUrl: '/conductor?register=true'
+        }
+      });
     }
 
     // 2. Validar que no haya sido consumido previamente (Burn-on-read)
     if (stored && stored.used) {
       activeMagicLinks.delete(cleanPhone);
-      return res.status(400).json({ success: false, error: 'Este enlace ya fue utilizado anteriormente y no es reutilizable por seguridad.' });
+      return res.status(400).json({
+        success: false,
+        error: 'Este enlace ya fue utilizado en otro dispositivo o fue compartido.',
+        isSharedOrDuplicate: true,
+        workInvitation: {
+          title: '¿Necesitas trabajar en la plataforma?',
+          message: 'Inscríbete como conductor, solo son $10 a la semana sin cobro de comisión.',
+          actionUrl: '/conductor?register=true'
+        }
+      });
     }
 
     const validToken = (stored && stored.token === String(token).trim()) || String(token).trim() === '123456';
     if (!validToken) {
-      return res.status(400).json({ success: false, error: 'El enlace mágico no es válido o ha expirado.' });
+      return res.status(400).json({
+        success: false,
+        error: 'El enlace mágico no es válido, ya fue utilizado o ha expirado.',
+        isSharedOrDuplicate: true,
+        workInvitation: {
+          title: '¿Necesitas trabajar en la plataforma?',
+          message: 'Inscríbete como conductor, solo son $10 a la semana sin cobro de comisión.',
+          actionUrl: '/conductor?register=true'
+        }
+      });
     }
 
     // 3. QUEMADO INMEDIATO DE UN SOLO USO: Destruir el token para que nadie más pueda usarlo si se comparte
@@ -783,7 +825,15 @@ app.post('/api/drivers/verify-magic-token', async (req, res) => {
     });
 
     // Notificar por WebSocket para cerrar cualquier otra pantalla abierta con este mismo número
-    io.emit('driver_session_revoked', { phone: cleanPhone, activeSessionId: newSessionId });
+    io.emit('driver_session_revoked', {
+      phone: cleanPhone,
+      activeSessionId: newSessionId,
+      workInvitation: {
+        title: '¿Necesitas trabajar en la plataforma?',
+        message: 'Inscríbete como conductor, solo son $10 a la semana sin cobro de comisión.',
+        actionUrl: '/conductor?register=true'
+      }
+    });
 
     let driverProfile = null;
     try {

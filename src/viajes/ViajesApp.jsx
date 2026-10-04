@@ -392,6 +392,7 @@ export default function ViajesApp() {
     }
   });
   const [showRegisterModal, setShowRegisterModal] = useState(false);
+  const [showPassengerRevokedModal, setShowPassengerRevokedModal] = useState(false);
   const [googleClientId, setGoogleClientId] = useState(
     () =>
       import.meta.env.VITE_GOOGLE_CLIENT_ID ||
@@ -568,10 +569,24 @@ export default function ViajesApp() {
       if (status === 'COMPLETED') setTripStatus('COMPLETED');
     });
 
+    // Regla de Dispositivo Único Implacable para Pasajeros
+    socket.on('passenger_session_revoked', (ev) => {
+      const myDui = userProfile?.dui ? String(userProfile.dui).trim() : '';
+      const myPhone = userProfile?.phone ? String(userProfile.phone).replace(/\D/g, '').slice(-8) : '';
+      const isMe = (myDui && ev?.dui && ev.dui === myDui) || (myPhone && ev?.phone && ev.phone === myPhone);
+      if (isMe && ev?.activeSessionId && ev.activeSessionId !== userProfile?.sessionToken) {
+        localStorage.removeItem('demiempresa_passenger');
+        setUserProfile(null);
+        setAppState('PICKUP_SELECTION');
+        setShowPassengerRevokedModal(true);
+      }
+    });
+
     return () => {
       socket.off('passenger:offer_received');
       socket.off('trip:confirmed');
       socket.off('trip:status_changed');
+      socket.off('passenger_session_revoked');
     };
   }, [userProfile]);
 
@@ -1510,7 +1525,8 @@ export default function ViajesApp() {
         phone: regPhone || '',
         photoUrl: googleTempUser?.photoUrl || null,
         provider: googleTempUser ? 'google' : 'manual',
-        isVerified: true
+        isVerified: true,
+        sessionToken: regRes?.sessionToken || regRes?.user?.sessionToken || null
       };
 
       if (regRes?.isExistingUser) {
@@ -4279,6 +4295,40 @@ export default function ViajesApp() {
         role="PASSENGER"
         userProfile={userProfile}
       />
+
+      {/* Modal de Regla de Dispositivo Único Implacable para Pasajeros */}
+      {showPassengerRevokedModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in">
+          <div className="relative w-full max-w-sm bg-slate-900 border border-amber-500/40 rounded-3xl p-6 shadow-2xl text-slate-100 space-y-4 my-auto text-center">
+            <div className="w-14 h-14 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center justify-center mx-auto shadow">
+              <ShieldCheck className="w-7 h-7" />
+            </div>
+
+            <div className="space-y-1.5">
+              <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-bold border border-amber-500/30 inline-block uppercase">
+                Regla de Dispositivo Único
+              </span>
+              <h3 className="text-base font-black text-white">
+                Sesión Cerrada en este Celular
+              </h3>
+              <p className="text-xs text-slate-300 leading-relaxed">
+                Tu cuenta de pasajero ha sido iniciada en otro dispositivo móvil.
+              </p>
+              <p className="text-[11px] text-amber-400 font-medium">
+                Por seguridad de tu cuenta y protección de tus créditos, Rumbo solo permite <strong>1 dispositivo activo a la vez</strong>.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setShowPassengerRevokedModal(false)}
+              className="w-full py-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl shadow cursor-pointer transition-transform active:scale-95"
+            >
+              Entendido
+            </button>
+          </div>
+        </div>
+      )}
 
     </div>
   );

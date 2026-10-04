@@ -28,7 +28,9 @@ import {
   List,
   FileText,
   Inbox,
-  LogOut
+  LogOut,
+  X,
+  CheckCircle2
 } from 'lucide-react';
 import RumboLogo from './RumboLogo';
 import GasModal from './GasModal';
@@ -95,6 +97,7 @@ export default function DriverApp() {
 
   // Estado y función para Cierre de Sesión Seguro
   const [showLogoutConfirmModal, setShowLogoutConfirmModal] = useState(false);
+  const [workInvitationModal, setWorkInvitationModal] = useState(null);
 
   const handlePerformLogout = () => {
     localStorage.removeItem('rumbo_driver_profile');
@@ -169,13 +172,27 @@ export default function DriverApp() {
             setDriverProfile(res.driverProfile);
             setDriverProfileId(res.driverProfile.id);
             setDriverOnline(true);
-            // Limpiar los parámetros de la URL sin recargar
+            const cleanUrl = window.location.pathname;
+            window.history.replaceState({}, document.title, cleanUrl);
+          } else {
+            setWorkInvitationModal({
+              title: res?.workInvitation?.title || '¿Necesitas trabajar en la plataforma?',
+              message: res?.workInvitation?.message || 'Inscríbete como conductor, solo son $10 a la semana sin cobro de comisión',
+              detail: res?.error || 'Este enlace mágico ya fue utilizado o es inválido.'
+            });
             const cleanUrl = window.location.pathname;
             window.history.replaceState({}, document.title, cleanUrl);
           }
         })
         .catch((err) => {
           console.warn('Error al verificar enlace mágico por URL:', err);
+          setWorkInvitationModal({
+            title: '¿Necesitas trabajar en la plataforma?',
+            message: 'Inscríbete como conductor, solo son $10 a la semana sin cobro de comisión',
+            detail: err.message || 'Este enlace ya fue consumido en otro dispositivo o fue compartido.'
+          });
+          const cleanUrl = window.location.pathname;
+          window.history.replaceState({}, document.title, cleanUrl);
         });
     }
   }, []);
@@ -426,15 +443,19 @@ export default function DriverApp() {
       setTripState('EN_ROUTE_TO_PICKUP');
     });
 
-    // Control de Dispositivo Único: Si se inicia sesión con este número en otro celular, cerrar de inmediato
+    // Control de Dispositivo Único Implacable: Si se inicia sesión con este número en otro celular, expulsar de inmediato
     socket.on('driver_session_revoked', (ev) => {
       const myPhone = driverProfile?.phone ? String(driverProfile.phone).replace(/\D/g, '').slice(-8) : '';
       if (myPhone && ev?.phone === myPhone && ev?.activeSessionId !== driverProfile?.sessionToken) {
-        alert('⚠️ SESIÓN CERRADA: Se ha iniciado sesión con tu número telefónico en otro dispositivo. Por seguridad, solo se permite un dispositivo activo a la vez.');
         localStorage.removeItem('rumbo_driver_profile');
         setDriverProfile(null);
         setDriverOnline(false);
         setActiveTrip(null);
+        setWorkInvitationModal({
+          title: ev?.workInvitation?.title || '¿Necesitas trabajar en la plataforma?',
+          message: ev?.workInvitation?.message || 'Inscríbete como conductor, solo son $10 a la semana sin cobro de comisión',
+          detail: '⚠️ REGLA DE DISPOSITIVO ÚNICO: Tu cuenta de conductor fue abierta en otro dispositivo. Por seguridad, la sesión en este teléfono ha sido cerrada de inmediato.'
+        });
       }
     });
 
@@ -557,6 +578,78 @@ export default function DriverApp() {
     }
   };
 
+  // Render del Modal de Invitación a Trabajar (Regla de Dispositivo Único / Enlace Compartido)
+  const renderWorkInvitationModal = () => {
+    if (!workInvitationModal) return null;
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in">
+        <div className="relative w-full max-w-md bg-slate-900 border border-amber-500/40 rounded-3xl p-6 sm:p-7 shadow-2xl text-slate-100 space-y-4 my-auto text-center">
+          <button
+            type="button"
+            onClick={() => setWorkInvitationModal(null)}
+            className="absolute top-4 right-4 p-1.5 rounded-xl bg-slate-800 text-slate-400 hover:text-white cursor-pointer"
+          >
+            <X className="w-5 h-5" />
+          </button>
+
+          <div className="w-16 h-16 rounded-3xl bg-gradient-to-tr from-amber-500/20 to-emerald-500/20 border border-amber-500/30 flex items-center justify-center mx-auto text-amber-400 shadow-lg">
+            <Car className="w-8 h-8" />
+          </div>
+
+          <div className="space-y-2">
+            <span className="inline-block px-3 py-1 rounded-full bg-amber-500/20 border border-amber-500/30 text-amber-300 font-black text-[11px] uppercase tracking-wider">
+              Regla de Dispositivo Único
+            </span>
+            <h3 className="text-xl font-black text-white leading-tight">
+              {workInvitationModal.title || '¿Necesitas trabajar en la plataforma?'}
+            </h3>
+            <p className="text-sm font-bold text-emerald-400 leading-snug">
+              {workInvitationModal.message || 'Inscríbete como conductor, solo son $10 a la semana sin cobro de comisión'}
+            </p>
+            {workInvitationModal.detail && (
+              <p className="text-xs text-slate-400 pt-1">
+                {workInvitationModal.detail}
+              </p>
+            )}
+          </div>
+
+          <div className="p-3.5 bg-slate-950 rounded-2xl border border-slate-800 text-left text-xs space-y-1.5">
+            <div className="font-black text-amber-400 flex items-center gap-1.5">
+              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+              <span>Beneficios Rumbo Conductor:</span>
+            </div>
+            <ul className="text-slate-300 text-[11px] space-y-1 list-disc list-inside">
+              <li><strong>0% comisión por viaje:</strong> todo lo que cobras en efectivo es 100% tuyo.</li>
+              <li><strong>Tarifa fija semanal:</strong> únicamente $10.00 a la semana.</li>
+              <li><strong>14 días de prueba gratis</strong> al inscribirte hoy.</li>
+            </ul>
+          </div>
+
+          <div className="flex flex-col gap-2 pt-1">
+            <button
+              type="button"
+              onClick={() => {
+                setWorkInvitationModal(null);
+                setShowRegistrationModal(true);
+              }}
+              className="w-full py-3.5 bg-gradient-to-r from-amber-500 to-emerald-500 hover:brightness-110 text-slate-950 font-black text-sm rounded-2xl cursor-pointer shadow-lg transition-transform active:scale-95 flex items-center justify-center gap-2"
+            >
+              <Car className="w-4 h-4" />
+              <span>Inscribirme como Conductor Ahora</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setWorkInvitationModal(null)}
+              className="w-full py-2.5 text-xs text-slate-400 hover:text-white font-bold cursor-pointer"
+            >
+              Cerrar
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   // Si el conductor NO tiene perfil en el dispositivo:
   // Mostramos la presentación de bienvenida con acceso directo para registrarse o ingresar con su DUI
   if (!driverProfile) {
@@ -587,6 +680,9 @@ export default function DriverApp() {
             setShowRegistrationModal(false);
           }}
         />
+
+        {/* Modal de Invitación en caso de enlace duplicado o revocado */}
+        {renderWorkInvitationModal()}
       </>
     );
   }
@@ -1865,6 +1961,9 @@ export default function DriverApp() {
           </div>
         </div>
       )}
+
+      {/* Modal de Invitación a Trabajar en Caso de Enlace Duplicado o Revocado */}
+      {renderWorkInvitationModal()}
 
     </div>
   );
