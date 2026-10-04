@@ -50,7 +50,8 @@ import {
   payDriverWeeklyFeeWithBonusesApi,
   payDriverDailyPassApi,
   fetchWalletSummaryApi,
-  fetchDriverStatusApi
+  fetchDriverStatusApi,
+  verifyMagicTokenApi
 } from './api';
 
 export default function DriverApp() {
@@ -151,6 +152,32 @@ export default function DriverApp() {
   // Establecer título dinámico de la pestaña para la consola del conductor
   useEffect(() => {
     document.title = "Rumbo Conductor | 100% Efectivo";
+  }, []);
+
+  // 1-CLICK: Detección y activación automática del Enlace Mágico por WhatsApp (?magicToken=...&phone=...)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const magicToken = params.get('magicToken') || params.get('token');
+    const magicPhone = params.get('phone');
+
+    if (magicToken && magicPhone) {
+      verifyMagicTokenApi({ phone: magicPhone, token: magicToken })
+        .then((res) => {
+          if (res && res.success && res.driverProfile) {
+            localStorage.setItem('rumbo_driver_profile', JSON.stringify(res.driverProfile));
+            setDriverProfile(res.driverProfile);
+            setDriverProfileId(res.driverProfile.id);
+            setDriverOnline(true);
+            // Limpiar los parámetros de la URL sin recargar
+            const cleanUrl = window.location.pathname;
+            window.history.replaceState({}, document.title, cleanUrl);
+          }
+        })
+        .catch((err) => {
+          console.warn('Error al verificar enlace mágico por URL:', err);
+        });
+    }
   }, []);
 
   // Sincronizar estado de aprobación del conductor con el backend

@@ -25,23 +25,34 @@ import {
   Radio,
   RefreshCw,
   Zap,
-  ArrowLeft
+  ArrowLeft,
+  ExternalLink,
+  Copy,
+  Check
 } from 'lucide-react';
 import RumboLogo from './RumboLogo';
 import DriverAvatarNarrator from './DriverAvatarNarrator';
 import SupportTicketModal from './SupportTicketModal';
-import { requestPhoneOtpApi, loginDriverWithPhoneApi } from './api';
+import {
+  requestPhoneOtpApi,
+  loginDriverWithPhoneApi,
+  sendMagicLinkApi,
+  verifyMagicTokenApi,
+  checkMagicTokenStatusApi
+} from './api';
 
 export default function DriverLandingView({ onStartRegistration, onCheckStatus, onDriverLoggedIn }) {
   const [showSupportModal, setShowSupportModal] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
-  const [loginStep, setLoginStep] = useState('PHONE'); // 'PHONE' | 'OTP_WAIT'
+  const [loginStep, setLoginStep] = useState('PHONE'); // 'PHONE' | 'MAGIC_WAIT' | 'OTP_WAIT'
   const [phoneInput, setPhoneInput] = useState('');
   const [otpCode, setOtpCode] = useState('');
   const [isSendingOtp, setIsSendingOtp] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
   const [autoDetectStatus, setAutoDetectStatus] = useState('idle'); // 'idle' | 'listening' | 'detected' | 'manual'
   const [receivedSmsPreview, setReceivedSmsPreview] = useState(null);
+  const [magicLinkData, setMagicLinkData] = useState(null);
+  const [isCopiedLink, setIsCopiedLink] = useState(false);
   const [loginError, setLoginError] = useState('');
 
   const autoDetectTimerRef = React.useRef(null);
@@ -57,14 +68,94 @@ export default function DriverLandingView({ onStartRegistration, onCheckStatus, 
     setIsVerifying(false);
     setAutoDetectStatus('idle');
     setReceivedSmsPreview(null);
+    setMagicLinkData(null);
+    setIsCopiedLink(false);
     setLoginError('');
-    if (autoDetectTimerRef.current) clearTimeout(autoDetectTimerRef.current);
+    if (autoDetectTimerRef.current) {
+      clearTimeout(autoDetectTimerRef.current);
+      clearInterval(autoDetectTimerRef.current);
+    }
     if (webOtpAbortRef.current) {
       try { webOtpAbortRef.current.abort(); } catch (e) {}
     }
   };
 
-  // Paso 1: Enviar SMS con código OTP
+  // Enviar Enlace Mágico por WhatsApp
+  const handleSendMagicLink = async (e) => {
+    if (e) e.preventDefault();
+    const clean = phoneInput.replace(/\D/g, '').slice(-8);
+    if (clean.length < 8) {
+      setLoginError('Por favor ingresa un número de celular salvadoreño de 8 dígitos (ej. 7890-1234).');
+      return;
+    }
+
+    setIsSendingOtp(true);
+    setLoginError('');
+    try {
+      const res = await sendMagicLinkApi({ phone: clean });
+      if (res && res.success) {
+        setMagicLinkData(res);
+        setOtpCode(res.token || '');
+        setLoginStep('MAGIC_WAIT');
+
+        // Escuchar en segundo plano si el enlace se abrió desde WhatsApp en el celular
+        if (autoDetectTimerRef.current) clearInterval(autoDetectTimerRef.current);
+        const poll = setInterval(async () => {
+          try {
+            const status = await checkMagicTokenStatusApi({ phone: clean });
+            if (status && status.verified) {
+              clearInterval(poll);
+              const authRes = await verifyMagicTokenApi({ phone: clean, token: res.token });
+              if (authRes && authRes.success && authRes.driverProfile) {
+                localStorage.setItem('rumbo_driver_profile', JSON.stringify(authRes.driverProfile));
+                handleCloseLoginModal();
+                if (onDriverLoggedIn) onDriverLoggedIn(authRes.driverProfile);
+              }
+            }
+          } catch {}
+        }, 2500);
+        autoDetectTimerRef.current = poll;
+
+      } else {
+        setLoginError(res?.error || 'No se pudo generar el enlace mágico.');
+      }
+    } catch (err) {
+      setLoginError(err.message || 'Error de conexión al generar enlace de WhatsApp.');
+    } finally {
+      setIsSendingOtp(false);
+    }
+  };
+
+  // Validar Enlace Mágico / Token de WhatsApp y Entrar a la Consola
+  const handleVerifyMagicToken = async (tokenToUse) => {
+    const finalToken = (tokenToUse || otpCode).trim();
+    if (!finalToken) {
+      setLoginError('Ingresa el código o abre el enlace en tu WhatsApp.');
+      return;
+    }
+    const clean = phoneInput.replace(/\D/g, '').slice(-8);
+    setIsVerifying(true);
+    setLoginError('');
+
+    try {
+      const res = await verifyMagicTokenApi({ phone: clean, token: finalToken });
+      if (res && res.success && res.driverProfile) {
+        localStorage.setItem('rumbo_driver_profile', JSON.stringify(res.driverProfile));
+        handleCloseLoginModal();
+        if (onDriverLoggedIn) {
+          onDriverLoggedIn(res.driverProfile);
+        }
+      } else {
+        setLoginError(res?.error || 'Enlace o código incorrecto.');
+      }
+    } catch (err) {
+      setLoginError(err.message || 'Error al validar el enlace mágico.');
+    } finally {
+      setIsVerifying(false);
+    }
+  };
+
+  // Paso 1 Alternativo: Enviar SMS con código OTP
   const handleSendOtp = async (e) => {
     if (e) e.preventDefault();
     const clean = phoneInput.replace(/\D/g, '').slice(-8);
@@ -752,18 +843,18 @@ export default function DriverLandingView({ onStartRegistration, onCheckStatus, 
             {loginStep === 'PHONE' ? (
               <>
                 <div className="text-center space-y-1.5 pt-2">
-                  <div className="w-14 h-14 mx-auto rounded-full bg-amber-500/20 border border-amber-400/40 flex items-center justify-center text-amber-300">
-                    <Smartphone className="w-7 h-7" />
+                  <div className="w-14 h-14 mx-auto rounded-full bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center text-emerald-300">
+                    <MessageCircle className="w-7 h-7" />
                   </div>
                   <h3 className="text-lg font-black text-white">
-                    Ingreso con Celular
+                    Ingreso con Enlace Mágico
                   </h3>
                   <p className="text-xs text-slate-300 leading-relaxed">
-                    Ingresa tu número de teléfono móvil. La aplicación confirmará tu celular automáticamente vía SMS.
+                    Ingresa tu número de celular. Te enviaremos un enlace a tu WhatsApp para que entres a tu consola con 1 solo toque.
                   </p>
                 </div>
 
-                <form onSubmit={handleSendOtp} className="space-y-4">
+                <form onSubmit={handleSendMagicLink} className="space-y-4">
                   <div>
                     <label className="block text-xs font-semibold text-slate-300 mb-1.5">
                       Número de Celular (El Salvador)
@@ -780,7 +871,7 @@ export default function DriverLandingView({ onStartRegistration, onCheckStatus, 
                         placeholder="Ej. 7890-1234"
                         autoFocus
                         required
-                        className="w-full px-3.5 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-sm font-bold text-white placeholder-slate-500 focus:outline-none focus:border-amber-400 tracking-wider"
+                        className="w-full px-3.5 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-sm font-bold text-white placeholder-slate-500 focus:outline-none focus:border-emerald-400 tracking-wider"
                       />
                     </div>
                   </div>
@@ -792,8 +883,8 @@ export default function DriverLandingView({ onStartRegistration, onCheckStatus, 
                     </div>
                   )}
 
-                  <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-[11px] text-amber-200/90 flex items-start gap-2">
-                    <Sparkles className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                  <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-[11px] text-emerald-200/90 flex items-start gap-2">
+                    <Sparkles className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
                     <span>
                       <strong>14 Días Gratis:</strong> Al ingresar se activará tu acceso sin cuotas semanales ni comisiones.
                     </span>
@@ -802,24 +893,169 @@ export default function DriverLandingView({ onStartRegistration, onCheckStatus, 
                   <button
                     type="submit"
                     disabled={isSendingOtp}
-                    className="w-full py-3 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 hover:brightness-110 text-slate-950 font-black text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg shadow-amber-500/25 transition-all cursor-pointer disabled:opacity-50"
+                    className="w-full py-3.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:brightness-110 text-slate-950 font-black text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg shadow-emerald-950/40 transition-all cursor-pointer disabled:opacity-50"
                   >
                     {isSendingOtp ? (
                       <>
                         <span className="w-4 h-4 border-2 border-slate-950 border-t-transparent rounded-full animate-spin"></span>
-                        <span>Enviando SMS de confirmación...</span>
+                        <span>Generando Enlace Mágico...</span>
                       </>
                     ) : (
                       <>
-                        <Zap className="w-4 h-4" />
-                        <span>Confirmar Celular e Ingresar</span>
+                        <MessageCircle className="w-4 h-4" />
+                        <span>Recibir Enlace Mágico por WhatsApp</span>
                       </>
                     )}
                   </button>
+
+                  <div className="text-center pt-0.5">
+                    <button
+                      type="button"
+                      onClick={handleSendOtp}
+                      disabled={isSendingOtp}
+                      className="text-[11px] text-slate-400 hover:text-amber-300 transition-colors cursor-pointer"
+                    >
+                      O recibir código tradicional por SMS
+                    </button>
+                  </div>
                 </form>
               </>
+            ) : loginStep === 'MAGIC_WAIT' ? (
+              /* PASO 2: ENLACE MÁGICO DE WHATSAPP */
+              <div className="space-y-4 pt-1">
+                <div className="flex items-center justify-between">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLoginStep('PHONE');
+                      if (autoDetectTimerRef.current) clearInterval(autoDetectTimerRef.current);
+                    }}
+                    className="flex items-center gap-1 text-[11px] text-amber-400 hover:text-amber-300 font-bold cursor-pointer"
+                  >
+                    <ArrowLeft className="w-3.5 h-3.5" />
+                    <span>Cambiar número</span>
+                  </button>
+                  <span className="text-[11px] font-bold text-slate-400">
+                    🇸🇻 +503 {phoneInput.replace(/\D/g, '').slice(-8)}
+                  </span>
+                </div>
+
+                <div className="text-center py-2 space-y-2">
+                  <div className="relative w-20 h-20 mx-auto flex items-center justify-center">
+                    <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-500/20 animate-ping"></span>
+                    <div className="relative rounded-full p-4 bg-slate-800 border-2 border-emerald-400 text-emerald-400 shadow-lg shadow-emerald-500/25">
+                      <MessageCircle className="w-8 h-8 animate-pulse" />
+                    </div>
+                  </div>
+
+                  <div>
+                    <h4 className="text-base font-black text-white">
+                      ¡Enlace Mágico Listo!
+                    </h4>
+                    <p className="text-xs text-slate-300 mt-1 leading-relaxed">
+                      Toca el enlace azul en tu WhatsApp para entrar con <strong>1 solo toque</strong>, o actívalo directamente desde aquí.
+                    </p>
+                  </div>
+                </div>
+
+                {/* BOTÓN 1: ABRIR WHATSAPP Y ENTRAR */}
+                <a
+                  href={magicLinkData?.whatsappWebLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() => {
+                    setTimeout(() => {
+                      handleVerifyMagicToken(magicLinkData?.token);
+                    }, 1800);
+                  }}
+                  className="w-full py-3.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:brightness-110 text-slate-950 font-black text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg shadow-emerald-950/40 transition-all cursor-pointer"
+                >
+                  <MessageCircle className="w-4 h-4" />
+                  <span>👉 Abrir mi WhatsApp y Entrar</span>
+                  <ExternalLink className="w-3.5 h-3.5 ml-0.5" />
+                </a>
+
+                {/* BOTÓN 2: ACTIVAR Y ENTRAR YA EN ESTA PESTAÑA */}
+                <button
+                  type="button"
+                  onClick={() => handleVerifyMagicToken(magicLinkData?.token)}
+                  disabled={isVerifying}
+                  className="w-full py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/40 font-black text-xs flex items-center justify-center gap-2 shadow transition-all cursor-pointer disabled:opacity-50"
+                >
+                  {isVerifying ? (
+                    <>
+                      <span className="w-4 h-4 border-2 border-amber-300 border-t-transparent rounded-full animate-spin"></span>
+                      <span>Entrando a la consola...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Zap className="w-4 h-4 text-amber-400" />
+                      <span>⚡ Activar Enlace Mágico y Entrar Ya</span>
+                    </>
+                  )}
+                </button>
+
+                {/* COPIAR ENLACE AL PORTAPAPELES */}
+                <div className="text-center pt-0.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (magicLinkData?.magicLinkUrl) {
+                        navigator.clipboard.writeText(magicLinkData.magicLinkUrl);
+                        setIsCopiedLink(true);
+                        setTimeout(() => setIsCopiedLink(false), 2500);
+                      }
+                    }}
+                    className="text-[11px] text-slate-400 hover:text-white flex items-center justify-center gap-1.5 mx-auto cursor-pointer"
+                  >
+                    {isCopiedLink ? (
+                      <>
+                        <Check className="w-3.5 h-3.5 text-emerald-400" />
+                        <span className="text-emerald-400 font-bold">¡Enlace copiado al portapapeles!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3.5 h-3.5" />
+                        <span>Copiar enlace directo</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                {/* CÓDIGO MANUAL DE RESPALDO */}
+                <div className="pt-2 border-t border-slate-800 space-y-1.5 text-center">
+                  <label className="block text-[11px] text-slate-400">
+                    O escribe tu código de acceso manual:
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      maxLength={6}
+                      value={otpCode}
+                      onChange={(e) => setOtpCode(e.target.value)}
+                      placeholder="• • • • • •"
+                      className="w-full text-center py-2 bg-slate-800 border border-slate-700 rounded-xl text-base font-black tracking-[0.3em] text-amber-300 focus:outline-none focus:border-amber-400"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleVerifyMagicToken(otpCode)}
+                      disabled={isVerifying}
+                      className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl cursor-pointer"
+                    >
+                      Entrar
+                    </button>
+                  </div>
+                </div>
+
+                {loginError && (
+                  <div className="p-2.5 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
+                    <span>{loginError}</span>
+                  </div>
+                )}
+              </div>
             ) : (
-              /* PASO 2: AUTODETECCIÓN DE SMS EN EL CELULAR */
+              /* PASO 2 ALTERNATIVO: SMS TRADICIONAL */
               <div className="space-y-4 pt-1">
                 <div className="flex items-center justify-between">
                   <button
@@ -839,7 +1075,7 @@ export default function DriverLandingView({ onStartRegistration, onCheckStatus, 
                   </span>
                 </div>
 
-                {/* RADAR DE AUTODETECCIÓN */}
+                {/* RADAR DE AUTODETECCIÓN SMS */}
                 <div className="text-center py-2 space-y-2">
                   <div className="relative w-20 h-20 mx-auto flex items-center justify-center">
                     {autoDetectStatus === 'detected' ? (
@@ -891,7 +1127,7 @@ export default function DriverLandingView({ onStartRegistration, onCheckStatus, 
                   </div>
                 )}
 
-                {/* Campo Código OTP (por si desea verlo o editarlo) */}
+                {/* Campo Código OTP */}
                 <div className="space-y-1.5">
                   <label className="block text-[11px] font-semibold text-slate-300 text-center">
                     Código de Confirmación (6 dígitos)
