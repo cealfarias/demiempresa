@@ -1,6 +1,11 @@
-# robots.txt para demiempresa.online
+# robots.txt para demiempresa.online y viajes.demiempresa.online
 User-agent: *
 Allow: /
+Allow: /viajes
+Allow: /conductor
+Allow: /mercado
+Allow: /facturacion-dte
 Allow: /crear-empresa
 
 Sitemap: https://demiempresa.online/sitemap.xml
+Sitemap: https://viajes.demiempresa.online/sitemap.xml

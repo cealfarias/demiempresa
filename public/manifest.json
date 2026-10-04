@@ -1,0 +1,36 @@
+{
+  "name": "Rumbo a mi Destino | demiempresa",
+  "short_name": "Rumbo",
+  "description": "Transporte seguro bajo demanda, encomiendas y movilidad en El Salvador con bonos de referencia.",
+  "start_url": "/viajes",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#020617",
+  "theme_color": "#059669",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/rumbo-logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Pedir Viaje",
+      "url": "/viajes",
+      "description": "Solicita tu viaje o encomienda inmediata"
+    },
+    {
+      "name": "Consola del Conductor",
+      "url": "/conductor",
+      "description": "Acceso a solicitudes pendientes e ingresos"
+    }
+  ]
+}

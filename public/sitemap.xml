@@ -1,56 +1,105 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <!-- Portal Principal demiempresa.online -->
   <url>
     <loc>https://demiempresa.online/</loc>
-    <lastmod>2026-08-30</lastmod>
+    <lastmod>2026-10-03</lastmod>
     <changefreq>daily</changefreq>
     <priority>1.00</priority>
   </url>
+
+  <!-- Rumbo a mi Destino - Pasajeros y Encomiendas -->
   <url>
-    <loc>https://demiempresa.online/crear-empresa</loc>
-    <lastmod>2026-08-30</lastmod>
+    <loc>https://demiempresa.online/viajes</loc>
+    <lastmod>2026-10-03</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.95</priority>
+  </url>
+  <url>
+    <loc>https://viajes.demiempresa.online/</loc>
+    <lastmod>2026-10-03</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>1.00</priority>
+  </url>
+
+  <!-- Rumbo Conductor - Consola de Conductor -->
+  <url>
+    <loc>https://demiempresa.online/conductor</loc>
+    <lastmod>2026-10-03</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.95</priority>
+  </url>
+  <url>
+    <loc>https://viajes.demiempresa.online/conductor</loc>
+    <lastmod>2026-10-03</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.95</priority>
+  </url>
+
+  <!-- Facturación Electrónica DTE Oficial (Grado A+) -->
+  <url>
+    <loc>https://demiempresa.online/facturacion-dte</loc>
+    <lastmod>2026-10-03</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.90</priority>
   </url>
+
+  <!-- Asesoría y Constitución Legal de Empresas -->
+  <url>
+    <loc>https://demiempresa.online/crear-empresa</loc>
+    <lastmod>2026-10-03</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.90</priority>
+  </url>
+
+  <!-- Mercado San Miguelito Delivery -->
+  <url>
+    <loc>https://demiempresa.online/mercado</loc>
+    <lastmod>2026-10-03</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.85</priority>
+  </url>
+
+  <!-- Módulos Corporativos del Ecosistema -->
   <url>
     <loc>https://contabilidad.demiempresa.online</loc>
-    <lastmod>2026-08-30</lastmod>
+    <lastmod>2026-10-03</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.80</priority>
   </url>
   <url>
     <loc>https://dte.demiempresa.online</loc>
-    <lastmod>2026-08-30</lastmod>
+    <lastmod>2026-10-03</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.80</priority>
   </url>
   <url>
     <loc>https://planilla.demiempresa.online</loc>
-    <lastmod>2026-08-30</lastmod>
+    <lastmod>2026-10-03</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.80</priority>
   </url>
   <url>
     <loc>https://activofijo.demiempresa.online</loc>
-    <lastmod>2026-08-30</lastmod>
+    <lastmod>2026-10-03</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.80</priority>
   </url>
   <url>
     <loc>https://inventario.demiempresa.online</loc>
-    <lastmod>2026-08-30</lastmod>
+    <lastmod>2026-10-03</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.80</priority>
   </url>
   <url>
     <loc>https://cooperativas.demiempresa.online</loc>
-    <lastmod>2026-08-30</lastmod>
+    <lastmod>2026-10-03</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.80</priority>
   </url>
   <url>
     <loc>https://ajedrez.demiempresa.online</loc>
-    <lastmod>2026-08-30</lastmod>
+    <lastmod>2026-10-03</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.80</priority>
   </url>

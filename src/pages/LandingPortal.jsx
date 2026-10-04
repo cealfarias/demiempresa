@@ -4,7 +4,7 @@ import {
   Building2, Users, FileText, Scale, Zap, Shield, Sparkles, 
   ArrowRight, CheckCircle2, Lock, UserPlus, LogIn, Laptop, Globe, 
   ChevronRight, Award, BarChart3, HelpCircle, Layers, Grid, CreditCard,
-  Briefcase, Activity, Settings, PieChart, ShieldCheck, ShoppingCart, Truck
+  Briefcase, Activity, Settings, PieChart, ShieldCheck, ShoppingCart, Truck, Car
 } from 'lucide-react';
 
 export default function LandingPortal() {
@@ -120,12 +120,21 @@ export default function LandingPortal() {
         },
         {
           id: 'viajes',
-          nombre: 'Transporte y Encomiendas',
-          descripcion: 'Despacho geoespacial bajo demanda (1 km) para traslado punto a punto y logística de paquetes comerciales.',
-          icon: <Truck size={28} color="#F97316" />,
+          nombre: 'Rumbo a mi Destino (Pasajeros)',
+          descripcion: 'Transporte bajo demanda y encomiendas en El Salvador. Bonos de referencia para pagar menos por carrera, despacho < 1 km y tarifas acordadas.',
+          icon: <Car size={28} color="#10B981" />,
           url: 'https://viajes.demiempresa.online',
           internalRoute: '/viajes',
-          badge: 'NUEVO'
+          badge: 'NUEVA APP RUMBO'
+        },
+        {
+          id: 'conductor',
+          nombre: 'Rumbo Conductor (Consola Chofer)',
+          descripcion: 'Consola oficial para conductores: 0% de comisión por carrera, cobro 100% en efectivo directo, $10 cuota semanal o $3 pase diario y radar de gasolineras.',
+          icon: <Truck size={28} color="#F59E0B" />,
+          url: 'https://viajes.demiempresa.online/conductor',
+          internalRoute: '/conductor',
+          badge: '0% COMISIÓN'
         },
         {
           id: 'pos',
@@ -275,16 +284,27 @@ export default function LandingPortal() {
           </div>
         </div>
         
-        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
           <button 
-            onClick={() => navigate('/facturacion-dte')}
+            onClick={() => navigate('/viajes')}
             style={{
-              padding: '0.6rem 1.2rem', backgroundColor: 'rgba(16, 185, 129, 0.15)', color: '#10B981',
+              padding: '0.6rem 1.1rem', backgroundColor: 'rgba(16, 185, 129, 0.15)', color: '#10B981',
               border: '1px solid rgba(16, 185, 129, 0.4)', borderRadius: '8px', fontWeight: '700', fontSize: '0.875rem',
               display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', transition: 'all 0.2s'
             }}
           >
-            <ShieldCheck size={16} color="#10B981" /> DTE Oficial (Grado A+)
+            <Car size={16} color="#10B981" /> Rumbo (Viajes)
+          </button>
+
+          <button 
+            onClick={() => navigate('/facturacion-dte')}
+            style={{
+              padding: '0.6rem 1.1rem', backgroundColor: 'rgba(59, 130, 246, 0.15)', color: '#3B82F6',
+              border: '1px solid rgba(59, 130, 246, 0.4)', borderRadius: '8px', fontWeight: '700', fontSize: '0.875rem',
+              display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', transition: 'all 0.2s'
+            }}
+          >
+            <ShieldCheck size={16} color="#3B82F6" /> DTE Oficial (Grado A+)
           </button>
 
           <a href="https://planilla.demiempresa.online/login" style={{
