@@ -1439,10 +1439,10 @@ export default function DriverRegistrationModal({ isOpen, onClose, onDriverRegis
                         <div>
                           <strong className="text-white">1. Transferencia 365 Móvil:</strong>
                           <div className="text-slate-300">
-                            Banco: <strong className="text-white">Banco Cuscatlán / Davivienda</strong> • Titular: <strong className="text-slate-200">DEMIEMPRESA EL SALVADOR S.A. DE C.V.</strong>
+                            Banco: <strong className="text-white">DAVIVIENDA</strong> • Titular: <strong className="text-slate-200">Cesar Arias</strong>
                           </div>
                           <div className="text-slate-400 text-[10px]">
-                            Cuenta / Celular: <strong className="text-amber-300 font-mono">031-401-00-012345-6 / 69893101</strong> (Concepto: Tu DUI)
+                            Celular Transfer365: <strong className="text-amber-300 font-mono">69893101</strong> (Concepto: Tu DUI)
                           </div>
                         </div>
                       </div>
@@ -1468,7 +1468,7 @@ export default function DriverRegistrationModal({ isOpen, onClose, onDriverRegis
                     className="mt-0.5 w-4 h-4 text-amber-500 rounded bg-slate-900 border-slate-700 focus:ring-0 cursor-pointer"
                   />
                   <span className="text-xs text-slate-300 leading-relaxed">
-                    He leído y acepto el beneficio de 14 días de uso gratis y el modelo de membresía semanal fija de $10.00 USD con pago obligatorio de 48 horas de anticipación a su vencimiento (pagadera mediante compensación de bonos de pasajeros, transferencia 365 móvil o link Cubo Pago), y declaro bajo juramento que los documentos subidos y datos del vehículo corresponden a mi persona y son 100% verídicos y vigentes en El Salvador.
+                    He leído y acepto el beneficio de 14 días de uso gratis y el modelo de membresía semanal fija de $10.00 USD con pago obligatorio de 48 horas de anticipación a su vencimiento (pagadera mediante compensación de bonos de pasajeros, transferencia 365 móvil Davivienda al 69893101 a nombre de Cesar Arias o link Cubo Pago), y declaro bajo juramento que los documentos subidos y datos del vehículo corresponden a mi persona y son 100% verídicos y vigentes en El Salvador.
                   </span>
                 </label>
               </div>

@@ -119,9 +119,9 @@ export default function DriverAccountStatementModal({
   const bonosToApplyWeekly = Math.min(10, weeklyBonuses);
   const remainingWeeklyCash = Math.max(0, baseWeeklyFee - bonosToApplyWeekly);
 
-  // 4. Copiar Cuenta de Transfer365
+  // 4. Copiar Celular Transfer365 Móvil
   const handleCopyAccount = () => {
-    navigator.clipboard.writeText('031-401-00-012345-6');
+    navigator.clipboard.writeText('69893101');
     setCopiedAccount(true);
     setTimeout(() => setCopiedAccount(false), 2500);
   };
@@ -400,22 +400,22 @@ export default function DriverAccountStatementModal({
                 <div className="p-3.5 bg-slate-900 rounded-2xl border border-slate-800 space-y-2 text-xs font-mono">
                   <div className="flex justify-between items-center text-slate-400">
                     <span>Banco Destino:</span>
-                    <strong className="text-white">Banco Cuscatlán El Salvador</strong>
+                    <strong className="text-white">DAVIVIENDA El Salvador</strong>
                   </div>
                   <div className="flex justify-between items-center text-slate-400">
-                    <span>Tipo de Cuenta:</span>
-                    <strong className="text-white">Cuenta Corriente Empresarial</strong>
+                    <span>Modalidad Transfer365:</span>
+                    <strong className="text-white">Transfer365 Móvil (Celular)</strong>
                   </div>
                   <div className="flex justify-between items-center text-slate-400">
-                    <span>Titular de Cuenta:</span>
-                    <strong className="text-white">DEMIEMPRESA EL SALVADOR S.A. DE C.V.</strong>
+                    <span>Titular Registrado:</span>
+                    <strong className="text-white">Cesar Arias</strong>
                   </div>
                   
-                  {/* Número de cuenta con botón copiar */}
+                  {/* Número de celular Transfer365 con botón copiar */}
                   <div className="pt-2 border-t border-slate-800 flex items-center justify-between">
                     <div>
-                      <span className="text-[10px] text-slate-400 block font-sans">Número de Cuenta Transfer365:</span>
-                      <span className="text-amber-300 font-black text-sm tracking-wide">031-401-00-012345-6</span>
+                      <span className="text-[10px] text-slate-400 block font-sans">Número Transfer365 Móvil:</span>
+                      <span className="text-amber-300 font-black text-base tracking-wider font-mono">69893101</span>
                     </div>
                     <button
                       type="button"
