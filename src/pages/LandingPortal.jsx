@@ -491,6 +491,14 @@ export default function LandingPortal() {
           <Activity size={24} color="#A1A1AA" />
           <span style={{ fontWeight: '800', color: '#E4E4E7', fontSize: '1.1rem', letterSpacing: '-0.5px' }}>demiempresa</span>
         </div>
+
+        {/* Enlaces Rápidos Ecosistema Rumbo */}
+        <div style={{ display: 'flex', justifyContent: 'center', flexWrap: 'wrap', gap: '1.5rem', marginBottom: '1.5rem', fontSize: '0.85rem' }}>
+          <a href="/viajes" style={{ color: '#10B981', textDecoration: 'none', fontWeight: '700' }}>🚗 Rumbo Pasajeros</a>
+          <a href="/conductor" style={{ color: '#F59E0B', textDecoration: 'none', fontWeight: '700' }}>🚘 Rumbo Conductor</a>
+          <a href="/admin" style={{ color: '#A1A1AA', textDecoration: 'none', fontWeight: '600' }}>🔒 Control Administrativo</a>
+        </div>
+
         <p style={{ margin: 0, color: '#52525B' }}>
           © {new Date().getFullYear()} El Centro de Administración Empresarial. Todos los derechos reservados.
         </p>
