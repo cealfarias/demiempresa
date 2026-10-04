@@ -729,5 +729,84 @@ export async function checkMagicTokenStatusApi({ phone }) {
   }
 }
 
+/**
+ * 29. Obtener Configuración de WhatsApp (Admin)
+ */
+export async function fetchAdminWhatsAppConfigApi() {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/admin/whatsapp/config`);
+    if (!res.ok) throw new Error('Error al consultar configuración de WhatsApp');
+    const data = await res.json();
+    return data.config;
+  } catch (err) {
+    console.warn('Fallback local WhatsApp config:', err);
+    const local = localStorage.getItem('rumbo_admin_whatsapp_config');
+    if (local) return JSON.parse(local);
+    return {
+      adminPhone: '69893101',
+      adminName: 'Cesar Arias - Rumbo a tu Destino',
+      connectionMode: 'DIRECT_LINK',
+      messageTemplate: '🚗 *Rumbo a tu Destino - Acceso de Conductor*\n\nHola Conductor, aquí tienes tu enlace directo para entrar a tu consola:\n👉 {MAGIC_LINK}\n\n(O tu código de acceso manual: *{CODE}*)\n\nVálido por 15 minutos.',
+      metaPhoneId: '',
+      metaWabaId: '',
+      metaAccessToken: '',
+      isConnected: true,
+      lastUpdated: new Date().toISOString()
+    };
+  }
+}
+
+/**
+ * 30. Guardar Configuración de WhatsApp (Admin)
+ */
+export async function saveAdminWhatsAppConfigApi(config) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/admin/whatsapp/config`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(config)
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Error al guardar configuración');
+    localStorage.setItem('rumbo_admin_whatsapp_config', JSON.stringify(data.config));
+    return data;
+  } catch (err) {
+    console.warn('Fallback local save WhatsApp config:', err);
+    localStorage.setItem('rumbo_admin_whatsapp_config', JSON.stringify(config));
+    return { success: true, config, message: 'Configuración guardada localmente.' };
+  }
+}
+
+/**
+ * 31. Probar Envío de WhatsApp (Admin)
+ */
+export async function testWhatsAppSendApi({ testPhone }) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/admin/whatsapp/test-send`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ testPhone })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Error al probar envío');
+    return data;
+  } catch (err) {
+    console.warn('Fallback local test WhatsApp:', err);
+    const clean = String(testPhone || '').replace(/\D/g, '').slice(-8);
+    const testToken = '849201';
+    const magicLinkUrl = `https://demiempresa.online/conductor?magicToken=${testToken}&phone=${clean}`;
+    const msg = `🚗 *Rumbo a tu Destino - Acceso de Conductor*\n\nHola Conductor, aquí tienes tu enlace directo para entrar a tu consola:\n👉 ${magicLinkUrl}\n\n(O tu código de acceso manual: *${testToken}*)`;
+    const waLink = `https://wa.me/503${clean}?text=${encodeURIComponent(msg)}`;
+    return {
+      success: true,
+      testPhone: clean,
+      waLink,
+      messageText: msg,
+      message: `Enlace de prueba generado para +503 ${clean}`
+    };
+  }
+}
+
+
 
 

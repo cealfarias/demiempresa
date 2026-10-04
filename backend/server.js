@@ -830,6 +830,69 @@ app.get('/api/auth/check-magic-status', (req, res) => {
   return res.json({ verified: false });
 });
 
+// 5.1.6 CONFIGURACIÓN ADMINISTRATIVA DE WHATSAPP
+let whatsappConfig = {
+  adminPhone: '69893101',
+  adminName: 'Cesar Arias - Rumbo a tu Destino',
+  connectionMode: 'DIRECT_LINK', // 'DIRECT_LINK' | 'WHATSAPP_WEB_QR' | 'META_CLOUD_API'
+  messageTemplate: '🚗 *Rumbo a tu Destino - Acceso de Conductor*\n\nHola Conductor, aquí tienes tu enlace directo para entrar a tu consola:\n👉 {MAGIC_LINK}\n\n(O tu código de acceso manual: *{CODE}*)\n\nVálido por 15 minutos.',
+  metaPhoneId: '',
+  metaWabaId: '',
+  metaAccessToken: '',
+  isConnected: true,
+  lastUpdated: new Date().toISOString()
+};
+
+app.get('/api/admin/whatsapp/config', (req, res) => {
+  res.json({ success: true, config: whatsappConfig });
+});
+
+app.post('/api/admin/whatsapp/config', (req, res) => {
+  try {
+    const { adminPhone, adminName, connectionMode, messageTemplate, metaPhoneId, metaWabaId, metaAccessToken } = req.body;
+    whatsappConfig = {
+      ...whatsappConfig,
+      adminPhone: adminPhone || whatsappConfig.adminPhone,
+      adminName: adminName || whatsappConfig.adminName,
+      connectionMode: connectionMode || whatsappConfig.connectionMode,
+      messageTemplate: messageTemplate || whatsappConfig.messageTemplate,
+      metaPhoneId: metaPhoneId ?? whatsappConfig.metaPhoneId,
+      metaWabaId: metaWabaId ?? whatsappConfig.metaWabaId,
+      metaAccessToken: metaAccessToken ?? whatsappConfig.metaAccessToken,
+      lastUpdated: new Date().toISOString()
+    };
+    res.json({ success: true, config: whatsappConfig, message: 'Configuración de WhatsApp guardada exitosamente.' });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/admin/whatsapp/test-send', (req, res) => {
+  try {
+    const { testPhone } = req.body;
+    const cleanPhone = String(testPhone || '').replace(/\D/g, '').slice(-8);
+    if (!cleanPhone || cleanPhone.length < 8) {
+      return res.status(400).json({ success: false, error: 'Por favor ingresa un número de celular de prueba de 8 dígitos.' });
+    }
+    const testToken = '849201';
+    const magicLinkUrl = `https://demiempresa.online/conductor?magicToken=${testToken}&phone=${cleanPhone}`;
+    const formattedMsg = whatsappConfig.messageTemplate
+      .replace('{MAGIC_LINK}', magicLinkUrl)
+      .replace('{CODE}', testToken);
+    const waLink = `https://wa.me/503${cleanPhone}?text=${encodeURIComponent(formattedMsg)}`;
+
+    res.json({
+      success: true,
+      testPhone: cleanPhone,
+      waLink,
+      messageText: formattedMsg,
+      message: `Enlace de prueba generado para +503 ${cleanPhone}.`
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // 5.2 BANDEJA ADMINISTRATIVA: LISTADO DE EXPEDIENTES DE CONDUCTORES
 app.get('/api/admin/drivers/list', async (req, res) => {
   try {

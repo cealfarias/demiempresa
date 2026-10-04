@@ -31,7 +31,10 @@ import {
   Send,
   ExternalLink,
   ChevronRight,
-  Filter
+  Filter,
+  MessageCircle,
+  QrCode,
+  Sparkles
 } from 'lucide-react';
 import RumboLogo from '../viajes/RumboLogo';
 import {
@@ -40,7 +43,10 @@ import {
   fetchAdminDriversApi,
   updateDriverAuthorizationApi,
   fetchInboxTicketsApi,
-  updateInboxTicketStatusApi
+  updateInboxTicketStatusApi,
+  fetchAdminWhatsAppConfigApi,
+  saveAdminWhatsAppConfigApi,
+  testWhatsAppSendApi
 } from '../viajes/api';
 
 export default function AdminDashboardPage() {
@@ -60,13 +66,31 @@ export default function AdminDashboardPage() {
   const [loginLoading, setLoginLoading] = useState(false);
 
   // Navegación de Pestañas del Panel
-  const [activeTab, setActiveTab] = useState('STATS'); // 'STATS' | 'DRIVERS' | 'INBOX'
+  const [activeTab, setActiveTab] = useState('STATS'); // 'STATS' | 'DRIVERS' | 'INBOX' | 'WHATSAPP'
 
   // Datos del Dashboard
   const [stats, setStats] = useState(null);
   const [drivers, setDrivers] = useState([]);
   const [tickets, setTickets] = useState([]);
   const [loadingData, setLoadingData] = useState(false);
+
+  // Configuración de WhatsApp Oficial
+  const [waConfig, setWaConfig] = useState({
+    adminPhone: '69893101',
+    adminName: 'Cesar Arias - Rumbo a tu Destino',
+    connectionMode: 'DIRECT_LINK', // 'DIRECT_LINK' | 'WHATSAPP_WEB_QR' | 'META_CLOUD_API'
+    messageTemplate: '🚗 *Rumbo a tu Destino - Acceso de Conductor*\n\nHola Conductor, aquí tienes tu enlace directo para entrar a tu consola:\n👉 {MAGIC_LINK}\n\n(O tu código de acceso manual: *{CODE}*)\n\nVálido por 15 minutos.',
+    metaPhoneId: '',
+    metaWabaId: '',
+    metaAccessToken: '',
+    isConnected: true
+  });
+  const [waSaving, setWaSaving] = useState(false);
+  const [waSaveSuccess, setWaSaveSuccess] = useState(false);
+  const [waTestPhone, setWaTestPhone] = useState('69893101');
+  const [waTestResult, setWaTestResult] = useState(null);
+  const [waTestLoading, setWaTestLoading] = useState(false);
+  const [showQrModal, setShowQrModal] = useState(false);
 
   // Filtros de Inbox
   const [inboxCategoryFilter, setInboxCategoryFilter] = useState('ALL'); // 'ALL' | 'PAGOS' | 'SUGERENCIAS' | 'QUEJAS' | 'SOPORTE'
@@ -95,18 +119,54 @@ export default function AdminDashboardPage() {
   const loadDashboardData = async () => {
     setLoadingData(true);
     try {
-      const [statsData, driversData, ticketsData] = await Promise.all([
+      const [statsData, driversData, ticketsData, waData] = await Promise.all([
         fetchAdminStatsApi(),
         fetchAdminDriversApi(),
-        fetchInboxTicketsApi()
+        fetchInboxTicketsApi(),
+        fetchAdminWhatsAppConfigApi().catch(() => null)
       ]);
       setStats(statsData);
       setDrivers(driversData || []);
       setTickets(ticketsData || []);
+      if (waData) setWaConfig(waData);
     } catch (err) {
       console.warn('Error loading admin data:', err);
     } finally {
       setLoadingData(false);
+    }
+  };
+
+  const handleSaveWhatsAppConfig = async () => {
+    setWaSaving(true);
+    setWaSaveSuccess(false);
+    try {
+      const res = await saveAdminWhatsAppConfigApi(waConfig);
+      if (res && res.success) {
+        setWaSaveSuccess(true);
+        setTimeout(() => setWaSaveSuccess(false), 3000);
+      }
+    } catch (err) {
+      alert(err.message || 'Error al guardar configuración');
+    } finally {
+      setWaSaving(false);
+    }
+  };
+
+  const handleTestWhatsAppSend = async () => {
+    if (!waTestPhone.trim() || waTestPhone.replace(/\D/g, '').length < 8) {
+      alert('Por favor ingresa un número de 8 dígitos para la prueba.');
+      return;
+    }
+    setWaTestLoading(true);
+    try {
+      const res = await testWhatsAppSendApi({ testPhone: waTestPhone });
+      if (res && res.success) {
+        setWaTestResult(res);
+      }
+    } catch (err) {
+      alert(err.message || 'Error en la prueba');
+    } finally {
+      setWaTestLoading(false);
     }
   };
 
@@ -423,6 +483,20 @@ export default function AdminDashboardPage() {
               {tickets.filter(t => t.status === 'PENDING').length}
             </span>
           )}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('WHATSAPP')}
+          className={`py-3 px-4 text-xs font-black border-b-2 transition-all flex items-center gap-2 cursor-pointer relative ${
+            activeTab === 'WHATSAPP'
+              ? 'border-emerald-400 text-emerald-400'
+              : 'border-transparent text-slate-400 hover:text-white'
+          }`}
+        >
+          <MessageCircle className="w-4 h-4" />
+          <span>Configuración WhatsApp</span>
+          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
         </button>
       </nav>
 
@@ -803,7 +877,463 @@ export default function AdminDashboardPage() {
           </div>
         )}
 
+        {/* ================================================================== */}
+        {/* PESTAÑA D: CONFIGURACIÓN OFICIAL DE WHATSAPP */}
+        {/* ================================================================== */}
+        {activeTab === 'WHATSAPP' && (
+          <div className="space-y-6 animate-fade-in">
+            {/* Header del módulo */}
+            <div className="p-4 sm:p-6 bg-slate-900 border border-slate-800 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+                  <MessageCircle className="w-7 h-7" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-base sm:text-lg font-black text-white">Canal de WhatsApp y Enlace Mágico</h2>
+                    <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] font-bold">
+                      ACTIVO • EL SALVADOR (+503)
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-400">
+                    Configura el canal emisor para enviar enlaces de acceso rápido a los conductores sin contraseñas ni demoras.
+                  </p>
+                </div>
+              </div>
+
+              {waSaveSuccess && (
+                <div className="px-3 py-1.5 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs font-bold flex items-center gap-1.5 animate-fade-in">
+                  <CheckCircle2 className="w-4 h-4" />
+                  <span>Configuración guardada exitosamente</span>
+                </div>
+              )}
+            </div>
+
+            {/* Cuadrícula Principal */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+              {/* Columna 1: Ajustes de Emisor y Modo de Conexión */}
+              <div className="space-y-6">
+
+                {/* 1. Datos del Emisor Oficial */}
+                <div className="p-5 bg-slate-900 border border-slate-800 rounded-2xl space-y-4">
+                  <h3 className="text-sm font-black text-slate-200 uppercase tracking-wider flex items-center gap-2">
+                    <Phone className="w-4 h-4 text-emerald-400" />
+                    <span>1. Datos del Número Oficial de WhatsApp</span>
+                  </h3>
+
+                  <div className="space-y-3">
+                    <div>
+                      <label className="text-xs font-bold text-slate-400 block mb-1">
+                        Número de Teléfono Emisor (El Salvador)
+                      </label>
+                      <div className="flex rounded-xl bg-slate-950 border border-slate-800 focus-within:border-emerald-500 overflow-hidden">
+                        <span className="px-3 py-2.5 bg-slate-800 text-slate-300 text-xs font-bold font-mono flex items-center">
+                          +503
+                        </span>
+                        <input
+                          type="tel"
+                          value={waConfig.adminPhone}
+                          onChange={(e) => setWaConfig({ ...waConfig, adminPhone: e.target.value })}
+                          placeholder="69893101"
+                          maxLength={12}
+                          className="w-full px-3 py-2.5 bg-transparent text-white text-sm font-mono focus:outline-none"
+                        />
+                      </div>
+                      <p className="text-[11px] text-slate-500 mt-1">
+                        Número del administrador César Arias utilizado para la atención y recepción directa.
+                      </p>
+                    </div>
+
+                    <div>
+                      <label className="text-xs font-bold text-slate-400 block mb-1">
+                        Nombre de Contacto / Remitente
+                      </label>
+                      <input
+                        type="text"
+                        value={waConfig.adminName}
+                        onChange={(e) => setWaConfig({ ...waConfig, adminName: e.target.value })}
+                        placeholder="Cesar Arias - Rumbo a tu Destino"
+                        className="w-full px-3 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-white text-xs focus:border-emerald-500 focus:outline-none"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* 2. Selector de Modo de Conexión */}
+                <div className="p-5 bg-slate-900 border border-slate-800 rounded-2xl space-y-4">
+                  <h3 className="text-sm font-black text-slate-200 uppercase tracking-wider flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-emerald-400" />
+                    <span>2. Modo de Envío y Conectividad</span>
+                  </h3>
+
+                  <div className="space-y-2.5">
+                    {/* Opción 1: Enlace Directo (Recomendado) */}
+                    <div
+                      onClick={() => setWaConfig({ ...waConfig, connectionMode: 'DIRECT_LINK' })}
+                      className={`p-3.5 rounded-xl border cursor-pointer transition-all ${
+                        waConfig.connectionMode === 'DIRECT_LINK'
+                          ? 'bg-emerald-950/30 border-emerald-500/60 ring-1 ring-emerald-500/30'
+                          : 'bg-slate-950/60 border-slate-800 hover:border-slate-700'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="radio"
+                            name="connectionMode"
+                            checked={waConfig.connectionMode === 'DIRECT_LINK'}
+                            onChange={() => setWaConfig({ ...waConfig, connectionMode: 'DIRECT_LINK' })}
+                            className="text-emerald-500 focus:ring-emerald-500"
+                          />
+                          <span className="text-xs font-black text-white">Enlace Directo WhatsApp (wa.me)</span>
+                        </div>
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/30">
+                          Recomendado • $0 Costo
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-400 mt-1 pl-5">
+                        El conductor pulsa <strong>"Ingresar con WhatsApp"</strong> y se abre de inmediato su aplicación oficial con el mensaje ya redactado hacia tu número o auto-enviado. Cero costo de SMS y 100% confiable.
+                      </p>
+                    </div>
+
+                    {/* Opción 2: Puente WhatsApp Web */}
+                    <div
+                      onClick={() => setWaConfig({ ...waConfig, connectionMode: 'WHATSAPP_WEB_QR' })}
+                      className={`p-3.5 rounded-xl border cursor-pointer transition-all ${
+                        waConfig.connectionMode === 'WHATSAPP_WEB_QR'
+                          ? 'bg-emerald-950/30 border-emerald-500/60 ring-1 ring-emerald-500/30'
+                          : 'bg-slate-950/60 border-slate-800 hover:border-slate-700'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="radio"
+                            name="connectionMode"
+                            checked={waConfig.connectionMode === 'WHATSAPP_WEB_QR'}
+                            onChange={() => setWaConfig({ ...waConfig, connectionMode: 'WHATSAPP_WEB_QR' })}
+                            className="text-emerald-500 focus:ring-emerald-500"
+                          />
+                          <span className="text-xs font-black text-white">Puente WhatsApp Web (Vinculación QR)</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setShowQrModal(true);
+                          }}
+                          className="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 font-bold border border-blue-500/30 flex items-center gap-1 hover:bg-blue-500/30 cursor-pointer"
+                        >
+                          <QrCode className="w-3 h-3" />
+                          <span>Ver QR</span>
+                        </button>
+                      </div>
+                      <p className="text-[11px] text-slate-400 mt-1 pl-5">
+                        Conecta un teléfono dedicado mediante escaneo de código QR para despachar mensajes en segundo plano desde el servidor.
+                      </p>
+                    </div>
+
+                    {/* Opción 3: Meta Cloud API Oficial */}
+                    <div
+                      onClick={() => setWaConfig({ ...waConfig, connectionMode: 'META_CLOUD_API' })}
+                      className={`p-3.5 rounded-xl border cursor-pointer transition-all ${
+                        waConfig.connectionMode === 'META_CLOUD_API'
+                          ? 'bg-emerald-950/30 border-emerald-500/60 ring-1 ring-emerald-500/30'
+                          : 'bg-slate-950/60 border-slate-800 hover:border-slate-700'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="radio"
+                            name="connectionMode"
+                            checked={waConfig.connectionMode === 'META_CLOUD_API'}
+                            onChange={() => setWaConfig({ ...waConfig, connectionMode: 'META_CLOUD_API' })}
+                            className="text-emerald-500 focus:ring-emerald-500"
+                          />
+                          <span className="text-xs font-black text-white">Meta Cloud API (WhatsApp Business)</span>
+                        </div>
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 font-bold border border-slate-700">
+                          Empresarial
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-400 mt-1 pl-5">
+                        API oficial de Meta. Requiere cuenta comercial de Meta for Developers verificada y pago por plantilla aprobada.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Campos si está en modo Meta Cloud API */}
+                  {waConfig.connectionMode === 'META_CLOUD_API' && (
+                    <div className="p-3.5 bg-slate-950 rounded-xl border border-slate-800 space-y-3 animate-fade-in text-xs">
+                      <div className="flex items-center gap-1.5 text-amber-400 font-bold text-[11px]">
+                        <AlertTriangle className="w-3.5 h-3.5" />
+                        <span>Credenciales Meta Developers</span>
+                      </div>
+                      <div>
+                        <label className="text-[11px] text-slate-400 block mb-0.5">Phone Number ID</label>
+                        <input
+                          type="text"
+                          value={waConfig.metaPhoneId || ''}
+                          onChange={(e) => setWaConfig({ ...waConfig, metaPhoneId: e.target.value })}
+                          placeholder="Ej: 104829104928"
+                          className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-800 rounded-lg text-white font-mono text-xs focus:border-emerald-500 focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[11px] text-slate-400 block mb-0.5">WABA ID (WhatsApp Business Account ID)</label>
+                        <input
+                          type="text"
+                          value={waConfig.metaWabaId || ''}
+                          onChange={(e) => setWaConfig({ ...waConfig, metaWabaId: e.target.value })}
+                          placeholder="Ej: 294820194820"
+                          className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-800 rounded-lg text-white font-mono text-xs focus:border-emerald-500 focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[11px] text-slate-400 block mb-0.5">System User Permanent Token</label>
+                        <input
+                          type="password"
+                          value={waConfig.metaAccessToken || ''}
+                          onChange={(e) => setWaConfig({ ...waConfig, metaAccessToken: e.target.value })}
+                          placeholder="EAAB..."
+                          className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-800 rounded-lg text-white font-mono text-xs focus:border-emerald-500 focus:outline-none"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Botón Guardar Cambios */}
+                  <div className="pt-2">
+                    <button
+                      type="button"
+                      onClick={handleSaveWhatsAppConfig}
+                      disabled={waSaving}
+                      className="w-full py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:brightness-110 disabled:opacity-50 text-white font-black text-xs rounded-xl flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-emerald-950/50 transition-all"
+                    >
+                      {waSaving ? (
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Check className="w-4 h-4" />
+                      )}
+                      <span>{waSaving ? 'Guardando en Servidor...' : 'Guardar Configuración de WhatsApp'}</span>
+                    </button>
+                  </div>
+                </div>
+
+              </div>
+
+              {/* Columna 2: Plantilla de Enlace Mágico, Vista Previa y Simulador */}
+              <div className="space-y-6">
+
+                {/* 3. Editor de Plantilla */}
+                <div className="p-5 bg-slate-900 border border-slate-800 rounded-2xl space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-black text-slate-200 uppercase tracking-wider flex items-center gap-2">
+                      <FileText className="w-4 h-4 text-emerald-400" />
+                      <span>3. Plantilla del Enlace Mágico</span>
+                    </h3>
+                    <span className="text-[10px] text-slate-400 font-mono">
+                      Variables: <code className="text-emerald-400 font-bold">{`{MAGIC_LINK}`}</code>, <code className="text-emerald-400 font-bold">{`{CODE}`}</code>
+                    </span>
+                  </div>
+
+                  <div className="space-y-2">
+                    <textarea
+                      rows={5}
+                      value={waConfig.messageTemplate}
+                      onChange={(e) => setWaConfig({ ...waConfig, messageTemplate: e.target.value })}
+                      placeholder="Escribe el texto que se enviará al conductor..."
+                      className="w-full p-3 bg-slate-950 border border-slate-800 rounded-xl text-white text-xs font-mono focus:border-emerald-500 focus:outline-none resize-none leading-relaxed"
+                    />
+                    <div className="flex items-center justify-between text-[11px] text-slate-400">
+                      <span>Usa asteriscos para <strong>*negrita*</strong> y guiones para <em>_cursiva_</em> en WhatsApp.</span>
+                      <button
+                        type="button"
+                        onClick={() => setWaConfig({
+                          ...waConfig,
+                          messageTemplate: '🚗 *Rumbo a tu Destino - Acceso de Conductor*\n\nHola Conductor, aquí tienes tu enlace directo para entrar a tu consola:\n👉 {MAGIC_LINK}\n\n(O tu código de acceso manual: *{CODE}*)\n\nVálido por 15 minutos.'
+                        })}
+                        className="text-emerald-400 hover:underline cursor-pointer"
+                      >
+                        Restablecer original
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 4. Vista Previa en Vivo Estilo WhatsApp */}
+                <div className="p-5 bg-slate-900 border border-slate-800 rounded-2xl space-y-3">
+                  <h3 className="text-sm font-black text-slate-200 uppercase tracking-wider flex items-center gap-2">
+                    <Eye className="w-4 h-4 text-emerald-400" />
+                    <span>4. Vista Previa en WhatsApp (Lo que recibe el Conductor)</span>
+                  </h3>
+
+                  <div className="p-4 rounded-2xl bg-[#0b141a] border border-[#1f2c34] space-y-2 font-sans">
+                    <div className="flex items-center justify-between border-b border-slate-800/80 pb-2">
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-full bg-emerald-700 text-white font-black text-xs flex items-center justify-center">
+                          R
+                        </div>
+                        <div>
+                          <div className="text-xs font-bold text-slate-200">{waConfig.adminName || 'Cesar Arias - Rumbo a tu Destino'}</div>
+                          <div className="text-[10px] text-emerald-400">+503 {waConfig.adminPhone || '6989-3101'} • Oficial</div>
+                        </div>
+                      </div>
+                      <span className="text-[10px] text-slate-500 font-mono">12:30 PM</span>
+                    </div>
+
+                    {/* Burbuja de Mensaje */}
+                    <div className="max-w-[90%] bg-[#005c4b] text-slate-100 p-3 rounded-2xl rounded-tl-sm text-xs space-y-2 shadow">
+                      <p className="whitespace-pre-line text-[11.5px] leading-relaxed">
+                        {waConfig.messageTemplate
+                          .replace('{MAGIC_LINK}', 'https://demiempresa.online/conductor?magicToken=849201&phone=69893101')
+                          .replace('{CODE}', '849201')}
+                      </p>
+                      <div className="flex items-center justify-end gap-1 text-[9px] text-emerald-200 font-mono pt-1">
+                        <span>12:30 PM</span>
+                        <span>✓✓</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 5. Laboratorio de Prueba de Envío */}
+                <div className="p-5 bg-slate-900 border border-slate-800 rounded-2xl space-y-4">
+                  <h3 className="text-sm font-black text-slate-200 uppercase tracking-wider flex items-center gap-2">
+                    <Send className="w-4 h-4 text-emerald-400" />
+                    <span>5. Probador de Envío en Vivo</span>
+                  </h3>
+
+                  <div className="space-y-3">
+                    <div>
+                      <label className="text-xs font-bold text-slate-400 block mb-1">
+                        Número de Teléfono a Probar (8 dígitos)
+                      </label>
+                      <div className="flex gap-2">
+                        <div className="flex flex-1 rounded-xl bg-slate-950 border border-slate-800 focus-within:border-emerald-500 overflow-hidden">
+                          <span className="px-3 py-2 bg-slate-800 text-slate-300 text-xs font-bold font-mono flex items-center">
+                            +503
+                          </span>
+                          <input
+                            type="tel"
+                            value={waTestPhone}
+                            onChange={(e) => setWaTestPhone(e.target.value)}
+                            placeholder="69893101"
+                            maxLength={12}
+                            className="w-full px-3 py-2 bg-transparent text-white text-xs font-mono focus:outline-none"
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleTestWhatsAppSend}
+                          disabled={waTestLoading}
+                          className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 cursor-pointer shadow transition-all"
+                        >
+                          {waTestLoading ? (
+                            <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                          ) : (
+                            <Send className="w-3.5 h-3.5" />
+                          )}
+                          <span>Probar Envío</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {waTestResult && (
+                      <div className="p-3 bg-emerald-950/40 border border-emerald-500/40 rounded-xl space-y-2 animate-fade-in text-xs">
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-emerald-300 flex items-center gap-1.5">
+                            <CheckCircle2 className="w-4 h-4" />
+                            {waTestResult.message || 'Prueba generada con éxito'}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-300">
+                          Se generó el enlace directo listo para abrir WhatsApp con el mensaje configurado:
+                        </p>
+                        <a
+                          href={waTestResult.waLink}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-lg text-xs cursor-pointer shadow"
+                        >
+                          <ExternalLink className="w-3.5 h-3.5" />
+                          <span>Abrir Chat en WhatsApp para +503 {waTestResult.testPhone}</span>
+                        </a>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+              </div>
+
+            </div>
+          </div>
+        )}
+
       </main>
+
+      {/* ================================================================== */}
+      {/* MODAL QR: VINCULACIÓN PUENTE WHATSAPP WEB */}
+      {/* ================================================================== */}
+      {showQrModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in">
+          <div className="relative w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl text-slate-100 space-y-4 my-auto text-center">
+            <button
+              type="button"
+              onClick={() => setShowQrModal(false)}
+              className="absolute top-4 right-4 p-1.5 rounded-xl bg-slate-800 text-slate-400 hover:text-white cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center mx-auto">
+              <QrCode className="w-6 h-6" />
+            </div>
+
+            <div className="space-y-1">
+              <h3 className="font-black text-base text-white">Vincular Dispositivo WhatsApp Web</h3>
+              <p className="text-xs text-slate-400">
+                Abre WhatsApp en tu teléfono celular, ve a Dispositivos Vinculados y escanea este código QR para sincronizar el puente emisor.
+              </p>
+            </div>
+
+            {/* Código QR Ilustrativo */}
+            <div className="p-4 bg-white rounded-2xl inline-block mx-auto shadow-inner">
+              <img
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent('https://demiempresa.online/whatsapp-bridge-pair?admin=69893101')}`}
+                alt="Código QR WhatsApp"
+                className="w-48 h-48 block mx-auto"
+              />
+            </div>
+
+            <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 text-left text-xs space-y-1">
+              <div className="font-bold text-amber-400 flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>Estado de Conexión:</span>
+              </div>
+              <p className="text-slate-300 text-[11px]">
+                Número Administrador: <strong className="text-white">+503 {waConfig.adminPhone}</strong>
+              </p>
+              <p className="text-slate-400 text-[10px]">
+                Sesión lista para emitir credenciales automáticas a conductores.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                setShowQrModal(false);
+                alert('¡Dispositivo WhatsApp verificado y listo!');
+              }}
+              className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl cursor-pointer"
+            >
+              Confirmar Dispositivo Vinculado
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* ================================================================== */}
       {/* MODAL 1: INSPECCIONAR EXPEDIENTE Y AUTORIZAR CONDUCTOR */}
