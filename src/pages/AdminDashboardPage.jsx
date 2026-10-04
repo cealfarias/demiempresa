@@ -34,7 +34,10 @@ import {
   Filter,
   MessageCircle,
   QrCode,
-  Sparkles
+  Sparkles,
+  Copy,
+  Share2,
+  Smartphone
 } from 'lucide-react';
 import RumboLogo from '../viajes/RumboLogo';
 import {
@@ -108,6 +111,49 @@ export default function AdminDashboardPage() {
 
   // Modal para ver imagen de comprobante o documento ampliado
   const [previewImage, setPreviewImage] = useState(null);
+
+  // Estados y Enlaces Oficiales de Difusión por WhatsApp
+  const [copiedTarget, setCopiedTarget] = useState(null);
+  const [customPassengerPhone, setCustomPassengerPhone] = useState('');
+  const [customDriverPhone, setCustomDriverPhone] = useState('');
+
+  const PASSENGER_URL = 'https://viajes.demiempresa.online/viajes';
+  const DRIVER_URL = 'https://viajes.demiempresa.online/conductor';
+
+  const PASSENGER_WA_MESSAGE = `🚗 *¡Viaja seguro y paga lo justo con Rumbo a mi Destino!* 🇸🇻\n\nTe invito a probar la nueva plataforma oficial en El Salvador:\n✅ *0% comisiones abusivas:* pagas en efectivo directo la tarifa justa negociada.\n✅ *Bono de $1.00 USD de bienvenida* activo para tu primera carrera.\n✅ Calculadora con precios oficiales MINEC y subasta en tiempo real (< 1 km).\n\n👉 Pide tu viaje en 1 toque desde tu celular aquí:\n${PASSENGER_URL}`;
+
+  const DRIVER_WA_MESSAGE = `🚘 *¡Conserva el 100% de tus carreras en tu bolsillo!* 🇸🇻\n\nÚnete a *Rumbo Conductor*, la plataforma donde TÚ eres el dueño de tu dinero:\n🔥 *0% Comisión por viaje:* todo el dinero que cobres en efectivo va íntegro a tu mano.\n🎁 *14 Días Gratis de Bienvenida* ($0 cuota de inscripción al registrarte).\n💵 *Cuota fija semanal de $15.00* (o pase diario de $3.00), reducible hasta *$0.00* acumulando bonos de pasajeros.\n⛽ Radar de gasolineras baratas en ruta y despacho a menos de 1 km.\n\n👉 Inscríbete en 3 minutos completando tu expediente aquí:\n${DRIVER_URL}`;
+
+  const handleCopyText = async (text, targetKey) => {
+    try {
+      if (navigator.clipboard) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+      }
+      setCopiedTarget(targetKey);
+      setTimeout(() => setCopiedTarget(null), 2500);
+    } catch {
+      alert('Texto copiado al portapapeles');
+    }
+  };
+
+  const handleSendWhatsApp = (targetPhone, text) => {
+    const cleanPhone = (targetPhone || '').replace(/\D/g, '');
+    let url = '';
+    if (cleanPhone.length >= 8) {
+      const fullPhone = cleanPhone.startsWith('503') ? cleanPhone : `503${cleanPhone.slice(-8)}`;
+      url = `https://wa.me/${fullPhone}?text=${encodeURIComponent(text)}`;
+    } else {
+      url = `https://wa.me/?text=${encodeURIComponent(text)}`;
+    }
+    window.open(url, '_blank');
+  };
 
   // Cargar datos cuando está autenticado
   useEffect(() => {
@@ -413,6 +459,14 @@ export default function AdminDashboardPage() {
           >
             <RefreshCw className={`w-4 h-4 ${loadingData ? 'animate-spin' : ''}`} />
           </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('DIFUSION')}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:brightness-110 text-white text-xs font-bold transition-all shadow-md cursor-pointer"
+          >
+            <Share2 className="w-3.5 h-3.5" />
+            <span>Difusión WhatsApp</span>
+          </button>
           <a
             href="/conductor"
             target="_blank"
@@ -483,6 +537,22 @@ export default function AdminDashboardPage() {
               {tickets.filter(t => t.status === 'PENDING').length}
             </span>
           )}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('DIFUSION')}
+          className={`py-3 px-4 text-xs font-black border-b-2 transition-all flex items-center gap-2 cursor-pointer relative ${
+            activeTab === 'DIFUSION'
+              ? 'border-emerald-400 text-emerald-400 bg-emerald-500/10'
+              : 'border-transparent text-slate-400 hover:text-white'
+          }`}
+        >
+          <Share2 className="w-4 h-4 text-emerald-400" />
+          <span>Difusión WhatsApp (Viajeros & Choferes)</span>
+          <span className="px-1.5 py-0.5 rounded-full bg-emerald-500 text-slate-950 font-black text-[9px] uppercase tracking-wider">
+            OFICIAL
+          </span>
         </button>
 
         <button
@@ -625,6 +695,50 @@ export default function AdminDashboardPage() {
                 </div>
               </div>
             </div>
+
+            {/* Acceso Rápido: Enlaces de Difusión WhatsApp */}
+            <div className="p-5 bg-gradient-to-r from-emerald-950/30 via-slate-900 to-amber-950/20 border border-emerald-500/30 rounded-3xl flex flex-col sm:flex-row items-center justify-between gap-4 shadow-lg">
+              <div className="flex items-center gap-3 text-center sm:text-left">
+                <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
+                  <Share2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="font-black text-sm text-white">
+                    Compartir Enlaces por WhatsApp
+                  </h4>
+                  <p className="text-xs text-slate-400">
+                    Envía el enlace oficial a nuevos pasajeros (con $1.00 de bono) o a conductores (14 días gratis y 0% comisión).
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+                <button
+                  type="button"
+                  onClick={() => handleSendWhatsApp('', PASSENGER_WA_MESSAGE)}
+                  className="flex-1 sm:flex-none px-3.5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow transition-transform active:scale-95"
+                >
+                  <Users className="w-3.5 h-3.5" />
+                  <span>Enviar a Pasajeros</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSendWhatsApp('', DRIVER_WA_MESSAGE)}
+                  className="flex-1 sm:flex-none px-3.5 py-2 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 hover:brightness-110 text-slate-950 font-black text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow transition-transform active:scale-95"
+                >
+                  <Car className="w-3.5 h-3.5" />
+                  <span>Enviar a Conductores</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('DIFUSION')}
+                  className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs flex items-center justify-center gap-1 cursor-pointer transition-colors"
+                >
+                  <span>Ver Central Completa →</span>
+                </button>
+              </div>
+            </div>
+
           </div>
         )}
 
@@ -873,6 +987,274 @@ export default function AdminDashboardPage() {
                   </div>
                 );
               })}
+            </div>
+          </div>
+        )}
+
+        {/* ================================================================== */}
+        {/* PESTAÑA: DIFUSIÓN Y ENLACES OFICIALES DE WHATSAPP */}
+        {/* ================================================================== */}
+        {activeTab === 'DIFUSION' && (
+          <div className="space-y-6 animate-fade-in">
+            {/* Header del Módulo de Difusión */}
+            <div className="p-4 sm:p-6 bg-gradient-to-r from-emerald-950/40 via-slate-900 to-slate-900 border border-emerald-500/30 rounded-3xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xl">
+              <div className="flex items-center gap-3.5">
+                <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center font-black shadow">
+                  <Share2 className="w-6 h-6" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-base sm:text-lg font-black text-white">Central de Difusión por WhatsApp</h2>
+                    <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] font-bold">
+                      PRODUCCIÓN OFICIAL
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-300">
+                    Envía invitaciones directas por WhatsApp a pasajeros y conductores con enlaces y textos optimizados.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] text-slate-400">Canal Emisor:</span>
+                <span className="text-xs font-mono font-bold text-amber-300 bg-slate-950 px-2.5 py-1 rounded-xl border border-slate-800">
+                  +503 {waConfig.adminPhone}
+                </span>
+              </div>
+            </div>
+
+            {/* Dos Grandes Tarjetas: A) VIAJEROS / PASAJEROS | B) CONDUCTORES */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+              {/* TARJETA 1: ENLACE PARA VIAJEROS / PASAJEROS */}
+              <div className="bg-slate-900 border-2 border-emerald-500/40 rounded-3xl p-5 sm:p-6 space-y-4 shadow-xl relative overflow-hidden flex flex-col justify-between">
+                <div className="space-y-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold">
+                        <Users className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <span className="text-[10px] uppercase font-bold tracking-wider text-emerald-400">Público General</span>
+                        <h3 className="text-base font-black text-white">Para Viajeros y Pasajeros</h3>
+                      </div>
+                    </div>
+                    <span className="px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-300 text-[11px] font-bold border border-emerald-500/30">
+                      Bono $1.00 Incluido
+                    </span>
+                  </div>
+
+                  <p className="text-xs text-slate-300 leading-relaxed">
+                    Invita a usuarios para que pidan carreras con tarifa justa negociada, sin comisiones del 30% y con su bono de bienvenida de $1.00 USD.
+                  </p>
+
+                  {/* URL Oficial */}
+                  <div className="p-3 bg-slate-950 rounded-2xl border border-slate-800 space-y-1 font-mono text-xs">
+                    <span className="text-[10px] text-slate-400 font-sans block">Enlace Oficial de Viajeros:</span>
+                    <div className="flex items-center justify-between gap-2 text-emerald-400 font-bold break-all">
+                      <span>{PASSENGER_URL}</span>
+                      <button
+                        type="button"
+                        onClick={() => handleCopyText(PASSENGER_URL, 'PASSENGER_LINK')}
+                        className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white shrink-0 cursor-pointer transition-colors"
+                        title="Copiar URL"
+                      >
+                        {copiedTarget === 'PASSENGER_LINK' ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Previsualización del Mensaje de WhatsApp */}
+                  <div className="space-y-1">
+                    <span className="text-[11px] font-bold text-slate-400">Mensaje Prediseñado para WhatsApp:</span>
+                    <div className="p-3 bg-[#0b141a] rounded-2xl border border-slate-800 text-slate-200 text-xs font-sans whitespace-pre-line leading-relaxed shadow-inner">
+                      {PASSENGER_WA_MESSAGE}
+                    </div>
+                  </div>
+
+                  {/* Campo de Teléfono Destinatario (Opcional) */}
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-bold text-slate-400">
+                      Enviar a un número específico (Opcional):
+                    </label>
+                    <div className="flex rounded-xl bg-slate-950 border border-slate-800 focus-within:border-emerald-500 overflow-hidden text-xs">
+                      <span className="px-3 py-2 bg-slate-800 text-slate-300 font-bold font-mono flex items-center">
+                        +503
+                      </span>
+                      <input
+                        type="tel"
+                        value={customPassengerPhone}
+                        onChange={(e) => setCustomPassengerPhone(e.target.value)}
+                        placeholder="ej. 78901234 (Dejar vacío para compartir a cualquiera)"
+                        className="w-full px-3 py-2 bg-transparent text-white focus:outline-none font-mono"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Acciones de Envío y Copiado */}
+                <div className="pt-3 border-t border-slate-800 flex flex-col sm:flex-row gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleSendWhatsApp(customPassengerPhone, PASSENGER_WA_MESSAGE)}
+                    className="flex-1 py-3 px-4 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-emerald-500/20 transition-transform active:scale-95"
+                  >
+                    <MessageCircle className="w-4 h-4" />
+                    <span>Enviar a Pasajero por WhatsApp</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleCopyText(PASSENGER_WA_MESSAGE, 'PASSENGER_MSG')}
+                    className="py-3 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
+                  >
+                    {copiedTarget === 'PASSENGER_MSG' ? (
+                      <>
+                        <Check className="w-4 h-4 text-emerald-400" />
+                        <span className="text-emerald-400">¡Copiado!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-4 h-4" />
+                        <span>Copiar Mensaje</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {/* TARJETA 2: ENLACE PARA CONDUCTORES / SOCIOS */}
+              <div className="bg-slate-900 border-2 border-amber-500/40 rounded-3xl p-5 sm:p-6 space-y-4 shadow-xl relative overflow-hidden flex flex-col justify-between">
+                <div className="space-y-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-10 h-10 rounded-2xl bg-amber-500/20 text-amber-400 flex items-center justify-center font-bold">
+                        <Car className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <span className="text-[10px] uppercase font-bold tracking-wider text-amber-400">Oportunidad Laboral</span>
+                        <h3 className="text-base font-black text-white">Para Conductores / Choferes</h3>
+                      </div>
+                    </div>
+                    <span className="px-2.5 py-1 rounded-full bg-amber-500/15 text-amber-300 text-[11px] font-bold border border-amber-500/30">
+                      0% Comisión • 14 Días Gratis
+                    </span>
+                  </div>
+
+                  <p className="text-xs text-slate-300 leading-relaxed">
+                    Invita a conductores particulares a inscribirse para retener el 100% de su dinero en efectivo, cuota fija de $15/semana o $3/día, con 14 días iniciales de bienvenida a $0.
+                  </p>
+
+                  {/* URL Oficial */}
+                  <div className="p-3 bg-slate-950 rounded-2xl border border-slate-800 space-y-1 font-mono text-xs">
+                    <span className="text-[10px] text-slate-400 font-sans block">Enlace Oficial de Conductores:</span>
+                    <div className="flex items-center justify-between gap-2 text-amber-400 font-bold break-all">
+                      <span>{DRIVER_URL}</span>
+                      <button
+                        type="button"
+                        onClick={() => handleCopyText(DRIVER_URL, 'DRIVER_LINK')}
+                        className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white shrink-0 cursor-pointer transition-colors"
+                        title="Copiar URL"
+                      >
+                        {copiedTarget === 'DRIVER_LINK' ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Previsualización del Mensaje de WhatsApp */}
+                  <div className="space-y-1">
+                    <span className="text-[11px] font-bold text-slate-400">Mensaje Prediseñado para WhatsApp:</span>
+                    <div className="p-3 bg-[#0b141a] rounded-2xl border border-slate-800 text-slate-200 text-xs font-sans whitespace-pre-line leading-relaxed shadow-inner">
+                      {DRIVER_WA_MESSAGE}
+                    </div>
+                  </div>
+
+                  {/* Campo de Teléfono Destinatario (Opcional) */}
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-bold text-slate-400">
+                      Enviar a un número específico (Opcional):
+                    </label>
+                    <div className="flex rounded-xl bg-slate-950 border border-slate-800 focus-within:border-amber-500 overflow-hidden text-xs">
+                      <span className="px-3 py-2 bg-slate-800 text-slate-300 font-bold font-mono flex items-center">
+                        +503
+                      </span>
+                      <input
+                        type="tel"
+                        value={customDriverPhone}
+                        onChange={(e) => setCustomDriverPhone(e.target.value)}
+                        placeholder="ej. 78901234 (Dejar vacío para compartir a cualquiera)"
+                        className="w-full px-3 py-2 bg-transparent text-white focus:outline-none font-mono"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Acciones de Envío y Copiado */}
+                <div className="pt-3 border-t border-slate-800 flex flex-col sm:flex-row gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleSendWhatsApp(customDriverPhone, DRIVER_WA_MESSAGE)}
+                    className="flex-1 py-3 px-4 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 hover:brightness-110 text-slate-950 font-black text-xs flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-amber-500/20 transition-transform active:scale-95"
+                  >
+                    <MessageCircle className="w-4 h-4" />
+                    <span>Enviar a Conductor por WhatsApp</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleCopyText(DRIVER_WA_MESSAGE, 'DRIVER_MSG')}
+                    className="py-3 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
+                  >
+                    {copiedTarget === 'DRIVER_MSG' ? (
+                      <>
+                        <Check className="w-4 h-4 text-emerald-400" />
+                        <span className="text-emerald-400">¡Copiado!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-4 h-4" />
+                        <span>Copiar Mensaje</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+            </div>
+
+            {/* Código QR Compartido en Pantalla */}
+            <div className="p-5 bg-slate-900 border border-slate-800 rounded-3xl flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="space-y-1 text-center sm:text-left">
+                <h4 className="font-bold text-sm text-white flex items-center justify-center sm:justify-start gap-2">
+                  <QrCode className="w-4 h-4 text-emerald-400" />
+                  <span>Códigos QR Rápidos para Escaneo Presencial</span>
+                </h4>
+                <p className="text-xs text-slate-400">
+                  Puedes mostrar estos códigos en tu pantalla o imprimirlos para que las personas los escaneen directamente con la cámara de su celular.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-4">
+                <div className="text-center p-2.5 bg-slate-950 rounded-2xl border border-slate-800">
+                  <div className="p-2 bg-white rounded-xl inline-block shadow">
+                    <img
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(PASSENGER_URL)}`}
+                      alt="QR Pasajeros"
+                      className="w-20 h-20"
+                    />
+                  </div>
+                  <span className="text-[10px] font-bold text-emerald-400 block mt-1">QR Pasajeros</span>
+                </div>
+
+                <div className="text-center p-2.5 bg-slate-950 rounded-2xl border border-slate-800">
+                  <div className="p-2 bg-white rounded-xl inline-block shadow">
+                    <img
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(DRIVER_URL)}`}
+                      alt="QR Conductores"
+                      className="w-20 h-20"
+                    />
+                  </div>
+                  <span className="text-[10px] font-bold text-amber-400 block mt-1">QR Conductores</span>
+                </div>
+              </div>
             </div>
           </div>
         )}
