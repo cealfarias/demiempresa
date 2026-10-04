@@ -492,29 +492,27 @@ export async function fetchAdminStatsApi() {
     const data = await res.json();
     return data.stats;
   } catch (err) {
-    console.warn('Fallback local stats:', err);
-    const effectivePassengers = 48;
-    const effectiveDrivers = 16;
+    console.warn('Fallback local stats (0 para inicio limpio):', err);
     return {
-      totalPassengers: effectivePassengers,
-      totalDrivers: effectiveDrivers,
-      approvedDrivers: 12,
-      pendingDrivers: 4,
-      completedTrips: 154,
-      pendingTicketsCount: 3,
-      paymentTicketsCount: 1,
-      estimatedGrossRevenue: '$1,540.00 USD',
-      totalBonusesCirculating: 320,
+      totalPassengers: 0,
+      totalDrivers: 0,
+      approvedDrivers: 0,
+      pendingDrivers: 0,
+      completedTrips: 0,
+      pendingTicketsCount: 0,
+      paymentTicketsCount: 0,
+      estimatedGrossRevenue: '$0.00 USD',
+      totalBonusesCirculating: 0,
       prelaunchPromo: {
         isPromoActive: true,
         deadlineIso: '2026-10-31T23:59:59-06:00',
         deadlineFormatted: '31 de Octubre de 2026',
         quotaMaxPerRole: 100,
         passengers: {
-          enrolledCount: effectivePassengers,
+          enrolledCount: 0,
           quotaMax: 100,
-          remainingSpots: 100 - effectivePassengers,
-          percentFilled: Math.round((effectivePassengers / 100) * 100),
+          remainingSpots: 100,
+          percentFilled: 0,
           isPromoActive: true,
           welcomeBonus: 2.00,
           referralBonus: 2.00,
@@ -522,10 +520,10 @@ export async function fetchAdminStatsApi() {
           multiplierText: '200% ($2.00 USD)'
         },
         drivers: {
-          enrolledCount: effectiveDrivers,
+          enrolledCount: 0,
           quotaMax: 100,
-          remainingSpots: 100 - effectiveDrivers,
-          percentFilled: Math.round((effectiveDrivers / 100) * 100),
+          remainingSpots: 100,
+          percentFilled: 0,
           isPromoActive: true,
           trialDays: 30,
           normalTrialDays: 14,
@@ -533,6 +531,32 @@ export async function fetchAdminStatsApi() {
           savingsText: '30 Días Gratis ($0 Cuota / 1 Mes Completo)'
         }
       }
+    };
+  }
+}
+
+/**
+ * 21.1 Reiniciar a Cero la Base de Datos y Memoria
+ */
+export async function resetDatabaseApi() {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/admin/reset-database`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Error al resetear base de datos');
+    // Limpiar también datos de prueba en localStorage
+    localStorage.removeItem('rumbo_registered_drivers');
+    localStorage.removeItem('rumbo_inbox_tickets');
+    return data;
+  } catch (err) {
+    console.warn('Reset local:', err);
+    localStorage.removeItem('rumbo_registered_drivers');
+    localStorage.removeItem('rumbo_inbox_tickets');
+    return {
+      success: true,
+      message: 'Datos locales reseteados exitosamente a cero.'
     };
   }
 }

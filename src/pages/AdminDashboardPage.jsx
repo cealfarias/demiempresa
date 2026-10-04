@@ -37,7 +37,8 @@ import {
   Sparkles,
   Copy,
   Share2,
-  Smartphone
+  Smartphone,
+  Trash2
 } from 'lucide-react';
 import RumboLogo from '../viajes/RumboLogo';
 import {
@@ -49,7 +50,8 @@ import {
   updateInboxTicketStatusApi,
   fetchAdminWhatsAppConfigApi,
   saveAdminWhatsAppConfigApi,
-  testWhatsAppSendApi
+  testWhatsAppSendApi,
+  resetDatabaseApi
 } from '../viajes/api';
 
 export default function AdminDashboardPage() {
@@ -213,6 +215,26 @@ export default function AdminDashboardPage() {
       alert(err.message || 'Error en la prueba');
     } finally {
       setWaTestLoading(false);
+    }
+  };
+
+  const [resetLoading, setResetLoading] = useState(false);
+
+  const handleResetDatabase = async () => {
+    const confirmReset = window.confirm(
+      '⚠️ ¿Estás seguro de que deseas REINICIAR TODO A CERO?\n\nEsta acción borrará todos los registros de prueba de pasajeros, conductores, viajes realizados y tickets en la base de datos, dejando los 100 cupos de pasajeros y 100 cupos de conductores totalmente limpios y libres para el prelanzamiento.\n\n¿Deseas continuar?'
+    );
+    if (!confirmReset) return;
+
+    setResetLoading(true);
+    try {
+      const res = await resetDatabaseApi();
+      alert(res.message || 'Base de datos y memoria reseteadas exitosamente a CERO.');
+      await loadDashboardData();
+    } catch (err) {
+      alert('Error al reiniciar base de datos: ' + err.message);
+    } finally {
+      setResetLoading(false);
     }
   };
 
@@ -461,6 +483,16 @@ export default function AdminDashboardPage() {
           </button>
           <button
             type="button"
+            onClick={handleResetDatabase}
+            disabled={resetLoading}
+            title="Vaciar datos de prueba y reiniciar todo a cero"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-300 text-xs font-bold transition-all cursor-pointer"
+          >
+            <Trash2 className={`w-3.5 h-3.5 ${resetLoading ? 'animate-spin' : ''}`} />
+            <span className="hidden md:inline">Iniciar a Cero</span>
+          </button>
+          <button
+            type="button"
             onClick={() => setActiveTab('DIFUSION')}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:brightness-110 text-white text-xs font-bold transition-all shadow-md cursor-pointer"
           >
@@ -620,14 +652,14 @@ export default function AdminDashboardPage() {
                         Pasajeros • Bono 200% ($2.00 USD)
                       </span>
                       <h4 className="text-base font-black text-white flex items-center gap-2">
-                        <span>{stats?.totalPassengers || 48} de 100 Inscritos</span>
+                        <span>{stats?.totalPassengers ?? 0} de 100 Inscritos</span>
                         <span className="text-xs text-emerald-400 font-mono font-bold">
-                          ({Math.round(((stats?.totalPassengers || 48) / 100) * 100)}%)
+                          ({Math.round(((stats?.totalPassengers ?? 0) / 100) * 100)}%)
                         </span>
                       </h4>
                     </div>
                     <span className="text-xs px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/30">
-                      {Math.max(0, 100 - (stats?.totalPassengers || 48))} Cupos Restantes
+                      {Math.max(0, 100 - (stats?.totalPassengers ?? 0))} Cupos Restantes
                     </span>
                   </div>
 
@@ -635,7 +667,7 @@ export default function AdminDashboardPage() {
                   <div className="w-full h-3 bg-slate-800 rounded-full overflow-hidden">
                     <div
                       className="h-full bg-gradient-to-r from-emerald-500 to-teal-400 transition-all duration-500"
-                      style={{ width: `${Math.min(100, Math.round(((stats?.totalPassengers || 48) / 100) * 100))}%` }}
+                      style={{ width: `${Math.min(100, Math.round(((stats?.totalPassengers ?? 0) / 100) * 100))}%` }}
                     />
                   </div>
 
@@ -661,14 +693,14 @@ export default function AdminDashboardPage() {
                         Conductores • 30 Días Gratis ($0 Cuota)
                       </span>
                       <h4 className="text-base font-black text-white flex items-center gap-2">
-                        <span>{stats?.totalDrivers || 16} de 100 Inscritos</span>
+                        <span>{stats?.totalDrivers ?? 0} de 100 Inscritos</span>
                         <span className="text-xs text-amber-400 font-mono font-bold">
-                          ({Math.round(((stats?.totalDrivers || 16) / 100) * 100)}%)
+                          ({Math.round(((stats?.totalDrivers ?? 0) / 100) * 100)}%)
                         </span>
                       </h4>
                     </div>
                     <span className="text-xs px-2.5 py-1 rounded-full bg-amber-500/20 text-amber-300 font-bold border border-amber-500/30">
-                      {Math.max(0, 100 - (stats?.totalDrivers || 16))} Cupos Restantes
+                      {Math.max(0, 100 - (stats?.totalDrivers ?? 0))} Cupos Restantes
                     </span>
                   </div>
 
@@ -676,7 +708,7 @@ export default function AdminDashboardPage() {
                   <div className="w-full h-3 bg-slate-800 rounded-full overflow-hidden">
                     <div
                       className="h-full bg-gradient-to-r from-amber-400 to-yellow-500 transition-all duration-500"
-                      style={{ width: `${Math.min(100, Math.round(((stats?.totalDrivers || 16) / 100) * 100))}%` }}
+                      style={{ width: `${Math.min(100, Math.round(((stats?.totalDrivers ?? 0) / 100) * 100))}%` }}
                     />
                   </div>
 
@@ -715,10 +747,10 @@ export default function AdminDashboardPage() {
                   <Users className="w-4 h-4 text-emerald-400" />
                 </div>
                 <div className="text-2xl sm:text-3xl font-black text-white font-mono">
-                  {stats?.totalPassengers || 48}
+                  {stats?.totalPassengers ?? 0}
                 </div>
                 <div className="text-[11px] text-emerald-400 font-semibold">
-                  +12 esta semana
+                  Inicio limpio prelanzamiento
                 </div>
               </div>
 
@@ -728,10 +760,10 @@ export default function AdminDashboardPage() {
                   <Car className="w-4 h-4 text-amber-400" />
                 </div>
                 <div className="text-2xl sm:text-3xl font-black text-amber-400 font-mono">
-                  {stats?.approvedDrivers || 12}
+                  {stats?.approvedDrivers ?? 0}
                 </div>
                 <div className="text-[11px] text-slate-400">
-                  {stats?.pendingDrivers || 4} pendientes de aprobar
+                  {stats?.pendingDrivers ?? 0} pendientes de aprobar
                 </div>
               </div>
 
@@ -741,7 +773,7 @@ export default function AdminDashboardPage() {
                   <CheckCircle2 className="w-4 h-4 text-sky-400" />
                 </div>
                 <div className="text-2xl sm:text-3xl font-black text-white font-mono">
-                  {stats?.completedTrips || 154}
+                  {stats?.completedTrips ?? 0}
                 </div>
                 <div className="text-[11px] text-sky-400 font-semibold">
                   100% cobro en mano
@@ -754,7 +786,7 @@ export default function AdminDashboardPage() {
                   <Inbox className="w-4 h-4 text-rose-400" />
                 </div>
                 <div className="text-2xl sm:text-3xl font-black text-rose-400 font-mono">
-                  {stats?.pendingTicketsCount || tickets.filter(t => t.status === 'PENDING').length}
+                  {stats?.pendingTicketsCount ?? tickets.filter(t => t.status === 'PENDING').length}
                 </div>
                 <div className="text-[11px] text-amber-300 font-semibold">
                   {pendingPagosCount} comprobantes de pago
@@ -1177,10 +1209,10 @@ export default function AdminDashboardPage() {
                 <span className="text-[10px] text-slate-400">Cupos Disponibles:</span>
                 <div className="flex items-center gap-1.5 text-xs font-mono font-bold">
                   <span className="px-2 py-0.5 rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                    {Math.max(0, 100 - (stats?.totalPassengers || 48))} Pasajeros
+                    {Math.max(0, 100 - (stats?.totalPassengers ?? 0))} Pasajeros
                   </span>
                   <span className="px-2 py-0.5 rounded-lg bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                    {Math.max(0, 100 - (stats?.totalDrivers || 16))} Choferes
+                    {Math.max(0, 100 - (stats?.totalDrivers ?? 0))} Choferes
                   </span>
                 </div>
               </div>

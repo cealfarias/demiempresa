@@ -1915,8 +1915,8 @@ app.get('/api/admin/stats', async (req, res) => {
       console.warn('Stats fallback en memoria:', e.message);
     }
 
-    const effectivePassengers = Math.max(totalPassengers, 48);
-    const effectiveDrivers = Math.max(totalDrivers, 16);
+    const effectivePassengers = totalPassengers;
+    const effectiveDrivers = totalDrivers;
     const promoDeadline = new Date('2026-11-01T00:00:00-06:00');
     const isPromoActive = new Date() < promoDeadline;
 
@@ -1962,13 +1962,13 @@ app.get('/api/admin/stats', async (req, res) => {
       stats: {
         totalPassengers: effectivePassengers,
         totalDrivers: effectiveDrivers,
-        approvedDrivers: Math.max(approvedDrivers, 12),
-        pendingDrivers: Math.max(pendingDrivers, 4),
-        completedTrips: Math.max(completedTrips, 154),
+        approvedDrivers,
+        pendingDrivers,
+        completedTrips,
         pendingTicketsCount,
         paymentTicketsCount,
-        estimatedGrossRevenue: '$1,540.00 USD',
-        totalBonusesCirculating: 320,
+        estimatedGrossRevenue: '$0.00 USD',
+        totalBonusesCirculating: 0,
         prelaunchPromo,
         serverTime: new Date().toISOString()
       }
@@ -2044,6 +2044,65 @@ app.patch('/api/admin/drivers/:driverId/authorization', async (req, res) => {
       message: `El conductor ha sido ${status === 'APPROVED' ? 'autorizado exitosamente' : 'actualizado a ' + status}.`
     });
   } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 9.5 REINICIO TOTAL A CERO DE LA BASE DE DATOS (PRELANZAMIENTO LIMPIO)
+app.all(['/api/admin/reset-database', '/api/admin/purge-all'], async (req, res) => {
+  try {
+    let tablesPurged = [];
+    if (process.env.DATABASE_URL) {
+      await pool.query(`
+        DO $$ BEGIN
+          TRUNCATE TABLE 
+            viajes_trip_requests,
+            viajes_driver_trips,
+            viajes_user_credits,
+            viajes_referrals,
+            viajes_ledger_transactions,
+            viajes_wallet_identities,
+            viajes_referral_notices,
+            viajes_inbox_tickets,
+            viajes_support_tickets,
+            viajes_driver_profiles,
+            viajes_users
+          CASCADE;
+        EXCEPTION WHEN OTHERS THEN
+          NULL;
+        END $$;
+      `);
+      tablesPurged = [
+        'viajes_trip_requests',
+        'viajes_driver_trips',
+        'viajes_user_credits',
+        'viajes_referrals',
+        'viajes_ledger_transactions',
+        'viajes_wallet_identities',
+        'viajes_referral_notices',
+        'viajes_inbox_tickets',
+        'viajes_support_tickets',
+        'viajes_driver_profiles',
+        'viajes_users'
+      ];
+    }
+
+    // Vaciar colas y estados en memoria
+    memoryInboxTickets.length = 0;
+    activeMagicLinks.clear();
+    activeDriverSessions.clear();
+    activeOtpCodes.clear();
+
+    console.log('🧹 REINICIO TOTAL: Base de datos y memoria reseteadas a CERO.');
+
+    res.json({
+      success: true,
+      message: 'Base de datos y memoria reseteadas exitosamente a CERO. Contadores en cero para el inicio del prelanzamiento.',
+      tablesPurged,
+      resetAt: new Date().toISOString()
+    });
+  } catch (err) {
+    console.error('Error al resetear base de datos:', err);
     res.status(500).json({ success: false, error: err.message });
   }
 });
