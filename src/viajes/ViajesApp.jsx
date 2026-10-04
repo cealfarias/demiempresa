@@ -3901,21 +3901,27 @@ export default function ViajesApp() {
               <div>
                 <div className="text-[11px] text-slate-400 font-semibold uppercase tracking-wider">Placa del Vehículo</div>
                 <div className="text-3xl font-black text-white tracking-widest bg-slate-950 px-3 py-1 rounded-xl border border-slate-800 inline-block font-mono text-amber-400">
-                  {assignedTrip.driver?.vehiclePlate || 'P-584-912'}
+                  {assignedTrip.driver?.vehiclePlate || 'EN CAMINO'}
                 </div>
                 <div className="text-xs text-slate-300 mt-1">
-                  {assignedTrip.driver?.vehicleModel || 'Toyota Corolla'} • {assignedTrip.driver?.vehicleColor || 'Gris'}
+                  {assignedTrip.driver?.vehicleModel ? `${assignedTrip.driver.vehicleModel}${assignedTrip.driver?.vehicleColor ? ` • ${assignedTrip.driver.vehicleColor}` : ''}` : 'Vehículo Asignado'}
                 </div>
               </div>
 
               <div className="text-right">
-                <img
-                  src={assignedTrip.driver?.photo || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80'}
-                  alt={assignedTrip.driver?.name}
-                  className="w-14 h-14 rounded-2xl object-cover border-2 border-amber-500 shadow-md ml-auto"
-                />
+                {assignedTrip.driver?.photo ? (
+                  <img
+                    src={assignedTrip.driver.photo}
+                    alt={assignedTrip.driver?.name}
+                    className="w-14 h-14 rounded-2xl object-cover border-2 border-amber-500 shadow-md ml-auto"
+                  />
+                ) : (
+                  <div className="w-14 h-14 rounded-2xl bg-slate-800 border-2 border-amber-500 shadow-md ml-auto flex items-center justify-center text-amber-400 font-bold text-lg">
+                    {assignedTrip.driver?.name ? assignedTrip.driver.name.charAt(0).toUpperCase() : 'C'}
+                  </div>
+                )}
                 <div className="text-xs font-bold text-white mt-1">
-                  {assignedTrip.driver?.name || 'Carlos Mendoza'}
+                  {assignedTrip.driver?.name || 'Conductor Rumbo'}
                 </div>
               </div>
             </div>

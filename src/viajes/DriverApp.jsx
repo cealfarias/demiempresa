@@ -88,7 +88,7 @@ export default function DriverApp() {
     setActiveTrip({
       id: req.id,
       passengerName: req.passengerName || 'Pasajero Rumbo',
-      passengerPhone: '7000-0000',
+      passengerPhone: req.passengerPhone || 'No proporcionado',
       origin: req.origin,
       originLat: 13.7013,
       originLng: -89.2244,
@@ -428,6 +428,28 @@ export default function DriverApp() {
       if (weeklyBonuses < bonusCap && activeTrip?.creditApplied === '1.00') {
         setWeeklyBonuses((prev) => Math.min(bonusCap, prev + 1));
       }
+      if (activeTrip) {
+        try {
+          const pastTrips = JSON.parse(localStorage.getItem('rumbo_driver_completed_trips') || '[]');
+          const completedItem = {
+            id: activeTrip.id || `trip-${Date.now()}`,
+            passengerName: activeTrip.passengerName || 'Pasajero Rumbo',
+            passengerRating: 5.0,
+            photo: null,
+            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            timestamp: Date.now(),
+            origin: activeTrip.origin || 'Punto de recogida',
+            destination: activeTrip.destination || 'Punto de destino',
+            distanceKm: parseFloat(activeTrip.roadDistanceKm || 5.0),
+            fare: parseFloat(activeTrip.agreedFare || activeTrip.cashToCollect || activeTrip.suggestedFare || 4.00),
+            paymentMethod: '100% Efectivo',
+            commissionSaved: parseFloat(activeTrip.agreedFare || activeTrip.cashToCollect || 4.00) * 0.28
+          };
+          localStorage.setItem('rumbo_driver_completed_trips', JSON.stringify([completedItem, ...pastTrips]));
+        } catch (e) {
+          console.error('Error saving completed trip:', e);
+        }
+      }
     }
   };
 
@@ -480,7 +502,7 @@ export default function DriverApp() {
                   <span>GPS (3-5s)</span>
                 </span>
                 <div className="text-[10px] text-slate-400 font-mono mt-0.5">
-                  {driverProfile?.vehiclePlate || 'P-584-912'} • {driverProfile?.vehicleModel || 'Corolla'}
+                  {driverProfile?.vehiclePlate ? `${driverProfile.vehiclePlate}${driverProfile?.vehicleModel ? ` • ${driverProfile.vehicleModel}` : ''}` : (driverProfile?.vehicleModel || 'Vehículo Registrado')}
                 </div>
               </div>
             </div>
@@ -1210,7 +1232,7 @@ export default function DriverApp() {
                     </div>
                     <div>
                       <div className="font-bold text-white text-xs">Expediente Oficial Verificado</div>
-                      <div className="text-[11px] text-slate-400 font-mono">DUI: {driverProfile?.dui || '01234567-8'}</div>
+                      <div className="text-[11px] text-slate-400 font-mono">DUI: {driverProfile?.dui || 'No registrado'}</div>
                     </div>
                   </div>
                   <button
@@ -1258,9 +1280,11 @@ export default function DriverApp() {
             >
               <div className="relative">
                 <List className="w-5 h-5" />
-                <span className="absolute -top-1.5 -right-2.5 px-1.5 py-0.2 bg-emerald-500 text-slate-950 font-black text-[9px] rounded-full">
-                  5
-                </span>
+                {incomingRequest && (
+                  <span className="absolute -top-1.5 -right-2.5 px-1.5 py-0.2 bg-emerald-500 text-slate-950 font-black text-[9px] rounded-full animate-pulse">
+                    1
+                  </span>
+                )}
               </div>
               <span className="text-[11px] mt-1 tracking-tight">Solicitudes</span>
               {activeBottomTab === 'REQUESTS' && (

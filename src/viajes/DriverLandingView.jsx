@@ -699,34 +699,6 @@ export default function DriverLandingView({ onStartRegistration, onCheckStatus, 
               </button>
 
               <div className="pt-2 border-t border-slate-800 text-center space-y-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    // Cargar perfil demo para pruebas operativas inmediatas
-                    const demoProfile = {
-                      id: 'drv-sv-1',
-                      userId: 'driver-user-1',
-                      fullName: 'Carlos Mendoza',
-                      phone: '7000-0000',
-                      dui: '01234567-8',
-                      licenseNumber: '0614-120590-101-2',
-                      vehiclePlate: 'P-584-912',
-                      vehicleBrand: 'Toyota',
-                      vehicleModel: 'Corolla',
-                      vehicleYear: 2018,
-                      vehicleColor: 'Gris Plata',
-                      approvalStatus: 'APPROVED'
-                    };
-                    if (onDriverLoggedIn) {
-                      onDriverLoggedIn(demoProfile);
-                    }
-                    setShowLoginModal(false);
-                  }}
-                  className="w-full py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 text-xs font-bold border border-amber-500/30 cursor-pointer transition-colors"
-                >
-                  🚀 Entrar en Modo Demo / Vista Previa
-                </button>
-
                 <p className="text-[11px] text-slate-400">
                   ¿Aún no te has inscrito?{' '}
                   <button

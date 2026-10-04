@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   TrendingUp,
   DollarSign,
+  Coins,
   Calendar,
   Clock,
   Car,
@@ -13,7 +14,8 @@ import {
   CheckCircle2,
   Sparkles,
   MapPin,
-  FileText
+  FileText,
+  User
 } from 'lucide-react';
 
 export default function DriverEarningsView({
@@ -24,167 +26,111 @@ export default function DriverEarningsView({
   const [timeframe, setTimeframe] = useState('TODAY'); // 'TODAY' | 'WEEK' | 'MONTH' | 'YEAR'
   const [hoveredPoint, setHoveredPoint] = useState(null);
 
-  // Estadísticas según el periodo exacto solicitado por el usuario:
-  // Hoy: Eje X = Horas del día
-  // Semana: Eje X = Días de la semana
-  // Mes: Eje X = Fechas del mes
-  // Año: Eje X = Meses del año
-  const datasets = {
-    TODAY: {
-      title: 'Ingresos de Hoy',
-      subtitle: 'Evolución por horas del día (06:00 a 22:00)',
-      totalEarned: 58.50,
-      totalTrips: 11,
-      totalKm: 52.4,
-      points: [
-        { label: '06:00', amount: 8.50, trips: 2 },
-        { label: '08:00', amount: 14.00, trips: 3 },
-        { label: '10:00', amount: 9.50, trips: 2 },
-        { label: '12:00', amount: 12.00, trips: 2 },
-        { label: '14:00', amount: 0.00, trips: 0 },
-        { label: '16:00', amount: 7.50, trips: 1 },
-        { label: '18:00', amount: 7.00, trips: 1 },
-        { label: '20:00', amount: 0.00, trips: 0 },
-        { label: '22:00', amount: 0.00, trips: 0 }
-      ],
-      recentTrips: [
-        {
-          id: 'trip-1',
-          passengerName: 'Isaias M.',
-          passengerRating: 4.91,
-          photo: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=120&q=80',
-          time: 'Hoy, 18:14',
-          origin: '6a Avenida Norte 1702 (San Salvador)',
-          destination: 'C. a Monserrat 1238 (San Salvador)',
-          distanceKm: 4.6,
-          fare: 4.00,
-          paymentMethod: '100% Efectivo',
-          commissionSaved: 1.12
-        },
-        {
-          id: 'trip-2',
-          passengerName: 'Giselle R.',
-          passengerRating: 4.68,
-          photo: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=120&q=80',
-          time: 'Hoy, 16:22',
-          origin: 'Mercado San Miguelito (Avenida España)',
-          destination: 'Imprime-T Mas (Soyapango)',
-          distanceKm: 10.0,
-          fare: 7.50,
-          paymentMethod: '100% Efectivo',
-          commissionSaved: 2.10
-        },
-        {
-          id: 'trip-3',
-          passengerName: 'Gloria C.',
-          passengerRating: 4.69,
-          photo: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=120&q=80',
-          time: 'Hoy, 12:45',
-          origin: 'Calle y (San Salvador)',
-          destination: 'Distrito Municipal Ciudad Delgado',
-          distanceKm: 3.7,
-          fare: 3.80,
-          paymentMethod: '100% Efectivo',
-          commissionSaved: 1.06
-        },
-        {
-          id: 'trip-4',
-          passengerName: 'Rafael H.',
-          passengerRating: 4.85,
-          photo: 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?auto=format&fit=crop&w=120&q=80',
-          time: 'Hoy, 08:30',
-          origin: 'Colonia Miramonte',
-          destination: 'Metrocentro San Salvador',
-          distanceKm: 3.2,
-          fare: 4.50,
-          paymentMethod: '100% Efectivo',
-          commissionSaved: 1.26
-        }
-      ]
-    },
-    WEEK: {
-      title: 'Ingresos de esta Semana',
-      subtitle: 'Evolución por días de la semana (Lunes a Domingo)',
-      totalEarned: 384.50,
-      totalTrips: 76,
-      totalKm: 368.0,
-      points: [
-        { label: 'Lun', amount: 48.00, trips: 9 },
-        { label: 'Mar', amount: 52.50, trips: 10 },
-        { label: 'Mié', amount: 61.00, trips: 12 },
-        { label: 'Jue', amount: 55.00, trips: 11 },
-        { label: 'Vie', amount: 78.50, trips: 15 },
-        { label: 'Sáb', amount: 84.00, trips: 16 },
-        { label: 'Dom', amount: 45.50, trips: 9 }
-      ],
-      recentTrips: [
-        {
-          id: 'trip-w1',
-          passengerName: 'Carlos M.',
-          passengerRating: 4.95,
-          photo: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=120&q=80',
-          time: 'Ayer, 21:10',
-          origin: 'Plaza Futura, Escalón',
-          destination: 'Santa Elena, Antiguo Cuscatlán',
-          distanceKm: 6.8,
-          fare: 7.00,
-          paymentMethod: '100% Efectivo',
-          commissionSaved: 1.96
-        },
-        {
-          id: 'trip-w2',
-          passengerName: 'Marcela V.',
-          passengerRating: 4.88,
-          photo: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=120&q=80',
-          time: 'Viernes, 19:40',
-          origin: 'Multiplaza San Salvador',
-          destination: 'Colonia Médica',
-          distanceKm: 8.2,
-          fare: 8.50,
-          paymentMethod: '100% Efectivo',
-          commissionSaved: 2.38
-        }
-      ]
-    },
-    MONTH: {
-      title: 'Ingresos de este Mes',
-      subtitle: 'Evolución por fechas del mes (Día 1 al 31)',
-      totalEarned: 1620.00,
-      totalTrips: 312,
-      totalKm: 1540.0,
-      points: [
-        { label: 'Día 1', amount: 54.00, trips: 11 },
-        { label: 'Día 5', amount: 62.00, trips: 12 },
-        { label: 'Día 10', amount: 58.50, trips: 11 },
-        { label: 'Día 15', amount: 74.00, trips: 15 },
-        { label: 'Día 20', amount: 49.00, trips: 10 },
-        { label: 'Día 25', amount: 66.50, trips: 13 },
-        { label: 'Día 30', amount: 82.00, trips: 16 }
-      ],
-      recentTrips: []
-    },
-    YEAR: {
-      title: 'Ingresos de este Año',
-      subtitle: 'Evolución por meses del año (Enero a Diciembre)',
-      totalEarned: 17450.00,
-      totalTrips: 3420,
-      totalKm: 16800.0,
-      points: [
-        { label: 'Ene', amount: 1320, trips: 260 },
-        { label: 'Feb', amount: 1390, trips: 275 },
-        { label: 'Mar', amount: 1480, trips: 290 },
-        { label: 'Abr', amount: 1420, trips: 280 },
-        { label: 'May', amount: 1510, trips: 298 },
-        { label: 'Jun', amount: 1460, trips: 285 },
-        { label: 'Jul', amount: 1530, trips: 300 },
-        { label: 'Ago', amount: 1560, trips: 305 },
-        { label: 'Sep', amount: 1490, trips: 292 },
-        { label: 'Oct', amount: 1620, trips: 318 },
-        { label: 'Nov', amount: 1680, trips: 325 },
-        { label: 'Dic', amount: 1990, trips: 390 }
-      ],
-      recentTrips: []
+  // Obtener viajes completados reales almacenados en el dispositivo
+  const completedTrips = useMemo(() => {
+    try {
+      return JSON.parse(localStorage.getItem('rumbo_driver_completed_trips') || '[]');
+    } catch {
+      return [];
     }
+  }, []);
+
+  // Construcción dinámica de estadísticas según los 4 ejes requeridos:
+  // Hoy: Horas del día (06:00 a 22:00)
+  // Semana: Días de la semana (Lun a Dom)
+  // Mes: Fechas del mes (Día 1 al 30)
+  // Año: Meses del año (Ene a Dic)
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const dayOfWeek = (now.getDay() + 6) % 7; // 0 = Lun, 6 = Dom
+  const startOfWeek = new Date(startOfToday - dayOfWeek * 86400000).getTime();
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+  const startOfYear = new Date(now.getFullYear(), 0, 1).getTime();
+
+  const buildDataset = (title, subtitle, tripFilter, pointsConfig) => {
+    const filteredTrips = completedTrips.filter(tripFilter);
+    const totalEarned = filteredTrips.reduce((acc, t) => acc + (parseFloat(t.fare) || 0), 0);
+    const totalTrips = filteredTrips.length;
+    const totalKm = filteredTrips.reduce((acc, t) => acc + (parseFloat(t.distanceKm) || 0), 0);
+
+    const points = pointsConfig.map((cfg) => {
+      const bucketTrips = filteredTrips.filter(cfg.match);
+      const amount = bucketTrips.reduce((acc, t) => acc + (parseFloat(t.fare) || 0), 0);
+      return {
+        label: cfg.label,
+        amount,
+        trips: bucketTrips.length
+      };
+    });
+
+    return {
+      title,
+      subtitle,
+      totalEarned,
+      totalTrips,
+      totalKm: Math.round(totalKm * 10) / 10,
+      points,
+      recentTrips: filteredTrips.slice(0, 15)
+    };
+  };
+
+  const todayHours = ['06:00', '08:00', '10:00', '12:00', '14:00', '16:00', '18:00', '20:00', '22:00'];
+  const weekDays = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+  const monthDays = ['Día 1', 'Día 5', 'Día 10', 'Día 15', 'Día 20', 'Día 25', 'Día 30'];
+  const yearMonths = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+
+  const datasets = {
+    TODAY: buildDataset(
+      'Ingresos de Hoy',
+      'Evolución por horas del día (06:00 a 22:00)',
+      (t) => (t.timestamp || 0) >= startOfToday,
+      todayHours.map((h) => {
+        const hNum = parseInt(h.split(':')[0], 10);
+        return {
+          label: h,
+          match: (t) => {
+            const tHour = new Date(t.timestamp || 0).getHours();
+            return tHour >= hNum - 1 && tHour < hNum + 1;
+          }
+        };
+      })
+    ),
+    WEEK: buildDataset(
+      'Ingresos de esta Semana',
+      'Evolución por días de la semana (Lunes a Domingo)',
+      (t) => (t.timestamp || 0) >= startOfWeek,
+      weekDays.map((d, idx) => ({
+        label: d,
+        match: (t) => {
+          const tDay = (new Date(t.timestamp || 0).getDay() + 6) % 7;
+          return tDay === idx;
+        }
+      }))
+    ),
+    MONTH: buildDataset(
+      'Ingresos de este Mes',
+      'Evolución por fechas del mes (Día 1 al 31)',
+      (t) => (t.timestamp || 0) >= startOfMonth,
+      monthDays.map((m) => {
+        const dayTarget = parseInt(m.replace('Día ', ''), 10);
+        return {
+          label: m,
+          match: (t) => {
+            const tDate = new Date(t.timestamp || 0).getDate();
+            return tDate >= dayTarget && tDate < dayTarget + 5;
+          }
+        };
+      })
+    ),
+    YEAR: buildDataset(
+      'Ingresos de este Año',
+      'Evolución por meses del año (Enero a Diciembre)',
+      (t) => (t.timestamp || 0) >= startOfYear,
+      yearMonths.map((m, idx) => ({
+        label: m,
+        match: (t) => new Date(t.timestamp || 0).getMonth() === idx
+      }))
+    )
   };
 
   const current = datasets[timeframe] || datasets.TODAY;
@@ -396,17 +342,23 @@ export default function DriverEarningsView({
                 {/* Cabecera del viaje */}
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2.5">
-                    <img
-                      src={trip.photo}
-                      alt={trip.passengerName}
-                      className="w-9 h-9 rounded-full object-cover border border-amber-400/60"
-                    />
+                    {trip.photo ? (
+                      <img
+                        src={trip.photo}
+                        alt={trip.passengerName}
+                        className="w-9 h-9 rounded-full object-cover border border-amber-400/60"
+                      />
+                    ) : (
+                      <div className="w-9 h-9 rounded-full bg-slate-800 border border-amber-400/60 flex items-center justify-center text-amber-400 font-bold text-xs">
+                        {trip.passengerName ? trip.passengerName.charAt(0).toUpperCase() : <User className="w-4 h-4 text-slate-400" />}
+                      </div>
+                    )}
                     <div>
                       <div className="flex items-center gap-1.5">
                         <span className="font-bold text-xs text-white">{trip.passengerName}</span>
                         <span className="flex items-center text-[10px] text-amber-400 font-bold">
                           <Star className="w-3 h-3 fill-amber-400" />
-                          <span>{trip.passengerRating}</span>
+                          <span>{trip.passengerRating || 5.0}</span>
                         </span>
                       </div>
                       <span className="text-[10px] text-slate-400">{trip.time}</span>
@@ -415,10 +367,10 @@ export default function DriverEarningsView({
 
                   <div className="text-right">
                     <div className="text-base font-black text-emerald-400 font-mono">
-                      +${trip.fare.toFixed(2)}
+                      +${parseFloat(trip.fare).toFixed(2)}
                     </div>
                     <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
-                      {trip.paymentMethod}
+                      {trip.paymentMethod || '100% Efectivo'}
                     </span>
                   </div>
                 </div>
@@ -446,20 +398,22 @@ export default function DriverEarningsView({
                     <span>Recorrido: {trip.distanceKm} km</span>
                   </span>
                   <span className="text-amber-400 font-bold">
-                    Ahorraste ${trip.commissionSaved.toFixed(2)} de comisión
+                    Ahorraste ${parseFloat(trip.commissionSaved || trip.fare * 0.28).toFixed(2)} de comisión
                   </span>
                 </div>
               </div>
             ))}
           </div>
         ) : (
-          <div className="p-6 text-center text-slate-400 text-xs bg-slate-950/60 rounded-2xl border border-slate-800">
-            <CheckCircle2 className="w-8 h-8 text-emerald-400/80 mx-auto mb-2" />
-            <p className="font-semibold text-slate-200">
-              Registros consolidados para este periodo
+          <div className="p-8 text-center text-slate-400 text-xs bg-slate-950/60 rounded-2xl border border-slate-800 space-y-2">
+            <div className="w-12 h-12 mx-auto rounded-full bg-slate-900 border border-slate-800 flex items-center justify-center text-slate-500">
+              <CheckCircle2 className="w-6 h-6 text-emerald-500/70" />
+            </div>
+            <p className="font-bold text-slate-200 text-sm">
+              Sin viajes registrados en este período
             </p>
-            <p className="text-[11px] text-slate-400 mt-1">
-              Todos tus viajes se procesan con 0% de comisión y pago directo en efectivo.
+            <p className="text-[11px] text-slate-400 max-w-xs mx-auto">
+              Al completar carreras en línea, tus ganancias, recorridos y comisiones ahorradas se reflejarán automáticamente aquí con 0% de comisión.
             </p>
           </div>
         )}

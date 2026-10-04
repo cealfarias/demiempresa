@@ -13,7 +13,8 @@ import {
   DollarSign,
   AlertCircle,
   RefreshCw,
-  Phone
+  Phone,
+  User
 } from 'lucide-react';
 import { triggerCashRewardFeedback } from './soundFeedbackService';
 
@@ -28,83 +29,7 @@ export default function DriverTripRequestsFeed({
 }) {
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [counterOfferAmount, setCounterOfferAmount] = useState('');
-  const [activeRequests, setActiveRequests] = useState([
-    {
-      id: 'req-1',
-      passengerName: 'Isaias',
-      passengerPhoto: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
-      rating: 4.91,
-      ratingCount: 1079,
-      timeAgo: '4 min.',
-      price: 4.00,
-      priceLabel: null,
-      pickupDistanceMeters: 737,
-      tripDistanceKm: 4.6,
-      origin: '6a Avenida Norte 1702 (San Salvador)',
-      destination: 'C. a Monserrat 1238 (San Salvador)',
-      delayMinutes: 0
-    },
-    {
-      id: 'req-2',
-      passengerName: 'giselle',
-      passengerPhoto: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=150&q=80',
-      rating: 4.68,
-      ratingCount: 460,
-      timeAgo: '8 min.',
-      price: 6.30,
-      priceLabel: null,
-      pickupDistanceMeters: 796,
-      tripDistanceKm: 10.0,
-      origin: 'Mercado San Miguelito (Avenida España, San Salvador)',
-      destination: 'Imprime-T Mas (Soyapango)',
-      delayMinutes: 2
-    },
-    {
-      id: 'req-3',
-      passengerName: 'giselle',
-      passengerPhoto: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=150&q=80',
-      rating: 4.68,
-      ratingCount: 460,
-      timeAgo: '36 seg.',
-      price: 6.00,
-      priceLabel: null,
-      pickupDistanceMeters: 796,
-      tripDistanceKm: 10.0,
-      origin: 'Mercado San Miguelito (Avenida España, San Salvador)',
-      destination: 'Imprime-T Mas (Soyapango)',
-      delayMinutes: 0
-    },
-    {
-      id: 'req-4',
-      passengerName: 'Gloria',
-      passengerPhoto: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=150&q=80',
-      rating: 4.69,
-      ratingCount: 31,
-      timeAgo: '53 seg.',
-      price: 3.80,
-      priceLabel: 'Precio justo',
-      pickupDistanceMeters: 936,
-      tripDistanceKm: 3.7,
-      origin: 'Calle y (San Salvador)',
-      destination: 'Distrito Municipal de Ciudad Delgado (Calle Morazan, Delgado)',
-      delayMinutes: 0
-    },
-    {
-      id: 'req-5',
-      passengerName: 'Rafael',
-      passengerPhoto: 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?auto=format&fit=crop&w=150&q=80',
-      rating: 4.85,
-      ratingCount: 142,
-      timeAgo: '1 min.',
-      price: 3.00,
-      priceLabel: null,
-      pickupDistanceMeters: 991,
-      tripDistanceKm: 3.2,
-      origin: 'Colonia Miramonte (Calle Los Sisimiles)',
-      destination: 'Metrocentro San Salvador',
-      delayMinutes: 0
-    }
-  ]);
+  const [activeRequests, setActiveRequests] = useState([]);
 
   // Si entra una solicitud real por WebSockets, insertarla al inicio
   useEffect(() => {
@@ -115,16 +40,16 @@ export default function DriverTripRequestsFeed({
         const newReq = {
           id: incomingRequest.id,
           passengerName: incomingRequest.passengerName || 'Pasajero Rumbo',
-          passengerPhoto: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
-          rating: 4.95,
-          ratingCount: 128,
+          passengerPhoto: incomingRequest.passengerPhoto || null,
+          rating: incomingRequest.passengerRating || 5.0,
+          ratingCount: incomingRequest.passengerTrips || 1,
           timeAgo: 'Reciente',
-          price: parseFloat(incomingRequest.offeredFare || 4.00),
-          priceLabel: 'Oferta directa',
+          price: parseFloat(incomingRequest.offeredFare || incomingRequest.suggestedFare || 4.00),
+          priceLabel: incomingRequest.priceLabel || 'Oferta directa',
           pickupDistanceMeters: Math.round((incomingRequest.distanceKm || 0.6) * 1000),
-          tripDistanceKm: parseFloat(incomingRequest.roadDistanceKm || 5.0),
-          origin: incomingRequest.origin || 'Origen del Pasajero',
-          destination: incomingRequest.destination || 'Destino Rumbo',
+          tripDistanceKm: parseFloat(incomingRequest.roadDistanceKm || incomingRequest.distanceKm || 5.0),
+          origin: incomingRequest.origin || incomingRequest.originAddress || 'Origen del Pasajero',
+          destination: incomingRequest.destination || incomingRequest.destinationAddress || 'Destino Rumbo',
           delayMinutes: incomingRequest.delayMinutes || 0
         };
         return [newReq, ...prev];
@@ -211,11 +136,17 @@ export default function DriverTripRequestsFeed({
           >
             {/* Columna Izquierda: Foto, Nombre, Rating y Tiempo */}
             <div className="flex flex-col items-center text-center w-16 shrink-0 space-y-1">
-              <img
-                src={req.passengerPhoto}
-                alt={req.passengerName}
-                className="w-12 h-12 rounded-full object-cover border border-slate-700 shadow-sm"
-              />
+              {req.passengerPhoto ? (
+                <img
+                  src={req.passengerPhoto}
+                  alt={req.passengerName}
+                  className="w-12 h-12 rounded-full object-cover border border-slate-700 shadow-sm"
+                />
+              ) : (
+                <div className="w-12 h-12 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-amber-400 font-bold text-sm shadow-sm">
+                  {req.passengerName ? req.passengerName.charAt(0).toUpperCase() : <User className="w-6 h-6 text-slate-400" />}
+                </div>
+              )}
               <span className="text-xs font-bold text-white truncate max-w-full">
                 {req.passengerName}
               </span>
@@ -287,14 +218,22 @@ export default function DriverTripRequestsFeed({
 
         {activeRequests.length === 0 && (
           <div className="p-12 text-center space-y-3">
-            <div className="w-16 h-16 mx-auto rounded-full bg-amber-500/10 border border-amber-500/30 flex items-center justify-center animate-pulse">
-              <Radio className="w-8 h-8 text-amber-400" />
+            <div className={`w-16 h-16 mx-auto rounded-full border flex items-center justify-center ${
+              driverOnline
+                ? 'bg-amber-500/10 border-amber-500/30 animate-pulse'
+                : 'bg-slate-900 border-slate-800'
+            }`}>
+              <Radio className={`w-8 h-8 ${driverOnline ? 'text-amber-400' : 'text-slate-600'}`} />
             </div>
             <h4 className="text-sm font-bold text-white">
-              Buscando solicitudes en tu radio de 1 km...
+              {driverOnline
+                ? 'Buscando solicitudes en tu radio de 1 km...'
+                : 'Estás en modo Ocupado'}
             </h4>
             <p className="text-xs text-slate-400 max-w-xs mx-auto">
-              Cuando un pasajero cercano pida viaje, aparecerá inmediatamente aquí con su tarifa propuesta.
+              {driverOnline
+                ? 'Cuando un pasajero cercano pida viaje, aparecerá inmediatamente aquí con su tarifa propuesta.'
+                : 'Activa el botón "En línea" arriba para comenzar a recibir solicitudes de viajes cercanos.'}
             </p>
           </div>
         )}
@@ -306,11 +245,17 @@ export default function DriverTripRequestsFeed({
           <div className="w-full max-w-md bg-slate-900 border-t-2 sm:border-2 border-amber-400 rounded-t-3xl sm:rounded-3xl p-5 shadow-2xl space-y-4 animate-pop-bounce">
             <div className="flex items-center justify-between pb-2 border-b border-slate-800">
               <div className="flex items-center gap-2">
-                <img
-                  src={selectedRequest.passengerPhoto}
-                  alt={selectedRequest.passengerName}
-                  className="w-10 h-10 rounded-full object-cover border border-amber-400"
-                />
+                {selectedRequest.passengerPhoto ? (
+                  <img
+                    src={selectedRequest.passengerPhoto}
+                    alt={selectedRequest.passengerName}
+                    className="w-10 h-10 rounded-full object-cover border border-amber-400"
+                  />
+                ) : (
+                  <div className="w-10 h-10 rounded-full bg-slate-800 border border-amber-400 flex items-center justify-center text-amber-400 font-bold text-sm">
+                    {selectedRequest.passengerName ? selectedRequest.passengerName.charAt(0).toUpperCase() : <User className="w-5 h-5 text-slate-400" />}
+                  </div>
+                )}
                 <div>
                   <h4 className="font-bold text-sm text-white">{selectedRequest.passengerName}</h4>
                   <div className="flex items-center gap-1 text-[11px] text-amber-400 font-bold">
