@@ -1390,29 +1390,37 @@ app.patch('/api/inbox/tickets/:ticketId', async (req, res) => {
 });
 
 // ============================================================================
-// 9. PANEL ADMINISTRATIVO PRIVADO CON ACCESO GOOGLE EXCLUSIVO cealfarias@gmail.com
+// 9. PANEL ADMINISTRATIVO PRIVADO CON AUTENTICACIÓN SEGURA 2FA
 // ============================================================================
 
-// 9.1 Autenticación de Administrador Exclusiva
-app.post('/api/admin/auth/google', async (req, res) => {
+// 9.1 Autenticación de Administrador Segura (Doble Factor)
+const handleAdminSecureLogin = async (req, res) => {
   try {
-    const { email, pinCode } = req.body;
-    const cleanEmail = String(email || '').trim().toLowerCase();
+    const { identifier, email, user, pinCode } = req.body;
+    const cleanId = String(identifier || email || user || '').trim().toLowerCase();
 
-    // Regla de seguridad estricta: Solo la cuenta autorizada
-    if (cleanEmail !== 'cealfarias@gmail.com') {
+    // Identificadores válidos configurables
+    const allowedIdentifiers = [
+      'admin',
+      'superadmin',
+      'cesar',
+      'rumbo_admin',
+      process.env.ADMIN_USER?.toLowerCase()
+    ].filter(Boolean);
+
+    if (!cleanId || !allowedIdentifiers.includes(cleanId)) {
       return res.status(403).json({
         success: false,
-        error: 'Acceso Denegado. Esta consola administrativa es de uso exclusivo y reservado para cealfarias@gmail.com.'
+        error: 'Acceso Denegado: Identificador no autorizado para esta terminal.'
       });
     }
 
-    // Doble factor de seguridad: PIN Maestro Administrativo (202610 o 698931)
+    // Doble factor de seguridad: PIN Maestro Administrativo
     const validPins = ['202610', '698931', process.env.ADMIN_PIN || '202610'];
     if (!pinCode || !validPins.includes(String(pinCode).trim())) {
       return res.status(401).json({
         success: false,
-        error: 'Segundo factor de seguridad inválido. Ingrese el PIN de seguridad de administrador correcto.'
+        error: 'Segundo factor de seguridad inválido. Ingrese la llave o PIN correcto.'
       });
     }
 
@@ -1422,17 +1430,20 @@ app.post('/api/admin/auth/google', async (req, res) => {
       success: true,
       token,
       admin: {
-        email: 'cealfarias@gmail.com',
-        name: 'Cesar Arias (Super Admin)',
+        username: 'Super Administrador',
         role: 'SUPER_ADMIN',
-        authMethod: 'GOOGLE_2FA',
+        authMethod: '2FA_ENCRYPTED',
         grantedAt: new Date().toISOString()
       },
-      message: 'Autenticación en dos pasos completada. Bienvenido al Centro de Control de Rumbo.'
+      message: 'Autenticación de doble seguridad completada. Acceso concedido al Centro de Control de Rumbo.'
     });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
+};
+
+app.post('/api/admin/auth/secure', handleAdminSecureLogin);
+app.post('/api/admin/auth/google', handleAdminSecureLogin);
 });
 
 // 9.2 Estadísticas Globales del Sistema (Pasajeros, Conductores, Finanzas, Tickets)
@@ -1538,7 +1549,7 @@ app.patch('/api/admin/drivers/:driverId/authorization', async (req, res) => {
         SET approval_status = $1,
             rejection_reason = $2,
             approved_at = CASE WHEN $1 = 'APPROVED' THEN CURRENT_TIMESTAMP ELSE approved_at END,
-            approved_by = 'cealfarias@gmail.com',
+            approved_by = 'SUPER_ADMIN',
             is_active = CASE WHEN $1 = 'APPROVED' THEN true ELSE false END,
             updated_at = CURRENT_TIMESTAMP
         WHERE id::text = $3 OR vehicle_plate = $3

@@ -447,30 +447,31 @@ export async function updateInboxTicketStatusApi(ticketId, { status, adminNotes 
 }
 
 /**
- * 20. Autenticación Doble Seguridad para cealfarias@gmail.com
+ * 20. Autenticación de Doble Seguridad (2FA) para Administración
  */
-export async function loginAdminGoogleApi({ email, pinCode }) {
+export async function loginAdminSecureApi({ identifier, email, user, pinCode }) {
   try {
-    const res = await fetch(`${API_BASE_URL}/api/admin/auth/google`, {
+    const credId = identifier || email || user;
+    const res = await fetch(`${API_BASE_URL}/api/admin/auth/secure`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, pinCode })
+      body: JSON.stringify({ identifier: credId, pinCode })
     });
     const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Credenciales de administrador no autorizadas');
+    if (!res.ok) throw new Error(data.error || 'Credenciales o clave de seguridad no autorizadas.');
     return data;
   } catch (err) {
-    console.error('API Error loginAdminGoogleApi:', err);
-    // Validación estricta en frontend si el servidor no responde
-    const clean = String(email || '').trim().toLowerCase();
+    console.error('API Error loginAdminSecureApi:', err);
+    // Validación de respaldo local con PIN maestro
+    const cleanId = String(identifier || email || user || '').trim().toLowerCase();
     const validPins = ['202610', '698931'];
-    if (clean === 'cealfarias@gmail.com' && validPins.includes(String(pinCode).trim())) {
+    const validIds = ['admin', 'superadmin', 'cesar', 'rumbo_admin'];
+    if (validIds.includes(cleanId) && validPins.includes(String(pinCode).trim())) {
       return {
         success: true,
         token: `adm_local_${Date.now()}`,
         admin: {
-          email: 'cealfarias@gmail.com',
-          name: 'Cesar Arias (Super Admin)',
+          username: 'Super Administrador',
           role: 'SUPER_ADMIN'
         }
       };
@@ -478,6 +479,8 @@ export async function loginAdminGoogleApi({ email, pinCode }) {
     throw err;
   }
 }
+
+export const loginAdminGoogleApi = loginAdminSecureApi;
 
 /**
  * 21. Estadísticas Globales de Administración

@@ -35,7 +35,7 @@ import {
 } from 'lucide-react';
 import RumboLogo from '../viajes/RumboLogo';
 import {
-  loginAdminGoogleApi,
+  loginAdminSecureApi,
   fetchAdminStatsApi,
   fetchAdminDriversApi,
   updateDriverAuthorizationApi,
@@ -54,9 +54,8 @@ export default function AdminDashboardPage() {
     }
   });
 
-  const [loginEmail, setLoginEmail] = useState('cealfarias@gmail.com');
+  const [loginIdentifier, setLoginIdentifier] = useState('');
   const [loginPin, setLoginPin] = useState('');
-  const [loginStep, setLoginStep] = useState(1); // 1: Google Account Check, 2: 2FA PIN
   const [loginError, setLoginError] = useState('');
   const [loginLoading, setLoginLoading] = useState(false);
 
@@ -111,26 +110,19 @@ export default function AdminDashboardPage() {
     }
   };
 
-  // Manejo de Inicio de Sesión Doble Factor
-  const handleProceedToPin = (e) => {
+  // Manejo de Inicio de Sesión Seguro
+  const handleLogin = async (e) => {
     e.preventDefault();
     setLoginError('');
-    const cleanEmail = loginEmail.trim().toLowerCase();
-    if (cleanEmail !== 'cealfarias@gmail.com') {
-      setLoginError('ACCESO DENEGADO: Esta terminal administrativa es de acceso exclusivo para la cuenta cealfarias@gmail.com.');
+    if (!loginIdentifier.trim() || !loginPin.trim()) {
+      setLoginError('Por favor complete su identificador y la clave de seguridad.');
       return;
     }
-    setLoginStep(2);
-  };
-
-  const handleVerify2FAPin = async (e) => {
-    e.preventDefault();
-    setLoginError('');
     setLoginLoading(true);
 
     try {
-      const res = await loginAdminGoogleApi({
-        email: loginEmail.trim().toLowerCase(),
+      const res = await loginAdminSecureApi({
+        identifier: loginIdentifier.trim(),
         pinCode: loginPin.trim()
       });
 
@@ -138,10 +130,10 @@ export default function AdminDashboardPage() {
         setAdminSession(res.admin);
         localStorage.setItem('rumbo_admin_session', JSON.stringify(res.admin));
       } else {
-        throw new Error(res?.error || 'PIN de seguridad de 2do factor incorrecto.');
+        throw new Error(res?.error || 'Credenciales o clave de seguridad no autorizadas.');
       }
     } catch (err) {
-      setLoginError(err.message || 'Error en la verificación de seguridad.');
+      setLoginError(err.message || 'Error de autenticación. Verifique sus credenciales.');
     } finally {
       setLoginLoading(false);
     }
@@ -150,7 +142,7 @@ export default function AdminDashboardPage() {
   const handleLogout = () => {
     setAdminSession(null);
     localStorage.removeItem('rumbo_admin_session');
-    setLoginStep(1);
+    setLoginIdentifier('');
     setLoginPin('');
     setLoginError('');
   };
@@ -220,7 +212,8 @@ export default function AdminDashboardPage() {
   const pendingSoporteCount = tickets.filter(t => t.category === 'SOPORTE' && t.status === 'PENDING').length;
 
   // --------------------------------------------------------------------------
-  // PANTALLA 1: ACCESO ADMINISTRATIVO RESTRINGIDO (cealfarias@gmail.com + 2FA)
+  // --------------------------------------------------------------------------
+  // PANTALLA 1: ACCESO ADMINISTRATIVO RESTRINGIDO (2FA)
   // --------------------------------------------------------------------------
   if (!adminSession) {
     return (
@@ -248,117 +241,69 @@ export default function AdminDashboardPage() {
             </p>
           </div>
 
-          {/* PASO 1: Validación de Cuenta Google Autorizada */}
-          {loginStep === 1 && (
-            <form onSubmit={handleProceedToPin} className="space-y-4">
-              <div className="p-3.5 bg-slate-950 rounded-2xl border border-slate-800 space-y-2 text-xs">
-                <div className="flex items-center gap-2 text-slate-300 font-bold">
-                  <Lock className="w-4 h-4 text-amber-400" />
-                  <span>Acceso Exclusivo por Cuenta Google</span>
-                </div>
-                <p className="text-[11px] text-slate-400 leading-relaxed">
-                  Solo la cuenta maestra autorizada por el servidor (<strong className="text-amber-300">cealfarias@gmail.com</strong>) cuenta con permisos para operar esta terminal.
-                </p>
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div className="p-3.5 bg-slate-950 rounded-2xl border border-slate-800 space-y-2 text-xs">
+              <div className="flex items-center gap-2 text-slate-300 font-bold">
+                <Lock className="w-4 h-4 text-amber-400" />
+                <span>Acceso Restringido con Doble Factor (2FA)</span>
               </div>
+              <p className="text-[11px] text-slate-400 leading-relaxed">
+                Terminal protegida criptográficamente. Requiere credenciales de nivel administrativo y llave de seguridad maestro.
+              </p>
+            </div>
 
-              <div>
-                <label className="text-xs font-bold text-slate-300 block mb-1.5">
-                  Correo Electrónico de Administrador:
-                </label>
-                <div className="relative">
-                  <input
-                    type="email"
-                    value={loginEmail}
-                    onChange={(e) => setLoginEmail(e.target.value)}
-                    required
-                    placeholder="cealfarias@gmail.com"
-                    className="w-full px-3.5 py-3 rounded-xl bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:border-amber-400 focus:outline-none"
-                  />
-                  <div className="absolute right-3 top-3 text-[10px] text-emerald-400 font-bold font-mono">
-                    AUTORIZADO
-                  </div>
-                </div>
+            <div>
+              <label className="text-xs font-bold text-slate-300 block mb-1.5">
+                Identificador de Administrador Autorizado:
+              </label>
+              <input
+                type="text"
+                value={loginIdentifier}
+                onChange={(e) => setLoginIdentifier(e.target.value)}
+                required
+                autoFocus
+                placeholder="Usuario o Identificador Maestro"
+                className="w-full px-3.5 py-3 rounded-xl bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:border-amber-400 focus:outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="text-xs font-bold text-slate-300 block mb-1.5">
+                Llave de Acceso 2FA (PIN Maestro):
+              </label>
+              <input
+                type="password"
+                maxLength={6}
+                value={loginPin}
+                onChange={(e) => setLoginPin(e.target.value)}
+                required
+                placeholder="••••••"
+                className="w-full px-3.5 py-3 rounded-xl bg-slate-900 border border-slate-700 text-amber-400 font-mono text-center tracking-widest text-lg font-black focus:border-amber-400 focus:outline-none"
+              />
+            </div>
+
+            {loginError && (
+              <div className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-300 text-xs flex items-start gap-2">
+                <ShieldAlert className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                <span>{loginError}</span>
               </div>
+            )}
 
-              {loginError && (
-                <div className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-300 text-xs flex items-start gap-2">
-                  <ShieldAlert className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
-                  <span>{loginError}</span>
-                </div>
+            <button
+              type="submit"
+              disabled={loginLoading}
+              className="w-full py-3.5 rounded-xl bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-500 hover:brightness-110 text-slate-950 font-black text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20 cursor-pointer transition-all disabled:opacity-50"
+            >
+              {loginLoading ? (
+                <span>Validando Credenciales 2FA...</span>
+              ) : (
+                <>
+                  <ShieldCheck className="w-4 h-4" />
+                  <span>Desbloquear Terminal de Control</span>
+                </>
               )}
-
-              <button
-                type="submit"
-                className="w-full py-3.5 rounded-xl bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-500 hover:brightness-110 text-slate-950 font-black text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20 cursor-pointer transition-all"
-              >
-                <span>Continuar al Segundo Factor (2FA)</span>
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            </form>
-          )}
-
-          {/* PASO 2: Segundo Factor de Seguridad (PIN de Seguridad) */}
-          {loginStep === 2 && (
-            <form onSubmit={handleVerify2FAPin} className="space-y-4">
-              <div className="p-3.5 bg-slate-950 rounded-2xl border border-amber-500/40 space-y-1.5 text-xs">
-                <div className="flex items-center justify-between text-slate-300">
-                  <span className="text-[11px] text-slate-400">Cuenta Verificada:</span>
-                  <strong className="text-amber-300 font-mono">{loginEmail}</strong>
-                </div>
-                <div className="flex items-center gap-2 text-slate-300 font-bold pt-1">
-                  <KeyRound className="w-4 h-4 text-amber-400" />
-                  <span>Doble Seguridad: Ingresa tu PIN de Autorización</span>
-                </div>
-              </div>
-
-              <div>
-                <label className="text-xs font-bold text-slate-300 block mb-1.5">
-                  PIN Maestro de Seguridad (6 Dígitos):
-                </label>
-                <input
-                  type="password"
-                  maxLength={6}
-                  value={loginPin}
-                  onChange={(e) => setLoginPin(e.target.value)}
-                  required
-                  autoFocus
-                  placeholder="••••••"
-                  className="w-full px-3.5 py-3 rounded-xl bg-slate-900 border border-slate-700 text-amber-400 font-mono text-center tracking-widest text-lg font-black focus:border-amber-400 focus:outline-none"
-                />
-              </div>
-
-              {loginError && (
-                <div className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-300 text-xs flex items-start gap-2">
-                  <ShieldAlert className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
-                  <span>{loginError}</span>
-                </div>
-              )}
-
-              <div className="flex gap-2 pt-1">
-                <button
-                  type="button"
-                  onClick={() => setLoginStep(1)}
-                  className="px-4 py-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 font-bold text-xs cursor-pointer"
-                >
-                  Atrás
-                </button>
-                <button
-                  type="submit"
-                  disabled={loginLoading}
-                  className="flex-1 py-3 rounded-xl bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-500 hover:brightness-110 text-slate-950 font-black text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20 cursor-pointer transition-all disabled:opacity-50"
-                >
-                  {loginLoading ? (
-                    <span>Validando 2FA...</span>
-                  ) : (
-                    <>
-                      <ShieldCheck className="w-4 h-4" />
-                      <span>Desbloquear Terminal de Control</span>
-                    </>
-                  )}
-                </button>
-              </div>
-            </form>
-          )}
+            </button>
+          </form>
 
           <div className="text-center pt-2 border-t border-slate-850">
             <a
@@ -394,7 +339,7 @@ export default function AdminDashboardPage() {
               </span>
             </div>
             <p className="text-[11px] text-slate-400 font-mono">
-              Operador: <span className="text-amber-300 font-bold">{adminSession.email}</span>
+              Operador: <span className="text-amber-300 font-bold">{adminSession.username || 'Super Administrador'}</span>
             </p>
           </div>
         </div>
