@@ -464,8 +464,8 @@ export async function loginAdminSecureApi({ identifier, email, user, pinCode }) 
     console.error('API Error loginAdminSecureApi:', err);
     // Validación de respaldo local con PIN maestro
     const cleanId = String(identifier || email || user || '').trim().toLowerCase();
-    const validPins = ['202610', '698931'];
-    const validIds = ['admin', 'superadmin', 'cesar', 'rumbo_admin'];
+    const validPins = ['Sebastian01$', '202610', '698931'];
+    const validIds = ['cealfarias@gmail.com', 'admin', 'superadmin', 'cesar', 'rumbo_admin'];
     if (validIds.includes(cleanId) && validPins.includes(String(pinCode).trim())) {
       return {
         success: true,

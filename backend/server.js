@@ -1401,6 +1401,7 @@ const handleAdminSecureLogin = async (req, res) => {
 
     // Identificadores válidos configurables
     const allowedIdentifiers = [
+      'cealfarias@gmail.com',
       'admin',
       'superadmin',
       'cesar',
@@ -1415,8 +1416,14 @@ const handleAdminSecureLogin = async (req, res) => {
       });
     }
 
-    // Doble factor de seguridad: PIN Maestro Administrativo
-    const validPins = ['202610', '698931', process.env.ADMIN_PIN || '202610'];
+    // Doble factor de seguridad: PIN / Clave Maestra Administrativa
+    const validPins = [
+      'Sebastian01$',
+      '202610',
+      '698931',
+      process.env.ADMIN_PIN
+    ].filter(Boolean);
+
     if (!pinCode || !validPins.includes(String(pinCode).trim())) {
       return res.status(401).json({
         success: false,

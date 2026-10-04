@@ -269,16 +269,15 @@ export default function AdminDashboardPage() {
 
             <div>
               <label className="text-xs font-bold text-slate-300 block mb-1.5">
-                Llave de Acceso 2FA (PIN Maestro):
+                Llave de Acceso 2FA (PIN Maestro / Clave):
               </label>
               <input
                 type="password"
-                maxLength={6}
                 value={loginPin}
                 onChange={(e) => setLoginPin(e.target.value)}
                 required
-                placeholder="••••••"
-                className="w-full px-3.5 py-3 rounded-xl bg-slate-900 border border-slate-700 text-amber-400 font-mono text-center tracking-widest text-lg font-black focus:border-amber-400 focus:outline-none"
+                placeholder="••••••••••••"
+                className="w-full px-3.5 py-3 rounded-xl bg-slate-900 border border-slate-700 text-amber-300 font-mono text-sm font-bold tracking-wider focus:border-amber-400 focus:outline-none"
               />
             </div>
 
