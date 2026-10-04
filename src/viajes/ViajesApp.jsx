@@ -38,10 +38,12 @@ import {
   RotateCcw,
   User,
   Gift,
-  LogOut
+  LogOut,
+  Inbox
 } from 'lucide-react';
 import RumboLogo from './RumboLogo';
 import AdModal from './AdModal';
+import RumboInboxModal from './RumboInboxModal';
 import PickupMapModal from './PickupMapModal';
 import DestinationMapModal from './DestinationMapModal';
 import TripPreferencesModal from './TripPreferencesModal';
@@ -242,6 +244,7 @@ export default function ViajesApp() {
     roundTripWaitMinutes: 0
   });
   const [showPreferencesModal, setShowPreferencesModal] = useState(false);
+  const [showInboxModal, setShowInboxModal] = useState(false);
 
   const [roadDistanceKm, setRoadDistanceKm] = useState(8.4);
   const [estimatedDurationMin, setEstimatedDurationMin] = useState(16);
@@ -1853,6 +1856,22 @@ export default function ViajesApp() {
               <span>{isListeningVoice ? 'Escuchando rumbo...' : 'Hablando...'}</span>
             </div>
           )}
+
+          {/* Icono Minimalista de Inbox para Pasajeros (SIN LETRAS) */}
+          <button
+            type="button"
+            onClick={() => setShowInboxModal(true)}
+            title="Buzón / Inbox"
+            aria-label="Abrir buzón de mensajes"
+            className={`w-8 h-8 sm:w-9 sm:h-9 rounded-full border flex items-center justify-center transition-all cursor-pointer relative flex-shrink-0 ${
+              isLight
+                ? 'bg-amber-50 border-amber-200 text-amber-700 hover:bg-amber-100'
+                : 'bg-slate-800/90 border-slate-700 text-amber-400 hover:text-amber-300 hover:bg-slate-700'
+            }`}
+          >
+            <Inbox className="w-4 h-4" />
+            <span className="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+          </button>
 
           {/* Selector de Tema Compacto */}
           <button
@@ -4251,6 +4270,14 @@ export default function ViajesApp() {
         isOpen={showWelcomeModal}
         onComplete={handleWelcomeComplete}
         reverseGeocodeAddress={reverseGeocodeAddress}
+      />
+
+      {/* Modal de Buzón Oficial / Inbox de Pasajero (Multitema: Sugerencias, Quejas, Soporte, Pagos) */}
+      <RumboInboxModal
+        isOpen={showInboxModal}
+        onClose={() => setShowInboxModal(false)}
+        role="PASSENGER"
+        userProfile={userProfile}
       />
 
     </div>

@@ -18,7 +18,8 @@ import {
   ExternalLink,
   ChevronRight,
   Gift,
-  HelpCircle
+  HelpCircle,
+  Inbox
 } from 'lucide-react';
 
 export default function DriverAccountStatementModal({
@@ -29,7 +30,8 @@ export default function DriverAccountStatementModal({
   weeklyBonuses = 0,
   onPayWeeklyFeeWithBonuses,
   onPayDailyPass,
-  isApplyingBonuses = false
+  isApplyingBonuses = false,
+  onOpenInbox
 }) {
   const [copiedAccount, setCopiedAccount] = useState(false);
   const [selectedPaymentTab, setSelectedPaymentTab] = useState('TRANSFER365'); // 'TRANSFER365' | 'CUBO'
@@ -441,15 +443,27 @@ export default function DriverAccountStatementModal({
                   </div>
                 </div>
 
+                {/* Botón para enviar comprobante por la App */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (onOpenInbox) onOpenInbox('PAGOS', remainingWeeklyCash);
+                  }}
+                  className="w-full py-3 bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-500 hover:brightness-110 text-slate-950 font-black text-xs rounded-xl shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-98"
+                >
+                  <Inbox className="w-4 h-4 text-slate-950" />
+                  <span>Subir Comprobante a la App (Buzón Oficial Rumbo)</span>
+                </button>
+
                 {/* Enlace directo a WhatsApp para reportar comprobante */}
                 <a
                   href={`https://wa.me/50369893101?text=${encodeURIComponent(`Hola Rumbo, he realizado mi pago de cuota semanal por Transfer365 Móvil.\n\n• Conductor: ${driverProfile?.fullName || 'Conductor'}\n• DUI: ${driverProfile?.dui || 'No especificado'}\n• Placa: ${driverProfile?.vehiclePlate || 'No especificada'}\n• Monto: $${remainingWeeklyCash.toFixed(2)} USD\n\nAdjunto captura del comprobante.`)}`}
                   target="_blank"
                   rel="noreferrer"
-                  className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow flex items-center justify-center gap-2 cursor-pointer transition-colors"
+                  className="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 font-bold text-xs rounded-xl border border-slate-800 flex items-center justify-center gap-2 cursor-pointer transition-colors"
                 >
-                  <MessageCircle className="w-4 h-4" />
-                  <span>Reportar Comprobante por WhatsApp Directo</span>
+                  <MessageCircle className="w-4 h-4 text-emerald-400" />
+                  <span>Reportar también por WhatsApp Directo</span>
                 </a>
               </div>
             )}
@@ -481,6 +495,17 @@ export default function DriverAccountStatementModal({
                   <span>Pagar Ahora con Cubo Pago (Enlace Seguro)</span>
                   <ExternalLink className="w-3.5 h-3.5" />
                 </a>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (onOpenInbox) onOpenInbox('PAGOS', remainingWeeklyCash);
+                  }}
+                  className="w-full py-2.5 bg-slate-900 hover:bg-slate-850 text-amber-300 font-bold text-xs rounded-xl border border-amber-500/30 flex items-center justify-center gap-2 cursor-pointer transition-colors"
+                >
+                  <Inbox className="w-4 h-4 text-amber-400" />
+                  <span>Notificar Comprobante de Cubo a la App</span>
+                </button>
               </div>
             )}
           </div>

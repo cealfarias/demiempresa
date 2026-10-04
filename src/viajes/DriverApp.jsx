@@ -26,7 +26,8 @@ import {
   Star,
   Coins,
   List,
-  FileText
+  FileText,
+  Inbox
 } from 'lucide-react';
 import RumboLogo from './RumboLogo';
 import GasModal from './GasModal';
@@ -35,6 +36,7 @@ import DriverLandingView from './DriverLandingView';
 import DriverEarningsView from './DriverEarningsView';
 import DriverTripRequestsFeed from './DriverTripRequestsFeed';
 import DriverAccountStatementModal from './DriverAccountStatementModal';
+import RumboInboxModal from './RumboInboxModal';
 import {
   calculateTripFuelCost,
   estimateFuelEconomy,
@@ -61,6 +63,9 @@ export default function DriverApp() {
   });
   const [showRegistrationModal, setShowRegistrationModal] = useState(false);
   const [showAccountStatementModal, setShowAccountStatementModal] = useState(false);
+  const [showInboxModal, setShowInboxModal] = useState(false);
+  const [inboxInitialCategory, setInboxInitialCategory] = useState(null);
+  const [inboxPrefillAmount, setInboxPrefillAmount] = useState(10.00);
   const [driverProfileId, setDriverProfileId] = useState(() => {
     try {
       const saved = localStorage.getItem('rumbo_driver_profile');
@@ -591,6 +596,21 @@ export default function DriverApp() {
                     <span>Registro Conductor</span>
                   </>
                 )}
+              </button>
+
+              {/* Icono Minimalista de Inbox (SIN LETRAS) */}
+              <button
+                type="button"
+                onClick={() => {
+                  setInboxInitialCategory(null);
+                  setShowInboxModal(true);
+                }}
+                title="Buzón / Inbox"
+                aria-label="Buzón de entrada"
+                className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 hover:border-amber-400/50 flex items-center justify-center text-amber-400 hover:text-amber-300 transition-all cursor-pointer relative shadow-sm"
+              >
+                <Inbox className="w-4 h-4" />
+                <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
               </button>
 
               {/* Botón de Estado de Cuenta Oficial */}
@@ -1698,6 +1718,22 @@ export default function DriverApp() {
         onPayWeeklyFeeWithBonuses={handlePayWeeklyFeeWithBonuses}
         onPayDailyPass={handlePayDailyPass}
         isApplyingBonuses={isApplyingBonuses}
+        onOpenInbox={(cat, amt) => {
+          setInboxInitialCategory(cat);
+          setInboxPrefillAmount(amt);
+          setShowAccountStatementModal(false);
+          setShowInboxModal(true);
+        }}
+      />
+
+      {/* Modal de Buzón Oficial / Inbox de Conductor (Multitema: Pagos, Sugerencias, Quejas, Soporte) */}
+      <RumboInboxModal
+        isOpen={showInboxModal}
+        onClose={() => setShowInboxModal(false)}
+        role="DRIVER"
+        userProfile={driverProfile}
+        initialCategory={inboxInitialCategory}
+        prefillPaymentAmount={inboxPrefillAmount}
       />
 
       {/* Modal de Registro y Expediente Digital de Conductor */}

@@ -5,6 +5,7 @@ import AsesoriaCreacionEmpresa from './pages/AsesoriaCreacionEmpresa';
 import FacturacionDTEPage from './pages/FacturacionDTEPage';
 import ViajesApp from './viajes/ViajesApp';
 import DriverApp from './viajes/DriverApp';
+import AdminDashboardPage from './pages/AdminDashboardPage';
 
 function App() {
   const isSanMiguelito = typeof window !== 'undefined' && window.location.hostname.includes('sanmiguelito');
@@ -21,6 +22,7 @@ function App() {
       <Route path="/" element={getDefaultRoute()} />
       <Route path="/viajes" element={<ViajesApp />} />
       <Route path="/conductor" element={<DriverApp />} />
+      <Route path="/admin" element={<AdminDashboardPage />} />
       <Route path="/portal" element={<LandingPortal />} />
       <Route path="/mercado" element={<MercadoApp />} />
       <Route path="/facturacion-dte" element={<FacturacionDTEPage />} />
