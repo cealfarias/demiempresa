@@ -426,13 +426,26 @@ export default function DriverApp() {
       setTripState('EN_ROUTE_TO_PICKUP');
     });
 
+    // Control de Dispositivo Único: Si se inicia sesión con este número en otro celular, cerrar de inmediato
+    socket.on('driver_session_revoked', (ev) => {
+      const myPhone = driverProfile?.phone ? String(driverProfile.phone).replace(/\D/g, '').slice(-8) : '';
+      if (myPhone && ev?.phone === myPhone && ev?.activeSessionId !== driverProfile?.sessionToken) {
+        alert('⚠️ SESIÓN CERRADA: Se ha iniciado sesión con tu número telefónico en otro dispositivo. Por seguridad, solo se permite un dispositivo activo a la vez.');
+        localStorage.removeItem('rumbo_driver_profile');
+        setDriverProfile(null);
+        setDriverOnline(false);
+        setActiveTrip(null);
+      }
+    });
+
     return () => {
       socket.off('trip:new_request');
       socket.off('trip:assigned');
       socket.off('offer:rejected_other_won');
       socket.off('trip:canceled');
+      socket.off('driver_session_revoked');
     };
-  }, [driverProfileId]);
+  }, [driverProfileId, driverProfile?.phone, driverProfile?.sessionToken]);
 
   // Transmisión continua de posición GPS cada 4 segundos & Detección de Gasolineras en Ruta
   useEffect(() => {

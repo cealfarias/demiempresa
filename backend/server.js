@@ -695,6 +695,7 @@ app.post('/api/drivers/login-phone', async (req, res) => {
 
 // 5.1.3 GENERAR ENLACE MÁGICO DE WHATSAPP PARA CONDUCTOR
 const activeMagicLinks = new Map();
+const activeDriverSessions = new Map(); // cleanPhone -> { sessionId, loggedAt }
 
 app.post('/api/auth/send-magic-link', async (req, res) => {
   try {
@@ -714,10 +715,11 @@ app.post('/api/auth/send-magic-link', async (req, res) => {
       phone: cleanPhone,
       createdAt: Date.now(),
       expiresAt: Date.now() + 15 * 60 * 1000,
+      used: false,
       verified: false
     });
 
-    const whatsappMessage = `🚗 *Rumbo a tu Destino - Acceso de Conductor*\n\nHola, aquí tienes tu enlace directo para entrar a tu consola:\n👉 ${magicLinkUrl}\n\n(O si prefieres, tu código de acceso manual es: *${token}*)\n\nVálido por 15 minutos.`;
+    const whatsappMessage = `🚗 *Rumbo a tu Destino - Acceso de Conductor*\n\nHola, aquí tienes tu enlace directo para entrar a tu consola:\n👉 ${magicLinkUrl}\n\n(O si prefieres, tu código de acceso manual es: *${token}*)\n\nVálido por 15 minutos (Un solo uso).`;
     const whatsappWebLink = `https://wa.me/503${cleanPhone}?text=${encodeURIComponent(whatsappMessage)}`;
 
     console.log(`🔗 Enlace Mágico generado para celular ${cleanPhone}: [${magicLinkUrl}]`);
@@ -737,7 +739,7 @@ app.post('/api/auth/send-magic-link', async (req, res) => {
   }
 });
 
-// 5.1.4 VERIFICAR ENLACE MÁGICO / TOKEN DE WHATSAPP
+// 5.1.4 VERIFICAR ENLACE MÁGICO / TOKEN DE WHATSAPP CON QUEMADO DE UN SOLO USO
 app.post('/api/drivers/verify-magic-token', async (req, res) => {
   try {
     const { phone, token } = req.body;
@@ -748,14 +750,40 @@ app.post('/api/drivers/verify-magic-token', async (req, res) => {
     }
 
     const stored = activeMagicLinks.get(cleanPhone);
-    const validToken = (stored && stored.token === String(token).trim()) || String(token).trim() === '123456';
-    if (!validToken) {
-      return res.status(400).json({ success: false, error: 'El enlace mágico ha expirado o el código es incorrecto.' });
+
+    // 1. Validar expiración de tiempo
+    if (stored && stored.expiresAt && Date.now() > stored.expiresAt) {
+      activeMagicLinks.delete(cleanPhone);
+      return res.status(400).json({ success: false, error: 'El enlace mágico ha expirado por tiempo (límite 15 min). Solicita uno nuevo.' });
     }
 
-    if (stored) {
-      stored.verified = true;
+    // 2. Validar que no haya sido consumido previamente (Burn-on-read)
+    if (stored && stored.used) {
+      activeMagicLinks.delete(cleanPhone);
+      return res.status(400).json({ success: false, error: 'Este enlace ya fue utilizado anteriormente y no es reutilizable por seguridad.' });
     }
+
+    const validToken = (stored && stored.token === String(token).trim()) || String(token).trim() === '123456';
+    if (!validToken) {
+      return res.status(400).json({ success: false, error: 'El enlace mágico no es válido o ha expirado.' });
+    }
+
+    // 3. QUEMADO INMEDIATO DE UN SOLO USO: Destruir el token para que nadie más pueda usarlo si se comparte
+    if (stored) {
+      stored.used = true;
+      stored.verified = true;
+      activeMagicLinks.delete(cleanPhone);
+    }
+
+    // 4. CONTROL DE DISPOSITIVO ÚNICO: Generar ID de sesión exclusivo. Expulsa sesiones previas en otros teléfonos
+    const newSessionId = `ses_${cleanPhone}_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+    activeDriverSessions.set(cleanPhone, {
+      sessionId: newSessionId,
+      loggedAt: new Date().toISOString()
+    });
+
+    // Notificar por WebSocket para cerrar cualquier otra pantalla abierta con este mismo número
+    io.emit('driver_session_revoked', { phone: cleanPhone, activeSessionId: newSessionId });
 
     let driverProfile = null;
     try {
@@ -783,7 +811,8 @@ app.post('/api/drivers/verify-magic-token', async (req, res) => {
           isActive: row.is_active ?? true,
           isOnline: true,
           trialEndsAt: row.trial_ends_at || new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
-          weeklyBonuses: row.current_week_bonuses_count || 0
+          weeklyBonuses: row.current_week_bonuses_count || 0,
+          sessionToken: newSessionId
         };
       }
     } catch (dbErr) {
@@ -806,28 +835,47 @@ app.post('/api/drivers/verify-magic-token', async (req, res) => {
         isActive: true,
         isOnline: true,
         trialEndsAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
-        weeklyBonuses: 0
+        weeklyBonuses: 0,
+        sessionToken: newSessionId
       };
+    } else {
+      driverProfile.sessionToken = newSessionId;
     }
 
     res.json({
       success: true,
       driverProfile,
-      message: 'Enlace mágico verificado exitosamente. Acceso concedido a la consola de conductor.'
+      sessionToken: newSessionId,
+      message: 'Enlace mágico verificado exitosamente. Sesión exclusiva concedida a este dispositivo.'
     });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
 });
 
-// 5.1.5 CONSULTAR SI EL ENLACE MÁGICO YA FUE ACEPTADO
+// 5.1.5 CONSULTAR SI EL ENLACE MÁGICO YA FUE ACEPTADO Y VALIDACIÓN DE SESIÓN ÚNICA
 app.get('/api/auth/check-magic-status', (req, res) => {
   const cleanPhone = String(req.query.phone || '').replace(/\D/g, '').slice(-8);
-  const stored = activeMagicLinks.get(cleanPhone);
-  if (stored && stored.verified) {
-    return res.json({ verified: true });
+  const currentSession = activeDriverSessions.get(cleanPhone);
+  if (currentSession) {
+    return res.json({ verified: true, sessionToken: currentSession.sessionId });
   }
   return res.json({ verified: false });
+});
+
+// 5.1.5.1 VALIDAR VIGENCIA DE DISPOSITIVO ÚNICO (Evita 2 celulares con el mismo número)
+app.get('/api/drivers/validate-session', (req, res) => {
+  const cleanPhone = String(req.query.phone || '').replace(/\D/g, '').slice(-8);
+  const token = req.query.sessionToken;
+  const current = activeDriverSessions.get(cleanPhone);
+
+  if (!current || current.sessionId === token) {
+    return res.json({ valid: true });
+  }
+  return res.json({
+    valid: false,
+    message: 'Esta cuenta ha sido abierta en otro teléfono. Tu sesión ha sido cerrada por seguridad.'
+  });
 });
 
 // 5.1.6 CONFIGURACIÓN ADMINISTRATIVA DE WHATSAPP
