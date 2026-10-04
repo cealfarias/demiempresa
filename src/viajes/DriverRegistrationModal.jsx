@@ -34,7 +34,8 @@ import {
   Users,
   HeartHandshake,
   Volume2,
-  VolumeX
+  VolumeX,
+  LogOut
 } from 'lucide-react';
 import { registerDriverApi, fetchDriverStatusApi } from './api';
 import {
@@ -105,7 +106,7 @@ const speakInstitutionalMessage = async (onEndCallback) => {
   }
 };
 
-export default function DriverRegistrationModal({ isOpen, onClose, onDriverRegistered, existingDriverId }) {
+export default function DriverRegistrationModal({ isOpen, onClose, onDriverRegistered, existingDriverId, onLogout }) {
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState(null);
@@ -438,16 +439,32 @@ export default function DriverRegistrationModal({ isOpen, onClose, onDriverRegis
     >
       <div className="bg-[#0f172a] border border-slate-800 rounded-3xl max-w-2xl w-full p-4 sm:p-7 shadow-2xl relative text-slate-100 animate-in zoom-in-95 duration-200 mt-2 sm:mt-0">
         
-        {/* Botón de Cierre / Volver a Inicio */}
-        <button
-          type="button"
-          onClick={onClose}
-          className="absolute top-4 right-4 px-3 py-1.5 rounded-xl bg-slate-900/90 text-slate-400 hover:text-slate-100 hover:bg-slate-800 transition-colors z-10 flex items-center gap-1.5 text-xs font-semibold cursor-pointer border border-slate-800"
-          title="Cerrar y volver al inicio"
-        >
-          <span>← Inicio / Atrás</span>
-          <X className="w-3.5 h-3.5 ml-0.5 text-slate-500" />
-        </button>
+        {/* Botones de Cabecera: Cerrar Sesión y Volver a Inicio */}
+        <div className="absolute top-4 right-4 z-10 flex items-center gap-2">
+          {onLogout && (
+            <button
+              type="button"
+              onClick={() => {
+                onClose();
+                onLogout();
+              }}
+              className="px-2.5 py-1.5 rounded-xl bg-slate-900/90 hover:bg-rose-500/20 text-slate-400 hover:text-rose-300 border border-slate-800 hover:border-rose-500/30 transition-colors flex items-center gap-1.5 text-xs font-semibold cursor-pointer shadow-sm"
+              title="Cerrar sesión en este dispositivo"
+            >
+              <LogOut className="w-3.5 h-3.5 text-rose-400" />
+              <span>Cerrar Sesión</span>
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-3 py-1.5 rounded-xl bg-slate-900/90 text-slate-400 hover:text-slate-100 hover:bg-slate-800 transition-colors flex items-center gap-1.5 text-xs font-semibold cursor-pointer border border-slate-800"
+            title="Cerrar y volver al inicio"
+          >
+            <span>← Inicio / Atrás</span>
+            <X className="w-3.5 h-3.5 ml-0.5 text-slate-500" />
+          </button>
+        </div>
 
         {/* Pantalla de Estado Post-Envío: BIENVENIDA EUFÓRICA */}
         {successData ? (
@@ -692,6 +709,20 @@ export default function DriverRegistrationModal({ isOpen, onClose, onDriverRegis
                 <LifeBuoy className="w-4 h-4 text-amber-400" />
                 <span>Ticket de Soporte Técnico</span>
               </button>
+
+              {onLogout && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    onLogout();
+                  }}
+                  className="inline-flex items-center justify-center gap-2 px-5 py-3.5 rounded-2xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 font-bold text-xs transition-colors border border-rose-500/30 cursor-pointer"
+                >
+                  <LogOut className="w-4 h-4 text-rose-400" />
+                  <span>Cerrar Sesión</span>
+                </button>
+              )}
             </div>
           </div>
         ) : (

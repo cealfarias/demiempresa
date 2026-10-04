@@ -27,7 +27,8 @@ import {
   Coins,
   List,
   FileText,
-  Inbox
+  Inbox,
+  LogOut
 } from 'lucide-react';
 import RumboLogo from './RumboLogo';
 import GasModal from './GasModal';
@@ -90,6 +91,17 @@ export default function DriverApp() {
   const bonusCap = 10;
   const baseWeeklyFee = 10.00;
   const netWeeklyFee = Math.max(0, baseWeeklyFee - weeklyBonuses * 1.00);
+
+  // Estado y función para Cierre de Sesión Seguro
+  const [showLogoutConfirmModal, setShowLogoutConfirmModal] = useState(false);
+
+  const handlePerformLogout = () => {
+    localStorage.removeItem('rumbo_driver_profile');
+    setDriverProfile(null);
+    setDriverOnline(false);
+    setActiveTrip(null);
+    setShowLogoutConfirmModal(false);
+  };
 
   const handleAcceptRequestFromFeed = (req, finalPrice) => {
     const fare = parseFloat(finalPrice || req.price || 4.00);
@@ -655,15 +667,13 @@ export default function DriverApp() {
               </button>
 
               <button
-                onClick={() => {
-                  localStorage.removeItem('rumbo_driver_profile');
-                  setDriverProfile(null);
-                  setDriverOnline(false);
-                }}
+                onClick={() => setShowLogoutConfirmModal(true)}
                 title="Cerrar sesión de conductor y volver a la página de bienvenida"
-                className="p-1.5 sm:px-2.5 sm:py-1.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-slate-100 text-xs font-bold border border-slate-700/60 transition-colors"
+                className="p-1.5 sm:px-2.5 sm:py-1.5 rounded-xl bg-slate-800/80 hover:bg-rose-500/20 text-slate-400 hover:text-rose-300 text-xs font-bold border border-slate-700/60 hover:border-rose-500/40 transition-colors flex items-center gap-1 cursor-pointer"
               >
-                Salir
+                <LogOut className="w-3.5 h-3.5 text-rose-400" />
+                <span className="hidden sm:inline">Cerrar Sesión</span>
+                <span className="sm:hidden">Salir</span>
               </button>
             </div>
           </header>
@@ -1135,6 +1145,12 @@ export default function DriverApp() {
                   incomingRequest={incomingRequest}
                   onOpenSettings={() => setShowVehicleSettings(true)}
                   onOpenExpediente={() => setShowRegistrationModal(true)}
+                  onOpenInbox={() => {
+                    setInboxInitialCategory(null);
+                    setShowInboxModal(true);
+                  }}
+                  onOpenAccountStatement={() => setShowAccountStatementModal(true)}
+                  onLogout={() => setShowLogoutConfirmModal(true)}
                 />
               </div>
             )}
@@ -1367,18 +1383,26 @@ export default function DriverApp() {
                   </button>
                 </div>
 
-                {/* Cerrar Sesión */}
-                <div className="pt-2 text-center">
+                {/* Gestión de Sesión / Cerrar Sesión */}
+                <div className="p-4 bg-slate-900 border border-slate-800 rounded-2xl flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-rose-500/10 text-rose-400 flex items-center justify-center">
+                      <LogOut className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <div className="font-bold text-white text-xs">Sesión de Conductor</div>
+                      <div className="text-[11px] text-slate-400">
+                        {driverProfile?.phone ? `+503 ${driverProfile.phone}` : (driverProfile?.fullName || 'Conductor Rumbo')}
+                      </div>
+                    </div>
+                  </div>
                   <button
                     type="button"
-                    onClick={() => {
-                      localStorage.removeItem('rumbo_driver_profile');
-                      setDriverProfile(null);
-                      setDriverOnline(false);
-                    }}
-                    className="text-xs text-slate-500 hover:text-rose-400 underline cursor-pointer"
+                    onClick={() => setShowLogoutConfirmModal(true)}
+                    className="px-3 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors"
                   >
-                    Cerrar Sesión de Conductor
+                    <LogOut className="w-3.5 h-3.5 text-rose-400" />
+                    <span>Cerrar Sesión</span>
                   </button>
                 </div>
               </div>
@@ -1564,6 +1588,20 @@ export default function DriverApp() {
               >
                 GUARDAR CONFIGURACIÓN DE RENDIMIENTO
               </button>
+
+              <div className="pt-2 border-t border-slate-800 text-center">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowVehicleSettings(false);
+                    setShowLogoutConfirmModal(true);
+                  }}
+                  className="text-xs text-slate-400 hover:text-rose-400 flex items-center justify-center gap-1.5 mx-auto py-1.5 px-3 rounded-xl bg-slate-950 hover:bg-rose-500/10 border border-slate-800 hover:border-rose-500/30 transition-colors cursor-pointer"
+                >
+                  <LogOut className="w-3.5 h-3.5 text-rose-400" />
+                  <span>Cerrar Sesión de Conductor</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -1724,6 +1762,7 @@ export default function DriverApp() {
           setShowAccountStatementModal(false);
           setShowInboxModal(true);
         }}
+        onLogout={() => setShowLogoutConfirmModal(true)}
       />
 
       {/* Modal de Buzón Oficial / Inbox de Conductor (Multitema: Pagos, Sugerencias, Quejas, Soporte) */}
@@ -1748,7 +1787,44 @@ export default function DriverApp() {
             setDriverOnline(false);
           }
         }}
+        onLogout={() => setShowLogoutConfirmModal(true)}
       />
+
+      {/* Modal de Confirmación de Cierre de Sesión Seguro */}
+      {showLogoutConfirmModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm animate-fade-in">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-sm w-full p-6 space-y-4 shadow-2xl animate-pop-bounce text-center">
+            <div className="w-14 h-14 mx-auto rounded-full bg-rose-500/15 border border-rose-500/30 flex items-center justify-center text-rose-400">
+              <LogOut className="w-7 h-7" />
+            </div>
+            <div>
+              <h3 className="text-base font-black text-white">
+                ¿Cerrar Sesión de Conductor?
+              </h3>
+              <p className="text-xs text-slate-300 mt-1.5 leading-relaxed">
+                Se cerrará la consola activa en este dispositivo. Podrás volver a ingresar en cualquier momento con tu número de celular.
+              </p>
+            </div>
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowLogoutConfirmModal(false)}
+                className="flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs transition-colors cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handlePerformLogout}
+                className="flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-black text-xs shadow-lg shadow-rose-950/40 transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+                <span>Sí, Cerrar Sesión</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

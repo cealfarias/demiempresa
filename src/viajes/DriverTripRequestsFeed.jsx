@@ -14,7 +14,10 @@ import {
   AlertCircle,
   RefreshCw,
   Phone,
-  User
+  User,
+  LogOut,
+  FileText,
+  Inbox
 } from 'lucide-react';
 import { triggerCashRewardFeedback } from './soundFeedbackService';
 
@@ -25,7 +28,10 @@ export default function DriverTripRequestsFeed({
   onSendOffer,
   incomingRequest,
   onOpenSettings,
-  onOpenExpediente
+  onOpenExpediente,
+  onOpenInbox,
+  onOpenAccountStatement,
+  onLogout
 }) {
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [counterOfferAmount, setCounterOfferAmount] = useState('');
@@ -77,23 +83,51 @@ export default function DriverTripRequestsFeed({
   return (
     <div className="space-y-2 pb-24 text-slate-100">
       
-      {/* 1. BARRA SUPERIOR IDÉNTICA AL SCREENSHOT:
-          [☰]   [  Ocupado / En línea  ]   [⚙] */}
-      <div className="bg-slate-900 border-b border-slate-800 px-4 py-2.5 flex items-center justify-between sticky top-0 z-30 shadow-md">
-        <button
-          type="button"
-          onClick={onOpenExpediente}
-          title="Menú y Expediente de Conductor"
-          className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
-        >
-          <span className="text-xl leading-none">☰</span>
-        </button>
+      {/* 1. BARRA SUPERIOR CON ACCESOS DIRECTOS Y CIERRE DE SESIÓN:
+          [☰] [📄 Estado de Cuenta] [📥 Inbox]   [ Ocupado / En línea ]   [⚙] [🚪 Salir] */}
+      <div className="bg-slate-900 border-b border-slate-800 px-3 sm:px-4 py-2.5 flex items-center justify-between sticky top-0 z-30 shadow-md">
+        <div className="flex items-center gap-1 sm:gap-1.5">
+          <button
+            type="button"
+            onClick={onOpenExpediente}
+            title="Menú y Expediente de Conductor"
+            className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+          >
+            <span className="text-xl leading-none">☰</span>
+          </button>
+
+          {/* Acceso a Estado de Cuenta Oficial */}
+          {onOpenAccountStatement && (
+            <button
+              type="button"
+              onClick={onOpenAccountStatement}
+              title="Ver Estado de Cuenta, Cuotas y Bonos"
+              className="p-1.5 rounded-lg text-amber-400 hover:text-amber-300 hover:bg-slate-800 transition-colors cursor-pointer"
+            >
+              <FileText className="w-4 h-4" />
+            </button>
+          )}
+
+          {/* Acceso a Buzón / Inbox Minimalista */}
+          {onOpenInbox && (
+            <button
+              type="button"
+              onClick={onOpenInbox}
+              title="Buzón / Inbox"
+              aria-label="Buzón de entrada"
+              className="p-1.5 rounded-lg text-amber-400 hover:text-amber-300 hover:bg-slate-800 transition-colors cursor-pointer relative"
+            >
+              <Inbox className="w-4 h-4" />
+              <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+            </button>
+          )}
+        </div>
 
         {/* Cápsula de Conexión: Ocupado (Rojo) / En línea (Verde) */}
         <button
           type="button"
           onClick={onToggleOnline}
-          className={`px-5 py-1.5 rounded-full font-bold text-xs sm:text-sm tracking-wide transition-all shadow-md cursor-pointer active:scale-95 ${
+          className={`px-3.5 sm:px-5 py-1.5 rounded-full font-bold text-xs sm:text-sm tracking-wide transition-all shadow-md cursor-pointer active:scale-95 ${
             driverOnline
               ? 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-emerald-500/30'
               : 'bg-rose-500/90 hover:bg-rose-500 text-white shadow-rose-500/30'
@@ -102,15 +136,28 @@ export default function DriverTripRequestsFeed({
           <span>{driverOnline ? 'En línea' : 'Ocupado'}</span>
         </button>
 
-        <button
-          type="button"
-          onClick={onOpenSettings}
-          title="Configuración de auto y rendimiento"
-          className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors relative cursor-pointer"
-        >
-          <span className="text-lg">⚙</span>
-          <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-rose-500 ring-2 ring-slate-900"></span>
-        </button>
+        <div className="flex items-center gap-1 sm:gap-1.5">
+          <button
+            type="button"
+            onClick={onOpenSettings}
+            title="Configuración de auto y rendimiento"
+            className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors relative cursor-pointer"
+          >
+            <span className="text-lg">⚙</span>
+            <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-rose-500 ring-2 ring-slate-900"></span>
+          </button>
+
+          {/* Botón de Cerrar Sesión del Conductor */}
+          <button
+            type="button"
+            onClick={onLogout}
+            title="Cerrar sesión de conductor"
+            className="p-1.5 sm:px-2.5 sm:py-1.5 rounded-xl bg-slate-800/80 hover:bg-rose-500/20 text-slate-400 hover:text-rose-300 border border-slate-700/60 hover:border-rose-500/40 text-xs font-bold transition-all cursor-pointer flex items-center gap-1 shadow-sm"
+          >
+            <LogOut className="w-4 h-4 text-rose-400" />
+            <span className="hidden sm:inline">Cerrar Sesión</span>
+          </button>
+        </div>
       </div>
 
       {/* Indicador de cercanía garantizada: 1 km a la redonda */}

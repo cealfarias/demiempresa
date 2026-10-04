@@ -19,7 +19,8 @@ import {
   ChevronRight,
   Gift,
   HelpCircle,
-  Inbox
+  Inbox,
+  LogOut
 } from 'lucide-react';
 
 export default function DriverAccountStatementModal({
@@ -31,7 +32,8 @@ export default function DriverAccountStatementModal({
   onPayWeeklyFeeWithBonuses,
   onPayDailyPass,
   isApplyingBonuses = false,
-  onOpenInbox
+  onOpenInbox,
+  onLogout
 }) {
   const [copiedAccount, setCopiedAccount] = useState(false);
   const [selectedPaymentTab, setSelectedPaymentTab] = useState('TRANSFER365'); // 'TRANSFER365' | 'CUBO'
@@ -539,6 +541,23 @@ export default function DriverAccountStatementModal({
               )}
             </div>
           </div>
+
+          {/* Opción de Cierre de Sesión Seguro */}
+          {onLogout && (
+            <div className="pt-1 pb-1 text-center">
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onLogout();
+                }}
+                className="text-xs text-slate-400 hover:text-rose-400 flex items-center justify-center gap-1.5 mx-auto py-1.5 px-3 rounded-xl bg-slate-900/80 hover:bg-rose-500/10 border border-slate-800 hover:border-rose-500/30 transition-colors cursor-pointer"
+              >
+                <LogOut className="w-3.5 h-3.5 text-rose-400" />
+                <span>Cerrar Sesión de Conductor</span>
+              </button>
+            </div>
+          )}
 
         </div>
 
