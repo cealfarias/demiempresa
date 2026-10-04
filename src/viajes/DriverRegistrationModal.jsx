@@ -58,7 +58,7 @@ const speakWelcomeMessage = async (driverName) => {
     try {
       window.speechSynthesis.cancel();
       await requestScreenWakeLock();
-      const text = `¡Felicidades ${driverName || ''}! Bienvenido con euforia a la comunidad de conductores de Rumbo a tu destino. Tu solicitud fue presentada exitosamente. En Rumbo el cien por ciento de la ganancia es dinero en efectivo en tu mano y tu primera semana es totalmente gratis sin comisión.`;
+      const text = `¡Felicidades ${driverName || ''}! Bienvenido con euforia a la comunidad de conductores de Rumbo a tu destino. Tu solicitud fue presentada exitosamente. En Rumbo el cien por ciento de la ganancia es dinero en efectivo en tu mano y tus primeros catorce días son totalmente gratis sin comisión.`;
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = 'es-ES';
       utterance.rate = 1.05;
@@ -404,6 +404,9 @@ export default function DriverRegistrationModal({ isOpen, onClose, onDriverRegis
       const res = await registerDriverApi(payload);
       if (res && res.success) {
         const profile = res.driverProfile || res;
+        if (!profile.trialEndsAt) {
+          profile.trialEndsAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
+        }
         setSuccessData(profile);
         localStorage.setItem('rumbo_driver_profile', JSON.stringify(profile));
         speakWelcomeMessage(profile.fullName || form.fullName);
@@ -435,12 +438,15 @@ export default function DriverRegistrationModal({ isOpen, onClose, onDriverRegis
     >
       <div className="bg-[#0f172a] border border-slate-800 rounded-3xl max-w-2xl w-full p-4 sm:p-7 shadow-2xl relative text-slate-100 animate-in zoom-in-95 duration-200 mt-2 sm:mt-0">
         
-        {/* Botón de Cierre */}
+        {/* Botón de Cierre / Volver a Inicio */}
         <button
+          type="button"
           onClick={onClose}
-          className="absolute top-4 right-4 p-2 rounded-xl bg-slate-900/80 text-slate-400 hover:text-slate-100 hover:bg-slate-800 transition-colors z-10"
+          className="absolute top-4 right-4 px-3 py-1.5 rounded-xl bg-slate-900/90 text-slate-400 hover:text-slate-100 hover:bg-slate-800 transition-colors z-10 flex items-center gap-1.5 text-xs font-semibold cursor-pointer border border-slate-800"
+          title="Cerrar y volver al inicio"
         >
-          <X className="w-5 h-5" />
+          <span>← Inicio / Atrás</span>
+          <X className="w-3.5 h-3.5 ml-0.5 text-slate-500" />
         </button>
 
         {/* Pantalla de Estado Post-Envío: BIENVENIDA EUFÓRICA */}
@@ -478,7 +484,7 @@ export default function DriverRegistrationModal({ isOpen, onClose, onDriverRegis
                 <p className="text-[10px] text-slate-400">Cero comisiones abusivas. Todo el dinero es tuyo.</p>
               </div>
               <div className="p-3 rounded-2xl bg-slate-900/90 border border-amber-500/30 space-y-1">
-                <span className="text-amber-400 font-black text-sm block">1ª Semana $0.00</span>
+                <span className="text-amber-400 font-black text-sm block">14 Días $0.00</span>
                 <p className="text-[10px] text-slate-400">Cuota 100% bonificada de bienvenida.</p>
               </div>
               <div className="p-3 rounded-2xl bg-slate-900/90 border border-sky-500/30 space-y-1">
@@ -632,7 +638,7 @@ export default function DriverRegistrationModal({ isOpen, onClose, onDriverRegis
                     <div className="space-y-0.5">
                       <h4 className="font-bold text-xs text-white">2. Enlace para Conductores Colegas</h4>
                       <p className="text-[11px] text-amber-300 font-semibold">
-                        💰 0% Comisión y 1ª Semana 100% Gratis
+                        💰 0% Comisión y 14 Días 100% Gratis
                       </p>
                       <p className="text-[10px] text-slate-400 leading-tight">
                         El 100% de la ganancia en efectivo en tu mano ante la gasolina a $5.13 y radio de 1 km sin viajes fantasma.
@@ -1409,9 +1415,9 @@ export default function DriverRegistrationModal({ isOpen, onClose, onDriverRegis
                       <DollarSign className="w-4 h-4" />
                     </div>
                     <div>
-                      <h4 className="font-bold text-slate-200">Membresía Semanal Fija de $10.00 USD</h4>
+                      <h4 className="font-bold text-slate-200">14 Días Gratis y Membresía Semanal Fija ($10.00 USD)</h4>
                       <p className="text-slate-400 text-[11px]">
-                        Tu 1ª semana es 100% bonificada ($0.00 cuota). En las semanas siguientes, cada bono de $1.00 de pasajero descuenta tu cuota hasta dejarla en $0.00 (con 10 bonos recibidos, tu semana te sale gratis).
+                        Tus primeros 14 días son 100% gratis ($0.00 cuota). Luego, cada bono de $1.00 de pasajero descuenta tu cuota de un solo golpe hasta dejarla en $0.00. <strong>Importante:</strong> El pago semanal debe realizarse con 48 horas de anticipación a su vencimiento (con recordatorios a las 48h y 24h).
                       </p>
                     </div>
                   </div>
@@ -1421,11 +1427,11 @@ export default function DriverRegistrationModal({ isOpen, onClose, onDriverRegis
                     <div className="flex items-center gap-2">
                       <CreditCard className="w-4 h-4 text-amber-400" />
                       <h4 className="font-bold text-amber-300 text-xs">
-                        Medios Autorizados para Cancelar la Cuota Semanal ($10 USD)
+                        Medios Autorizados para Cancelar Cuotas o Saldos Pendientes
                       </h4>
                     </div>
                     <p className="text-slate-300 text-[11px] leading-relaxed">
-                      En caso de ser necesario cancelar los $10.00 en efectivo o saldo remanente (si no se liquida completamente con los bonos de pasajeros), el pago se realizará exclusivamente a través de:
+                      Si el conductor no cuenta con bonos suficientes o cancela en efectivo/transferencia, los pagos se realizan mediante:
                     </p>
                     <div className="space-y-2 pt-1 text-[11px]">
                       <div className="p-2.5 rounded-lg bg-slate-900 border border-slate-800 flex items-start gap-2.5">
@@ -1433,10 +1439,10 @@ export default function DriverRegistrationModal({ isOpen, onClose, onDriverRegis
                         <div>
                           <strong className="text-white">1. Transferencia 365 Móvil:</strong>
                           <div className="text-slate-300">
-                            Banco: <strong className="text-white">DAVIVIENDA</strong> • Celular: <strong className="text-amber-300 font-mono">69893101</strong>
+                            Banco: <strong className="text-white">Banco Cuscatlán / Davivienda</strong> • Titular: <strong className="text-slate-200">DEMIEMPRESA EL SALVADOR S.A. DE C.V.</strong>
                           </div>
                           <div className="text-slate-400 text-[10px]">
-                            A nombre de: <strong className="text-slate-200">Cesar Arias</strong>
+                            Cuenta / Celular: <strong className="text-amber-300 font-mono">031-401-00-012345-6 / 69893101</strong> (Concepto: Tu DUI)
                           </div>
                         </div>
                       </div>
@@ -1462,7 +1468,7 @@ export default function DriverRegistrationModal({ isOpen, onClose, onDriverRegis
                     className="mt-0.5 w-4 h-4 text-amber-500 rounded bg-slate-900 border-slate-700 focus:ring-0 cursor-pointer"
                   />
                   <span className="text-xs text-slate-300 leading-relaxed">
-                    He leído y acepto el modelo de membresía semanal fija de $10.00 USD (pagadera mediante compensación de bonos de pasajeros, transferencia 365 móvil Davivienda al 69893101 a nombre de Cesar Arias o link Cubo Pago), y declaro bajo juramento que los documentos subidos y datos del vehículo corresponden a mi persona y son 100% verídicos y vigentes en El Salvador.
+                    He leído y acepto el beneficio de 14 días de uso gratis y el modelo de membresía semanal fija de $10.00 USD con pago obligatorio de 48 horas de anticipación a su vencimiento (pagadera mediante compensación de bonos de pasajeros, transferencia 365 móvil o link Cubo Pago), y declaro bajo juramento que los documentos subidos y datos del vehículo corresponden a mi persona y son 100% verídicos y vigentes en El Salvador.
                   </span>
                 </label>
               </div>
@@ -1474,13 +1480,19 @@ export default function DriverRegistrationModal({ isOpen, onClose, onDriverRegis
                 <button
                   type="button"
                   onClick={() => setStep(step - 1)}
-                  className="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 font-bold text-xs flex items-center gap-1.5 transition-colors"
+                  className="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
                 >
                   <ChevronLeft className="w-4 h-4" />
                   <span>Anterior</span>
                 </button>
               ) : (
-                <div />
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
+                >
+                  <span>← Volver al Inicio</span>
+                </button>
               )}
 
               {step < 4 ? (

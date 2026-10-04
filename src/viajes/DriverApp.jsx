@@ -25,7 +25,8 @@ import {
   Briefcase,
   Star,
   Coins,
-  List
+  List,
+  FileText
 } from 'lucide-react';
 import RumboLogo from './RumboLogo';
 import GasModal from './GasModal';
@@ -33,6 +34,7 @@ import DriverRegistrationModal from './DriverRegistrationModal';
 import DriverLandingView from './DriverLandingView';
 import DriverEarningsView from './DriverEarningsView';
 import DriverTripRequestsFeed from './DriverTripRequestsFeed';
+import DriverAccountStatementModal from './DriverAccountStatementModal';
 import {
   calculateTripFuelCost,
   estimateFuelEconomy,
@@ -58,6 +60,7 @@ export default function DriverApp() {
     }
   });
   const [showRegistrationModal, setShowRegistrationModal] = useState(false);
+  const [showAccountStatementModal, setShowAccountStatementModal] = useState(false);
   const [driverProfileId, setDriverProfileId] = useState(() => {
     try {
       const saved = localStorage.getItem('rumbo_driver_profile');
@@ -186,31 +189,65 @@ export default function DriverApp() {
       .catch(() => {});
   }, []);
 
-  // Pagar cuota semanal ($10.00) usando saldo bonificado acumulado (Ledger Criptográfico)
-  const handlePayWeeklyFeeWithBonuses = async () => {
+  // Pagar cuota semanal ($10.00) usando saldo bonificado acumulado de un solo golpe
+  const handlePayWeeklyFeeWithBonuses = async (customBonuses = null) => {
     setIsApplyingBonuses(true);
+    const available = weeklyBonuses || 0;
+    const bonusesToUse = customBonuses !== null ? customBonuses : Math.min(10, available);
+
+    if (bonusesToUse === 0 && available === 0) {
+      setFeePaymentResult({
+        success: false,
+        bonusesApplied: 0,
+        remainingCashToPay: '10.00',
+        isFullyPaid: false,
+        planType: 'WEEKLY',
+        title: 'Pago de Cuota Semanal ($10.00 USD)',
+        message: 'No tienes saldo bonificado disponible de tus pasajeros. Debes cancelar los $10.00 USD mediante Transfer365 Móvil o Cubo Pago.'
+      });
+      setShowFeePaymentModal(true);
+      setIsApplyingBonuses(false);
+      return;
+    }
+
     try {
       const res = await payDriverWeeklyFeeWithBonusesApi({
         driverId: driverProfileId,
-        bonusesToUse: Math.min(10, (weeklyBonuses || 0) + 1),
+        bonusesToUse,
         totalWeeklyFee: 10.00
       });
       if (res && res.success) {
-        setWeeklyBonuses((prev) => Math.min(10, prev + (res.bonusesApplied || 1)));
-        setFeePaymentResult(res);
+        const applied = res.bonusesApplied !== undefined ? res.bonusesApplied : bonusesToUse;
+        setWeeklyBonuses((prev) => Math.max(0, prev - applied));
+        const rem = Math.max(0, 10 - applied);
+        setFeePaymentResult({
+          ...res,
+          planType: 'WEEKLY',
+          title: rem === 0 ? '¡Semana 100% Pagada!' : 'Abono a Cuota Semanal',
+          bonusesApplied: applied,
+          remainingCashToPay: rem.toFixed(2),
+          isFullyPaid: rem === 0,
+          message: rem === 0
+            ? '¡Cuota semanal saldada al 100% con 10 bonos de un solo golpe ($0.00 USD en efectivo)! Tu acceso 24/7 está garantizado para toda la semana.'
+            : `Se aplicaron ${applied} bonos (-$${applied}.00 USD) de un solo golpe. Saldo pendiente a cancelar: $${rem.toFixed(2)} USD.`
+        });
         setShowFeePaymentModal(true);
       }
     } catch {
-      const nextVal = Math.min(10, (weeklyBonuses || 0) + 1);
-      setWeeklyBonuses(nextVal);
+      // Fallback local garantizado: se descuentan todos los bonos aplicables de una sola vez
+      const applied = Math.min(10, available);
+      const rem = Math.max(0, 10 - applied);
+      setWeeklyBonuses((prev) => Math.max(0, prev - applied));
       setFeePaymentResult({
         success: true,
-        bonusesApplied: 1,
-        remainingCashToPay: Math.max(0, 10 - nextVal).toFixed(2),
-        isFullyPaid: nextVal >= 10,
-        message: nextVal >= 10
-          ? '¡Cuota semanal saldada al 100% con tu saldo bonificado! Tu semana está totalmente libre de cuota.'
-          : `Se aplicó $1.00 de tu saldo bonificado a tu cuota semanal. Saldo restante: $${Math.max(0, 10 - nextVal).toFixed(2)} USD.`
+        planType: 'WEEKLY',
+        title: rem === 0 ? '¡Semana 100% Pagada!' : 'Abono a Cuota Semanal',
+        bonusesApplied: applied,
+        remainingCashToPay: rem.toFixed(2),
+        isFullyPaid: rem === 0,
+        message: rem === 0
+          ? '¡Cuota semanal saldada al 100% con 10 bonos de un solo golpe ($0.00 USD en efectivo)! Tu acceso 24/7 está garantizado para toda la semana.'
+          : `Se aplicaron ${applied} bonos (-$${applied}.00 USD) de un solo golpe. Saldo pendiente a cancelar: $${rem.toFixed(2)} USD.`
       });
       setShowFeePaymentModal(true);
     } finally {
@@ -218,28 +255,38 @@ export default function DriverApp() {
     }
   };
 
-  // Pagar pase diario ($3.00) usando saldo bonificado (hasta 3 bonos) o efectivo
+  // Pagar pase diario ($3.00) usando saldo bonificado (hasta 3 bonos) o efectivo de un solo golpe
   const handlePayDailyPass = async () => {
     setIsApplyingBonuses(true);
+    const available = weeklyBonuses || 0;
+    const bonosUsed = Math.min(3, available);
+    const remainingCash = Math.max(0, 3 - bonosUsed);
+
     try {
       const res = await payDriverDailyPassApi({
         driverId: driverProfileId,
-        bonusesToUse: Math.min(3, weeklyBonuses || 0),
+        bonusesToUse: bonosUsed,
         totalDailyFee: 3.00
       });
       if (res && res.success) {
-        const bonosUsed = res.bonusesApplied !== undefined ? res.bonusesApplied : Math.min(3, weeklyBonuses || 0);
-        setWeeklyBonuses((prev) => Math.max(0, prev - bonosUsed));
+        const applied = res.bonusesApplied !== undefined ? res.bonusesApplied : bonosUsed;
+        setWeeklyBonuses((prev) => Math.max(0, prev - applied));
+        const rem = Math.max(0, 3 - applied);
         setFeePaymentResult({
           ...res,
           planType: 'DAILY',
-          title: 'Pase Diario Activado (24 Horas)'
+          title: 'Pase Diario Activado (24 Horas)',
+          bonusesApplied: applied,
+          totalFee: 3.00,
+          remainingCashToPay: rem.toFixed(2),
+          isFullyPaid: rem === 0,
+          message: rem === 0
+            ? '¡Pase de 24 horas cubierto al 100% con 3 bonos de un solo golpe ($0.00 USD en efectivo)! Tu acceso está activo para hoy.'
+            : `Se aplicaron ${applied} bonos (-$${applied}.00 USD). Saldo pendiente en efectivo para las 24 horas: $${rem.toFixed(2)} USD.`
         });
         setShowFeePaymentModal(true);
       }
     } catch {
-      const bonosUsed = Math.min(3, weeklyBonuses || 0);
-      const remainingCash = Math.max(0, 3 - bonosUsed);
       setWeeklyBonuses((prev) => Math.max(0, prev - bonosUsed));
       setFeePaymentResult({
         success: true,
@@ -250,8 +297,8 @@ export default function DriverApp() {
         remainingCashToPay: remainingCash.toFixed(2),
         isFullyPaid: remainingCash === 0,
         message: remainingCash === 0
-          ? '¡Pase de 24 horas cubierto al 100% con 3 bonos ($0.00 USD en efectivo)! Tu acceso está activo para hoy.'
-          : `Se aplicaron ${bonosUsed} bonos (-$${bonosUsed}.00). Saldo en efectivo para las 24 horas: $${remainingCash.toFixed(2)} USD.`
+          ? '¡Pase de 24 horas cubierto al 100% con 3 bonos de un solo golpe ($0.00 USD en efectivo)! Tu acceso está activo para hoy.'
+          : `Se aplicaron ${bonosUsed} bonos (-$${bonosUsed}.00 USD). Saldo pendiente en efectivo para las 24 horas: $${remainingCash.toFixed(2)} USD.`
       });
       setShowFeePaymentModal(true);
     } finally {
@@ -546,6 +593,17 @@ export default function DriverApp() {
                 )}
               </button>
 
+              {/* Botón de Estado de Cuenta Oficial */}
+              <button
+                type="button"
+                onClick={() => setShowAccountStatementModal(true)}
+                title="Ver Estado de Cuenta, Bonos, Cuotas, Cubo y Transfer365"
+                className="px-2.5 py-1.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors shadow-sm"
+              >
+                <FileText className="w-3.5 h-3.5 text-amber-400" />
+                <span className="hidden sm:inline">Estado de Cuenta</span>
+              </button>
+
               <button
                 onClick={() => setShowGasModal(true)}
                 title="Radar de Gasolina al centavo"
@@ -589,6 +647,26 @@ export default function DriverApp() {
               </button>
             </div>
           </header>
+
+          {/* Banner de Bienvenida 14 Días Gratis & Recordatorio 48h/24h */}
+          <div className="px-3 sm:px-4 pt-2">
+            <button
+              type="button"
+              onClick={() => setShowAccountStatementModal(true)}
+              className="w-full text-left p-2.5 rounded-2xl border text-xs flex items-center justify-between gap-2 shadow-sm cursor-pointer transition-all bg-gradient-to-r from-emerald-950/40 via-slate-900 to-amber-950/30 border-emerald-500/40 hover:border-emerald-400"
+            >
+              <div className="flex items-center gap-2">
+                <Gift className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span className="text-slate-200 text-[11px] sm:text-xs">
+                  🎁 <strong>14 Días de Uso Gratis Activos</strong> • Consulta tu Estado de Cuenta Oficial (Bonos, Cubo y Transfer365)
+                </span>
+              </div>
+              <span className="text-[11px] font-bold text-amber-300 flex items-center gap-1 shrink-0">
+                <span>Ver Cuenta</span>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </span>
+            </button>
+          </div>
 
           {/* Banner Informativo si el Expediente está PENDIENTE o RECHAZADO */}
           {isPending && (
@@ -1094,6 +1172,31 @@ export default function DriverApp() {
                     </span>
                   </div>
 
+                  {/* Acceso a Estado de Cuenta Oficial */}
+                  <button
+                    type="button"
+                    onClick={() => setShowAccountStatementModal(true)}
+                    className="w-full p-3.5 bg-gradient-to-r from-slate-900 via-amber-950/30 to-slate-900 border border-amber-500/40 hover:border-amber-400 rounded-2xl flex items-center justify-between text-left transition-all cursor-pointer group shadow"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center font-bold border border-amber-500/30 group-hover:scale-105 transition-transform">
+                        <FileText className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <div className="text-white font-bold text-xs flex items-center gap-1.5">
+                          <span>Estado de Cuenta Oficial</span>
+                          <span className="px-1.5 py-0.5 rounded text-[9px] bg-emerald-500/20 text-emerald-300 font-mono">14 DÍAS GRATIS</span>
+                        </div>
+                        <p className="text-[11px] text-slate-400">
+                          Bonos, cuotas pendientes, Cubo Pago y Transfer365 Móvil
+                        </p>
+                      </div>
+                    </div>
+                    <span className="text-xs text-amber-400 font-bold group-hover:translate-x-0.5 transition-transform">
+                      Ver →
+                    </span>
+                  </button>
+
                   {/* TARJETA A: Plan Semanal Completo */}
                   <div className="p-4 bg-gradient-to-br from-emerald-950/40 via-slate-900 to-slate-900 border-2 border-emerald-500/60 rounded-3xl space-y-3 shadow-xl relative overflow-hidden">
                     <div className="flex items-start justify-between gap-2">
@@ -1469,8 +1572,29 @@ export default function DriverApp() {
 
       {/* Modal de Confirmación de Pago de Cuota Semanal con Bonos */}
       {showFeePaymentModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
-          <div className="w-full max-w-sm bg-gradient-to-b from-slate-900 to-slate-950 border border-slate-800 rounded-3xl p-6 shadow-2xl text-slate-100 space-y-4 animate-pop-bounce text-center">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-sm animate-fade-in">
+          <div className="w-full max-w-sm bg-gradient-to-b from-slate-900 to-slate-950 border border-slate-800 rounded-3xl p-5 sm:p-6 shadow-2xl text-slate-100 space-y-4 animate-pop-bounce text-center">
+            
+            <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+              <button
+                type="button"
+                onClick={() => setShowFeePaymentModal(false)}
+                className="text-xs text-slate-400 hover:text-white flex items-center gap-1 font-bold cursor-pointer"
+              >
+                <span>← Volver</span>
+              </button>
+              <span className="text-[10px] font-black tracking-wider uppercase px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300">
+                Transacción Certificada
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowFeePaymentModal(false)}
+                className="text-slate-400 hover:text-white p-1"
+              >
+                ✕
+              </button>
+            </div>
+
             <div className="w-12 h-12 mx-auto rounded-2xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 flex items-center justify-center shadow-lg">
               <Shield className="w-6 h-6" />
             </div>
@@ -1479,12 +1603,12 @@ export default function DriverApp() {
               <h3 className="font-black text-lg text-white">
                 {feePaymentResult?.planType === 'DAILY'
                   ? 'Pase Diario Activado (24 Horas)'
-                  : weeklyBonuses >= bonusCap
+                  : (parseFloat(feePaymentResult?.remainingCashToPay || 0) === 0)
                   ? '¡Semana 100% Pagada!'
-                  : 'Abono a Cuota Semanal'}
+                  : 'Abono de Cuota Semanal'}
               </h3>
               <p className="text-xs text-slate-400">
-                Transacción registrada y certificada en el Libro Mayor Criptográfico Inmutable
+                Certificado en el Libro Mayor Inmutable de Rumbo
               </p>
             </div>
 
@@ -1494,31 +1618,87 @@ export default function DriverApp() {
                 <span className="font-bold">{feePaymentResult?.planType === 'DAILY' ? '$3.00 USD' : '$10.00 USD'}</span>
               </div>
               <div className="flex justify-between text-emerald-400 font-bold">
-                <span>Bonos aplicados:</span>
-                <span>-${(parseFloat(feePaymentResult?.bonusesApplied || (feePaymentResult?.planType === 'DAILY' ? Math.min(3, weeklyBonuses) : weeklyBonuses)) * 1.00).toFixed(2)} USD</span>
+                <span>Bonos aplicados de un solo golpe:</span>
+                <span>-${parseFloat(feePaymentResult?.bonusesApplied || 0).toFixed(2)} USD</span>
               </div>
               <div className="pt-2 border-t border-slate-700 flex justify-between text-white font-black text-sm">
-                <span>Saldo en efectivo:</span>
-                <span className={(feePaymentResult?.isFullyPaid || (feePaymentResult?.planType === 'DAILY' ? Math.max(0, 3 - weeklyBonuses) === 0 : netWeeklyFee === 0)) ? "text-emerald-400" : "text-amber-400"}>
-                  ${parseFloat(feePaymentResult?.remainingCashToPay || (feePaymentResult?.planType === 'DAILY' ? Math.max(0, 3 - weeklyBonuses) : netWeeklyFee)).toFixed(2)} USD
+                <span>Saldo pendiente en efectivo:</span>
+                <span className={parseFloat(feePaymentResult?.remainingCashToPay || 0) === 0 ? "text-emerald-400" : "text-amber-400"}>
+                  ${parseFloat(feePaymentResult?.remainingCashToPay || 0).toFixed(2)} USD
                 </span>
               </div>
             </div>
 
-            <p className="text-[11px] text-slate-400">
-              {feePaymentResult?.message || 'Tu saldo bonificado ha sido aplicado exitosamente a tu cuota semanal.'}
+            <p className="text-[11px] text-slate-300 leading-relaxed">
+              {feePaymentResult?.message || 'Tu saldo bonificado ha sido aplicado de un solo golpe.'}
             </p>
 
-            <button
-              type="button"
-              onClick={() => setShowFeePaymentModal(false)}
-              className="w-full py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs rounded-xl shadow cursor-pointer transition-all active:scale-95"
-            >
-              Entendido
-            </button>
+            {/* Si queda saldo en efectivo, botones directos para Cubo / Transfer365 */}
+            {parseFloat(feePaymentResult?.remainingCashToPay || 0) > 0 && (
+              <div className="space-y-2 pt-1 border-t border-slate-800 text-left">
+                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">
+                  Pagar Saldo Restante (${parseFloat(feePaymentResult?.remainingCashToPay || 0).toFixed(2)} USD):
+                </span>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowFeePaymentModal(false);
+                      setShowAccountStatementModal(true);
+                    }}
+                    className="py-2.5 px-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-[11px] rounded-xl flex items-center justify-center gap-1 shadow cursor-pointer transition-colors"
+                  >
+                    <span>Transfer365 Móvil</span>
+                  </button>
+                  <a
+                    href={`https://pagos.cubopago.com/demiempresa-rumbo?amount=${parseFloat(feePaymentResult?.remainingCashToPay || 0).toFixed(2)}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="py-2.5 px-2 bg-blue-600 hover:bg-blue-500 text-white font-black text-[11px] rounded-xl flex items-center justify-center gap-1 shadow cursor-pointer transition-colors"
+                  >
+                    <span>Cubo Pago</span>
+                  </a>
+                </div>
+              </div>
+            )}
+
+            <div className="flex gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowFeePaymentModal(false);
+                  setShowAccountStatementModal(true);
+                }}
+                className="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold text-xs rounded-xl border border-amber-500/30 cursor-pointer transition-all"
+              >
+                Ver Estado de Cuenta
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowFeePaymentModal(false)}
+                className="flex-1 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs rounded-xl shadow cursor-pointer transition-all active:scale-95"
+              >
+                Ir a Consola
+              </button>
+            </div>
           </div>
         </div>
       )}
+
+      {/* Modal de Estado de Cuenta Oficial del Conductor */}
+      <DriverAccountStatementModal
+        isOpen={showAccountStatementModal}
+        onClose={() => setShowAccountStatementModal(false)}
+        onGoHome={() => {
+          setActiveBottomTab('REQUESTS');
+          setShowAccountStatementModal(false);
+        }}
+        driverProfile={driverProfile}
+        weeklyBonuses={weeklyBonuses}
+        onPayWeeklyFeeWithBonuses={handlePayWeeklyFeeWithBonuses}
+        onPayDailyPass={handlePayDailyPass}
+        isApplyingBonuses={isApplyingBonuses}
+      />
 
       {/* Modal de Registro y Expediente Digital de Conductor */}
       <DriverRegistrationModal

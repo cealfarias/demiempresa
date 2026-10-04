@@ -120,7 +120,7 @@ export default function DriverLandingView({ onStartRegistration, onCheckStatus, 
 
         <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs font-black tracking-wide uppercase">
           <Sparkles className="w-4 h-4 text-emerald-400" />
-          <span>Lanzamiento Oficial • 1 Semana de Bienvenida 100% Bonificada ($0 Cuota)</span>
+          <span>Lanzamiento Oficial • 14 Días de Uso Gratis al Inscribirte ($0 Cuota)</span>
         </div>
 
         <h1 className="text-3xl sm:text-5xl lg:text-6xl font-black text-white tracking-tight leading-[1.15]">
@@ -144,7 +144,7 @@ export default function DriverLandingView({ onStartRegistration, onCheckStatus, 
             onClick={onStartRegistration}
             className="w-full sm:w-auto px-8 py-4 rounded-2xl bg-gradient-to-r from-amber-400 via-amber-500 to-amber-600 hover:brightness-110 text-slate-950 font-black text-sm sm:text-base shadow-xl shadow-amber-500/20 flex items-center justify-center gap-2.5 transition-all transform active:scale-98 cursor-pointer"
           >
-            <span>Activar mi Semana Gratis • Registrarme</span>
+            <span>Activar mis 14 Días Gratis • Registrarme</span>
             <ArrowRight className="w-4 h-4" />
           </button>
           <button
@@ -272,7 +272,7 @@ export default function DriverLandingView({ onStartRegistration, onCheckStatus, 
                   <span>$0.00 (0% Comisión)</span>
                 </div>
                 <div className="flex justify-between py-1.5 border-b border-slate-800 text-amber-300 font-bold">
-                  <span>Tu 1ª Semana de Bienvenida:</span>
+                  <span>Tus Primeros 14 Días de Bienvenida:</span>
                   <span className="uppercase">GRATIS ($0.00 Cuota)</span>
                 </div>
                 <div className="flex justify-between py-1.5 border-b border-slate-800 text-slate-300">
@@ -592,8 +592,8 @@ export default function DriverLandingView({ onStartRegistration, onCheckStatus, 
             Únete a la Nueva Era del Transporte en El Salvador
           </h2>
           <p className="text-xs sm:text-sm text-slate-400">
-            Regístrate en menos de 3 minutos, sube tu DUI y placas, y aprovecha tu 
-            <strong className="text-amber-300"> primera semana totalmente gratis</strong> sin compromiso.
+            Regístrate en menos de 3 minutos, sube tu DUI y placas, y aprovecha tus 
+            <strong className="text-amber-300"> 14 días iniciales totalmente gratis</strong> sin compromiso.
           </p>
         </div>
 
