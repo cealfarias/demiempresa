@@ -691,6 +691,13 @@ export default function DriverApp() {
 
         {/* Modal de Invitación en caso de enlace duplicado o revocado */}
         {renderWorkInvitationModal()}
+
+        {/* Modal de Rescate Anti-Abandono: $50 en Viajes y Referidos */}
+        <ExitIntentRescueModal
+          role="DRIVER"
+          userProfile={driverProfile}
+          onOpenRegister={() => setShowRegistrationModal(true)}
+        />
       </>
     );
   }

@@ -14,7 +14,7 @@ export default function ExitIntentRescueModal({
   const [copiedLink, setCopiedLink] = useState(false);
 
   // Generar enlace viral de referencia
-  const referralCode = userProfile?.referralCode || userProfile?.dui?.replace(/\D/g, '') || '50VIAJES';
+  const referralCode = userProfile?.referralCode || (userProfile?.dui ? String(userProfile.dui).replace(/\D/g, '') : '') || '50VIAJES';
   const siteUrl = typeof window !== 'undefined' ? window.location.origin : 'https://viajes.demiempresa.online';
   const referralShareUrl = `${siteUrl}${role === 'DRIVER' ? '/conductor' : ''}?ref=${referralCode}`;
 

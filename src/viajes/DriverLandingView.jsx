@@ -31,6 +31,7 @@ import {
   Check
 } from 'lucide-react';
 import RumboLogo from './RumboLogo';
+import DriverAvatarNarrator from './DriverAvatarNarrator';
 import SupportTicketModal from './SupportTicketModal';
 import TermsAndConditionsModal from '../components/TermsAndConditionsModal';
 import {
