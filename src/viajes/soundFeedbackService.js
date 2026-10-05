@@ -282,3 +282,116 @@ export const triggerCashRewardFeedback = () => {
   playCashRegisterSound();
 };
 
+/**
+ * Sonido 5: Chime Ascendente de Micrófono Activo (Accesibilidad para Baja Visión)
+ * Tono dual cristalino (750Hz -> 1050Hz) que notifica de inmediato: "El micrófono está escuchando"
+ */
+export const playListeningStartChime = () => {
+  try {
+    const ctx = getAudioContext();
+    if (!ctx) return;
+    if (ctx.state === 'suspended') {
+      ctx.resume().catch(() => {});
+    }
+
+    const now = ctx.currentTime;
+
+    // Tono 1 (750Hz)
+    const osc1 = ctx.createOscillator();
+    const gain1 = ctx.createGain();
+    osc1.type = 'sine';
+    osc1.frequency.setValueAtTime(750, now);
+    gain1.gain.setValueAtTime(0, now);
+    gain1.gain.linearRampToValueAtTime(0.5, now + 0.015);
+    gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.09);
+    osc1.connect(gain1);
+    gain1.connect(ctx.destination);
+    osc1.start(now);
+    osc1.stop(now + 0.095);
+
+    // Tono 2 (1050Hz)
+    const osc2 = ctx.createOscillator();
+    const gain2 = ctx.createGain();
+    osc2.type = 'sine';
+    const t2 = now + 0.07;
+    osc2.frequency.setValueAtTime(1050, t2);
+    gain2.gain.setValueAtTime(0, t2);
+    gain2.gain.linearRampToValueAtTime(0.65, t2 + 0.015);
+    gain2.gain.exponentialRampToValueAtTime(0.001, t2 + 0.16);
+    osc2.connect(gain2);
+    gain2.connect(ctx.destination);
+    osc2.start(t2);
+    osc2.stop(t2 + 0.17);
+  } catch (err) {
+    console.warn('[ListeningStartChime] err:', err);
+  }
+};
+
+export const triggerListeningStartFeedback = () => {
+  vibrate([60, 30, 90]);
+  playListeningStartChime();
+};
+
+/**
+ * Sonido 6: Chime de Cierre de Micrófono / Captura Exitosa
+ */
+export const playListeningEndChime = () => {
+  try {
+    const ctx = getAudioContext();
+    if (!ctx) return;
+    if (ctx.state === 'suspended') {
+      ctx.resume().catch(() => {});
+    }
+
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(950, now);
+    osc.frequency.exponentialRampToValueAtTime(650, now + 0.1);
+    gain.gain.setValueAtTime(0.4, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.11);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(now);
+    osc.stop(now + 0.12);
+  } catch (err) {}
+};
+
+export const triggerListeningEndFeedback = () => {
+  vibrate(50);
+  playListeningEndChime();
+};
+
+/**
+ * Sonido 7: Tono de Error de Micrófono o Dirección No Encontrada
+ * Doble tono grave descendente para que el usuario con discapacidad visual sepa que no se capturó
+ */
+export const playListeningErrorChime = () => {
+  try {
+    const ctx = getAudioContext();
+    if (!ctx) return;
+    if (ctx.state === 'suspended') {
+      ctx.resume().catch(() => {});
+    }
+
+    const now = ctx.currentTime;
+    const osc1 = ctx.createOscillator();
+    const gain1 = ctx.createGain();
+    osc1.type = 'sawtooth';
+    osc1.frequency.setValueAtTime(320, now);
+    osc1.frequency.exponentialRampToValueAtTime(220, now + 0.12);
+    gain1.gain.setValueAtTime(0.35, now);
+    gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.13);
+    osc1.connect(gain1);
+    gain1.connect(ctx.destination);
+    osc1.start(now);
+    osc1.stop(now + 0.14);
+  } catch (err) {}
+};
+
+export const triggerListeningErrorFeedback = () => {
+  vibrate([120, 60, 120]);
+  playListeningErrorChime();
+};
+

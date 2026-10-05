@@ -169,6 +169,13 @@ export const speakAssistantMessage = (message, onEnd, onStart) => {
 };
 
 /**
+ * Comprueba si el navegador actual soporta la API de reconocimiento de voz
+ */
+export const isSpeechRecognitionSupported = () => {
+  return typeof window !== 'undefined' && Boolean(window.SpeechRecognition || window.webkitSpeechRecognition);
+};
+
+/**
  * Solicita permiso nativo de micrófono
  */
 export const requestMicrophonePermission = async () => {
@@ -187,44 +194,81 @@ export const requestMicrophonePermission = async () => {
 
 /**
  * Inicializa y escucha comandos de voz por dictado
+ * Compatible con iOS Safari (webkitSpeechRecognition) y Google Chrome (Android & Desktop)
  */
-export const startVoiceDictation = ({ onResult, onListeningChange, onError }) => {
-  const SpeechRecognitionClass = window.SpeechRecognition || window.webkitSpeechRecognition;
+export const startVoiceDictation = ({ onResult, onListeningChange, onError, lang = 'es-419' }) => {
+  const SpeechRecognitionClass = typeof window !== 'undefined'
+    ? (window.SpeechRecognition || window.webkitSpeechRecognition)
+    : null;
+
   if (!SpeechRecognitionClass) {
-    if (onError) onError('Tu navegador no soporta dictado por voz.');
+    if (onListeningChange) onListeningChange(false);
+    if (onError) onError('UNSUPPORTED_BROWSER', 'Tu navegador no soporta reconocimiento de voz. Te sugerimos abrir la web en Google Chrome o Safari.');
     return null;
   }
 
   try {
+    // 1. Detener de manera segura cualquier reconocimiento previo
     if (activeRecognition) {
-      activeRecognition.stop();
+      try {
+        activeRecognition.onstart = null;
+        activeRecognition.onresult = null;
+        activeRecognition.onerror = null;
+        activeRecognition.onend = null;
+        activeRecognition.abort();
+      } catch {}
+      activeRecognition = null;
     }
 
     const recognition = new SpeechRecognitionClass();
-    recognition.lang = 'es-SV'; // Español El Salvador / es-419
+    
+    // Configurar idioma universalmente soportado en iOS y Android:
+    // Apple Safari rechaza 'es-SV', pero soporta perfectamente 'es-419' o 'es-MX'.
+    recognition.lang = lang || 'es-419';
     recognition.continuous = false;
     recognition.interimResults = false;
     recognition.maxAlternatives = 1;
+
+    let hasReceivedResult = false;
 
     recognition.onstart = () => {
       if (onListeningChange) onListeningChange(true);
     };
 
     recognition.onresult = (event) => {
-      const transcript = event.results[0][0].transcript;
-      if (onResult && transcript) {
-        onResult(transcript);
+      if (event.results && event.results[0] && event.results[0][0]) {
+        const transcript = (event.results[0][0].transcript || '').trim();
+        if (transcript) {
+          hasReceivedResult = true;
+          if (onResult) {
+            onResult(transcript);
+          }
+        }
       }
     };
 
     recognition.onerror = (event) => {
-      console.warn('[SpeechRecognition] Error:', event.error);
+      const errType = event.error || 'unknown';
+      console.warn('[SpeechRecognition] Error capturado:', errType);
       if (onListeningChange) onListeningChange(false);
-      if (onError) onError(event.error);
+
+      let userMsg = 'No logré escucharte con claridad.';
+      if (errType === 'not-allowed') {
+        userMsg = 'El acceso al micrófono fue bloqueado en tu navegador. Por favor permite el micrófono para dictar tu ubicación.';
+      } else if (errType === 'no-speech') {
+        userMsg = 'No se detectó voz. Toca nuevamente el micrófono y di tu rumbo.';
+      } else if (errType === 'audio-capture') {
+        userMsg = 'No se encontró ningún micrófono conectado o disponible en tu dispositivo.';
+      } else if (errType === 'network') {
+        userMsg = 'Hubo un error de conexión con el servicio de reconocimiento de voz.';
+      }
+
+      if (onError) onError(errType, userMsg);
     };
 
     recognition.onend = () => {
       if (onListeningChange) onListeningChange(false);
+      activeRecognition = null;
     };
 
     recognition.start();
@@ -233,7 +277,7 @@ export const startVoiceDictation = ({ onResult, onListeningChange, onError }) =>
   } catch (err) {
     console.warn('[SpeechRecognition] Fallo al iniciar:', err);
     if (onListeningChange) onListeningChange(false);
-    if (onError) onError(err.message);
+    if (onError) onError('START_FAILED', err.message || 'No se pudo activar el micrófono.');
     return null;
   }
 };

@@ -41,7 +41,9 @@ import {
   LogOut,
   Inbox,
   Globe,
-  FileText
+  FileText,
+  Search,
+  Check
 } from 'lucide-react';
 import RumboLogo from './RumboLogo';
 import AdModal from './AdModal';
@@ -62,13 +64,17 @@ import {
   stopVoiceDictation,
   speakAndThenListen,
   classifyUserVoiceIntent,
-  parseNumberFromSpanish
+  parseNumberFromSpanish,
+  isSpeechRecognitionSupported
 } from './voiceAssistantService';
 import {
   triggerButtonFeedback,
   triggerSelectionFeedback,
   triggerSearchLaunchFeedback,
   triggerCashRewardFeedback,
+  triggerListeningStartFeedback,
+  triggerListeningEndFeedback,
+  triggerListeningErrorFeedback,
   resumeAudioContext
 } from './soundFeedbackService';
 import confetti from 'canvas-confetti';
@@ -197,6 +203,57 @@ export default function ViajesApp() {
   const [isSearchingDest, setIsSearchingDest] = useState(false);
   const isDestinationConfirmed = Boolean(destinationCoords?.lat && destination?.trim());
 
+  // Estado y accesibilidad para Punto de Recogida (Origen Manual y por Voz)
+  const [originError, setOriginError] = useState('');
+  const [isSearchingOrigin, setIsSearchingOrigin] = useState(false);
+  const [isListeningOriginVoice, setIsListeningOriginVoice] = useState(false);
+  const isOriginConfirmed = Boolean(originCoords?.lat && origin?.trim());
+
+  // Geocodificar y confirmar punto de recogida (Origen)
+  const handleGeocodeManualOrigin = async (textToSearch = origin) => {
+    const query = (textToSearch || origin).trim();
+    if (!query) return null;
+    setIsSearchingOrigin(true);
+    setOriginError('');
+
+    try {
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
+          query + ', El Salvador'
+        )}&countrycodes=sv&limit=1&addressdetails=1`,
+        { headers: { 'Accept-Language': 'es' } }
+      );
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data[0]) {
+          const oCoords = {
+            lat: parseFloat(data[0].lat),
+            lng: parseFloat(data[0].lon)
+          };
+          setOriginCoords(oCoords);
+
+          const formattedOrigin = formatResolvedDestination(data[0]);
+          if (formattedOrigin) {
+            setOrigin(formattedOrigin);
+          }
+
+          setIsSearchingOrigin(false);
+          triggerSelectionFeedback();
+          speakAssistantMessage(`Punto de recogida confirmado: ${formattedOrigin || query}`);
+          return oCoords;
+        }
+      }
+    } catch (err) {
+      console.warn('Geocodificación manual origen err:', err);
+    }
+
+    setOriginError(`No se encontró "${query}". Indica otra referencia o abre el mapa.`);
+    setIsSearchingOrigin(false);
+    triggerListeningErrorFeedback();
+    speakAssistantMessage(`No encontramos la ubicación de recogida para ${query}. Puedes indicar otra referencia o tocar el mapa.`);
+    return null;
+  };
+
   const handleGeocodeManualDestination = async (textToSearch = destination) => {
     const query = (textToSearch || destination).trim();
     if (!query) return;
@@ -232,6 +289,8 @@ export default function ViajesApp() {
             if (mun) setDestinationMunicipality(mun);
           }
           setIsSearchingDest(false);
+          triggerSelectionFeedback();
+          speakAssistantMessage(`Rumbo confirmado hacia: ${formattedDest || query}.`);
           return;
         }
       }
@@ -241,6 +300,8 @@ export default function ViajesApp() {
 
     setDestinationError(`No se encontró "${query}". Indica otra referencia o abre el mapa.`);
     setIsSearchingDest(false);
+    triggerListeningErrorFeedback();
+    speakAssistantMessage(`No encontramos el destino ${query}. Por favor indica otra referencia o toca el mapa.`);
   };
 
   // Preferencias Especiales del Viaje (A/C, Mascotas, Pasajeros, Equipaje, Contextura/Peso, Ida y Vuelta)
@@ -895,10 +956,12 @@ export default function ViajesApp() {
       {
         onListeningChange: (listening) => setIsListeningVoice(listening),
         onResult: (spokenText) => processVoiceDestination(spokenText, coords || originCoords),
-        onError: (err) => {
-          console.warn('Voice dialogue error:', err);
+        onError: (errType, userMsg) => {
+          console.warn('Voice dialogue error:', errType);
           setIsListeningVoice(false);
           setVoiceDialogueStep('IDLE');
+          triggerListeningErrorFeedback();
+          speakAssistantMessage(userMsg || 'No logré escucharte. Toca el micrófono para intentar de nuevo.');
         }
       }
     );
@@ -1241,13 +1304,81 @@ export default function ViajesApp() {
     });
   };
 
-  // Activar / Detener asistente conversacional por voz (Botón micrófono / cabecera)
-  const handleToggleVoiceDictation = () => {
+  // Dictado directo por voz para Punto de Destino (Invocación directa e instantánea)
+  const handleDictateDestination = () => {
     if (isListeningVoice) {
       stopVoiceDictation();
       stopSpeaking();
       setIsListeningVoice(false);
       setVoiceDialogueStep('IDLE');
+      triggerListeningEndFeedback();
+      return;
+    }
+
+    unlockAudioAndSpeech();
+    triggerListeningStartFeedback();
+    setIsListeningVoice(true);
+    setVoiceDialogueStep('AWAITING_DESTINATION');
+    setDestinationError('');
+
+    startVoiceDictation({
+      onListeningChange: (listening) => setIsListeningVoice(listening),
+      onResult: (spokenText) => {
+        triggerListeningEndFeedback();
+        setDestination(spokenText);
+        processVoiceDestination(spokenText, originCoords);
+      },
+      onError: (errType, userMsg) => {
+        setIsListeningVoice(false);
+        setVoiceDialogueStep('IDLE');
+        triggerListeningErrorFeedback();
+        setDestinationError(userMsg || 'Error en el micrófono.');
+        speakAssistantMessage(userMsg || 'No logré escucharte. Toca de nuevo el micrófono para dictar tu destino.');
+      }
+    });
+  };
+
+  // Dictado directo por voz para Punto de Recogida (Origen)
+  const handleDictateOrigin = () => {
+    if (isListeningOriginVoice) {
+      stopVoiceDictation();
+      stopSpeaking();
+      setIsListeningOriginVoice(false);
+      triggerListeningEndFeedback();
+      return;
+    }
+
+    unlockAudioAndSpeech();
+    triggerListeningStartFeedback();
+    setIsListeningOriginVoice(true);
+    setOriginError('');
+
+    startVoiceDictation({
+      onListeningChange: (listening) => setIsListeningOriginVoice(listening),
+      onResult: (spokenText) => {
+        triggerListeningEndFeedback();
+        setIsListeningOriginVoice(false);
+        setOrigin(spokenText);
+        handleGeocodeManualOrigin(spokenText);
+      },
+      onError: (errType, userMsg) => {
+        setIsListeningOriginVoice(false);
+        triggerListeningErrorFeedback();
+        setOriginError(userMsg || 'Error en el micrófono.');
+        speakAssistantMessage(userMsg || 'No logré escucharte. Toca de nuevo el micrófono de origen.');
+      }
+    });
+  };
+
+  // Activar / Detener asistente conversacional por voz (Botón cabecera)
+  const handleToggleVoiceDictation = () => {
+    if (isListeningVoice || isListeningOriginVoice) {
+      stopVoiceDictation();
+      stopSpeaking();
+      setIsListeningVoice(false);
+      setIsListeningOriginVoice(false);
+      setVoiceDialogueStep('IDLE');
+      triggerListeningEndFeedback();
     } else {
       unlockAudioAndSpeech();
       initiateVoiceDialogue();
@@ -1869,31 +2000,31 @@ export default function ViajesApp() {
             type="button"
             onClick={handleToggleVoiceDictation}
             title={
-              isListeningVoice
+              (isListeningVoice || isListeningOriginVoice)
                 ? 'Asistente escuchando... Toca para pausar'
                 : 'Asistente de Voz Rumbo (Toca para dictar tu rumbo)'
             }
             aria-label={
-              isListeningVoice
-                ? 'Asistente escuchando tu destino, presiona para pausar'
+              (isListeningVoice || isListeningOriginVoice)
+                ? 'Asistente escuchando tu ubicación, presiona para pausar'
                 : 'Activar asistente de voz Rumbo'
             }
             className={`p-1 sm:pl-1.5 sm:pr-2.5 rounded-full border flex items-center gap-1.5 sm:gap-2 transition-all cursor-pointer focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:outline-none flex-shrink-0 ${
-              isListeningVoice
+              (isListeningVoice || isListeningOriginVoice)
                 ? 'bg-amber-500/20 border-amber-400 ring-2 ring-amber-400/50 shadow-lg shadow-amber-500/30'
                 : 'bg-slate-800/80 border-slate-700/80 hover:border-amber-400/50 hover:bg-slate-800'
             }`}
           >
             {/* Avatar Orb Ámbar y Blanco */}
             <div className={`relative w-7 h-7 rounded-full border-2 border-white flex items-center justify-center overflow-hidden transition-transform shadow-md ${
-              isListeningVoice
+              (isListeningVoice || isListeningOriginVoice)
                 ? 'bg-gradient-to-tr from-amber-600 via-amber-500 to-amber-300 scale-105'
                 : 'bg-gradient-to-tr from-amber-500 to-amber-400'
             }`}>
-              {isListeningVoice && (
+              {(isListeningVoice || isListeningOriginVoice) && (
                 <span className="absolute inset-0 rounded-full bg-white/40 animate-ping pointer-events-none" />
               )}
-              <Mic className={`w-3.5 h-3.5 text-white drop-shadow-sm ${isListeningVoice ? 'animate-bounce' : ''}`} />
+              <Mic className={`w-3.5 h-3.5 text-white drop-shadow-sm ${(isListeningVoice || isListeningOriginVoice) ? 'animate-bounce' : ''}`} />
             </div>
 
             <div className="hidden sm:flex flex-col text-left leading-none">
@@ -1901,16 +2032,18 @@ export default function ViajesApp() {
                 Asistente
               </span>
               <span className="text-[9px] font-bold text-amber-400 mt-0.5">
-                {isListeningVoice ? 'Escuchando...' : 'Voz activa'}
+                {(isListeningVoice || isListeningOriginVoice) ? 'Escuchando...' : 'Voz activa'}
               </span>
             </div>
           </button>
 
           {/* Estado dinámico del Asistente por Voz */}
-          {(voiceDialogueStep !== 'IDLE' || isListeningVoice) && (
+          {(voiceDialogueStep !== 'IDLE' || isListeningVoice || isListeningOriginVoice) && (
             <div className="hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500/15 border border-amber-400/40 text-amber-300 text-[11px] font-bold animate-pulse">
               <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping" />
-              <span>{isListeningVoice ? 'Escuchando rumbo...' : 'Hablando...'}</span>
+              <span>
+                {isListeningOriginVoice ? 'Escuchando recogida...' : isListeningVoice ? 'Escuchando rumbo...' : 'Hablando...'}
+              </span>
             </div>
           )}
 
@@ -2050,7 +2183,7 @@ export default function ViajesApp() {
                 </div>
               )}
 
-              {/* Origen con botón GPS real y Mapa Interactivo */}
+              {/* Origen con botón GPS real, dictado por voz, búsqueda manual y Mapa Interactivo */}
               <div>
                 <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1 flex items-center justify-between">
                   <span className="flex items-center gap-1.5">
@@ -2072,17 +2205,56 @@ export default function ViajesApp() {
                     type="text"
                     required
                     value={origin}
-                    onChange={(e) => setOrigin(e.target.value)}
-                    placeholder={isGettingGps ? "Detectando tu ubicación GPS..." : "¿Dónde te recogen? (o toca el mapa)"}
-                    className="w-full pl-3 pr-20 py-3 bg-slate-800/80 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-amber-400 text-sm"
+                    onChange={(e) => {
+                      setOrigin(e.target.value);
+                      if (originCoords) setOriginCoords(null);
+                      if (originError) setOriginError('');
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleGeocodeManualOrigin(origin);
+                      }
+                    }}
+                    placeholder={isGettingGps ? "Detectando tu ubicación GPS..." : "¿Dónde te recogen? (o dicta con el micrófono)"}
+                    className="w-full pl-3 pr-28 py-3 bg-slate-800/80 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-amber-400 text-sm"
                   />
                   <div className="absolute right-2 top-2 flex items-center gap-1">
+                    {/* Dictar Origen con Micrófono */}
+                    <button
+                      type="button"
+                      aria-label={isListeningOriginVoice ? "Escuchando tu punto de recogida... Toca para pausar" : "Dictar punto de recogida por voz"}
+                      title={isListeningOriginVoice ? "Escuchando... Toca para pausar" : "Dictar punto de recogida con voz"}
+                      onClick={handleDictateOrigin}
+                      className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                        isListeningOriginVoice
+                          ? 'bg-amber-500/20 text-amber-400 border border-amber-500/50 animate-pulse'
+                          : 'text-amber-400 hover:text-amber-300 hover:bg-slate-700'
+                      }`}
+                    >
+                      <Mic className="w-4 h-4" />
+                    </button>
+                    {/* Buscar y Confirmar Dirección Escrita */}
+                    <button
+                      type="button"
+                      title="Buscar y confirmar punto de recogida"
+                      disabled={isSearchingOrigin}
+                      onClick={() => handleGeocodeManualOrigin(origin)}
+                      className="p-1.5 rounded-lg text-emerald-400 hover:text-emerald-300 hover:bg-slate-700 transition-colors disabled:opacity-50 cursor-pointer"
+                    >
+                      {isSearchingOrigin ? (
+                        <Loader2 className="w-4 h-4 animate-spin text-emerald-400" />
+                      ) : (
+                        <Search className="w-4 h-4" />
+                      )}
+                    </button>
+                    {/* GPS Real */}
                     <button
                       type="button"
                       title="Obtener ubicación GPS actual"
                       disabled={isGettingGps}
                       onClick={handleGetGpsLocation}
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-amber-400 hover:bg-slate-700 transition-colors disabled:opacity-50"
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-amber-400 hover:bg-slate-700 transition-colors disabled:opacity-50 cursor-pointer"
                     >
                       {isGettingGps ? (
                         <Loader2 className="w-4 h-4 animate-spin text-amber-400" />
@@ -2090,16 +2262,60 @@ export default function ViajesApp() {
                         <Navigation className="w-4 h-4" />
                       )}
                     </button>
+                    {/* Mapa */}
                     <button
                       type="button"
                       title="Fijar en mapa con pin arrastrable"
                       onClick={() => setShowMapModal(true)}
-                      className="p-1.5 rounded-lg text-amber-400 hover:text-amber-300 hover:bg-slate-700 transition-colors"
+                      className="p-1.5 rounded-lg text-amber-400 hover:text-amber-300 hover:bg-slate-700 transition-colors cursor-pointer"
                     >
                       <Map className="w-4 h-4" />
                     </button>
                   </div>
                 </div>
+
+                {/* Notificación si el origen no es encontrado */}
+                {originError && (
+                  <div className="mt-2 p-2.5 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs flex items-center justify-between gap-2 animate-fade-in shadow-sm">
+                    <div className="flex items-center gap-2">
+                      <AlertTriangle className="w-4 h-4 text-rose-400 flex-shrink-0" />
+                      <span className="leading-tight font-medium text-[11px] sm:text-xs">
+                        {originError}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowMapModal(true)}
+                      className="px-2.5 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-lg text-[10px] whitespace-nowrap cursor-pointer transition-colors"
+                    >
+                      Fijar en Mapa
+                    </button>
+                  </div>
+                )}
+
+                {/* Botón para Confirmar Origen Manual si aún no tiene coordenadas */}
+                {!isOriginConfirmed && origin.trim().length > 1 && (
+                  <div className="mt-2.5 animate-fade-in">
+                    <button
+                      type="button"
+                      disabled={isSearchingOrigin}
+                      onClick={() => handleGeocodeManualOrigin(origin)}
+                      className="w-full py-2.5 px-4 bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-slate-950 font-black text-xs rounded-xl shadow-md flex items-center justify-center gap-2 cursor-pointer transition-all disabled:opacity-50"
+                    >
+                      {isSearchingOrigin ? (
+                        <>
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          <span>Buscando punto de recogida...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Check className="w-3.5 h-3.5" />
+                          <span>Confirmar Punto de Recogida</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                )}
 
                 <div className="flex items-center justify-between mt-1 px-1 text-[11px]">
                   <button
@@ -2115,7 +2331,7 @@ export default function ViajesApp() {
                 </div>
               </div>
 
-              {/* Destino con botón de Mapa Interactivo */}
+              {/* Destino con botón de Micrófono instantáneo, Búsqueda y Mapa Interactivo */}
               <div>
                 <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1 flex items-center justify-between">
                   <span className="flex items-center gap-1.5">
@@ -2149,14 +2365,15 @@ export default function ViajesApp() {
                       }
                     }}
                     placeholder="Escoge tu rumbo... (Ej. Metrocentro, Multiplaza, Colonia...)"
-                    className="w-full pl-3 pr-20 py-3 bg-slate-800/80 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-rose-400 text-sm"
+                    className="w-full pl-3 pr-24 py-3 bg-slate-800/80 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-rose-400 text-sm"
                   />
                   <div className="absolute right-2 top-2 flex items-center gap-1">
+                    {/* Dictar Destino por Voz */}
                     <button
                       type="button"
                       aria-label={isListeningVoice ? "Escuchando tu destino... Toca para pausar" : "Dictar destino por voz"}
                       title={isListeningVoice ? "Escuchando... Toca para pausar" : "Dictar destino con voz"}
-                      onClick={handleToggleVoiceDictation}
+                      onClick={handleDictateDestination}
                       className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
                         isListeningVoice
                           ? 'bg-rose-500/20 text-rose-400 border border-rose-500/50 animate-pulse'
@@ -2165,11 +2382,26 @@ export default function ViajesApp() {
                     >
                       <Mic className="w-4 h-4" />
                     </button>
+                    {/* Buscar y Confirmar Rumbo */}
+                    <button
+                      type="button"
+                      title="Buscar y confirmar rumbo escrito"
+                      disabled={isSearchingDest}
+                      onClick={() => handleGeocodeManualDestination(destination)}
+                      className="p-1.5 rounded-lg text-rose-400 hover:text-rose-300 hover:bg-slate-700 transition-colors disabled:opacity-50 cursor-pointer"
+                    >
+                      {isSearchingDest ? (
+                        <Loader2 className="w-4 h-4 animate-spin text-rose-400" />
+                      ) : (
+                        <Search className="w-4 h-4" />
+                      )}
+                    </button>
+                    {/* Mapa */}
                     <button
                       type="button"
                       title="Fijar destino en el mapa"
                       onClick={() => setShowDestMapModal(true)}
-                      className="p-1.5 rounded-lg text-rose-400 hover:text-rose-300 hover:bg-slate-700 transition-colors"
+                      className="p-1.5 rounded-lg text-rose-400 hover:text-rose-300 hover:bg-slate-700 transition-colors cursor-pointer"
                     >
                       <Map className="w-4 h-4" />
                     </button>
