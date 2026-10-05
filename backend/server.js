@@ -1463,6 +1463,28 @@ async function initializeDatabase() {
       console.warn('⚠️ Nota sobre tabla viajes_inbox_tickets:', e.message);
     }
 
+    // 1.2 Crear tabla de eventos de telemetría y retención
+    try {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS viajes_telemetry_events (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          session_id VARCHAR(64) NOT NULL,
+          event_type VARCHAR(64) NOT NULL,
+          role VARCHAR(20) DEFAULT 'PASSENGER',
+          path VARCHAR(120),
+          device_type VARCHAR(20),
+          duration_seconds INT DEFAULT 0,
+          metadata JSONB,
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE INDEX IF NOT EXISTS idx_telem_created_at ON viajes_telemetry_events(created_at);
+        CREATE INDEX IF NOT EXISTS idx_telem_session ON viajes_telemetry_events(session_id);
+      `);
+      console.log('✅ Tabla viajes_telemetry_events verificada.');
+    } catch (e) {
+      console.warn('⚠️ Nota sobre tabla viajes_telemetry_events:', e.message);
+    }
+
     // 2. Sincronizar precios oficiales y de mercado vigentes ($5.13 Especial)
     try {
       await pool.query(`
@@ -2077,6 +2099,165 @@ app.patch('/api/admin/drivers/:driverId/authorization', async (req, res) => {
       success: true,
       driver: updated || { id: driverId, approval_status: status },
       message: `El conductor ha sido ${status === 'APPROVED' ? 'autorizado exitosamente' : 'actualizado a ' + status}.`
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ============================================================================
+// 9.4.5 TELEMETRÍA NATIVA, TIEMPO DE PERMANENCIA Y EVENTOS EXIT-INTENT
+// ============================================================================
+const memoryTelemetryEvents = [];
+
+app.post('/api/telemetry/event', async (req, res) => {
+  try {
+    const {
+      sessionId = 'anon_' + Math.random().toString(36).substring(2, 9),
+      eventType = 'PAGE_VIEW',
+      role = 'PASSENGER',
+      path = '/',
+      deviceType = 'MOBILE',
+      durationSeconds = 0,
+      metadata = {}
+    } = req.body || {};
+
+    const eventRecord = {
+      id: 'telem_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
+      session_id: sessionId,
+      event_type: eventType,
+      role,
+      path,
+      device_type: deviceType,
+      duration_seconds: Number(durationSeconds) || 0,
+      metadata,
+      created_at: new Date().toISOString()
+    };
+
+    memoryTelemetryEvents.unshift(eventRecord);
+    if (memoryTelemetryEvents.length > 5000) memoryTelemetryEvents.pop();
+
+    if (process.env.DATABASE_URL) {
+      pool.query(`
+        INSERT INTO viajes_telemetry_events (session_id, event_type, role, path, device_type, duration_seconds, metadata)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
+      `, [sessionId, eventType, role, path, deviceType, Number(durationSeconds) || 0, JSON.stringify(metadata)]).catch(() => {});
+    }
+
+    io.emit('telemetry_live_event', eventRecord);
+    res.json({ success: true, recorded: true });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.get('/api/admin/telemetry/stats', async (req, res) => {
+  try {
+    let events = memoryTelemetryEvents;
+    if (process.env.DATABASE_URL) {
+      try {
+        const dbRes = await pool.query(`
+          SELECT * FROM viajes_telemetry_events
+          ORDER BY created_at DESC
+          LIMIT 1000;
+        `);
+        if (dbRes.rows && dbRes.rows.length > 0) {
+          events = dbRes.rows;
+        }
+      } catch (e) {
+        console.warn('Fallback telemetría en memoria:', e.message);
+      }
+    }
+
+    // Calcular Métricas
+    const sessionsMap = new Map();
+    const hourlyCounts = new Array(24).fill(0);
+    let mobileCount = 0;
+    let desktopCount = 0;
+    let passengerCount = 0;
+    let driverCount = 0;
+    let exitShown = 0;
+    let exitConverted = 0;
+    const eventTypeCounts = {};
+
+    for (const ev of events) {
+      const sId = ev.session_id || 'anon';
+      const curDur = Number(ev.duration_seconds) || 0;
+      if (!sessionsMap.has(sId) || curDur > sessionsMap.get(sId).maxDuration) {
+        sessionsMap.set(sId, {
+          role: ev.role,
+          maxDuration: curDur,
+          device: ev.device_type,
+          createdAt: ev.created_at
+        });
+      }
+
+      const evDate = new Date(ev.created_at || Date.now());
+      const svHour = (evDate.getUTCHours() - 6 + 24) % 24;
+      hourlyCounts[svHour]++;
+
+      if (ev.device_type === 'MOBILE') mobileCount++;
+      else if (ev.device_type === 'DESKTOP') desktopCount++;
+
+      if (ev.role === 'PASSENGER') passengerCount++;
+      if (ev.role === 'DRIVER') driverCount++;
+
+      if (ev.event_type === 'EXIT_INTENT_SHOWN') exitShown++;
+      if (ev.event_type === 'EXIT_INTENT_CONVERTED_REGISTER' || ev.event_type === 'EXIT_INTENT_CONVERTED_WHATSAPP') exitConverted++;
+
+      eventTypeCounts[ev.event_type] = (eventTypeCounts[ev.event_type] || 0) + 1;
+    }
+
+    let totalSessionDuration = 0;
+    let bounceSessions = 0;
+    sessionsMap.forEach((sess) => {
+      totalSessionDuration += sess.maxDuration;
+      if (sess.maxDuration < 10) bounceSessions++;
+    });
+
+    const totalSessions = sessionsMap.size || 1;
+    const avgDurationSeconds = Math.round(totalSessionDuration / totalSessions);
+    const bounceRate = Math.round((bounceSessions / totalSessions) * 100);
+
+    const formatDuration = (sec) => {
+      if (sec < 60) return `${sec}s`;
+      const m = Math.floor(sec / 60);
+      const s = sec % 60;
+      return `${m}m ${s}s`;
+    };
+
+    res.json({
+      success: true,
+      stats: {
+        totalEvents: events.length,
+        uniqueVisitors: sessionsMap.size,
+        passengerVisits: passengerCount,
+        driverVisits: driverCount,
+        avgDurationSeconds,
+        avgDurationFormatted: formatDuration(avgDurationSeconds),
+        bounceRate: `${bounceRate}%`,
+        bounceSessions,
+        hourlyDistribution: hourlyCounts,
+        exitIntent: {
+          shown: exitShown,
+          converted: exitConverted,
+          rate: exitShown > 0 ? `${Math.round((exitConverted / exitShown) * 100)}%` : '0%'
+        },
+        deviceBreakdown: {
+          mobile: mobileCount,
+          desktop: desktopCount,
+          mobilePercent: (mobileCount + desktopCount) > 0 ? Math.round((mobileCount / (mobileCount + desktopCount)) * 100) : 100
+        },
+        eventTypeCounts,
+        recentEvents: events.slice(0, 20).map(e => ({
+          id: e.id,
+          eventType: e.event_type,
+          role: e.role,
+          device: e.device_type,
+          duration: Number(e.duration_seconds) || 0,
+          createdAt: e.created_at
+        }))
+      }
     });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });

@@ -52,6 +52,7 @@ import TripPreferencesModal from './TripPreferencesModal';
 import LocationPermissionModal from './LocationPermissionModal';
 import WelcomeVoiceModal from './WelcomeVoiceModal';
 import TermsAndConditionsModal from '../components/TermsAndConditionsModal';
+import ExitIntentRescueModal from './ExitIntentRescueModal';
 import { getSharePayload } from './whatsappShareService';
 import {
   unlockAudioAndSpeech,
@@ -78,7 +79,8 @@ import {
   fetchUserCreditsApi,
   fetchAdFeedApi,
   checkContactRegisteredApi,
-  dismissReferralNoticeApi
+  dismissReferralNoticeApi,
+  initSessionTelemetry
 } from './api';
 
 // Formatear destino resuelto por geocodificador para la cajita de punto de llegada
@@ -156,6 +158,12 @@ export default function ViajesApp() {
     setTheme(newTheme);
     localStorage.setItem('rumbo_theme', newTheme);
   };
+
+  // Inicializar Telemetría Automática de Sesión y Permanencia (Pasajeros)
+  useEffect(() => {
+    const cleanup = initSessionTelemetry('PASSENGER');
+    return cleanup;
+  }, []);
 
   // Datos del Viaje (interactivos por GPS al entrar a la app)
   const [origin, setOrigin] = useState('');
@@ -4585,6 +4593,14 @@ export default function ViajesApp() {
         isOpen={showTermsModal}
         onClose={() => setShowTermsModal(false)}
         initialTab={termsTab}
+      />
+
+      {/* Modal de Rescate Anti-Abandono: $50 en Viajes y Referidos */}
+      <ExitIntentRescueModal
+        role="PASSENGER"
+        userProfile={userProfile}
+        onOpenRegister={() => setShowWelcomeModal(true)}
+        onOpenReferral={() => setShowReferralModal(true)}
       />
     </div>
   );

@@ -38,9 +38,14 @@ import {
   Copy,
   Share2,
   Smartphone,
-  Trash2
+  Trash2,
+  Activity,
+  BarChart3,
+  Timer,
+  MousePointerClick
 } from 'lucide-react';
 import RumboLogo from '../viajes/RumboLogo';
+import ExitIntentRescueModal from '../viajes/ExitIntentRescueModal';
 import {
   loginAdminSecureApi,
   fetchAdminStatsApi,
@@ -52,7 +57,8 @@ import {
   fetchAdminWhatsAppConfigApi,
   saveAdminWhatsAppConfigApi,
   testWhatsAppSendApi,
-  resetDatabaseApi
+  resetDatabaseApi,
+  fetchAdminTelemetryStatsApi
 } from '../viajes/api';
 
 export default function AdminDashboardPage() {
@@ -115,6 +121,10 @@ export default function AdminDashboardPage() {
   // Modal para ver imagen de comprobante o documento ampliado
   const [previewImage, setPreviewImage] = useState(null);
 
+  // Estados de Telemetría y Retención
+  const [telemetryStats, setTelemetryStats] = useState(null);
+  const [showExitModalPreview, setShowExitModalPreview] = useState(false);
+
   // Estados y Enlaces Oficiales de Difusión por WhatsApp
   const [copiedTarget, setCopiedTarget] = useState(null);
   const [customPassengerPhone, setCustomPassengerPhone] = useState('');
@@ -168,16 +178,18 @@ export default function AdminDashboardPage() {
   const loadDashboardData = async () => {
     setLoadingData(true);
     try {
-      const [statsData, driversData, ticketsData, waData] = await Promise.all([
+      const [statsData, driversData, ticketsData, waData, telemData] = await Promise.all([
         fetchAdminStatsApi(),
         fetchAdminDriversApi(),
         fetchInboxTicketsApi(),
-        fetchAdminWhatsAppConfigApi().catch(() => null)
+        fetchAdminWhatsAppConfigApi().catch(() => null),
+        fetchAdminTelemetryStatsApi().catch(() => null)
       ]);
       setStats(statsData);
       setDrivers(driversData || []);
       setTickets(ticketsData || []);
       if (waData) setWaConfig(waData);
+      if (telemData) setTelemetryStats(telemData);
     } catch (err) {
       console.warn('Error loading admin data:', err);
     } finally {
@@ -621,6 +633,22 @@ export default function AdminDashboardPage() {
           <MessageCircle className="w-4 h-4" />
           <span>Configuración WhatsApp</span>
           <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('TELEMETRY')}
+          className={`py-3 px-4 text-xs font-black border-b-2 transition-all flex items-center gap-2 cursor-pointer relative ${
+            activeTab === 'TELEMETRY'
+              ? 'border-indigo-400 text-indigo-400 bg-indigo-500/10'
+              : 'border-transparent text-slate-400 hover:text-white'
+          }`}
+        >
+          <Activity className="w-4 h-4 text-indigo-400" />
+          <span>Telemetría & Retención</span>
+          <span className="px-1.5 py-0.5 rounded-full bg-indigo-500 text-white font-black text-[9px] uppercase tracking-wider">
+            EN VIVO
+          </span>
         </button>
       </nav>
 
@@ -1905,6 +1933,300 @@ export default function AdminDashboardPage() {
           </div>
         )}
 
+        {/* ================================================================== */}
+        {/* PESTAÑA E: TELEMETRÍA, RETENCIÓN & HORAS PICO */}
+        {/* ================================================================== */}
+        {activeTab === 'TELEMETRY' && (
+          <div className="space-y-6 animate-fade-in">
+            {/* Cabecera del Centro de Telemetría */}
+            <div className="p-5 bg-gradient-to-r from-indigo-950/60 via-slate-900 to-slate-900 border-2 border-indigo-500/40 rounded-3xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xl">
+              <div className="flex items-center gap-3.5">
+                <div className="w-12 h-12 rounded-2xl bg-indigo-500/20 text-indigo-400 border border-indigo-500/40 flex items-center justify-center font-bold text-xl shadow">
+                  <Activity className="w-6 h-6" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-base sm:text-lg font-black text-white">
+                      Centro de Telemetría, Permanencia & Sensor Anti-Abandono
+                    </h2>
+                    <span className="px-2.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 text-[10px] font-black uppercase tracking-wider">
+                      EN VIVO 24/7
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-300">
+                    Monitoreo en vivo de visitantes únicos, tiempo de lectura, horas pico de conexión (El Salvador UTC-6) y efectividad del gancho de $50 en viajes.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setShowExitModalPreview(true)}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-400 hover:brightness-110 text-slate-950 font-black text-xs shadow-lg shadow-amber-500/20 cursor-pointer transition-transform active:scale-95"
+                >
+                  <Gift className="w-4 h-4" />
+                  <span>Probar Modal $50 (Exit-Intent)</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Tarjetas KPI de Telemetría */}
+            <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
+              {/* KPI 1: Visitantes Únicos */}
+              <div className="p-4 bg-slate-900 border border-slate-800 rounded-3xl space-y-1">
+                <div className="flex items-center justify-between text-slate-400 text-xs">
+                  <span>Visitantes Únicos</span>
+                  <Users className="w-4 h-4 text-sky-400" />
+                </div>
+                <div className="text-2xl sm:text-3xl font-black text-white font-mono">
+                  {telemetryStats?.uniqueVisitors ?? 0}
+                </div>
+                <div className="text-[11px] text-slate-400">
+                  <span className="text-emerald-400 font-bold">{telemetryStats?.passengerVisits ?? 0}</span> Pasajeros • <span className="text-amber-400 font-bold">{telemetryStats?.driverVisits ?? 0}</span> Choferes
+                </div>
+              </div>
+
+              {/* KPI 2: Tiempo Promedio de Sesión */}
+              <div className="p-4 bg-slate-900 border border-slate-800 rounded-3xl space-y-1">
+                <div className="flex items-center justify-between text-slate-400 text-xs">
+                  <span>Tiempo en Página</span>
+                  <Timer className="w-4 h-4 text-emerald-400" />
+                </div>
+                <div className="text-2xl sm:text-3xl font-black text-emerald-400 font-mono">
+                  {telemetryStats?.avgDurationFormatted ?? '0s'}
+                </div>
+                <div className="text-[11px] text-emerald-400 font-semibold">
+                  {(telemetryStats?.avgDurationSeconds ?? 0) >= 40 ? '🟢 Alta Retención' : '🟡 Exploración Rápida'}
+                </div>
+              </div>
+
+              {/* KPI 3: Tasa de Rebote Real (<10s) */}
+              <div className="p-4 bg-slate-900 border border-slate-800 rounded-3xl space-y-1">
+                <div className="flex items-center justify-between text-slate-400 text-xs">
+                  <span>Tasa de Rebote (&lt;10s)</span>
+                  <TrendingDown className="w-4 h-4 text-rose-400" />
+                </div>
+                <div className="text-2xl sm:text-3xl font-black text-white font-mono">
+                  {telemetryStats?.bounceRate ?? '0%'}
+                </div>
+                <div className="text-[11px] text-slate-400">
+                  {telemetryStats?.bounceSessions ?? 0} sesiones rápidas
+                </div>
+              </div>
+
+              {/* KPI 4: Rescates Modal $50 */}
+              <div className="p-4 bg-slate-900 border border-amber-500/30 rounded-3xl space-y-1 bg-amber-500/5">
+                <div className="flex items-center justify-between text-amber-300 text-xs">
+                  <span>Rescates Modal $50</span>
+                  <Gift className="w-4 h-4 text-amber-400" />
+                </div>
+                <div className="text-2xl sm:text-3xl font-black text-amber-400 font-mono">
+                  {telemetryStats?.exitIntent?.converted ?? 0}
+                </div>
+                <div className="text-[11px] text-slate-300">
+                  De {telemetryStats?.exitIntent?.shown ?? 0} mostrados ({telemetryStats?.exitIntent?.rate ?? '0%'})
+                </div>
+              </div>
+
+              {/* KPI 5: Dispositivos Móviles */}
+              <div className="p-4 bg-slate-900 border border-slate-800 rounded-3xl space-y-1 col-span-2 lg:col-span-1">
+                <div className="flex items-center justify-between text-slate-400 text-xs">
+                  <span>Celulares (Móvil)</span>
+                  <Smartphone className="w-4 h-4 text-indigo-400" />
+                </div>
+                <div className="text-2xl sm:text-3xl font-black text-white font-mono">
+                  {telemetryStats?.deviceBreakdown?.mobilePercent ?? 100}%
+                </div>
+                <div className="text-[11px] text-slate-400">
+                  {telemetryStats?.deviceBreakdown?.mobile ?? 0} Móvil • {telemetryStats?.deviceBreakdown?.desktop ?? 0} PC
+                </div>
+              </div>
+            </div>
+
+            {/* Gráfica de 24 Horas: Horas Pico de Conexión en El Salvador */}
+            <div className="p-5 sm:p-6 bg-slate-900 border border-slate-800 rounded-3xl space-y-4 shadow-lg">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-3">
+                <div>
+                  <h3 className="text-sm sm:text-base font-black text-white flex items-center gap-2">
+                    <BarChart3 className="w-4 h-4 text-amber-400" />
+                    <span>Curva de 24 Horas: Horas Pico de Mayor Tráfico en El Salvador</span>
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    Distribución de visitas por hora del día (Zona Horaria El Salvador UTC-6). Úsalo para planificar envíos de WhatsApp cuando haya más gente conectada.
+                  </p>
+                </div>
+                <span className="text-[11px] font-mono font-bold text-amber-400 bg-amber-500/10 px-2.5 py-1 rounded-xl border border-amber-500/20">
+                  Zona: GMT-6 (El Salvador)
+                </span>
+              </div>
+
+              {/* Barras Visuales de 24 Horas */}
+              {(() => {
+                const hourly = telemetryStats?.hourlyDistribution || new Array(24).fill(0);
+                const maxVal = Math.max(...hourly, 1);
+
+                return (
+                  <div className="space-y-2 pt-2">
+                    <div className="h-44 flex items-end gap-1 sm:gap-2 px-1 pt-6 border-b border-slate-800 pb-2">
+                      {hourly.map((count, hr) => {
+                        const heightPct = Math.round((count / maxVal) * 100);
+                        const isPeak = count === maxVal && count > 0;
+
+                        return (
+                          <div key={hr} className="flex-1 flex flex-col items-center gap-1 h-full justify-end group relative">
+                            {/* Tooltip flotante */}
+                            <div className="opacity-0 group-hover:opacity-100 transition-opacity absolute -top-8 bg-slate-950 text-white font-mono text-[10px] px-2 py-0.5 rounded border border-slate-700 pointer-events-none z-10 whitespace-nowrap shadow">
+                              {hr}:00 → {count} visitas
+                            </div>
+
+                            <div
+                              className={`w-full rounded-t-md transition-all duration-300 min-h-[4px] ${
+                                isPeak
+                                  ? 'bg-gradient-to-t from-amber-500 to-yellow-300 shadow-md shadow-amber-500/30 ring-1 ring-amber-400'
+                                  : count > 0
+                                  ? 'bg-gradient-to-t from-indigo-600 to-indigo-400'
+                                  : 'bg-slate-800/60'
+                              }`}
+                              style={{ height: `${Math.max(4, heightPct)}%` }}
+                            />
+                            <span className="text-[9px] sm:text-[10px] font-mono text-slate-400">
+                              {hr % 3 === 0 ? `${hr}h` : ''}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    <div className="flex items-center justify-between text-xs text-slate-400 pt-1">
+                      <div className="flex items-center gap-4 text-[11px]">
+                        <span className="flex items-center gap-1.5">
+                          <span className="w-2.5 h-2.5 rounded bg-amber-400" />
+                          <span>Hora Pico Principal</span>
+                        </span>
+                        <span className="flex items-center gap-1.5">
+                          <span className="w-2.5 h-2.5 rounded bg-indigo-500" />
+                          <span>Tráfico Regular</span>
+                        </span>
+                      </div>
+                      <span className="text-[11px] text-slate-400">
+                        Total Eventos Registrados: <strong>{telemetryStats?.totalEvents ?? 0}</strong>
+                      </span>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+
+            {/* Estrategia de Retención: El Gancho de $50 en Viajes */}
+            <div className="p-5 sm:p-6 bg-slate-900 border-2 border-amber-500/30 rounded-3xl space-y-4 shadow-xl">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-amber-500/20 text-amber-400 flex items-center justify-center font-bold text-lg">
+                    🎁
+                  </div>
+                  <div>
+                    <h3 className="text-sm sm:text-base font-black text-white">
+                      Estrategia de Retención Activa: Modal Anti-Abandono ($50 en Viajes)
+                    </h3>
+                    <p className="text-xs text-slate-300">
+                      Disparador inteligente en `/viajes` y `/conductor` que intercepta al usuario cuando intenta cerrar la página.
+                    </p>
+                  </div>
+                </div>
+                <span className="px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs font-bold shrink-0">
+                  ACTIVO EN VIVO
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+                <div className="p-3.5 bg-slate-950 rounded-2xl border border-slate-800 space-y-1">
+                  <span className="text-[11px] text-slate-400 block font-semibold">1. Detección Inteligente</span>
+                  <p className="text-slate-300 text-[11px] leading-relaxed">
+                    Detecta cuando el mouse sube a la pestaña en PC, o tras 25 segundos de lectura sin interactuar en celulares.
+                  </p>
+                </div>
+
+                <div className="p-3.5 bg-slate-950 rounded-2xl border border-slate-800 space-y-1">
+                  <span className="text-[11px] text-slate-400 block font-semibold">2. El Gancho Irresistible</span>
+                  <p className="text-slate-300 text-[11px] leading-relaxed">
+                    <strong>"🎁 ¡Espera! Puedes ganar más de $50.00 en viajes, te diremos cómo..."</strong> respaldado por el bono $2+$2.
+                  </p>
+                </div>
+
+                <div className="p-3.5 bg-slate-950 rounded-2xl border border-slate-800 space-y-1">
+                  <span className="text-[11px] text-slate-400 block font-semibold">3. Tasa de Conversión Actual</span>
+                  <p className="text-amber-300 font-mono font-bold text-sm">
+                    {telemetryStats?.exitIntent?.rate ?? '0%'} de Éxito
+                  </p>
+                  <span className="text-[10px] text-slate-400 block">
+                    {telemetryStats?.exitIntent?.converted ?? 0} usuarios rescatados de {telemetryStats?.exitIntent?.shown ?? 0}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Tabla de Eventos Recientes en Tiempo Real */}
+            <div className="p-5 bg-slate-900 border border-slate-800 rounded-3xl space-y-3">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                <h3 className="text-xs sm:text-sm font-black text-white flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-emerald-400" />
+                  <span>Última Actividad y Sesiones Registradas</span>
+                </h3>
+                <span className="text-[11px] font-mono text-slate-400">
+                  Mostrando últimos {telemetryStats?.recentEvents?.length ?? 0} eventos
+                </span>
+              </div>
+
+              {(!telemetryStats?.recentEvents || telemetryStats.recentEvents.length === 0) ? (
+                <div className="p-8 text-center text-xs text-slate-400">
+                  Aún no hay eventos registrados en este momento. La telemetría capturará en vivo la próxima visita.
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs text-slate-300">
+                    <thead className="text-[10px] uppercase font-bold text-slate-400 bg-slate-950/60 border-b border-slate-800">
+                      <tr>
+                        <th className="py-2.5 px-3">Hora</th>
+                        <th className="py-2.5 px-3">Rol</th>
+                        <th className="py-2.5 px-3">Evento</th>
+                        <th className="py-2.5 px-3">Dispositivo</th>
+                        <th className="py-2.5 px-3">Permanencia</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800/60 font-mono text-[11px]">
+                      {telemetryStats.recentEvents.map((ev, idx) => (
+                        <tr key={idx} className="hover:bg-slate-850/40">
+                          <td className="py-2.5 px-3 text-slate-400">
+                            {new Date(ev.createdAt).toLocaleTimeString('es-SV', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                          </td>
+                          <td className="py-2.5 px-3">
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                              ev.role === 'DRIVER' ? 'bg-amber-500/20 text-amber-300' : 'bg-emerald-500/20 text-emerald-300'
+                            }`}>
+                              {ev.role === 'DRIVER' ? 'CONDUCTOR' : 'PASAJERO'}
+                            </span>
+                          </td>
+                          <td className="py-2.5 px-3 font-semibold text-white">
+                            {ev.eventType}
+                          </td>
+                          <td className="py-2.5 px-3 text-slate-400">
+                            {ev.device || 'MÓVIL'}
+                          </td>
+                          <td className="py-2.5 px-3 text-emerald-400 font-bold">
+                            {ev.duration > 0 ? `${ev.duration}s` : '0s'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+          </div>
+        )}
+
       </main>
 
       {/* ================================================================== */}
@@ -2174,6 +2496,13 @@ export default function AdminDashboardPage() {
           </div>
         </div>
       )}
+
+      {/* Modal de Previsualización Exit-Intent para Administrador */}
+      <ExitIntentRescueModal
+        isOpenExternal={showExitModalPreview}
+        onCloseExternal={() => setShowExitModalPreview(false)}
+        role="PASSENGER"
+      />
 
     </div>
   );
