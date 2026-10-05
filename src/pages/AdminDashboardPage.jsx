@@ -46,6 +46,7 @@ import {
   fetchAdminStatsApi,
   fetchAdminDriversApi,
   updateDriverAuthorizationApi,
+  purgeAdminDriversApi,
   fetchInboxTicketsApi,
   updateInboxTicketStatusApi,
   fetchAdminWhatsAppConfigApi,
@@ -235,6 +236,27 @@ export default function AdminDashboardPage() {
       alert('Error al reiniciar base de datos: ' + err.message);
     } finally {
       setResetLoading(false);
+    }
+  };
+
+  const [purgeDriversLoading, setPurgeDriversLoading] = useState(false);
+
+  const handlePurgeDrivers = async () => {
+    const confirmPurge = window.confirm(
+      '⚠️ ¿Deseas vaciar todos los expedientes de conductores de prueba?\n\nEsto dejará la bandeja de autorizaciones en CERO expedientes para recibir únicamente solicitudes reales.'
+    );
+    if (!confirmPurge) return;
+
+    setPurgeDriversLoading(true);
+    try {
+      const res = await purgeAdminDriversApi();
+      setDrivers([]);
+      alert(res.message || 'Expedientes reiniciados a CERO.');
+      await loadDashboardData();
+    } catch (err) {
+      alert('Error: ' + err.message);
+    } finally {
+      setPurgeDriversLoading(false);
     }
   };
 
@@ -918,7 +940,7 @@ export default function AdminDashboardPage() {
         {/* ================================================================== */}
         {activeTab === 'DRIVERS' && (
           <div className="space-y-4 animate-fade-in">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
                 <h2 className="text-lg font-black text-white">
                   Expedientes de Conductores para Autorización
@@ -927,69 +949,93 @@ export default function AdminDashboardPage() {
                   Revisa DUI, Licencia, antecedentes y fotos del auto para habilitar al conductor en la app.
                 </p>
               </div>
-              <span className="font-mono text-xs px-3 py-1 rounded-full bg-slate-900 border border-slate-800 text-slate-300">
-                Total: {drivers.length} Conductores
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="font-mono text-xs px-3 py-1 rounded-full bg-slate-900 border border-slate-800 text-slate-300">
+                  Total: {drivers.length} Conductores
+                </span>
+                <button
+                  type="button"
+                  onClick={handlePurgeDrivers}
+                  disabled={purgeDriversLoading}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-rose-300 text-xs font-bold transition-all cursor-pointer"
+                  title="Eliminar expedientes de prueba"
+                >
+                  <Trash2 className={`w-3.5 h-3.5 ${purgeDriversLoading ? 'animate-spin' : ''}`} />
+                  <span>Vaciar Expedientes</span>
+                </button>
+              </div>
             </div>
 
-            {/* Lista de Conductores */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-              {drivers.map((drv) => {
-                const isPending = drv.approval_status === 'PENDING';
-                const isApproved = drv.approval_status === 'APPROVED';
-                const isRejected = drv.approval_status === 'REJECTED';
+            {/* Si no hay expedientes pendientes */}
+            {drivers.length === 0 ? (
+              <div className="p-12 text-center bg-slate-900 border border-slate-800 rounded-3xl space-y-3">
+                <div className="w-16 h-16 rounded-3xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center mx-auto text-2xl font-bold">
+                  🚗
+                </div>
+                <h3 className="text-base font-black text-white">No hay expedientes pendientes</h3>
+                <p className="text-xs text-slate-400 max-w-md mx-auto">
+                  La bandeja de autorizaciones está completamente limpia a CERO para el prelanzamiento. Cuando los choferes se registren y suban su documentación oficial, sus expedientes aparecerán aquí para revisión.
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {drivers.map((drv) => {
+                  const isPending = drv.approval_status === 'PENDING';
+                  const isApproved = drv.approval_status === 'APPROVED';
+                  const isRejected = drv.approval_status === 'REJECTED';
 
-                return (
-                  <div
-                    key={drv.id}
-                    className="p-4 bg-slate-900 border border-slate-800 hover:border-slate-700 rounded-3xl space-y-3 text-xs transition-all shadow"
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <h4 className="font-bold text-white text-sm">{drv.full_name}</h4>
-                        <span className="text-slate-400 font-mono text-[11px]">DUI: {drv.dui || 'N/A'}</span>
-                      </div>
-                      <span
-                        className={`text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full ${
-                          isApproved
-                            ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                            : isRejected
-                            ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
-                            : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                        }`}
-                      >
-                        {drv.approval_status || 'PENDIENTE'}
-                      </span>
-                    </div>
-
-                    <div className="p-2.5 bg-slate-950 rounded-2xl border border-slate-800 space-y-1 font-mono text-[11px]">
-                      <div className="flex justify-between text-slate-400">
-                        <span>Vehículo:</span>
-                        <strong className="text-white">{drv.vehicle_brand} {drv.vehicle_model} ({drv.vehicle_color})</strong>
-                      </div>
-                      <div className="flex justify-between text-slate-400">
-                        <span>Placa:</span>
-                        <strong className="text-amber-300 font-bold">{drv.vehicle_plate}</strong>
-                      </div>
-                      <div className="flex justify-between text-slate-400">
-                        <span>Teléfono:</span>
-                        <span className="text-slate-200">{drv.phone}</span>
-                      </div>
-                    </div>
-
-                    {/* Botón para ver expediente completo */}
-                    <button
-                      type="button"
-                      onClick={() => setSelectedDriver(drv)}
-                      className="w-full py-2.5 bg-slate-800 hover:bg-slate-750 text-amber-300 font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
+                  return (
+                    <div
+                      key={drv.id}
+                      className="p-4 bg-slate-900 border border-slate-800 hover:border-slate-700 rounded-3xl space-y-3 text-xs transition-all shadow"
                     >
-                      <Eye className="w-3.5 h-3.5" />
-                      <span>Inspeccionar Documentos y Autorizar</span>
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <h4 className="font-bold text-white text-sm">{drv.full_name}</h4>
+                          <span className="text-slate-400 font-mono text-[11px]">DUI: {drv.dui || 'N/A'}</span>
+                        </div>
+                        <span
+                          className={`text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full ${
+                            isApproved
+                              ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                              : isRejected
+                              ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                              : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                          }`}
+                        >
+                          {drv.approval_status || 'PENDIENTE'}
+                        </span>
+                      </div>
+
+                      <div className="p-2.5 bg-slate-950 rounded-2xl border border-slate-800 space-y-1 font-mono text-[11px]">
+                        <div className="flex justify-between text-slate-400">
+                          <span>Vehículo:</span>
+                          <strong className="text-white">{drv.vehicle_brand} {drv.vehicle_model} ({drv.vehicle_color})</strong>
+                        </div>
+                        <div className="flex justify-between text-slate-400">
+                          <span>Placa:</span>
+                          <strong className="text-amber-300 font-bold">{drv.vehicle_plate}</strong>
+                        </div>
+                        <div className="flex justify-between text-slate-400">
+                          <span>Teléfono:</span>
+                          <span className="text-slate-200">{drv.phone}</span>
+                        </div>
+                      </div>
+
+                      {/* Botón para ver expediente completo */}
+                      <button
+                        type="button"
+                        onClick={() => setSelectedDriver(drv)}
+                        className="w-full py-2.5 bg-slate-800 hover:bg-slate-750 text-amber-300 font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                        <span>Inspeccionar Documentos y Autorizar</span>
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
 

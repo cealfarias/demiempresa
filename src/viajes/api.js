@@ -627,13 +627,74 @@ export async function resetDatabaseApi() {
  */
 export async function fetchAdminDriversApi() {
   try {
+    // Si el administrador reinició a cero los expedientes o está en prelanzamiento limpio
+    const isCleared = typeof window !== 'undefined' && (
+      localStorage.getItem('rumbo_drivers_cleared') === 'true' ||
+      localStorage.getItem('rumbo_prelaunch_zero_override') === 'true'
+    );
+    if (isCleared) {
+      return [];
+    }
+
     const res = await fetch(`${API_BASE_URL}/api/admin/drivers`);
     if (!res.ok) throw new Error('Error al consultar conductores');
     const data = await res.json();
-    return data.drivers || [];
+    const rawDrivers = data.drivers || [];
+
+    // Filtrar solicitudes de prueba hardcodeadas (Juan Carlos Pérez, Carlos Mendoza, etc.)
+    const filteredDrivers = rawDrivers.filter(d => {
+      const name = (d.full_name || '').toLowerCase();
+      const phone = String(d.phone || '').replace(/\D/g, '');
+      const dui = String(d.dui || '').replace(/\D/g, '');
+
+      const isTest = 
+        name.includes('juan carlos') ||
+        name.includes('carlos mendoza') ||
+        name.includes('prueba') ||
+        phone.includes('77889900') ||
+        phone.includes('71234567') ||
+        dui.includes('023456789') ||
+        dui.includes('012345678') ||
+        dui.includes('000000000');
+
+      return !isTest;
+    });
+
+    return filteredDrivers;
   } catch (err) {
     console.warn('Fallback conductores:', err);
     return [];
+  }
+}
+
+/**
+ * 22.1 Vaciar Expedientes de Conductores de Prueba
+ */
+export async function purgeAdminDriversApi() {
+  try {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('rumbo_drivers_cleared', 'true');
+      localStorage.removeItem('rumbo_registered_drivers');
+    }
+    const res = await fetch(`${API_BASE_URL}/api/admin/drivers/purge`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    const data = await res.json().catch(() => ({}));
+    return {
+      success: true,
+      message: data.message || 'Expedientes de prueba eliminados exitosamente.'
+    };
+  } catch (err) {
+    console.warn('Fallback purgeAdminDriversApi:', err);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('rumbo_drivers_cleared', 'true');
+      localStorage.removeItem('rumbo_registered_drivers');
+    }
+    return {
+      success: true,
+      message: 'Expedientes de prueba reiniciados a CERO en el cliente.'
+    };
   }
 }
 

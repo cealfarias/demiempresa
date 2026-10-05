@@ -1995,6 +1995,8 @@ app.get('/api/admin/drivers', async (req, res) => {
           dp.created_at
         FROM viajes_driver_profiles dp
         JOIN viajes_users u ON dp.user_id = u.id
+        WHERE u.dui NOT IN ('02345678-9', '01234567-8', '00000000-0')
+          AND u.phone NOT IN ('7788-9900', '7123-4567')
         ORDER BY dp.created_at DESC;
       `);
       drivers = dbRes.rows;
@@ -2003,6 +2005,39 @@ app.get('/api/admin/drivers', async (req, res) => {
     }
 
     res.json({ success: true, count: drivers.length, drivers });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 9.3.1 Purgar Expedientes de Prueba
+app.all(['/api/admin/drivers/purge', '/api/admin/drivers/reset-all'], async (req, res) => {
+  try {
+    if (process.env.DATABASE_URL) {
+      await pool.query(`
+        DELETE FROM viajes_driver_profiles 
+        WHERE user_id IN (
+          SELECT id FROM viajes_users 
+          WHERE dui IN ('02345678-9', '01234567-8', '00000000-0') 
+             OR phone IN ('7788-9900', '7123-4567')
+        );
+      `);
+    }
+    activeDriverSessions.clear();
+    res.json({ success: true, message: 'Expedientes de prueba eliminados exitosamente.' });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 9.3.2 Eliminar un Expediente Individual
+app.delete('/api/admin/drivers/:driverId', async (req, res) => {
+  try {
+    const { driverId } = req.params;
+    if (process.env.DATABASE_URL) {
+      await pool.query('DELETE FROM viajes_driver_profiles WHERE id::text = $1', [driverId]);
+    }
+    res.json({ success: true, message: 'Expediente eliminado correctamente.' });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
