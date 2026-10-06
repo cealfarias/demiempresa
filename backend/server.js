@@ -1899,7 +1899,6 @@ const handleAdminSecureLogin = async (req, res) => {
 
 app.post('/api/admin/auth/secure', handleAdminSecureLogin);
 app.post('/api/admin/auth/google', handleAdminSecureLogin);
-});
 
 // 9.2 Estadísticas Globales del Sistema (Pasajeros, Conductores, Finanzas, Tickets)
 app.get('/api/admin/stats', async (req, res) => {
