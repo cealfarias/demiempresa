@@ -2169,6 +2169,26 @@ app.get('/api/admin/telemetry/stats', async (req, res) => {
       }
     }
 
+    let totalLifetimeVisitors = 0;
+    let totalLifetimeEvents = events.length;
+
+    if (process.env.DATABASE_URL) {
+      try {
+        const histRes = await pool.query(`
+          SELECT 
+            COUNT(DISTINCT session_id) as total_unique,
+            COUNT(*) as total_events
+          FROM viajes_telemetry_events;
+        `);
+        if (histRes.rows && histRes.rows[0]) {
+          totalLifetimeVisitors = Number(histRes.rows[0].total_unique) || 0;
+          totalLifetimeEvents = Number(histRes.rows[0].total_events) || 0;
+        }
+      } catch (e) {
+        console.warn('Error al consultar historiales acumulados:', e.message);
+      }
+    }
+
     // Calcular Métricas
     const sessionsMap = new Map();
     const hourlyCounts = new Array(24).fill(0);
@@ -2235,6 +2255,8 @@ app.get('/api/admin/telemetry/stats', async (req, res) => {
       stats: {
         totalEvents: events.length,
         uniqueVisitors: sessionsMap.size,
+        totalLifetimeVisitors: totalLifetimeVisitors > 0 ? totalLifetimeVisitors : sessionsMap.size,
+        totalLifetimeEvents: totalLifetimeEvents > 0 ? totalLifetimeEvents : events.length,
         passengerVisits: passengerCount,
         driverVisits: driverCount,
         avgDurationSeconds,

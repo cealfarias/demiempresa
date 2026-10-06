@@ -1153,6 +1153,8 @@ export async function fetchAdminTelemetryStatsApi() {
     return {
       totalEvents: cached.length,
       uniqueVisitors: totalSessions,
+      totalLifetimeVisitors: totalSessions,
+      totalLifetimeEvents: cached.length,
       passengerVisits: passCount,
       driverVisits: drivCount,
       avgDurationSeconds: avgSec,

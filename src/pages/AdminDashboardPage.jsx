@@ -1954,12 +1954,12 @@ export default function AdminDashboardPage() {
                     <h2 className="text-base sm:text-lg font-black text-white">
                       Centro de Telemetría, Permanencia & Sensor Anti-Abandono
                     </h2>
-                    <span className="px-2.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 text-[10px] font-black uppercase tracking-wider">
-                      EN VIVO 24/7
+                    <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[10px] font-black uppercase tracking-wider">
+                      HISTORIAL PERSISTENTE POSTGRESQL
                     </span>
                   </div>
                   <p className="text-xs text-slate-300">
-                    Monitoreo en vivo de visitantes únicos, tiempo de lectura, horas pico de conexión (El Salvador UTC-6) y efectividad del gancho de $50 en viajes.
+                    Historial permanente guardado en base de datos. Monitoreo en vivo de visitantes únicos, tiempo de lectura, horas pico de conexión (El Salvador UTC-6) y efectividad del gancho de $50 en viajes.
                   </p>
                 </div>
               </div>
@@ -1990,6 +1990,11 @@ export default function AdminDashboardPage() {
                 <div className="text-[11px] text-slate-400">
                   <span className="text-emerald-400 font-bold">{telemetryStats?.passengerVisits ?? 0}</span> Pasajeros • <span className="text-amber-400 font-bold">{telemetryStats?.driverVisits ?? 0}</span> Choferes
                 </div>
+                {Number(telemetryStats?.totalLifetimeVisitors) > Number(telemetryStats?.uniqueVisitors ?? 0) && (
+                  <div className="text-[10px] text-slate-500 font-mono pt-0.5">
+                    Histórico total: {telemetryStats.totalLifetimeVisitors} únicos
+                  </div>
+                )}
               </div>
 
               {/* KPI 2: Tiempo Promedio de Sesión */}
