@@ -27,7 +27,7 @@ export default function TripPreferencesModal({
   if (!isOpen) return null;
 
   const {
-    airConditioning = true,
+    airConditioning = false,
     petFriendly = false,
     passengers = 1, // 1 a 4 o 5+
     weightProfile = 'NORMAL',
@@ -43,15 +43,7 @@ export default function TripPreferencesModal({
   const handleToggleAc = () => {
     if (isMoto) return;
     const nextState = !airConditioning;
-    if (nextState) {
-      // Política: El A/C activa automáticamente la tarifa sugerida
-      if (onRequireSuggestedFare) {
-        onRequireSuggestedFare();
-      }
-      onChange({ ...preferences, airConditioning: true });
-    } else {
-      onChange({ ...preferences, airConditioning: false });
-    }
+    onChange({ ...preferences, airConditioning: nextState });
   };
 
   const handleTogglePet = () => {
@@ -159,7 +151,7 @@ export default function TripPreferencesModal({
               <div className="pt-2 border-t border-slate-800/80 text-[10px] leading-tight flex items-start gap-1.5 text-cyan-300 font-medium">
                 <Info className="w-3.5 h-3.5 flex-shrink-0 text-cyan-400 mt-0.5" />
                 <span>
-                  <strong>Política:</strong> El A/C solo aplica con tarifa sugerida (${suggestedFare || '2.50'}) o superior. Al activarlo, se habilita automáticamente la tarifa sugerida.
+                  <strong>Política:</strong> La tarifa inicial corresponde a la base mínima sin aire acondicionado. Al activarlo, la tarifa se recalcula e incrementa de forma automática para cubrir el consumo y climatización del vehículo.
                 </span>
               </div>
             )}

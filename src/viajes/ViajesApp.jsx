@@ -306,7 +306,7 @@ export default function ViajesApp() {
 
   // Preferencias Especiales del Viaje (A/C, Mascotas, Pasajeros, Equipaje, Contextura/Peso, Ida y Vuelta)
   const [tripPreferences, setTripPreferences] = useState({
-    airConditioning: true,
+    airConditioning: false,
     petFriendly: false,
     passengers: 1,
     weightProfile: 'NORMAL',
@@ -412,13 +412,53 @@ export default function ViajesApp() {
     return opts.map((n) => n.toFixed(2));
   })();
 
-  // Política Estricta de Aire Acondicionado:
-  // Solo se activa si la tarifa es la sugerida o superior. Al activarlo, se habilita la sugerida.
-  const handleEnableAcWithSuggestedFare = () => {
-    const sugFare = suggestedFareInfo?.suggestedFare || '2.50';
-    setProposedFare(sugFare);
+  // Manejo de Aire Acondicionado y Recálculo Dinámico de Tarifa:
+  // La tarifa base se calcula como la mínima sin aire acondicionado.
+  // Al activar A/C se recalcula e incrementa automáticamente cubriendo consumo y climatización.
+  const handleToggleAirConditioning = () => {
+    if (isMotoMode) {
+      speakAssistantMessage('El servicio en motocicleta no cuenta con aire acondicionado.');
+      return;
+    }
+
+    const nextState = !tripPreferences.airConditioning;
+    const nextPreferences = { ...tripPreferences, airConditioning: nextState };
+    setTripPreferences(nextPreferences);
+
+    const recalculated = calculateSuggestedFare(
+      roadDistanceKm,
+      isMotoMode ? 115.0 : 42.0,
+      OFFICIAL_GOV_PRICES.regular,
+      trafficInfo.delayMinutes,
+      { ...nextPreferences, transportType }
+    );
+    const newFare = recalculated?.suggestedFare || '2.50';
+    setProposedFare(newFare);
     setHasCustomFare(false);
-    setTripPreferences((prev) => ({ ...prev, airConditioning: true }));
+
+    if (nextState) {
+      speakAssistantMessage(`Aire acondicionado activado. Tarifa actualizada con climatización a ${newFare} dólares.`);
+    } else {
+      speakAssistantMessage(`Aire acondicionado desactivado. Tarifa ajustada a la base mínima de ${newFare} dólares.`);
+    }
+  };
+
+  const handleEnableAcWithSuggestedFare = () => {
+    if (isMotoMode) return;
+    const nextPreferences = { ...tripPreferences, airConditioning: true };
+    setTripPreferences(nextPreferences);
+
+    const recalculated = calculateSuggestedFare(
+      roadDistanceKm,
+      isMotoMode ? 115.0 : 42.0,
+      OFFICIAL_GOV_PRICES.regular,
+      trafficInfo.delayMinutes,
+      { ...nextPreferences, transportType }
+    );
+    const newFare = recalculated?.suggestedFare || '2.50';
+    setProposedFare(newFare);
+    setHasCustomFare(false);
+    speakAssistantMessage(`Aire acondicionado activado. Tarifa actualizada con climatización a ${newFare} dólares.`);
   };
 
   const handleFareInputChange = (val) => {
@@ -1048,7 +1088,7 @@ export default function ViajesApp() {
         rushHourContext: routeRes?.rushHourContext || 'Horario Normal'
       });
 
-      // Calcular tarifa sugerida exacta
+      // Calcular tarifa mínima base exacta
       const fareData = calculateSuggestedFare(
         distKm,
         transportType === 'MOTO' ? 115.0 : 42.0,
@@ -1064,6 +1104,7 @@ export default function ViajesApp() {
         distKm,
         durMin,
         calculatedFare,
+        airConditioning: !!tripPreferences.airConditioning,
         resolvedDestinationText,
         currentOriginCoords
       };
@@ -1092,8 +1133,11 @@ export default function ViajesApp() {
       return;
     }
 
-    // Locución obligatoria: "Encontré la ruta a tu destino en [ubicación]. Está a [Y] km de distancia, tardarás en llegar [Z] minutos..."
-    const speechPrompt = `Encontré la ruta a tu destino en ${calcResult.resolvedDestinationText}. Está a ${calcResult.distKm} kilómetros de distancia, tardarás en llegar ${calcResult.durMin} minutos. La tarifa sugerida es de ${calcResult.calculatedFare} dólares. ¿Deseas buscar conductor?`;
+    // Locución profesional: Tarifa mínima sin aire acondicionado
+    const acSpeechClause = calcResult.airConditioning
+      ? 'con aire acondicionado incluido'
+      : 'calculada sin aire acondicionado';
+    const speechPrompt = `Encontré la ruta a tu destino en ${calcResult.resolvedDestinationText}. Está a ${calcResult.distKm} kilómetros de distancia y tardarás aproximadamente ${calcResult.durMin} minutos. La tarifa mínima estimada es de ${calcResult.calculatedFare} dólares, ${acSpeechClause}. ¿Deseas buscar conductor?`;
 
     setVoiceDialogueStep('CONFIRMING_SEARCH');
     speakAndThenListen(speechPrompt, {
@@ -1208,24 +1252,33 @@ export default function ViajesApp() {
     }
 
     if (intent.type === 'CHANGE_AC') {
-      if (intent.enabled) {
-        // Política de Rumbo: A/C solo aplica con tarifa sugerida o superior. Al activarlo, se habilita automáticamente la tarifa sugerida.
-        setTripPreferences((prev) => ({
-          ...prev,
-          airConditioning: true
-        }));
-        const sugFare = suggestedFareInfo?.suggestedFare || '2.50';
-        setProposedFare(sugFare);
-        setHasCustomFare(false);
+      if (isMotoMode) {
+        askConfirmationAfterAdjustment('El servicio en motocicleta no cuenta con aire acondicionado.');
+        return;
+      }
+      const nextEnabled = !!intent.enabled;
+      const nextPrefs = { ...tripPreferences, airConditioning: nextEnabled };
+      setTripPreferences(nextPrefs);
+
+      const recalculated = calculateSuggestedFare(
+        roadDistanceKm,
+        isMotoMode ? 115.0 : 42.0,
+        OFFICIAL_GOV_PRICES.regular,
+        trafficInfo.delayMinutes,
+        { ...nextPrefs, transportType }
+      );
+      const newFare = recalculated?.suggestedFare || '2.50';
+      setProposedFare(newFare);
+      setHasCustomFare(false);
+
+      if (nextEnabled) {
         askConfirmationAfterAdjustment(
-          `Aire acondicionado activado. Por política, se habilitó la tarifa sugerida de ${sugFare} dólares.`
+          `Aire acondicionado activado. Tarifa actualizada con climatización a ${newFare} dólares.`
         );
       } else {
-        setTripPreferences((prev) => ({
-          ...prev,
-          airConditioning: false
-        }));
-        askConfirmationAfterAdjustment('Aire acondicionado desactivado.');
+        askConfirmationAfterAdjustment(
+          `Aire acondicionado desactivado. Tarifa ajustada a la base mínima de ${newFare} dólares.`
+        );
       }
       return;
     }
@@ -2697,9 +2750,13 @@ export default function ViajesApp() {
                   <SlidersHorizontal className="w-4 h-4 text-lime-400 flex-shrink-0" />
                   <span className="font-bold text-slate-200">Preferencias:</span>
                   <div className="flex items-center gap-1.5 overflow-hidden">
-                    {tripPreferences.airConditioning && (
+                    {tripPreferences.airConditioning ? (
                       <span className="text-[10px] px-2 py-0.5 rounded-full bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 font-semibold whitespace-nowrap">
                         ❄️ Con A/C
+                      </span>
+                    ) : (
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700 font-medium whitespace-nowrap">
+                        💨 Sin A/C (Mínima)
                       </span>
                     )}
                     {tripPreferences.passengers > 4 ? (
@@ -2734,17 +2791,53 @@ export default function ViajesApp() {
                 </span>
               </button>
 
-              {/* Monto Ofrecido en Efectivo con Tarifa Sugerida Inteligente */}
+              {/* Monto Ofrecido en Efectivo con Tarifa Mínima / Sugerida Inteligente */}
               <div>
+                {/* Control Directo de Aire Acondicionado (Un solo toque) */}
+                {!isMotoMode && (
+                  <div className="mb-2.5 p-2.5 bg-slate-900/90 border border-slate-800 hover:border-slate-700/80 rounded-2xl flex items-center justify-between gap-2 shadow-sm transition-colors">
+                    <div className="flex items-center gap-2.5">
+                      <div className={`w-8 h-8 rounded-xl flex items-center justify-center transition-colors ${tripPreferences.airConditioning ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/40' : 'bg-slate-800 text-slate-400 border border-slate-700'}`}>
+                        <Wind className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <div className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                          <span>{tripPreferences.airConditioning ? 'Aire Acondicionado Activo' : 'Sin Aire Acondicionado'}</span>
+                          <span className={`text-[9px] px-1.5 py-0.2 rounded font-mono font-bold ${tripPreferences.airConditioning ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30' : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'}`}>
+                            {tripPreferences.airConditioning ? 'Climatizado' : 'Tarifa Mínima'}
+                          </span>
+                        </div>
+                        <div className="text-[10px] text-slate-400">
+                          {tripPreferences.airConditioning ? 'Tarifa calculada con climatización' : 'Tarifa base mínima del servicio'}
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleToggleAirConditioning}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-sm ${
+                        tripPreferences.airConditioning
+                          ? 'bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black shadow-cyan-500/20'
+                          : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 hover:border-slate-600'
+                      }`}
+                      title={tripPreferences.airConditioning ? "Desactivar A/C y volver a la tarifa mínima" : "Activar A/C e incrementar tarifa automáticamente"}
+                    >
+                      <span>{tripPreferences.airConditioning ? '❄️ Con A/C' : '❄️ Activar A/C'}</span>
+                    </button>
+                  </div>
+                )}
+
                 <div className="flex items-center justify-between mb-1.5">
                   <label className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
                     <DollarSign className="w-3.5 h-3.5 text-amber-400" />
                     <span>Tu Oferta en Efectivo (USD)</span>
                   </label>
 
-                  {/* Chip de Tarifa Sugerida Calculada en Vivo */}
+                  {/* Chip de Tarifa Sugerida / Mínima Calculada en Vivo */}
                   <div className="flex items-center gap-1.5">
-                    <span className="text-[11px] text-slate-400">Sugerida:</span>
+                    <span className="text-[11px] text-slate-400">
+                      {tripPreferences.airConditioning ? 'Sugerida (con A/C):' : 'Mínima (sin A/C):'}
+                    </span>
                     <button
                       type="button"
                       onClick={() => {
@@ -2752,7 +2845,7 @@ export default function ViajesApp() {
                         setHasCustomFare(false);
                       }}
                       className="px-2 py-0.5 rounded-lg bg-lime-500/15 border border-lime-500/40 text-lime-300 font-extrabold text-xs flex items-center gap-1 hover:bg-lime-500/25 transition-all cursor-pointer shadow-sm group"
-                      title="Tarifa calculada por consumo de gasolina, tráfico, A/C y carga de pasajeros"
+                      title={tripPreferences.airConditioning ? "Tarifa calculada con aire acondicionado" : "Tarifa base mínima sin aire acondicionado"}
                     >
                       <span className="font-mono">${suggestedFareInfo.suggestedFare}</span>
                       <span className="text-[9px] uppercase tracking-wider bg-lime-500 text-slate-950 px-1 py-0.5 rounded font-black group-hover:scale-105 transition-transform">
@@ -4739,7 +4832,10 @@ export default function ViajesApp() {
           setProposedFare(fareData.suggestedFare);
 
           // Confirmación por audio requerida al ubicar el pin en el mapa
-          const speechMsg = `Pin colocado en ${address}, que está ubicado a ${distKm} kilómetros y tiempo de llegada aproximado en ${durMin} minutos. La tarifa sugerida es de ${fareData.suggestedFare} dólares.`;
+          const acClause = tripPreferences.airConditioning
+            ? 'con aire acondicionado incluido'
+            : 'calculada sin aire acondicionado';
+          const speechMsg = `Pin colocado en ${address}, a ${distKm} kilómetros de distancia y ${durMin} minutos de llegada. La tarifa mínima estimada es de ${fareData.suggestedFare} dólares, ${acClause}.`;
           speakAssistantMessage(speechMsg);
         }}
       />
@@ -4754,8 +4850,8 @@ export default function ViajesApp() {
         transportType={transportType}
         onRequireSuggestedFare={handleEnableAcWithSuggestedFare}
         onChange={(newPrefs) => {
-          if (newPrefs.airConditioning && !tripPreferences.airConditioning) {
-            handleEnableAcWithSuggestedFare();
+          if (newPrefs.airConditioning !== tripPreferences.airConditioning) {
+            handleToggleAirConditioning();
           } else {
             setTripPreferences(newPrefs);
           }

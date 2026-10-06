@@ -1034,9 +1034,13 @@ export default function DriverApp() {
               {/* Requisitos y Preferencias del Viaje Asignado */}
               {activeTrip.preferences && (
                 <div className="flex flex-wrap gap-1.5 pt-1 text-left">
-                  {activeTrip.preferences.airConditioning !== false && (
+                  {activeTrip.preferences.airConditioning ? (
                     <span className="text-[10px] px-2 py-0.5 rounded-full bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 font-bold flex items-center gap-1">
                       ❄️ Con A/C
+                    </span>
+                  ) : (
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700 font-semibold flex items-center gap-1">
+                      💨 Sin A/C (Mínima)
                     </span>
                   )}
                   {activeTrip.preferences.passengers > 4 ? (
@@ -1145,9 +1149,13 @@ export default function DriverApp() {
               {/* Badges de preferencias solicitadas */}
               {activeTrip.preferences && (
                 <div className="flex flex-wrap gap-1.5 pt-1 border-t border-slate-800/80">
-                  {activeTrip.preferences.airConditioning !== false && (
+                  {activeTrip.preferences.airConditioning ? (
                     <span className="text-[10px] px-2 py-0.5 rounded-full bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 font-bold">
                       ❄️ Con A/C
+                    </span>
+                  ) : (
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700 font-semibold">
+                      💨 Sin A/C (Mínima)
                     </span>
                   )}
                   {activeTrip.preferences.petFriendly && (
