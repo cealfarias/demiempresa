@@ -2214,26 +2214,26 @@ export default function AdminDashboardPage() {
             </div>
 
             {/* ================================================================== */}
-            {/* AUDITORÍA REAL DE GEOLOCALIZACIÓN: PAÍSES DE ORIGEN & IPS */}
+            {/* AUDITORÍA REAL: PAÍSES DE ORIGEN, IPS Y MARCAS DE CELULARES */}
             {/* ================================================================== */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
               {/* Tarjeta 1: Desglose de Países Reales de Origen */}
               <div className="p-5 bg-slate-900 border border-slate-800 rounded-3xl space-y-3 shadow-lg">
                 <div className="flex items-center justify-between border-b border-slate-800 pb-2.5">
                   <div className="flex items-center gap-2">
                     <Globe className="w-4 h-4 text-sky-400" />
                     <h3 className="text-xs sm:text-sm font-black text-white">
-                      Países de Origen de Conexión (Real Cloudflare Edge)
+                      Países de Origen
                     </h3>
                   </div>
                   <span className="px-2 py-0.5 rounded-full bg-sky-500/10 text-sky-300 border border-sky-500/20 text-[10px] font-mono">
-                    IPCOUNTRY OFICIAL
+                    CLOUDFLARE EDGE
                   </span>
                 </div>
 
                 {(!telemetryStats?.countryBreakdown || telemetryStats.countryBreakdown.length === 0) ? (
                   <div className="p-6 text-center text-xs text-slate-400">
-                    Aún no hay visitas registradas para desglosar países de origen.
+                    Aún no hay visitas registradas para desglosar países.
                   </div>
                 ) : (
                   <div className="space-y-3 pt-1">
@@ -2261,23 +2261,23 @@ export default function AdminDashboardPage() {
                 )}
               </div>
 
-              {/* Tarjeta 2: Direcciones IP Reales de Conexión */}
+              {/* Tarjeta 2: Direcciones IP Reales de Conexión (Sin localhost) */}
               <div className="p-5 bg-slate-900 border border-slate-800 rounded-3xl space-y-3 shadow-lg">
                 <div className="flex items-center justify-between border-b border-slate-800 pb-2.5">
                   <div className="flex items-center gap-2">
                     <MapPin className="w-4 h-4 text-amber-400" />
                     <h3 className="text-xs sm:text-sm font-black text-white">
-                      Direcciones IP Reales Conectadas (Auditoría Central)
+                      Direcciones IP Reales
                     </h3>
                   </div>
                   <span className="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-300 border border-amber-500/20 text-[10px] font-mono">
-                    IP CLIENTE
+                    AUDITORÍA IP
                   </span>
                 </div>
 
                 {(!telemetryStats?.topIps || telemetryStats.topIps.length === 0) ? (
                   <div className="p-6 text-center text-xs text-slate-400">
-                    Aún no hay direcciones IP capturadas. Conforme entren visitas aparecerán aquí.
+                    Aún no hay direcciones IP públicas capturadas.
                   </div>
                 ) : (
                   <div className="overflow-x-auto max-h-56">
@@ -2286,7 +2286,6 @@ export default function AdminDashboardPage() {
                         <tr>
                           <th className="py-2 px-2.5">Dirección IP</th>
                           <th className="py-2 px-2.5">País</th>
-                          <th className="py-2 px-2.5">Dispositivo</th>
                           <th className="py-2 px-2.5 text-right">Visitas</th>
                         </tr>
                       </thead>
@@ -2300,12 +2299,59 @@ export default function AdminDashboardPage() {
                                 <span>{entry.countryName}</span>
                               </span>
                             </td>
-                            <td className="py-2 px-2.5 text-slate-400">{entry.device || 'MÓVIL'}</td>
                             <td className="py-2 px-2.5 text-right text-amber-400 font-bold">{entry.visits}</td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
+                  </div>
+                )}
+              </div>
+
+              {/* Tarjeta 3: Discriminación de Celulares para Rifas y Fidelización */}
+              <div className="p-5 bg-slate-900 border border-slate-800 rounded-3xl space-y-3 shadow-lg">
+                <div className="flex items-center justify-between border-b border-slate-800 pb-2.5">
+                  <div className="flex items-center gap-2">
+                    <Smartphone className="w-4 h-4 text-emerald-400" />
+                    <h3 className="text-xs sm:text-sm font-black text-white">
+                      Celulares (Para Rifas)
+                    </h3>
+                  </div>
+                  <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 text-[10px] font-mono">
+                    RIFAS & FIDELIZACIÓN
+                  </span>
+                </div>
+
+                {(!telemetryStats?.smartphoneBreakdown || telemetryStats.smartphoneBreakdown.length === 0) ? (
+                  <div className="p-6 text-center text-xs text-slate-400">
+                    Aún no hay visitas móviles registradas para clasificar marcas.
+                  </div>
+                ) : (
+                  <div className="space-y-3 pt-1">
+                    {telemetryStats.smartphoneBreakdown.map((item, idx) => (
+                      <div key={idx} className="space-y-1">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="flex items-center gap-2 font-bold text-white">
+                            <span className="text-base">{item.icon}</span>
+                            <span>{item.brand}</span>
+                          </span>
+                          <span className="font-mono text-slate-300 font-bold">
+                            {item.count} <span className="text-emerald-400">({item.percent}%)</span>
+                          </span>
+                        </div>
+                        <div className="w-full bg-slate-950 h-2 rounded-full overflow-hidden border border-slate-800">
+                          <div
+                            className="bg-gradient-to-r from-emerald-500 to-teal-400 h-full rounded-full transition-all duration-500"
+                            style={{ width: `${Math.max(4, item.percent)}%` }}
+                          />
+                        </div>
+                        {item.topModels && item.topModels.length > 0 && (
+                          <div className="text-[10px] text-slate-400 font-mono pl-6 truncate" title={item.topModels.join(' • ')}>
+                            {item.topModels.join(' • ')}
+                          </div>
+                        )}
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>
@@ -2384,8 +2430,8 @@ export default function AdminDashboardPage() {
                         <th className="py-2.5 px-3">Rol</th>
                         <th className="py-2.5 px-3">IP Real</th>
                         <th className="py-2.5 px-3">País</th>
+                        <th className="py-2.5 px-3">Celular / Equipo</th>
                         <th className="py-2.5 px-3">Evento</th>
-                        <th className="py-2.5 px-3">Dispositivo</th>
                         <th className="py-2.5 px-3">Permanencia</th>
                       </tr>
                     </thead>
@@ -2411,11 +2457,11 @@ export default function AdminDashboardPage() {
                               <span>{ev?.countryName || 'El Salvador'}</span>
                             </span>
                           </td>
+                          <td className="py-2.5 px-3 text-emerald-300 font-semibold">
+                            {ev?.phoneBrand ? `${ev.phoneBrand} ${ev.phoneModel ? `(${ev.phoneModel})` : ''}` : (ev?.device || 'MÓVIL')}
+                          </td>
                           <td className="py-2.5 px-3 font-semibold text-white">
                             {ev?.eventType || 'VISIT'}
-                          </td>
-                          <td className="py-2.5 px-3 text-slate-400">
-                            {ev?.device || 'MÓVIL'}
                           </td>
                           <td className="py-2.5 px-3 text-emerald-400 font-bold">
                             {(ev?.duration ?? 0) > 0 ? `${ev.duration}s` : '0s'}

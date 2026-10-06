@@ -1487,8 +1487,12 @@ async function initializeDatabase() {
         ALTER TABLE viajes_telemetry_events ADD COLUMN IF NOT EXISTS client_ip VARCHAR(64);
         ALTER TABLE viajes_telemetry_events ADD COLUMN IF NOT EXISTS country_code VARCHAR(10);
         ALTER TABLE viajes_telemetry_events ADD COLUMN IF NOT EXISTS country_name VARCHAR(60);
+        ALTER TABLE viajes_telemetry_events ADD COLUMN IF NOT EXISTS phone_brand VARCHAR(60);
+        ALTER TABLE viajes_telemetry_events ADD COLUMN IF NOT EXISTS phone_model VARCHAR(80);
+        ALTER TABLE viajes_telemetry_events ADD COLUMN IF NOT EXISTS phone_os VARCHAR(40);
+        CREATE INDEX IF NOT EXISTS idx_telem_phone_brand ON viajes_telemetry_events(phone_brand);
       `);
-      console.log('✅ Tabla viajes_telemetry_events verificada (con IPs y geolocalización de países).');
+      console.log('✅ Tabla viajes_telemetry_events verificada (con IPs, países y modelos de celulares para rifas).');
     } catch (e) {
       console.warn('⚠️ Nota sobre tabla viajes_telemetry_events:', e.message);
     }
@@ -2167,11 +2171,48 @@ app.post('/api/telemetry/event', async (req, res) => {
                   '127.0.0.1';
     const clientIp = rawIp.replace(/^::ffff:/, '').trim() || '127.0.0.1';
 
-    // 2. País Real (Header CF-IPCountry oficial de Cloudflare Edge)
+    // 2. FILTRAR Y OBVIAR LOCALHOST Y SESIÓN ADMINISTRATIVA (Para no inflar estadísticas)
+    const isLocalhostOrAdmin = clientIp === '127.0.0.1' || 
+                               clientIp === '::1' || 
+                               clientIp === 'localhost' || 
+                               metadata.isAdmin === true || 
+                               String(path).startsWith('/admin');
+
+    if (isLocalhostOrAdmin) {
+      return res.json({ success: true, ignored: true, reason: 'ADMIN_OR_LOCALHOST_EXCLUDED' });
+    }
+
+    // 3. País Real (Header CF-IPCountry oficial de Cloudflare Edge)
     const rawCountry = req.headers['cf-ipcountry'] || 
                        req.headers['x-country-code'] || 
                        (clientIp === '127.0.0.1' || clientIp === '::1' ? 'SV' : 'SV');
     const countryInfo = resolveCountryInfo(rawCountry);
+
+    // 4. Discriminación Inteligente de Marca y Modelo de Celular (Para Rifas e Incentivos)
+    const phoneInfo = metadata.phoneInfo || {};
+    let phoneBrand = phoneInfo.brand || '';
+    let phoneModel = phoneInfo.model || '';
+    let phoneOs = phoneInfo.os || '';
+
+    if (!phoneBrand) {
+      const ua = req.headers['user-agent'] || '';
+      if (/iPhone|iPad|iPod/i.test(ua)) {
+        phoneBrand = 'Apple iPhone';
+        phoneModel = /iPad/i.test(ua) ? 'iPad' : 'iPhone';
+        phoneOs = 'iOS';
+      } else if (/Android/i.test(ua)) {
+        if (/SAMSUNG|SM-[A-Z0-9]+/i.test(ua)) phoneBrand = 'Samsung Galaxy';
+        else if (/Xiaomi|Redmi|POCO/i.test(ua)) phoneBrand = 'Xiaomi / Redmi / POCO';
+        else if (/Motorola|moto/i.test(ua)) phoneBrand = 'Motorola';
+        else if (/HUAWEI|HONOR/i.test(ua)) phoneBrand = 'Huawei / Honor';
+        else phoneBrand = 'Android Genérico';
+        phoneOs = 'Android';
+      } else {
+        phoneBrand = 'Computadora PC';
+        phoneModel = 'Escritorio';
+        phoneOs = 'PC';
+      }
+    }
 
     const eventRecord = {
       id: 'telem_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
@@ -2186,6 +2227,9 @@ app.post('/api/telemetry/event', async (req, res) => {
       country_code: countryInfo.code,
       country_name: countryInfo.name,
       country_flag: countryInfo.flag,
+      phone_brand: phoneBrand,
+      phone_model: phoneModel,
+      phone_os: phoneOs,
       created_at: new Date().toISOString()
     };
 
@@ -2195,13 +2239,13 @@ app.post('/api/telemetry/event', async (req, res) => {
     if (process.env.DATABASE_URL) {
       pool.query(`
         INSERT INTO viajes_telemetry_events (
-          session_id, event_type, role, path, device_type, duration_seconds, metadata, client_ip, country_code, country_name
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-      `, [sessionId, eventType, role, path, deviceType, Number(durationSeconds) || 0, JSON.stringify(metadata), clientIp, countryInfo.code, countryInfo.name]).catch(() => {});
+          session_id, event_type, role, path, device_type, duration_seconds, metadata, client_ip, country_code, country_name, phone_brand, phone_model, phone_os
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+      `, [sessionId, eventType, role, path, deviceType, Number(durationSeconds) || 0, JSON.stringify(metadata), clientIp, countryInfo.code, countryInfo.name, phoneBrand, phoneModel, phoneOs]).catch(() => {});
     }
 
     io.emit('telemetry_live_event', eventRecord);
-    res.json({ success: true, recorded: true, ip: clientIp, country: countryInfo.name });
+    res.json({ success: true, recorded: true, ip: clientIp, country: countryInfo.name, phone: phoneBrand });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -2214,6 +2258,7 @@ app.get('/api/admin/telemetry/stats', async (req, res) => {
       try {
         const dbRes = await pool.query(`
           SELECT * FROM viajes_telemetry_events
+          WHERE client_ip NOT IN ('127.0.0.1', '::1', 'localhost') OR client_ip IS NULL
           ORDER BY created_at DESC
           LIMIT 1000;
         `);
@@ -2225,6 +2270,9 @@ app.get('/api/admin/telemetry/stats', async (req, res) => {
       }
     }
 
+    // Filtrar estrictamente cualquier 127.0.0.1 o loopback local
+    events = events.filter(e => e.client_ip !== '127.0.0.1' && e.client_ip !== '::1' && e.client_ip !== 'localhost' && !e.client_ip?.startsWith('192.168.'));
+
     let totalLifetimeVisitors = 0;
     let totalLifetimeEvents = events.length;
 
@@ -2234,7 +2282,8 @@ app.get('/api/admin/telemetry/stats', async (req, res) => {
           SELECT 
             COUNT(DISTINCT session_id) as total_unique,
             COUNT(*) as total_events
-          FROM viajes_telemetry_events;
+          FROM viajes_telemetry_events
+          WHERE client_ip NOT IN ('127.0.0.1', '::1', 'localhost') OR client_ip IS NULL;
         `);
         if (histRes.rows && histRes.rows[0]) {
           totalLifetimeVisitors = Number(histRes.rows[0].total_unique) || 0;
@@ -2403,6 +2452,54 @@ app.get('/api/admin/telemetry/stats', async (req, res) => {
       .sort((a, b) => b.visits - a.visits)
       .slice(0, 25);
 
+    // Discriminación Real de Marcas y Modelos de Celulares (Para Rifas de Fidelización)
+    const phoneBrandMap = new Map();
+
+    for (const ev of events) {
+      const brand = ev.phone_brand || (ev.device_type === 'MOBILE' ? 'Android / Móvil' : 'Computadora PC');
+      const model = ev.phone_model || '';
+      const isMobile = ev.device_type === 'MOBILE' || !brand.toLowerCase().includes('pc');
+
+      if (isMobile && !brand.toLowerCase().includes('pc') && !brand.toLowerCase().includes('computadora')) {
+        let icon = '📱';
+        if (brand.includes('iPhone')) icon = '🍎';
+        else if (brand.includes('Samsung')) icon = '📱';
+        else if (brand.includes('Xiaomi') || brand.includes('Redmi') || brand.includes('POCO')) icon = '⚡';
+        else if (brand.includes('Motorola')) icon = '📡';
+        else if (brand.includes('Huawei') || brand.includes('Honor')) icon = '🌸';
+        else if (brand.includes('Pixel')) icon = '⚪';
+
+        const curB = phoneBrandMap.get(brand) || {
+          brand,
+          icon,
+          count: 0,
+          models: new Map()
+        };
+        curB.count++;
+        if (model && model !== brand) {
+          curB.models.set(model, (curB.models.get(model) || 0) + 1);
+        }
+        phoneBrandMap.set(brand, curB);
+      }
+    }
+
+    const totalSmartphones = Array.from(phoneBrandMap.values()).reduce((sum, b) => sum + b.count, 0) || 1;
+    const smartphoneBreakdown = Array.from(phoneBrandMap.values())
+      .map(b => {
+        const topModels = Array.from(b.models.entries())
+          .sort((x, y) => y[1] - x[1])
+          .slice(0, 3)
+          .map(([m, c]) => `${m} (${c})`);
+        return {
+          brand: b.brand,
+          icon: b.icon,
+          count: b.count,
+          percent: Math.round((b.count / totalSmartphones) * 100),
+          topModels
+        };
+      })
+      .sort((a, b) => b.count - a.count);
+
     res.json({
       success: true,
       stats: {
@@ -2427,6 +2524,7 @@ app.get('/api/admin/telemetry/stats', async (req, res) => {
         },
         countryBreakdown,
         topIps,
+        smartphoneBreakdown,
         exitIntent: {
           shown: exitShown,
           converted: exitConverted,
@@ -2449,6 +2547,8 @@ app.get('/api/admin/telemetry/stats', async (req, res) => {
             countryCode: c.code,
             countryName: c.name,
             countryFlag: c.flag,
+            phoneBrand: e.phone_brand || '',
+            phoneModel: e.phone_model || '',
             duration: Number(e.duration_seconds) || 0,
             createdAt: e.created_at
           };

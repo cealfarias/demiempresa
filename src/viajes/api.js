@@ -996,6 +996,73 @@ export function getOrCreateSessionId() {
   return sId;
 }
 
+export function getPhoneBrandAndModel() {
+  if (typeof window === 'undefined') return { brand: 'Computadora PC', model: 'Escritorio', os: 'Desktop', icon: '💻' };
+  const ua = navigator.userAgent || '';
+
+  if (/iPhone|iPad|iPod/i.test(ua)) {
+    const match = ua.match(/OS (\d+[_.]\d+)/i);
+    const osVer = match ? `iOS ${match[1].replace('_', '.')}` : 'iOS';
+    return {
+      brand: 'Apple iPhone',
+      model: /iPad/i.test(ua) ? 'iPad' : 'iPhone',
+      os: osVer,
+      icon: '🍎'
+    };
+  }
+
+  if (/Android/i.test(ua)) {
+    const matchOs = ua.match(/Android (\d+(\.\d+)?)/i);
+    const osVer = matchOs ? `Android ${matchOs[1]}` : 'Android';
+
+    const modelMatch = ua.match(/;\s*([^;]+?)\s*(Build|\)|;)/i);
+    const rawModel = modelMatch ? modelMatch[1].trim() : '';
+
+    let brand = 'Android';
+    let icon = '📱';
+
+    if (/SAMSUNG|SM-[A-Z0-9]+/i.test(ua) || /SM-[A-Z0-9]+/i.test(rawModel)) {
+      brand = 'Samsung Galaxy';
+      icon = '📱';
+    } else if (/Xiaomi|Redmi|POCO/i.test(ua) || /Redmi|POCO/i.test(rawModel)) {
+      brand = 'Xiaomi / Redmi / POCO';
+      icon = '⚡';
+    } else if (/Motorola|moto/i.test(ua) || /moto/i.test(rawModel)) {
+      brand = 'Motorola';
+      icon = '📡';
+    } else if (/HUAWEI|HONOR/i.test(ua) || /HUAWEI|HONOR/i.test(rawModel)) {
+      brand = 'Huawei / Honor';
+      icon = '🌸';
+    } else if (/Realme/i.test(ua)) {
+      brand = 'Realme';
+      icon = '🟡';
+    } else if (/OPPO/i.test(ua)) {
+      brand = 'Oppo';
+      icon = '🟢';
+    } else if (/Vivo/i.test(ua)) {
+      brand = 'Vivo';
+      icon = '🔵';
+    } else if (/Pixel/i.test(ua)) {
+      brand = 'Google Pixel';
+      icon = '⚪';
+    }
+
+    return {
+      brand,
+      model: rawModel || brand,
+      os: osVer,
+      icon
+    };
+  }
+
+  return {
+    brand: 'Computadora PC',
+    model: 'Escritorio / Laptop',
+    os: /Windows/i.test(ua) ? 'Windows' : (/Mac/i.test(ua) ? 'macOS' : 'Linux'),
+    icon: '💻'
+  };
+}
+
 export function getDeviceType() {
   if (typeof window === 'undefined') return 'DESKTOP';
   const ua = navigator.userAgent || '';
@@ -1009,8 +1076,17 @@ export async function sendTelemetryEventApi({
   metadata = {}
 } = {}) {
   try {
+    // OBVIAR SI ES SESIÓN DE ADMINISTRADOR O PANTALLA /ADMIN (Para no inflar estadísticas)
+    if (typeof window !== 'undefined') {
+      const isAdmin = window.location.pathname.startsWith('/admin') || !!localStorage.getItem('rumbo_admin_session');
+      if (isAdmin) {
+        return; // No registrar al propio administrador
+      }
+    }
+
     const sessionId = getOrCreateSessionId();
     const deviceType = getDeviceType();
+    const phoneInfo = getPhoneBrandAndModel();
     const path = typeof window !== 'undefined' ? window.location.pathname : '/';
 
     const payload = {
@@ -1022,6 +1098,7 @@ export async function sendTelemetryEventApi({
       durationSeconds: Number(durationSeconds) || 0,
       metadata: {
         ...metadata,
+        phoneInfo,
         referrer: typeof document !== 'undefined' ? document.referrer : '',
         screenWidth: typeof window !== 'undefined' ? window.innerWidth : 0
       }
@@ -1102,6 +1179,7 @@ export async function fetchAdminTelemetryStatsApi() {
     if (typeof localStorage !== 'undefined') {
       try {
         cached = JSON.parse(localStorage.getItem('rumbo_telemetry_cache') || '[]');
+        cached = cached.filter(c => c.ip !== '127.0.0.1' && c.ip !== '::1' && !c.metadata?.isAdmin);
       } catch {}
     }
 
