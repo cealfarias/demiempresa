@@ -52,11 +52,34 @@ export const stopVoiceDictation = () => {
   }
 };
 
+let isVoiceMuted = typeof localStorage !== 'undefined' && localStorage.getItem('rumbo_voice_muted') === 'true';
+
+/**
+ * Activa o desactiva el silencio de voz global
+ */
+export const setVoiceMuted = (muted) => {
+  isVoiceMuted = Boolean(muted);
+  if (typeof localStorage !== 'undefined') {
+    localStorage.setItem('rumbo_voice_muted', isVoiceMuted ? 'true' : 'false');
+  }
+  if (isVoiceMuted) {
+    stopSpeaking();
+  }
+  return isVoiceMuted;
+};
+
+export const getVoiceMuted = () => isVoiceMuted;
+
 /**
  * Reproduce el mensaje del Asistente de Viaje y ejecuta onEnd al terminar.
  * IMPORTANTE: Apaga el micrófono mientras habla para evitar retroalimentación (eco).
  */
 export const speakAssistantMessage = (message, onEnd, onStart) => {
+  if (isVoiceMuted) {
+    if (onEnd) onEnd();
+    return;
+  }
+
   if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
     if (onEnd) onEnd();
     return;

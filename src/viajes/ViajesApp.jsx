@@ -65,7 +65,9 @@ import {
   speakAndThenListen,
   classifyUserVoiceIntent,
   parseNumberFromSpanish,
-  isSpeechRecognitionSupported
+  isSpeechRecognitionSupported,
+  setVoiceMuted,
+  getVoiceMuted
 } from './voiceAssistantService';
 import {
   triggerButtonFeedback,
@@ -151,6 +153,15 @@ export default function ViajesApp() {
   const toggleTheme = (newTheme) => {
     setTheme(newTheme);
     localStorage.setItem('rumbo_theme', newTheme);
+  };
+
+  // Control de Silencio del Asistente de Voz (Icono de Mono tapándose la boca 🙊)
+  const [isVoiceMuted, setIsVoiceMuted] = useState(() => getVoiceMuted());
+
+  const handleToggleVoiceMute = () => {
+    const nextMuted = !isVoiceMuted;
+    setIsVoiceMuted(nextMuted);
+    setVoiceMuted(nextMuted);
   };
 
   // Inicializar Telemetría Automática de Sesión y Permanencia (Pasajeros)
@@ -402,6 +413,7 @@ export default function ViajesApp() {
 
   // Manejo de Selección de Transporte (Auto vs Moto) con Recálculo y Locución
   const handleSelectTransportType = (type) => {
+    if (transportType === type) return; // Si ya está establecido, no hacer ni decir nada
     setTransportType(type);
     const isMoto = type === 'MOTO';
     const nextPrefs = isMoto
@@ -430,6 +442,7 @@ export default function ViajesApp() {
   // Manejo de Selección de Servicio: Pasajero vs Entrega de Paquetes
   // Si es entrega de paquetes, se deshabilita el aire acondicionado
   const handleSelectServiceType = (type) => {
+    if (serviceType === type) return; // Si ya está establecido, no hacer ni decir nada
     setServiceType(type);
     if (type === 'PACKAGE') {
       const nextPrefs = { ...tripPreferences, airConditioning: false };
@@ -466,6 +479,9 @@ export default function ViajesApp() {
 
   // Manejo de Modalidad: Solo Ida vs Ida y Vuelta
   const handleToggleRoundTrip = (enableRoundTrip) => {
+    if (Boolean(tripPreferences.isRoundTrip) === Boolean(enableRoundTrip)) {
+      return; // Si ya está establecido, no hacer ni decir nada
+    }
     const nextPrefs = { ...tripPreferences, isRoundTrip: enableRoundTrip };
     setTripPreferences(nextPrefs);
 
@@ -484,6 +500,23 @@ export default function ViajesApp() {
       speakAssistantMessage(`Se ha establecido la carrera de ida y vuelta. La nueva tarifa es de ${newFare} dólares.`);
     } else {
       speakAssistantMessage(`Se ha establecido viaje de solo ida. La nueva tarifa es de ${newFare} dólares.`);
+    }
+  };
+
+  // Manejo de Billete de Cambio con Locución Condicional
+  const handleSelectCashBill = (billId) => {
+    if (cashBill === billId) {
+      return; // Si ya está establecido el mismo billete, no decir nada
+    }
+    triggerSelectionFeedback();
+    setCashBill(billId);
+
+    if (billId === 'EXACT') {
+      speakAssistantMessage('Has seleccionado pago con tarifa exacta, no requieres cambio.');
+    } else if (billId === '50+') {
+      speakAssistantMessage('Se ha solicitado cambio para billete de 50 dólares o más.');
+    } else {
+      speakAssistantMessage(`Se ha solicitado cambio para billete de ${billId} dólares.`);
     }
   };
 
@@ -528,6 +561,7 @@ export default function ViajesApp() {
       return;
     }
     if (isMotoMode) return;
+    if (tripPreferences.airConditioning) return; // Ya está activo
     const nextPreferences = { ...tripPreferences, airConditioning: true };
     setTripPreferences(nextPreferences);
 
@@ -554,13 +588,43 @@ export default function ViajesApp() {
     }
   };
 
-  const handleSelectQuickFare = (amt) => {
+  const handleSelectQuickFare = (amt, isMin = false) => {
+    if (proposedFare === amt) {
+      return; // Si ya está establecida, no decir nada
+    }
     setProposedFare(amt);
     setHasCustomFare(true);
     const numVal = parseFloat(amt);
     const sugVal = parseFloat(suggestedFareInfo?.suggestedFare);
     if (numVal && sugVal && numVal < sugVal && tripPreferences.airConditioning) {
       setTripPreferences((prev) => ({ ...prev, airConditioning: false }));
+    }
+
+    if (isMin) {
+      const isGuest = !userProfile || userProfile.isGuest || !userProfile.id;
+      if (isGuest) {
+        speakAssistantMessage('Has establecido la tarifa mínima. Inscríbete para tener más beneficios.');
+      } else {
+        speakAssistantMessage('Has establecido la tarifa mínima.');
+      }
+    }
+  };
+
+  const handleUseSuggestedFare = () => {
+    const sugFare = suggestedFareInfo?.suggestedFare || '2.50';
+    if (proposedFare === sugFare) {
+      return; // Si ya está establecida, no decir nada
+    }
+    setProposedFare(sugFare);
+    setHasCustomFare(false);
+
+    if (!tripPreferences.airConditioning) {
+      const isGuest = !userProfile || userProfile.isGuest || !userProfile.id;
+      if (isGuest) {
+        speakAssistantMessage('Has establecido la tarifa mínima. Inscríbete para tener más beneficios.');
+      } else {
+        speakAssistantMessage('Has establecido la tarifa mínima.');
+      }
     }
   };
 
@@ -2294,6 +2358,23 @@ export default function ViajesApp() {
             {isLight ? <Sun className="w-4 h-4 text-amber-600" /> : <Moon className="w-4 h-4 text-lime-400" />}
           </button>
 
+          {/* Botón de Silencio de Voz Asistente (Ícono de Mono tapándose la boca 🙊) */}
+          <button
+            type="button"
+            onClick={handleToggleVoiceMute}
+            title={isVoiceMuted ? 'Activar voz del asistente' : 'Silenciar voz del asistente'}
+            aria-label={isVoiceMuted ? 'Activar voz del asistente' : 'Silenciar voz del asistente'}
+            className={`w-8 h-8 sm:w-9 sm:h-9 rounded-full border flex items-center justify-center transition-all cursor-pointer flex-shrink-0 text-base sm:text-lg select-none ${
+              isVoiceMuted
+                ? 'bg-rose-500/20 border-rose-500/60 ring-2 ring-rose-500/40 shadow-sm'
+                : isLight
+                ? 'bg-amber-50 border-amber-200 hover:bg-amber-100 opacity-90 hover:opacity-100'
+                : 'bg-slate-800/90 border-slate-700 hover:bg-slate-700 opacity-80 hover:opacity-100'
+            }`}
+          >
+            <span role="img" aria-label="mono tapándose la boca">🙊</span>
+          </button>
+
           {/* BOTÓN ENCABEZADO SUPERIOR DERECHO: INGRESO OFICIAL CON GOOGLE O SALDO DE BONOS */}
           {!userProfile ? (
             <div className="flex items-center flex-shrink-0">
@@ -3040,10 +3121,7 @@ export default function ViajesApp() {
                     </span>
                     <button
                       type="button"
-                      onClick={() => {
-                        setProposedFare(suggestedFareInfo.suggestedFare);
-                        setHasCustomFare(false);
-                      }}
+                      onClick={handleUseSuggestedFare}
                       className="px-2 py-0.5 rounded-lg bg-lime-500/15 border border-lime-500/40 text-lime-300 font-extrabold text-xs flex items-center gap-1 hover:bg-lime-500/25 transition-all cursor-pointer shadow-sm group"
                       title={tripPreferences.airConditioning ? "Tarifa calculada con aire acondicionado" : "Tarifa base mínima sin aire acondicionado"}
                     >
@@ -3074,7 +3152,7 @@ export default function ViajesApp() {
                     <button
                       key={`${amt}-${idx}`}
                       type="button"
-                      onClick={() => handleSelectQuickFare(amt)}
+                      onClick={() => handleSelectQuickFare(amt, idx === 0)}
                       className={`flex-1 py-1.5 rounded-lg text-xs font-semibold border font-mono transition-all cursor-pointer ${
                         proposedFare === amt
                           ? 'bg-amber-500/20 border-amber-400 text-amber-300 font-bold'
@@ -3138,8 +3216,7 @@ export default function ViajesApp() {
                         disabled={isDisabled}
                         onClick={() => {
                           if (!isDisabled) {
-                            triggerSelectionFeedback();
-                            setCashBill(bill.id);
+                            handleSelectCashBill(bill.id);
                           }
                         }}
                         className={`py-2 px-1 rounded-xl text-center transition-all ${
