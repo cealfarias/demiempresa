@@ -104,8 +104,18 @@ export default function DriverApp() {
   const isRejected = driverProfile?.approvalStatus === 'REJECTED';
 
   const [driverOnline, setDriverOnline] = useState(() => {
-    return isApproved;
+    try {
+      const saved = localStorage.getItem('rumbo_driver_online');
+      if (saved !== null) return saved === 'true';
+    } catch {}
+    return Boolean(isApproved);
   });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('rumbo_driver_online', String(driverOnline));
+    } catch {}
+  }, [driverOnline]);
   const [activeBottomTab, setActiveBottomTab] = useState('REQUESTS'); // 'REQUESTS' | 'EARNINGS' | 'PRIORITY'
   const [weeklyBonuses, setWeeklyBonuses] = useState(0);
   const [isApplyingBonuses, setIsApplyingBonuses] = useState(false);
@@ -121,6 +131,9 @@ export default function DriverApp() {
 
   const handlePerformLogout = () => {
     localStorage.removeItem('rumbo_driver_profile');
+    localStorage.removeItem('rumbo_driver_online');
+    localStorage.removeItem('rumbo_driver_active_trip');
+    localStorage.removeItem('rumbo_driver_trip_state');
     setDriverProfile(null);
     setDriverOnline(false);
     setActiveTrip(null);
@@ -167,10 +180,85 @@ export default function DriverApp() {
   const [showGasModal, setShowGasModal] = useState(false);
   const [nearbyStationAlert, setNearbyStationAlert] = useState(null);
 
-  // Viaje Asignado
-  const [activeTrip, setActiveTrip] = useState(null);
-  const [tripState, setTripState] = useState('EN_ROUTE_TO_PICKUP'); // 'EN_ROUTE_TO_PICKUP' | 'ARRIVED' | 'IN_TRANSIT' | 'COLLECTING' | 'DONE'
+  // Viaje Asignado (Persistido para resistir F5 y recargas de página)
+  const initialActiveTrip = (() => {
+    try {
+      if (typeof window === 'undefined') return null;
+      return JSON.parse(localStorage.getItem('rumbo_driver_active_trip') || 'null');
+    } catch {
+      return null;
+    }
+  })();
+  const [activeTrip, setActiveTrip] = useState(() => initialActiveTrip);
+  const [tripState, setTripState] = useState(() => {
+    try {
+      return localStorage.getItem('rumbo_driver_trip_state') || 'EN_ROUTE_TO_PICKUP';
+    } catch {
+      return 'EN_ROUTE_TO_PICKUP';
+    }
+  });
   const [gpsActive, setGpsActive] = useState(false);
+
+  // Sincronizar activeTrip y tripState en localStorage
+  useEffect(() => {
+    try {
+      if (activeTrip) {
+        localStorage.setItem('rumbo_driver_active_trip', JSON.stringify(activeTrip));
+        localStorage.setItem('rumbo_driver_trip_state', tripState);
+      } else {
+        localStorage.removeItem('rumbo_driver_active_trip');
+        localStorage.removeItem('rumbo_driver_trip_state');
+      }
+    } catch (e) {
+      console.warn('Error guardando viaje activo del conductor:', e);
+    }
+  }, [activeTrip, tripState]);
+
+  // Prevenir recargas accidentales si el conductor tiene un viaje en curso
+  useEffect(() => {
+    const handleBeforeUnload = (e) => {
+      if (activeTrip && tripState !== 'DONE') {
+        e.preventDefault();
+        e.returnValue = 'Tienes un viaje en curso. Si recargas, tus datos se mantendrán pero podrías perder conexión GPS momentáneamente.';
+        return e.returnValue;
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [activeTrip, tripState]);
+
+  // Reconectar viaje en el WebSocket si el conductor recargó la página
+  useEffect(() => {
+    if (initialActiveTrip?.id && driverProfileId) {
+      console.log('🔄 Reconectando viaje activo del conductor tras recarga:', initialActiveTrip.id);
+      socket.emit('trip:reconnect', { tripId: initialActiveTrip.id, role: 'DRIVER', driverProfileId }, (res) => {
+        if (!res || !res.success) {
+          console.warn('No se pudo reconectar viaje del conductor:', res?.error);
+          return;
+        }
+        if (res.isFinished) {
+          console.log('El viaje ya había finalizado o sido cancelado.');
+          localStorage.removeItem('rumbo_driver_active_trip');
+          localStorage.removeItem('rumbo_driver_trip_state');
+          setActiveTrip(null);
+          setTripState('EN_ROUTE_TO_PICKUP');
+        } else if (res.trip) {
+          console.log('✅ Viaje reconectado con éxito para conductor:', res.trip);
+          setActiveTrip((prev) => ({
+            ...prev,
+            ...res.trip,
+            passengerName: res.trip.passenger?.name || prev?.passengerName,
+            passengerPhone: res.trip.passenger?.phone || prev?.passengerPhone,
+            cashToCollect: res.trip.cashToCollect || prev?.cashToCollect,
+            agreedFare: res.trip.agreedFare || prev?.agreedFare
+          }));
+          if (res.trip.status === 'ARRIVED') setTripState('ARRIVED');
+          else if (res.trip.status === 'IN_TRANSIT') setTripState('IN_TRANSIT');
+          else if (res.trip.status === 'COMPLETED') setTripState('DONE');
+        }
+      });
+    }
+  }, [driverProfileId]);
 
   // Establecer título dinámico de la pestaña para la consola del conductor
   useEffect(() => {
@@ -473,6 +561,9 @@ export default function DriverApp() {
       const myPhone = driverProfile?.phone ? String(driverProfile.phone).replace(/\D/g, '').slice(-8) : '';
       if (myPhone && ev?.phone === myPhone && ev?.activeSessionId !== driverProfile?.sessionToken) {
         localStorage.removeItem('rumbo_driver_profile');
+        localStorage.removeItem('rumbo_driver_online');
+        localStorage.removeItem('rumbo_driver_active_trip');
+        localStorage.removeItem('rumbo_driver_trip_state');
         setDriverProfile(null);
         setDriverOnline(false);
         setActiveTrip(null);

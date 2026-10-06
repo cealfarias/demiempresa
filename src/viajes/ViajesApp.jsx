@@ -141,10 +141,29 @@ export const formatResolvedDestination = (place) => {
 };
 
 export default function ViajesApp() {
+  // 1. Leer borrador guardado y sesión de viaje activa para resistir recargas y F5 sin perder datos
+  const initialDraft = (() => {
+    try {
+      if (typeof window === 'undefined') return {};
+      return JSON.parse(localStorage.getItem('rumbo_passenger_draft') || '{}');
+    } catch {
+      return {};
+    }
+  })();
+
+  const initialActiveTripSession = (() => {
+    try {
+      if (typeof window === 'undefined') return null;
+      return JSON.parse(localStorage.getItem('rumbo_passenger_active_session') || 'null');
+    } catch {
+      return null;
+    }
+  })();
+
   // Máquina de Estados: 'DECOY_FORM' | 'AUCTION' | 'IN_TRIP_HUB'
-  const [appState, setAppState] = useState('DECOY_FORM');
-  const [serviceType, setServiceType] = useState('PASSENGER'); // 'PASSENGER' | 'PACKAGE'
-  const [transportType, setTransportType] = useState('CAR'); // 'CAR' | 'MOTO'
+  const [appState, setAppState] = useState(() => initialActiveTripSession?.appState || 'DECOY_FORM');
+  const [serviceType, setServiceType] = useState(() => initialActiveTripSession?.serviceType || initialDraft.serviceType || 'PASSENGER'); // 'PASSENGER' | 'PACKAGE'
+  const [transportType, setTransportType] = useState(() => initialActiveTripSession?.transportType || initialDraft.transportType || 'CAR'); // 'CAR' | 'MOTO'
 
   // Tema de la Aplicación: 'dark' | 'light' (mutuamente excluyente)
   const [theme, setTheme] = useState(() => localStorage.getItem('rumbo_theme') || 'dark');
@@ -170,13 +189,13 @@ export default function ViajesApp() {
     return cleanup;
   }, []);
 
-  // Datos del Viaje (interactivos por GPS al entrar a la app)
-  const [origin, setOrigin] = useState('');
-  const [originCoords, setOriginCoords] = useState(null);
-  const [destination, setDestination] = useState('');
-  const [destinationCoords, setDestinationCoords] = useState(null);
-  const [destinationMunicipality, setDestinationMunicipality] = useState('San Salvador');
-  const [proposedFare, setProposedFare] = useState('2.50');
+  // Datos del Viaje (interactivos y persistidos contra recargas)
+  const [origin, setOrigin] = useState(() => initialActiveTripSession?.origin || initialDraft.origin || '');
+  const [originCoords, setOriginCoords] = useState(() => initialActiveTripSession?.originCoords || initialDraft.originCoords || null);
+  const [destination, setDestination] = useState(() => initialActiveTripSession?.destination || initialDraft.destination || '');
+  const [destinationCoords, setDestinationCoords] = useState(() => initialActiveTripSession?.destinationCoords || initialDraft.destinationCoords || null);
+  const [destinationMunicipality, setDestinationMunicipality] = useState(() => initialActiveTripSession?.destinationMunicipality || initialDraft.destinationMunicipality || 'San Salvador');
+  const [proposedFare, setProposedFare] = useState(() => initialActiveTripSession?.proposedFare || initialDraft.proposedFare || '2.50');
   const [hasCustomFare, setHasCustomFare] = useState(false);
   const [packageDetails, setPackageDetails] = useState('');
   const [paymentTiming, setPaymentTiming] = useState('AT_ORIGIN');
@@ -185,7 +204,7 @@ export default function ViajesApp() {
   const [showLocationPermissionModal, setShowLocationPermissionModal] = useState(false);
   const [showMapModal, setShowMapModal] = useState(false);
   const [showDestMapModal, setShowDestMapModal] = useState(false);
-  const [cashBill, setCashBill] = useState('10'); // 'EXACT' | '5' | '10' | '20' | '50+'
+  const [cashBill, setCashBill] = useState(() => initialActiveTripSession?.cashBill || initialDraft.cashBill || '10'); // 'EXACT' | '5' | '10' | '20' | '50+'
 
   // Modal Unificado de Bienvenida y Accesibilidad por Voz (Addendums 14, 15, 16)
   const [showWelcomeModal, setShowWelcomeModal] = useState(() => {
@@ -776,13 +795,112 @@ export default function ViajesApp() {
   // Subasta y Ofertas (TTL 10s)
   const [activeOffers, setActiveOffers] = useState([]);
   const [pendingAcceptOffer, setPendingAcceptOffer] = useState(null);
-  const [tripId, setTripId] = useState(null);
+  const [tripId, setTripId] = useState(() => initialActiveTripSession?.tripId || null);
 
   // Viaje Asignado / Hub Comercial
-  const [assignedTrip, setAssignedTrip] = useState(null);
-  const [tripStatus, setTripStatus] = useState('DRIVER_EN_ROUTE');
+  const [assignedTrip, setAssignedTrip] = useState(() => initialActiveTripSession?.assignedTrip || null);
+  const [tripStatus, setTripStatus] = useState(() => initialActiveTripSession?.tripStatus || 'DRIVER_EN_ROUTE');
   const [creditDiscountApplied, setCreditDiscountApplied] = useState(false);
   const [driverEtaMinutes, setDriverEtaMinutes] = useState(4);
+
+  // Persistir borrador del formulario cuando el usuario está cotizando
+  useEffect(() => {
+    if (appState === 'DECOY_FORM') {
+      try {
+        const draft = {
+          origin,
+          originCoords,
+          destination,
+          destinationCoords,
+          destinationMunicipality,
+          proposedFare,
+          serviceType,
+          transportType,
+          cashBill
+        };
+        localStorage.setItem('rumbo_passenger_draft', JSON.stringify(draft));
+      } catch (err) {
+        console.warn('Error guardando borrador del pasajero:', err);
+      }
+    }
+  }, [appState, origin, originCoords, destination, destinationCoords, destinationMunicipality, proposedFare, serviceType, transportType, cashBill]);
+
+  // Persistir estado activo del viaje para resistir F5 / recargas accidentales
+  useEffect(() => {
+    if (appState === 'AUCTION' || appState === 'IN_TRIP_HUB') {
+      try {
+        const activeSession = {
+          appState,
+          tripId,
+          origin,
+          originCoords,
+          destination,
+          destinationCoords,
+          destinationMunicipality,
+          proposedFare,
+          serviceType,
+          transportType,
+          cashBill,
+          assignedTrip,
+          tripStatus
+        };
+        localStorage.setItem('rumbo_passenger_active_session', JSON.stringify(activeSession));
+      } catch (err) {
+        console.warn('Error guardando sesión activa del pasajero:', err);
+      }
+    } else if (appState === 'DECOY_FORM') {
+      localStorage.removeItem('rumbo_passenger_active_session');
+    }
+  }, [appState, tripId, origin, originCoords, destination, destinationCoords, destinationMunicipality, proposedFare, serviceType, transportType, cashBill, assignedTrip, tripStatus]);
+
+  // Prevenir recargas accidentales si hay un viaje o búsqueda en curso
+  useEffect(() => {
+    const handleBeforeUnload = (e) => {
+      if (appState === 'AUCTION' || appState === 'IN_TRIP_HUB') {
+        e.preventDefault();
+        e.returnValue = 'Tienes un viaje o solicitud en curso. Si recargas, tus datos se mantendrán pero podrías perder conexión momentánea.';
+        return e.returnValue;
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [appState]);
+
+  // Reconectar viaje activo al montar el componente si hubo recarga de página
+  useEffect(() => {
+    const savedSession = initialActiveTripSession;
+    if (savedSession?.tripId && (savedSession.appState === 'AUCTION' || savedSession.appState === 'IN_TRIP_HUB')) {
+      console.log('🔄 Reconectando sesión de viaje del pasajero tras recarga:', savedSession.tripId);
+      socket.emit('trip:reconnect', { tripId: savedSession.tripId, role: 'PASSENGER' }, (res) => {
+        if (!res || !res.success) {
+          console.warn('No se pudo reconectar viaje en el servidor:', res?.error);
+          return;
+        }
+        if (res.isFinished) {
+          console.log('El viaje ya había finalizado o sido cancelado.');
+          localStorage.removeItem('rumbo_passenger_active_session');
+          setAppState('DECOY_FORM');
+          setAssignedTrip(null);
+          setTripId(null);
+        } else if (res.trip) {
+          console.log('✅ Viaje reconectado con éxito:', res.trip);
+          if (res.trip.driver) {
+            setAssignedTrip((prev) => ({
+              ...prev,
+              ...res.trip,
+              driver: res.trip.driver,
+              cashToPay: res.trip.cashToCollect || res.trip.agreedFare,
+              agreedFare: res.trip.agreedFare
+            }));
+            setAppState('IN_TRIP_HUB');
+            if (res.trip.status === 'ARRIVED') setTripStatus('DRIVER_ARRIVED');
+            else if (res.trip.status === 'IN_TRANSIT') setTripStatus('IN_TRANSIT');
+            else if (res.trip.status === 'COMPLETED') setTripStatus('COMPLETED');
+          }
+        }
+      });
+    }
+  }, []);
 
   // Feed Publicitario B2B
   const [adFeed, setAdFeed] = useState([]);
@@ -826,9 +944,20 @@ export default function ViajesApp() {
     socket.on('trip:confirmed', (data) => {
       setAssignedTrip((prev) => ({
         ...prev,
-        ...data
+        ...data,
+        cashToPay: data.cashToCollect || data.agreedFare || prev?.cashToPay || proposedFare
       }));
       setAppState('IN_TRIP_HUB');
+    });
+
+    // Escuchar viaje cancelado
+    socket.on('trip:canceled', () => {
+      localStorage.removeItem('rumbo_passenger_active_session');
+      setActiveOffers([]);
+      setAssignedTrip(null);
+      setTripId(null);
+      setAppState('DECOY_FORM');
+      speakAssistantMessage('El viaje ha sido cancelado.');
     });
 
     // Escuchar cambios de estado del viaje
@@ -845,6 +974,7 @@ export default function ViajesApp() {
       const isMe = (myDui && ev?.dui && ev.dui === myDui) || (myPhone && ev?.phone && ev.phone === myPhone);
       if (isMe && ev?.activeSessionId && ev.activeSessionId !== userProfile?.sessionToken) {
         localStorage.removeItem('demiempresa_passenger');
+        localStorage.removeItem('rumbo_passenger_active_session');
         setUserProfile(null);
         setAppState('PICKUP_SELECTION');
         setShowPassengerRevokedModal(true);
@@ -854,6 +984,7 @@ export default function ViajesApp() {
     return () => {
       socket.off('passenger:offer_received');
       socket.off('trip:confirmed');
+      socket.off('trip:canceled');
       socket.off('trip:status_changed');
       socket.off('passenger_session_revoked');
     };
@@ -2231,13 +2362,20 @@ export default function ViajesApp() {
     );
   };
 
-  // Simulación del trayecto y ETA
+  // Simulación del trayecto y ETA (Solo en modo demo sin chofer real conectado)
   useEffect(() => {
     if (appState !== 'IN_TRIP_HUB') return;
 
     const tEta = setInterval(() => {
       setDriverEtaMinutes((prev) => (prev > 1 ? prev - 1 : 1));
     }, 25000);
+
+    // Si es un viaje con conductor real conectado vía WebSocket, el conductor controla los estados
+    if (assignedTrip?.driver?.id) {
+      return () => {
+        clearInterval(tEta);
+      };
+    }
 
     const tArrived = setTimeout(() => setTripStatus('DRIVER_ARRIVED'), 7000);
     const tTransit = setTimeout(() => setTripStatus('IN_TRANSIT'), 14000);
@@ -2247,7 +2385,7 @@ export default function ViajesApp() {
       clearTimeout(tArrived);
       clearTimeout(tTransit);
     };
-  }, [appState]);
+  }, [appState, assignedTrip?.driver?.id]);
 
   // Compartir viaje en tiempo real
   const handleShareTrip = () => {
@@ -3313,6 +3451,8 @@ export default function ViajesApp() {
                   socket.emit('trip:cancel', { tripId });
                 }
                 setActiveOffers([]);
+                localStorage.removeItem('rumbo_passenger_active_session');
+                setTripId(null);
                 setAppState('DECOY_FORM');
               }}
               className="text-xs px-3 py-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-white"
@@ -4977,6 +5117,23 @@ export default function ViajesApp() {
                 <span>WhatsApp</span>
               </a>
             </div>
+
+            {/* Acción de finalización para el pasajero */}
+            {tripStatus === 'COMPLETED' && (
+              <button
+                type="button"
+                onClick={() => {
+                  localStorage.removeItem('rumbo_passenger_active_session');
+                  setAppState('DECOY_FORM');
+                  setTripId(null);
+                  setAssignedTrip(null);
+                  setTripStatus('DRIVER_EN_ROUTE');
+                }}
+                className="w-full mt-3 py-3.5 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black rounded-2xl text-sm shadow-xl flex items-center justify-center gap-2 cursor-pointer transition-all"
+              >
+                <span>¡Viaje Finalizado! Iniciar Nuevo Viaje</span>
+              </button>
+            )}
           </div>
 
           {/* Perfil de Seguridad y Bono en Trayecto (Sin Prisa ni Estrés) */}

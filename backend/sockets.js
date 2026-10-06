@@ -371,6 +371,89 @@ export function initializeWebSockets(httpServer) {
     });
 
     /**
+     * 4.2 Reconexión Resiliente de Pasajero o Conductor (Previene pérdida de viaje por F5 o recarga)
+     */
+    socket.on('trip:reconnect', async ({ tripId, role, driverProfileId }, callback) => {
+      try {
+        if (!tripId) {
+          if (callback) callback({ success: false, error: 'tripId requerido' });
+          return;
+        }
+
+        // Unir este socket reconectado a la sala del viaje
+        socket.join(`trip:${tripId}`);
+        socket.currentTripId = tripId;
+
+        // Consultar estado real del viaje en la base de datos
+        const tripRes = await pool.query(`
+          SELECT t.*, 
+                 dp.vehicle_plate, dp.vehicle_brand, dp.vehicle_model, dp.vehicle_color, dp.photo_url as driver_photo,
+                 du.full_name as driver_name, du.phone as driver_phone,
+                 pu.full_name as passenger_name, pu.phone as passenger_phone
+          FROM viajes_trips t
+          LEFT JOIN viajes_driver_profiles dp ON t.driver_id = dp.id
+          LEFT JOIN viajes_users du ON dp.user_id = du.id
+          LEFT JOIN viajes_users pu ON t.passenger_id = pu.id
+          WHERE t.id::text = $1
+        `, [tripId]);
+
+        const trip = tripRes.rows[0];
+        if (!trip) {
+          if (callback) callback({ success: false, error: 'Viaje no encontrado' });
+          return;
+        }
+
+        // Si el viaje ya finalizó o fue cancelado
+        if (trip.status === 'COMPLETED' || trip.status === 'CANCELLED') {
+          if (callback) callback({ success: true, isFinished: true, status: trip.status });
+          return;
+        }
+
+        const vBrand = trip.vehicle_brand || '';
+        const vModel = trip.vehicle_model || '';
+        const fullVehicleModel = (vBrand || vModel) ? `${vBrand} ${vModel}`.trim() : 'Vehículo Rumbo';
+
+        if (callback) {
+          callback({
+            success: true,
+            isFinished: false,
+            trip: {
+              id: trip.id,
+              status: trip.status,
+              originAddress: trip.origin_address,
+              originLat: trip.origin_lat,
+              originLng: trip.origin_lng,
+              destinationAddress: trip.destination_address,
+              destinationLat: trip.destination_lat,
+              destinationLng: trip.destination_lng,
+              destinationMunicipality: trip.destination_municipality,
+              proposedFare: trip.proposed_fare,
+              agreedFare: trip.agreed_fare || trip.proposed_fare,
+              cashToCollect: trip.cash_to_collect || trip.agreed_fare || trip.proposed_fare,
+              creditApplied: trip.credit_applied || '0.00',
+              driver: trip.driver_id ? {
+                id: trip.driver_id,
+                name: trip.driver_name || 'Conductor Autorizado',
+                phone: trip.driver_phone || '',
+                vehiclePlate: trip.vehicle_plate || '',
+                vehicleModel: fullVehicleModel,
+                vehicleColor: trip.vehicle_color || '',
+                photo: trip.driver_photo || null
+              } : null,
+              passenger: {
+                name: trip.passenger_name || 'Pasajero',
+                phone: trip.passenger_phone || ''
+              }
+            }
+          });
+        }
+      } catch (err) {
+        console.error('Error en trip:reconnect:', err);
+        if (callback) callback({ success: false, error: err.message });
+      }
+    });
+
+    /**
      * 5. Actualización de Estados Operativos
      */
     socket.on('trip:update_status', async ({ tripId, newStatus, driverProfileId }, callback) => {
