@@ -35,7 +35,10 @@ import {
   EyeOff,
   BatteryCharging,
   Cpu,
-  Flame
+  Flame,
+  Gift,
+  X,
+  ChevronLeft
 } from 'lucide-react';
 import RumboLogo from './RumboLogo';
 import DriverAvatarNarrator from './DriverAvatarNarrator';
@@ -69,6 +72,17 @@ export default function DriverLandingView({ onStartRegistration, onCheckStatus, 
   const [passData, setPassData] = useState(null); // { whatsappWebLink, magicLinkUrl, expiresInSeconds }
   const [isCopiedLink, setIsCopiedLink] = useState(false);
   const [workInvitation, setWorkInvitation] = useState(null);
+
+  // Estados para el Hub de Innovación y BottomSheet / Drawer Móvil (Opción 3)
+  const [selectedPillarId, setSelectedPillarId] = useState('tech');
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [drawerTopicId, setDrawerTopicId] = useState('tech');
+
+  const openPillarDrawer = (topicId) => {
+    setDrawerTopicId(topicId);
+    setSelectedPillarId(topicId);
+    setIsDrawerOpen(true);
+  };
 
   const autoDetectTimerRef = React.useRef(null);
 
@@ -293,6 +307,122 @@ export default function DriverLandingView({ onStartRegistration, onCheckStatus, 
   const weeklyExtraInPocket = traditionalCommissionLost; // Lo que antes te quitaban ahora va a tu bolsa
   const monthlyExtraInPocket = weeklyExtraInPocket * 4;
 
+  // Catálogo de Temas para el Hub de Innovación y BottomSheet Móvil
+  const PILLAR_TOPICS = [
+    {
+      id: 'tech',
+      tabLabel: '⚡ Celular Frío & Batería',
+      icon: BatteryCharging,
+      badge: 'Túnel Ultra-Rápido',
+      badgeColor: 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300',
+      glowColor: 'from-emerald-500/20 to-teal-500/5',
+      title: 'Celular Frío, Batería para Todo el Día y Ahorro Extremo de Datos',
+      subtitle: 'Ingeniería Rumbo • Arquitectura de Túnel Ultra-Rápido',
+      summary: 'Tu módem celular descansa en reposo, el teléfono trabaja fresco en el tablero y consumes hasta 95% menos datos de internet.',
+      metrics: [
+        { value: '-95%', label: 'Consumo de Datos' },
+        { value: '< 50 ms', label: 'Latencia Inmediata' },
+        { value: 'Frío', label: 'Cero Sobrecalentamiento' }
+      ]
+    },
+    {
+      id: 'privacy',
+      tabLabel: '🔒 Privacidad & Cero Espionaje',
+      icon: ShieldCheck,
+      badge: 'Ética Digital',
+      badgeColor: 'border-sky-500/40 bg-sky-500/10 text-sky-300',
+      glowColor: 'from-sky-500/20 to-blue-500/5',
+      title: 'Cero Privilegios Abusivos • Procesamiento 100% Honesto y Transparente',
+      subtitle: 'Tu dispositivo es tuyo: respeto absoluto a tu privacidad e intimidad',
+      summary: 'Sin acceso a fotos, contactos o micrófono. Sin algoritmos oscuros que esconden destinos ni retenciones sorpresa.',
+      metrics: [
+        { value: '0', label: 'Permisos Invasivos' },
+        { value: '100%', label: 'Destino y Tarifa Visibles' },
+        { value: '0%', label: 'Comisiones Ocultas' }
+      ]
+    },
+    {
+      id: 'earnings',
+      tabLabel: '💰 0% Comisión vs Tradicional',
+      icon: DollarSign,
+      badge: 'Revolución Colaborativa',
+      badgeColor: 'border-amber-500/40 bg-amber-500/10 text-amber-300',
+      glowColor: 'from-amber-500/20 to-yellow-500/5',
+      title: 'Cuentas Claras: 0% Comisión vs El Desgaste Tradicional',
+      subtitle: 'Tus primeros 14 días son gratis y luego una cuota fija transparente',
+      summary: 'En otras plataformas pierdes hasta el 28% de tu esfuerzo en comisiones y recargas prepagadas. En Rumbo cobras la tarifa completa.',
+      metrics: [
+        { value: '0%', label: 'Comisión por Viaje' },
+        { value: '14 Días', label: 'Bienvenida $0 Cuota' },
+        { value: '+$120+', label: 'Extra en Bolsillo al Mes' }
+      ]
+    },
+    {
+      id: 'fuel',
+      tabLabel: '⛽ Radar de Gasolina',
+      icon: Fuel,
+      badge: 'Pacto Comunitario',
+      badgeColor: 'border-rose-500/40 bg-rose-500/10 text-rose-300',
+      glowColor: 'from-rose-500/20 to-orange-500/5',
+      title: 'Frente al Combustible Caro, Nos Cuidamos Juntos',
+      subtitle: 'Radar de gasolineras con precios oficiales en tiempo real y confirmación comunitaria',
+      summary: 'Ahorra $0.10 a $0.15 por galón ubicando las estaciones más económicas. Representa $40 a $60 extra al mes para tu hogar.',
+      metrics: [
+        { value: '-$0.15', label: 'Ahorro por Galón' },
+        { value: '+$40-60', label: 'Ahorro Mensual Hogar' },
+        { value: 'En Vivo', label: 'Confirmación Comunitaria' }
+      ]
+    },
+    {
+      id: 'bonuses',
+      tabLabel: '🎟️ Bonos que Pagan tu Cuota',
+      icon: Coins,
+      badge: 'Semana a $0.00',
+      badgeColor: 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300',
+      glowColor: 'from-emerald-500/20 to-lime-500/5',
+      title: 'Bonos de Pasajero que Pagan tu Cuota y Alianzas Locales',
+      subtitle: '15 bonos de $1.00 recibidos en la semana = Tu cuota te sale a $0.00',
+      summary: 'Los pasajeros te entregan bonos de $1.00. Con 15 bonos tu semana es gratis y el excedente lo canjeas en talleres aliados.',
+      metrics: [
+        { value: '$1.00', label: 'Por Bono Recibido' },
+        { value: '15 = $0', label: 'Semana Auto-pagada' },
+        { value: 'Alianzas', label: 'Descuentos en Talleres' }
+      ]
+    },
+    {
+      id: 'case_study',
+      tabLabel: '🚗 Caso Real de la Calle',
+      icon: AlertCircle,
+      badge: 'Datos Verificados',
+      badgeColor: 'border-amber-500/40 bg-amber-500/10 text-amber-300',
+      glowColor: 'from-amber-500/20 to-orange-500/5',
+      title: 'La Realidad de la Calle: Análisis de un Viaje Real en San Salvador',
+      subtitle: 'De ganar $0.71 en 66 min de tráfico a ganar la tarifa completa en Rumbo',
+      summary: 'Desglose exacto de un viaje real de 10.8 km: cómo la gasolina lenta, alquiler y comisiones dejan casi en ceros al chofer.',
+      metrics: [
+        { value: '10.8 km', label: 'Distancia Recorrida' },
+        { value: '66 min', label: 'Tráfico San Salvador' },
+        { value: '$0.71 vs $5.20', label: 'Ganancia Limpia' }
+      ]
+    }
+  ];
+
+  const activePillar = PILLAR_TOPICS.find((p) => p.id === selectedPillarId) || PILLAR_TOPICS[0];
+  const activeDrawerPillar = PILLAR_TOPICS.find((p) => p.id === drawerTopicId) || PILLAR_TOPICS[0];
+  const currentPillarIndex = PILLAR_TOPICS.findIndex((p) => p.id === drawerTopicId);
+
+  const handlePrevPillar = () => {
+    const prevIdx = (currentPillarIndex - 1 + PILLAR_TOPICS.length) % PILLAR_TOPICS.length;
+    setDrawerTopicId(PILLAR_TOPICS[prevIdx].id);
+    setSelectedPillarId(PILLAR_TOPICS[prevIdx].id);
+  };
+
+  const handleNextPillar = () => {
+    const nextIdx = (currentPillarIndex + 1) % PILLAR_TOPICS.length;
+    setDrawerTopicId(PILLAR_TOPICS[nextIdx].id);
+    setSelectedPillarId(PILLAR_TOPICS[nextIdx].id);
+  };
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-amber-500 selection:text-slate-950">
       
@@ -408,184 +538,8 @@ export default function DriverLandingView({ onStartRegistration, onCheckStatus, 
         </div>
       </section>
 
-      {/* 3. COMPARATIVA REAL DE INGRESOS (SIN NOMBRAR A LA COMPETENCIA) */}
-      <section className="px-4 sm:px-8 py-10 bg-slate-900/60 border-y border-slate-800/80">
-        <div className="max-w-4xl mx-auto space-y-6">
-          <div className="text-center space-y-2">
-            <span className="text-xs font-black uppercase tracking-wider text-amber-400">
-              Cuentas Claras • Números Reales
-            </span>
-            <h2 className="text-2xl sm:text-3xl font-black text-white">
-              ¿Cuánto dinero dejas sobre la mesa cada semana?
-            </h2>
-            <p className="text-xs sm:text-sm text-slate-400 max-w-xl mx-auto">
-              Compara el modelo tradicional de porcentajes agresivos frente a la transparencia de Rumbo.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
-            {/* Tarjeta Tradicional */}
-            <div className="p-5 sm:p-6 rounded-3xl bg-slate-900/90 border border-slate-800 space-y-4 relative overflow-hidden">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-                  Otras Plataformas (Modelo Tradicional)
-                </span>
-                <span className="px-2 py-0.5 rounded-full bg-rose-500/15 text-rose-400 text-[11px] font-bold">
-                  13.34% a 28%+ Comisión
-                </span>
-              </div>
-
-              <div className="space-y-2 text-xs text-slate-300">
-                <div className="flex justify-between py-1.5 border-b border-slate-800">
-                  <span className="text-slate-400">Total generado en la semana:</span>
-                  <span className="font-bold text-white">${weeklyGross.toFixed(2)} USD</span>
-                </div>
-                <div className="flex justify-between py-1.5 border-b border-slate-800 text-rose-400 font-bold">
-                  <span>Comisión por viaje (13.34% a 28%):</span>
-                  <span>-${traditionalCommissionLost.toFixed(2)} USD</span>
-                </div>
-                <div className="flex justify-between py-1.5 border-b border-slate-800 text-rose-300">
-                  <span>Alquiler del carro o cuota financiamiento:</span>
-                  <span className="font-mono font-bold">-$100.00 USD/sem</span>
-                </div>
-                <div className="flex justify-between py-1.5 text-slate-400">
-                  <span>Recargas previas obligatorias:</span>
-                  <span className="text-slate-300">De tu dinero anticipado</span>
-                </div>
-              </div>
-
-              <div className="pt-3 border-t border-slate-800 flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-400">Te queda libre para tu familia:</span>
-                <span className="text-xl sm:text-2xl font-black text-rose-300">
-                  ${Math.max(0, traditionalNetWeekly).toFixed(2)} USD
-                </span>
-              </div>
-              <p className="text-[11px] text-slate-500 leading-tight">
-                Incluso en apps que dicen cobrar "pagos bajos", te descuentan el <strong className="text-rose-400">13.34%</strong> de tu saldo prepagado. Al sumar el alquiler y la gasolina, prácticamente trabajas para otros.
-              </p>
-            </div>
-
-            {/* Tarjeta Rumbo a mi Destino */}
-            <div className="p-5 sm:p-6 rounded-3xl bg-gradient-to-b from-amber-950/30 to-slate-900 border-2 border-amber-500/50 space-y-4 relative overflow-hidden shadow-xl shadow-amber-950/30">
-              <div className="absolute top-0 right-0 px-3 py-1 bg-amber-500 text-slate-950 text-[10px] font-black uppercase tracking-wider rounded-bl-xl">
-                Revolución Colaborativa
-              </div>
-
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-amber-400 uppercase tracking-wider">
-                  En Rumbo a mi Destino
-                </span>
-                <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[11px] font-black">
-                  0% Comisión
-                </span>
-              </div>
-
-              <div className="space-y-2 text-xs text-slate-300">
-                <div className="flex justify-between py-1.5 border-b border-slate-800">
-                  <span className="text-slate-400">Total generado en la semana:</span>
-                  <span className="font-bold text-white">${weeklyGross.toFixed(2)} USD</span>
-                </div>
-                <div className="flex justify-between py-1.5 border-b border-slate-800 text-emerald-400 font-bold">
-                  <span>Comisión por viaje:</span>
-                  <span>$0.00 (0% Comisión)</span>
-                </div>
-                <div className="flex justify-between py-1.5 border-b border-slate-800 text-amber-300 font-bold">
-                  <span>Tus Primeros 14 Días de Bienvenida:</span>
-                  <span className="uppercase">GRATIS ($0.00 Cuota)</span>
-                </div>
-                <div className="flex justify-between py-1.5 border-b border-slate-800 text-slate-300">
-                  <span>Alquiler / Financiamiento semanal:</span>
-                  <span className="font-mono font-bold text-emerald-300">-$100.00 (Cubierto con holgura)</span>
-                </div>
-                <div className="flex justify-between py-1.5 text-slate-400">
-                  <span>Sin recargas prepagadas:</span>
-                  <span className="text-emerald-400 font-bold">Nunca te bloqueamos por saldo</span>
-                </div>
-              </div>
-
-              <div className="pt-3 border-t border-slate-800 flex items-center justify-between">
-                <span className="text-xs font-bold text-amber-300">Te queda libre en mano (1ª sem):</span>
-                <span className="text-xl sm:text-2xl font-black text-emerald-400">
-                  ${rumboNetFirstWeek.toFixed(2)} USD
-                </span>
-              </div>
-
-              <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs font-bold flex items-center justify-between">
-                <span>¡Extra en tu bolsillo al mes!</span>
-                <span className="text-sm font-black text-emerald-400">+${monthlyExtraInPocket.toFixed(2)} USD</span>
-              </div>
-            </div>
-          </div>
-
-          {/* CASO REAL DE LA CALLE: LA DURA REALIDAD DEL CONDUCTOR */}
-          <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-5 sm:p-6 space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-rose-500/20 text-rose-400 flex items-center justify-center font-bold">
-                  <AlertCircle className="w-4 h-4" />
-                </div>
-                <div>
-                  <h4 className="font-black text-sm text-white">La Realidad de la Calle: Análisis de un Viaje Real en San Salvador</h4>
-                  <p className="text-[11px] text-slate-400">Recibo auténtico de viaje: Calle San José a Av. Olímpica</p>
-                </div>
-              </div>
-              <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded bg-rose-500/15 text-rose-300 border border-rose-500/30 font-bold">
-                13.34% Comisión Real
-              </span>
-            </div>
-
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-              <div className="p-3 rounded-2xl bg-slate-950 border border-slate-800">
-                <span className="text-slate-500 block text-[10px] uppercase font-bold">Distancia Recorrida</span>
-                <span className="text-sm font-black text-slate-200">10.8 km</span>
-              </div>
-              <div className="p-3 rounded-2xl bg-slate-950 border border-slate-800">
-                <span className="text-slate-500 block text-[10px] uppercase font-bold">Tiempo en Tráfico</span>
-                <span className="text-sm font-black text-amber-400">66 min (1h 06m)</span>
-              </div>
-              <div className="p-3 rounded-2xl bg-slate-950 border border-slate-800">
-                <span className="text-slate-500 block text-[10px] uppercase font-bold">Tarifa del Pasajero</span>
-                <span className="text-sm font-black text-white">$5.20 USD</span>
-              </div>
-              <div className="p-3 rounded-2xl bg-slate-950 border border-rose-500/30">
-                <span className="text-rose-400 block text-[10px] uppercase font-bold">Comisión App (13.34%)</span>
-                <span className="text-sm font-black text-rose-400">-$0.69 USD</span>
-              </div>
-            </div>
-
-            <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/25 text-xs space-y-2">
-              <div className="flex justify-between text-slate-300">
-                <span>Ingreso que le quedó al chofer tras la comisión de la app ($0.69):</span>
-                <span className="font-bold text-white">$4.51 USD</span>
-              </div>
-              <div className="flex justify-between text-amber-300">
-                <span>Gasolina consumida en 66 min de tráfico a marcha lenta (Gasolina Especial $5.13/gal):</span>
-                <span className="font-bold text-amber-200">-$1.80 USD (0.35 gal)</span>
-              </div>
-              <div className="flex justify-between text-slate-300">
-                <span>Saldo en mano tras pagar el combustible:</span>
-                <span className="font-bold text-white">$2.71 USD</span>
-              </div>
-              <div className="flex justify-between text-rose-300 font-bold pt-1.5 border-t border-amber-500/20">
-                <span>Proporcional del alquiler / financiamiento del carro (~$100/sem ≈ $2.00/hr):</span>
-                <span>-$2.00 USD</span>
-              </div>
-              <div className="flex justify-between text-rose-400 font-black text-sm pt-1 border-t border-rose-500/30">
-                <span>Lo que realmente le quedó limpio al chofer por 66 minutos de su vida:</span>
-                <span className="text-base text-rose-400">$0.71 USD</span>
-              </div>
-            </div>
-
-            <p className="text-[11px] text-slate-400 leading-relaxed">
-              👉 ¡Con la <strong>Gasolina Especial a $5.13 por galón</strong> y la comisión del 13.34%, el chofer se mató en el tráfico durante más de una hora para llevarse <strong>setenta y un centavos</strong> a su casa!  
-              En <strong>Rumbo a mi Destino</strong> la comisión es <strong>$0.00</strong>: los $5.20 entran íntegros a tu bolsa, la tarifa protege tu tiempo en tráfico y el radar de gasolina te ayuda a encontrar las estaciones con mejor precio para cuidar cada centavo.
-            </p>
-          </div>
-        </div>
-      </section>
-
-      {/* 4. CALCULADORA DINÁMICA DE GANANCIA */}
-      <section className="px-4 sm:px-8 py-10 max-w-4xl mx-auto w-full space-y-6">
+      {/* 3. CALCULADORA DINÁMICA DE GANANCIA REAL (INTERACTIVA Y RÁPIDA) */}
+      <section className="px-4 sm:px-8 py-8 sm:py-10 max-w-4xl mx-auto w-full space-y-6">
         <div className="flex items-center gap-2.5 border-b border-slate-800 pb-3">
           <div className="w-9 h-9 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center font-bold">
             <Calculator className="w-5 h-5" />
@@ -696,271 +650,507 @@ export default function DriverLandingView({ onStartRegistration, onCheckStatus, 
         </div>
       </section>
 
-      {/* 5. EL ECOSISTEMA: CÓMO CALCULAMOS LA TARIFA, BONOS Y COMERCIOS AFILIADOS */}
-      <section className="px-4 sm:px-8 py-10 bg-slate-900/40 border-t border-slate-800">
-        <div className="max-w-4xl mx-auto space-y-8">
-          <div className="text-center space-y-2">
-            <span className="text-xs font-black uppercase tracking-wider text-amber-400">
-              Transparencia Absoluta
-            </span>
-            <h2 className="text-2xl sm:text-3xl font-black text-white">
-              ¿Cómo Funciona el Ecosistema Rumbo?
-            </h2>
-            <p className="text-xs sm:text-sm text-slate-400 max-w-xl mx-auto">
-              Diseñado minuciosamente para redistribuir el valor y proteger la economía del conductor.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            
-            {/* Pilar 1: Cálculo de Tarifa Justa */}
-            <div className="p-5 rounded-3xl bg-slate-900/90 border border-slate-800 space-y-3">
-              <div className="w-10 h-10 rounded-2xl bg-amber-500/15 text-amber-400 flex items-center justify-center font-bold">
-                <Coins className="w-5 h-5" />
-              </div>
-              <h3 className="font-bold text-sm text-white">1. Tarifa Justa y Transparente</h3>
-              <p className="text-xs text-slate-400 leading-relaxed">
-                Calculamos la tarifa basándonos en <strong>kilómetros reales, tiempo estimado y consumo de gasolina</strong>. Ni tarifas absurdas que desanimen al usuario, ni tarifas bajas que te hagan perder dinero. Tú siempre ves la tarifa y el destino antes de aceptar.
-              </p>
-            </div>
-
-            {/* Pilar 2: Los Bonos de Pasajero y Canje con Conductores */}
-            <div className="p-5 rounded-3xl bg-slate-900/90 border border-slate-800 space-y-3">
-              <div className="w-10 h-10 rounded-2xl bg-emerald-500/15 text-emerald-400 flex items-center justify-center font-bold">
-                <DollarSign className="w-5 h-5" />
-              </div>
-              <h3 className="font-bold text-sm text-white">2. Bonos que Pagan tu Cuota</h3>
-              <p className="text-xs text-slate-400 leading-relaxed">
-                Inyectamos bonos de <strong>$1.00 USD</strong> a los pasajeros para que viajen más seguido. Cuando un pasajero te entrega su bono en una carrera, <strong>lo acumulas para liquidar tu cuota semanal de $15.00</strong>. ¡Con 15 bonos recibidos, tu semana te sale a $0.00!
-              </p>
-            </div>
-
-            {/* Pilar 3: Comercios Afiliados y Alianzas */}
-            <div className="p-5 rounded-3xl bg-slate-900/90 border border-slate-800 space-y-3">
-              <div className="w-10 h-10 rounded-2xl bg-sky-500/15 text-sky-400 flex items-center justify-center font-bold">
-                <Store className="w-5 h-5" />
-              </div>
-              <h3 className="font-bold text-sm text-white">3. Alianzas Automotrices Locales</h3>
-              <p className="text-xs text-slate-400 leading-relaxed">
-                ¿Acumulaste más de 15 bonos en la semana? El excedente no se pierde: podrás <strong>canjearlo por descuentos en talleres, repuestos, llanterías y lubricentros aliados</strong> que forman parte de la red comercial de Rumbo.
-              </p>
-            </div>
-
-            {/* Pilar 4: Despacho a 1 km a la Redonda • Cero Solicitudes Fantasma */}
-            <div className="p-5 rounded-3xl bg-gradient-to-b from-amber-500/10 to-slate-900/90 border border-amber-500/30 space-y-3 shadow-lg shadow-amber-950/20">
-              <div className="w-10 h-10 rounded-2xl bg-amber-500/20 text-amber-400 flex items-center justify-center font-bold border border-amber-500/30">
-                <Navigation className="w-5 h-5" />
-              </div>
-              <h3 className="font-bold text-sm text-white flex items-center gap-1.5">
-                <span>4. Radio 1 km • Cero Viajes Fantasma</span>
-              </h3>
-              <p className="text-xs text-slate-400 leading-relaxed">
-                En otras apps abundan las <strong>solicitudes fantasma</strong>: viajes que aceptas y de inmediato dicen <em>"ya fue tomada"</em> para forzar falsa demanda. En Rumbo, <strong>todas las solicitudes están 100% confirmadas a máximo 1 km a la redonda</strong>. Pasajeros reales esperando en la acera, sin engaños.
-              </p>
-            </div>
-
-          </div>
-        </div>
-      </section>
-
-      {/* 6. COLABORACIÓN ANTE EL COMBUSTIBLE: RADAR DE GASOLINERAS */}
-      <section className="px-4 sm:px-8 py-10 max-w-4xl mx-auto w-full">
-        <div className="p-6 sm:p-8 rounded-3xl bg-gradient-to-r from-amber-950/50 via-slate-900 to-slate-900 border border-amber-500/40 space-y-4">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-2xl bg-amber-500/20 text-amber-400 flex items-center justify-center shrink-0 border border-amber-500/30">
-              <Fuel className="w-6 h-6 animate-pulse" />
-            </div>
-            <div>
-              <span className="text-[11px] font-black uppercase tracking-wider text-amber-400">
-                Pacto Colaborativo de Conductores
-              </span>
-              <h3 className="text-xl sm:text-2xl font-black text-white">
-                Frente al Combustible Caro, Nos Cuidamos Juntos
-              </h3>
-            </div>
-          </div>
-
-          <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
-            Rumbo no es una empresa lejana ni una app fría: <strong>nació como una plataforma colaborativa pensada desde el dolor real del conductor</strong>. 
-            El combustible sube constantemente y cada centavo cuenta. Por eso, integramos en tu pantalla de chofer un 
-            <strong className="text-amber-300"> Radar de Gasolineras en Tiempo Real</strong>.
+      {/* 4. HUB DE INNOVACIÓN & VENTAJAS RUMBO (EXPERIENCIA NATIVA: TABS + DRAWER) */}
+      <section className="px-4 sm:px-8 py-8 sm:py-10 max-w-4xl mx-auto w-full space-y-6">
+        <div className="text-center space-y-2">
+          <span className="text-xs font-black uppercase tracking-wider text-amber-400">
+            Experiencia Rumbo • Ventajas Reales
+          </span>
+          <h2 className="text-2xl sm:text-3xl font-black text-white">
+            ¿Por qué Rumbo es Superior para el Conductor?
+          </h2>
+          <p className="text-xs sm:text-sm text-slate-400 max-w-xl mx-auto">
+            Sin testamentos largos que cansen la vista. Selecciona un pilar para ver su impacto y toca para explorar su explicación completa.
           </p>
+        </div>
 
-          <div className="p-3.5 rounded-2xl bg-slate-950/70 border border-slate-800 text-xs space-y-2">
-            <div className="flex items-start gap-2">
-              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-              <span className="text-slate-200">
-                <strong>Confirmación comunitaria:</strong> Cuando cargas combustible, confirmas el precio con un toque en pantalla. Así alertamos a los demás choferes dónde comprar más barato.
-              </span>
+        {/* SELECTOR DE PESTAÑAS HORIZONTALES (SCROLL TÁCTIL SUAVE EN MÓVIL) */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none snap-x -mx-4 px-4 sm:mx-0 sm:px-0">
+          {PILLAR_TOPICS.map((topic) => {
+            const isSelected = selectedPillarId === topic.id;
+            return (
+              <button
+                key={topic.id}
+                type="button"
+                onClick={() => setSelectedPillarId(topic.id)}
+                className={`px-3.5 py-2 rounded-2xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-2 cursor-pointer snap-start shrink-0 border ${
+                  isSelected
+                    ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-lg shadow-amber-500/20 font-black scale-102'
+                    : 'bg-slate-900/90 text-slate-400 hover:text-white border-slate-800 hover:border-slate-700'
+                }`}
+              >
+                <span>{topic.tabLabel}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* TARJETA HEROICA DEL PILAR SELECCIONADO */}
+        {(() => {
+          const IconComp = activePillar.icon;
+          return (
+            <div className={`p-6 sm:p-8 rounded-3xl bg-gradient-to-b ${activePillar.glowColor} via-slate-900 to-slate-950 border border-slate-700/80 shadow-2xl space-y-5 relative overflow-hidden transition-all animate-fade-in`}>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-3.5">
+                  <div className="w-12 h-12 rounded-2xl bg-slate-900 border border-slate-700 text-amber-400 flex items-center justify-center shrink-0 shadow-inner">
+                    <IconComp className="w-6 h-6 animate-pulse" />
+                  </div>
+                  <div>
+                    <span className={`text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full border ${activePillar.badgeColor} inline-block mb-1`}>
+                      {activePillar.badge}
+                    </span>
+                    <h3 className="text-lg sm:text-xl font-black text-white leading-tight">
+                      {activePillar.title}
+                    </h3>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => openPillarDrawer(activePillar.id)}
+                  className="self-start sm:self-auto px-4 py-2 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-xs font-black flex items-center gap-1.5 cursor-pointer transition-all active:scale-95 shadow-sm"
+                >
+                  <span>Explorar detalle completo</span>
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+
+              <p className="text-xs sm:text-sm text-slate-300 leading-relaxed max-w-2xl">
+                {activePillar.summary}
+              </p>
+
+              {/* 3 Métricas Clave */}
+              <div className="grid grid-cols-3 gap-2.5 pt-2">
+                {activePillar.metrics.map((m, i) => (
+                  <div key={i} className="p-3 bg-slate-950/80 rounded-2xl border border-slate-800 text-center">
+                    <div className="text-base sm:text-xl font-black text-amber-400 font-mono">{m.value}</div>
+                    <div className="text-[10px] sm:text-xs text-slate-400 font-medium leading-tight mt-0.5">{m.label}</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Botón de apertura táctil principal */}
+              <div className="pt-2">
+                <button
+                  type="button"
+                  onClick={() => openPillarDrawer(activePillar.id)}
+                  className="w-full py-3.5 bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 hover:brightness-110 text-slate-950 font-black text-xs sm:text-sm rounded-2xl shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-98"
+                >
+                  <span>Ver Explicación Completa e Interactiva</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              </div>
             </div>
-            <div className="flex items-start gap-2">
-              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-              <span className="text-slate-200">
-                <strong>Ahorro acumulado:</strong> Ahorrar $0.10 a $0.15 por galón representa hasta <strong>$40 a $60 dólares extra al mes</strong> que se quedan en el bolsillo de tu familia.
-              </span>
-            </div>
-          </div>
+          );
+        })()}
+
+        {/* ACCESOS RÁPIDOS A LOS OTROS TEMAS */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 pt-2">
+          {PILLAR_TOPICS.map((topic) => {
+            const IconC = topic.icon;
+            const isCurrent = topic.id === selectedPillarId;
+            return (
+              <button
+                key={topic.id}
+                type="button"
+                onClick={() => openPillarDrawer(topic.id)}
+                className={`p-3 rounded-2xl border text-left flex items-center gap-2.5 transition-all cursor-pointer ${
+                  isCurrent
+                    ? 'bg-slate-900 border-amber-500/50 text-white shadow-md'
+                    : 'bg-slate-950/70 hover:bg-slate-900 border-slate-850 hover:border-slate-700 text-slate-300'
+                }`}
+              >
+                <div className="w-8 h-8 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-center text-amber-400 shrink-0">
+                  <IconC className="w-4 h-4" />
+                </div>
+                <div className="overflow-hidden">
+                  <div className="text-xs font-bold truncate text-white">{topic.badge}</div>
+                  <div className="text-[10px] text-slate-400 truncate flex items-center gap-0.5">
+                    <span>Ver detalle</span>
+                    <ChevronRight className="w-3 h-3 text-amber-400" />
+                  </div>
+                </div>
+              </button>
+            );
+          })}
         </div>
       </section>
 
-      {/* 6.1 INGENIERÍA RUMBO: AHORRO EXTREMO DE BATERÍA & DATOS MÓVILES */}
-      <section className="px-4 sm:px-8 py-10 max-w-4xl mx-auto w-full">
-        <div className="p-6 sm:p-8 rounded-3xl bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950 border border-emerald-500/30 space-y-6 shadow-2xl relative overflow-hidden">
-          {/* Luz ambiental decorativa */}
-          <div className="absolute -top-24 -right-24 w-60 h-60 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
-          <div className="absolute -bottom-24 -left-24 w-60 h-60 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
+      {/* ============================================================== */}
+      {/* 5. BOTTOMSHEET MÓVIL / MODAL DRAWER PROFESIONAL (OPCIÓN 3)     */}
+      {/* ============================================================== */}
+      {isDrawerOpen && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-md animate-fade-in p-0 sm:p-4">
+          <div className="w-full sm:max-w-2xl bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950 border-t sm:border border-slate-700/80 rounded-t-3xl sm:rounded-3xl shadow-2xl max-h-[90vh] flex flex-col overflow-hidden animate-pop-bounce">
+            
+            {/* Tirador táctil para móvil */}
+            <div className="w-12 h-1.5 rounded-full bg-slate-700 mx-auto my-2.5 sm:hidden shrink-0 cursor-grab" />
 
-          {/* Encabezado */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-5">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-2xl bg-emerald-500/15 text-emerald-400 flex items-center justify-center shrink-0 border border-emerald-500/30 shadow-inner">
-                <BatteryCharging className="w-6 h-6 animate-pulse" />
+            {/* Barra superior de control del Drawer */}
+            <div className="px-5 py-3.5 border-b border-slate-800 flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                  Tema {currentPillarIndex + 1} de {PILLAR_TOPICS.length}
+                </span>
+                <span className="text-xs font-bold text-white hidden sm:inline">
+                  {activeDrawerPillar.badge}
+                </span>
               </div>
-              <div>
-                <span className="text-[11px] font-black uppercase tracking-wider text-emerald-400">
-                  Ingeniería Rumbo • Arquitectura de Túnel Ultra-Rápido
+
+              <div className="flex items-center gap-2">
+                {/* Flechas de navegación rápida */}
+                <button
+                  type="button"
+                  onClick={handlePrevPillar}
+                  title="Tema anterior"
+                  className="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white cursor-pointer transition-colors"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={handleNextPillar}
+                  title="Siguiente tema"
+                  className="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white cursor-pointer transition-colors"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+
+                {/* Cerrar Drawer */}
+                <button
+                  type="button"
+                  onClick={() => setIsDrawerOpen(false)}
+                  className="p-1.5 rounded-xl bg-slate-800 hover:bg-rose-500/20 text-slate-400 hover:text-rose-300 cursor-pointer transition-colors ml-1"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* Selector rápido tipo tabs dentro del Drawer */}
+            <div className="px-5 py-2 bg-slate-950/60 border-b border-slate-800/80 flex items-center gap-1.5 overflow-x-auto scrollbar-none shrink-0">
+              {PILLAR_TOPICS.map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => setDrawerTopicId(t.id)}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-bold whitespace-nowrap transition-colors cursor-pointer ${
+                    drawerTopicId === t.id
+                      ? 'bg-amber-500 text-slate-950'
+                      : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                  }`}
+                >
+                  {t.badge}
+                </button>
+              ))}
+            </div>
+
+            {/* CONTENIDO INTERACTIVO DETALLADO (CON SCROLL INTERNO) */}
+            <div className="p-5 sm:p-6 overflow-y-auto space-y-5 flex-1 text-slate-200">
+              
+              {/* Encabezado del tema */}
+              <div className="space-y-1">
+                <span className="text-[11px] font-black uppercase tracking-wider text-amber-400">
+                  {activeDrawerPillar.subtitle}
                 </span>
                 <h3 className="text-xl sm:text-2xl font-black text-white">
-                  Celular Frío, Batería para Todo el Día y Ahorro Extremo de Datos
+                  {activeDrawerPillar.title}
                 </h3>
               </div>
-            </div>
-            <div className="inline-flex items-center gap-1.5 self-start sm:self-auto bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 px-3 py-1.5 rounded-full text-xs font-black">
-              <Zap className="w-3.5 h-3.5" />
-              <span>Hasta -95% en consumo de internet</span>
-            </div>
-          </div>
 
-          <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
-            Sabemos lo que sufre el conductor en la calle: el celular pegado al parabrisas, hirviendo bajo el sol y la batería agotándose en 3 horas obligándote a vivir conectado al cargador del encendedor. 
-            En <strong>Rumbo</strong> rediseñamos la tecnología desde cero con <strong>conexiones persistentes de túnel ultra rápido</strong>, manteniéndolo ligero y silencioso abierto. Tu módem celular descansa, tu teléfono trabaja frío y tu plan de datos rinde como nunca.
-          </p>
+              {/* TEMA 1: TECNOLOGÍA & TÚNEL ULTRA-RÁPIDO */}
+              {drawerTopicId === 'tech' && (
+                <div className="space-y-4 animate-fade-in">
+                  <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
+                    Sabemos lo que sufre el conductor en la calle: el celular pegado al parabrisas, hirviendo bajo el sol y la batería agotándose en 3 horas obligándote a vivir conectado al cargador del encendedor.
+                    En <strong>Rumbo</strong> rediseñamos la tecnología desde cero con <strong>conexiones persistentes de túnel ultra rápido</strong>, manteniéndolo ligero y silencioso abierto. Tu módem celular descansa, tu teléfono trabaja frío y tu plan de datos rinde como nunca.
+                  </p>
 
-          {/* Cuadro Comparativo: Apps Tradicionales vs Rumbo */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
-            
-            {/* Apps Tradicionales */}
-            <div className="p-4 sm:p-5 rounded-2xl bg-rose-950/20 border border-rose-500/20 space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-black uppercase tracking-wider text-rose-400 flex items-center gap-1.5">
-                  <Flame className="w-4 h-4 text-rose-400" />
-                  Otras Apps (Peticiones Continuas Tradicionales)
-                </span>
-                <span className="text-[10px] bg-rose-500/20 text-rose-300 px-2 py-0.5 rounded-full font-bold">Obsoleto</span>
-              </div>
-              <ul className="text-xs text-slate-400 space-y-2.5">
-                <li className="flex items-start gap-2">
-                  <span className="text-rose-400 font-bold">✕</span>
-                  <span><strong>+1,200 peticiones por hora:</strong> Preguntan al servidor segundo a segundo si hay carreras.</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-rose-400 font-bold">✕</span>
-                  <span><strong>Teléfono hirviendo:</strong> El módem celular 4G/5G nunca descansa, sobrecalienta el equipo y degrada la batería.</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-rose-400 font-bold">✕</span>
-                  <span><strong>Batería muerta en 3-4 horas:</strong> Vives atado al cable cargador y deterioras el acumulador de tu carro.</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-rose-400 font-bold">✕</span>
-                  <span><strong>Desperdicio de datos:</strong> 3 a 5 GB al mes consumidos solo en consultas repetitivas vacías.</span>
-                </li>
-              </ul>
-            </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+                    <div className="p-4 rounded-2xl bg-rose-950/20 border border-rose-500/20 space-y-2.5 text-xs">
+                      <div className="text-rose-400 font-black uppercase text-[11px] flex items-center gap-1.5">
+                        <Flame className="w-4 h-4 text-rose-400" />
+                        Otras Apps (Peticiones Continuas)
+                      </div>
+                      <ul className="text-slate-400 space-y-2">
+                        <li>✕ <strong>+1,200 peticiones por hora:</strong> Preguntan segundo a segundo si hay viajes.</li>
+                        <li>✕ <strong>Teléfono hirviendo:</strong> El módem 4G/5G nunca descansa y degrada la batería.</li>
+                        <li>✕ <strong>Batería muerta en 3-4 horas:</strong> Vives atado al cargador del carro.</li>
+                        <li>✕ <strong>Desperdicio de datos:</strong> 3 a 5 GB al mes en consultas vacías.</li>
+                      </ul>
+                    </div>
 
-            {/* Rumbo Túnel Ultra-Rápido */}
-            <div className="p-4 sm:p-5 rounded-2xl bg-emerald-950/25 border border-emerald-500/30 space-y-3 shadow-lg shadow-emerald-950/20">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-black uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
-                  <Cpu className="w-4 h-4 text-emerald-400" />
-                  Plataforma Rumbo (Túnel Ultra-Rápido)
-                </span>
-                <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full font-bold">Alta Eficiencia</span>
-              </div>
-              <ul className="text-xs text-slate-300 space-y-2.5">
-                <li className="flex items-start gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-                  <span><strong>Túnel único persistente:</strong> Cero peticiones repetitivas. El servidor te avisa solo cuando hay un viaje real.</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-                  <span><strong>Celular fresco en el tablero:</strong> Tu módem descansa en modo reposo; cero riesgo de apagones por calor.</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-                  <span><strong>Batería para toda la jornada:</strong> Trabajas tu turno completo sin ansiedad de quedarte sin energía.</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-                  <span><strong>Ahorras hasta 95% de megas:</strong> Micro-tramas de datos ultraligeras. Tu paquete de internet dura semanas.</span>
-                </li>
-              </ul>
-            </div>
-
-          </div>
-
-          {/* Tres Métricas Clave */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1 text-center">
-            <div className="p-3 bg-slate-950/80 rounded-2xl border border-slate-800">
-              <div className="text-2xl font-black text-emerald-400 font-mono">-95%</div>
-              <div className="text-[11px] text-slate-400 font-medium">Consumo de Datos Móviles</div>
-            </div>
-            <div className="p-3 bg-slate-950/80 rounded-2xl border border-slate-800">
-              <div className="text-2xl font-black text-amber-400 font-mono">&lt; 50 ms</div>
-              <div className="text-[11px] text-slate-400 font-medium">Latencia de Notificación Inmediata</div>
-            </div>
-            <div className="p-3 bg-slate-950/80 rounded-2xl border border-slate-800">
-              <div className="text-2xl font-black text-sky-400 font-mono">100%</div>
-              <div className="text-[11px] text-slate-400 font-medium">Módem en Modo Reposo Seguro</div>
-            </div>
-          </div>
-
-          {/* BLOQUE DE ÉTICA DIGITAL: PRIVACIDAD Y PROCESAMIENTO TRANSPARENTE */}
-          <div className="pt-5 border-t border-slate-800 space-y-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-2xl bg-amber-500/15 text-amber-400 flex items-center justify-center shrink-0 border border-amber-500/30">
-                <ShieldCheck className="w-5 h-5" />
-              </div>
-              <div>
-                <span className="text-[11px] font-black uppercase tracking-wider text-amber-400">
-                  Ética Digital & Respeto al Usuario
-                </span>
-                <h4 className="text-base sm:text-lg font-black text-white">
-                  Cero Privilegios Abusivos • Procesamiento 100% Honesto y Transparente
-                </h4>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              
-              {/* Tarjeta 1: Cero permisos invasivos */}
-              <div className="p-4 sm:p-5 rounded-2xl bg-slate-950/80 border border-slate-800 space-y-2">
-                <div className="flex items-center gap-2 text-white font-bold text-xs sm:text-sm">
-                  <Lock className="w-4 h-4 text-emerald-400 shrink-0" />
-                  <span>Tu Dispositivo es Tuyo: Cero Espionaje tras Bastidores</span>
+                    <div className="p-4 rounded-2xl bg-emerald-950/25 border border-emerald-500/30 space-y-2.5 text-xs">
+                      <div className="text-emerald-400 font-black uppercase text-[11px] flex items-center gap-1.5">
+                        <Cpu className="w-4 h-4 text-emerald-400" />
+                        Plataforma Rumbo (Túnel Ultra-Rápido)
+                      </div>
+                      <ul className="text-slate-300 space-y-2">
+                        <li className="flex items-start gap-1.5">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                          <span><strong>Túnel único persistente:</strong> Cero peticiones repetitivas inútiles.</span>
+                        </li>
+                        <li className="flex items-start gap-1.5">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                          <span><strong>Celular fresco en el tablero:</strong> Tu módem descansa en modo reposo.</span>
+                        </li>
+                        <li className="flex items-start gap-1.5">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                          <span><strong>Batería para todo el turno:</strong> Trabajas tranquilo sin ansiedad de energía.</span>
+                        </li>
+                        <li className="flex items-start gap-1.5">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                          <span><strong>Ahorras hasta 95% de megas:</strong> Tu paquete de datos rinde semanas.</span>
+                        </li>
+                      </ul>
+                    </div>
+                  </div>
                 </div>
-                <p className="text-xs text-slate-400 leading-relaxed">
-                  Otras plataformas exigen acceso a tus <strong>contactos, galería privada de fotos, micrófono permanente, lectura de otras apps en ejecución y GPS 24/7</strong> incluso con la aplicación cerrada. ¿Qué hacen con tus datos? Nadie lo sabe. 
-                  En Rumbo tenemos una política inquebrantable: <strong>únicamente solicitamos la ubicación mientras estás en servicio activo</strong> para enlazarte con viajes a 1 km. Ni fotos, ni micrófono, ni lectura de tu celular. Tu intimidad no se negocia.
-                </p>
-              </div>
+              )}
 
-              {/* Tarjeta 2: Procesamiento honesto de viajes */}
-              <div className="p-4 sm:p-5 rounded-2xl bg-slate-950/80 border border-slate-800 space-y-2">
-                <div className="flex items-center gap-2 text-white font-bold text-xs sm:text-sm">
-                  <CheckCircle2 className="w-4 h-4 text-amber-400 shrink-0" />
-                  <span>Procesamiento Limpio: Cero Algoritmos Tramposos</span>
+              {/* TEMA 2: PRIVACIDAD & ÉTICA DIGITAL */}
+              {drawerTopicId === 'privacy' && (
+                <div className="space-y-4 animate-fade-in">
+                  <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
+                    Creemos firmemente en el respeto sagrado al conductor y a su herramienta de trabajo. Por eso operamos bajo dos compromisos inquebrantables:
+                  </p>
+
+                  <div className="space-y-3">
+                    <div className="p-4 rounded-2xl bg-slate-950/80 border border-slate-800 space-y-1.5 text-xs">
+                      <div className="flex items-center gap-2 text-white font-bold text-sm">
+                        <Lock className="w-4 h-4 text-emerald-400" />
+                        <span>Tu Dispositivo es Tuyo: Cero Espionaje tras Bastidores</span>
+                      </div>
+                      <p className="text-slate-400 leading-relaxed">
+                        Otras plataformas exigen acceso a tus <strong>contactos, galería privada de fotos, micrófono permanente, lectura de otras apps y GPS 24/7</strong> incluso con la app cerrada. 
+                        En Rumbo únicamente solicitamos la ubicación mientras estás en servicio activo para conectarte con viajes a 1 km. Ni fotos, ni micrófono, ni vigilancia oculta. Tu intimidad no se negocia.
+                      </p>
+                    </div>
+
+                    <div className="p-4 rounded-2xl bg-slate-950/80 border border-slate-800 space-y-1.5 text-xs">
+                      <div className="flex items-center gap-2 text-white font-bold text-sm">
+                        <CheckCircle2 className="w-4 h-4 text-amber-400" />
+                        <span>Procesamiento Limpio: Cero Algoritmos Tramposos</span>
+                      </div>
+                      <p className="text-slate-400 leading-relaxed">
+                        Cero algoritmos de "caja negra" que te esconden el destino, simulan demoras falsas o retienen comisiones del 30% al 45%. 
+                        En Rumbo ves el pasajero, origen, destino exacto, distancia en kilómetros y el valor íntegro en efectivo antes de mover un metro. Lo que ves en pantalla es exactamente lo que cobras.
+                      </p>
+                    </div>
+                  </div>
                 </div>
-                <p className="text-xs text-slate-400 leading-relaxed">
-                  Cero algoritmos de "caja negra" que te esconden el destino, simulan demoras falsas o retienen comisiones del 30% al 45%. 
-                  En Rumbo <strong>ves el pasajero, origen, destino exacto, distancia en kilómetros y el valor íntegro en efectivo antes de mover un metro</strong>. No hay intermediarios que manipulen la oferta: lo que ves en pantalla es exactamente lo que cobras.
-                </p>
-              </div>
+              )}
+
+              {/* TEMA 3: 0% COMISIÓN VS TRADICIONAL */}
+              {drawerTopicId === 'earnings' && (
+                <div className="space-y-4 animate-fade-in">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                    {/* Tradicional */}
+                    <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-2.5">
+                      <div className="flex justify-between items-center text-rose-400 font-bold uppercase text-[11px]">
+                        <span>Otras Plataformas</span>
+                        <span>13.34% a 28%+ Comisión</span>
+                      </div>
+                      <div className="space-y-1.5 text-slate-400">
+                        <div className="flex justify-between">
+                          <span>Total generado en la semana:</span>
+                          <span className="text-white font-bold">${weeklyGross.toFixed(2)} USD</span>
+                        </div>
+                        <div className="flex justify-between text-rose-400">
+                          <span>Comisión quitada:</span>
+                          <span>-${traditionalCommissionLost.toFixed(2)} USD</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Alquiler del carro:</span>
+                          <span>-${carRentalCost.toFixed(2)} USD</span>
+                        </div>
+                        <div className="pt-2 border-t border-slate-800 flex justify-between font-bold text-rose-300">
+                          <span>Te queda libre:</span>
+                          <span className="text-base">${Math.max(0, traditionalNetWeekly).toFixed(2)} USD</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Rumbo */}
+                    <div className="p-4 rounded-2xl bg-gradient-to-b from-amber-950/30 to-slate-900 border-2 border-amber-500/50 space-y-2.5">
+                      <div className="flex justify-between items-center text-amber-300 font-bold uppercase text-[11px]">
+                        <span>En Rumbo a mi Destino</span>
+                        <span className="text-emerald-400 font-black">0% Comisión</span>
+                      </div>
+                      <div className="space-y-1.5 text-slate-300">
+                        <div className="flex justify-between">
+                          <span>Total generado en la semana:</span>
+                          <span className="text-white font-bold">${weeklyGross.toFixed(2)} USD</span>
+                        </div>
+                        <div className="flex justify-between text-emerald-400 font-bold">
+                          <span>Comisión por viaje:</span>
+                          <span>$0.00 (0% Comisión)</span>
+                        </div>
+                        <div className="flex justify-between text-amber-300">
+                          <span>Tus Primeros 14 Días:</span>
+                          <span>GRATIS ($0.00 Cuota)</span>
+                        </div>
+                        <div className="pt-2 border-t border-slate-800 flex justify-between font-black text-emerald-400">
+                          <span>Te queda libre en mano:</span>
+                          <span className="text-base">${rumboNetFirstWeek.toFixed(2)} USD</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs font-bold flex items-center justify-between">
+                    <span>¡Extra acumulado para tu familia al mes!</span>
+                    <span className="text-base font-black text-emerald-400">+${monthlyExtraInPocket.toFixed(2)} USD</span>
+                  </div>
+                </div>
+              )}
+
+              {/* TEMA 4: RADAR DE GASOLINA */}
+              {drawerTopicId === 'fuel' && (
+                <div className="space-y-4 animate-fade-in text-xs sm:text-sm">
+                  <p className="text-slate-300 leading-relaxed">
+                    Rumbo no es una empresa lejana ni una app fría: nació como una plataforma colaborativa pensada desde el dolor real del conductor. 
+                    El combustible sube constantemente y cada centavo cuenta. Por eso integramos el <strong>Radar de Gasolineras en Tiempo Real</strong>.
+                  </p>
+
+                  <div className="p-4 rounded-2xl bg-slate-950/80 border border-slate-800 space-y-3 text-xs">
+                    <div className="flex items-start gap-2.5">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                      <span className="text-slate-200">
+                        <strong>Confirmación comunitaria:</strong> Cuando cargas combustible, confirmas el precio con un toque en tu consola. Así alertamos a los demás choferes dónde comprar más barato.
+                      </span>
+                    </div>
+                    <div className="flex items-start gap-2.5">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                      <span className="text-slate-200">
+                        <strong>Ahorro acumulado:</strong> Ahorrar $0.10 a $0.15 por galón representa hasta <strong>$40 a $60 dólares extra al mes</strong> que se quedan en el bolsillo de tu familia.
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* TEMA 5: DINÁMICA DE BONOS ($0 CUOTA) Y ALIANZAS */}
+              {drawerTopicId === 'bonuses' && (
+                <div className="space-y-3 animate-fade-in text-xs">
+                  <div className="p-4 rounded-2xl bg-slate-950/80 border border-slate-800 space-y-1.5">
+                    <div className="font-bold text-white flex items-center gap-2">
+                      <Coins className="w-4 h-4 text-amber-400" />
+                      <span>1. Tarifa Justa y Transparente</span>
+                    </div>
+                    <p className="text-slate-400 leading-relaxed">
+                      Calculamos la tarifa basándonos en <strong>kilómetros reales, tiempo estimado y consumo de gasolina</strong>. Ni tarifas absurdas que desanimen al usuario, ni tarifas bajas que te hagan perder dinero. Tú siempre ves la tarifa y el destino antes de aceptar.
+                    </p>
+                  </div>
+
+                  <div className="p-4 rounded-2xl bg-slate-950/80 border border-emerald-500/30 space-y-1.5">
+                    <div className="font-bold text-emerald-400 flex items-center gap-2">
+                      <DollarSign className="w-4 h-4 text-emerald-400" />
+                      <span>2. Bonos que Pagan tu Cuota Semanal de $15</span>
+                    </div>
+                    <p className="text-slate-300 leading-relaxed">
+                      Inyectamos bonos de <strong>$1.00 USD</strong> a los pasajeros. Cuando un pasajero te entrega su bono en una carrera, <strong>lo acumulas para liquidar tu cuota semanal de $15.00</strong>. ¡Con 15 bonos recibidos, tu semana te sale a $0.00!
+                    </p>
+                  </div>
+
+                  <div className="p-4 rounded-2xl bg-slate-950/80 border border-slate-800 space-y-1.5">
+                    <div className="font-bold text-sky-400 flex items-center gap-2">
+                      <Store className="w-4 h-4 text-sky-400" />
+                      <span>3. Alianzas Automotrices Locales</span>
+                    </div>
+                    <p className="text-slate-400 leading-relaxed">
+                      ¿Acumulaste más de 15 bonos en la semana? El excedente no se pierde: podrás <strong>canjearlo por descuentos en talleres, repuestos, llanterías y lubricentros aliados</strong>.
+                    </p>
+                  </div>
+
+                  <div className="p-4 rounded-2xl bg-slate-950/80 border border-amber-500/30 space-y-1.5">
+                    <div className="font-bold text-amber-300 flex items-center gap-2">
+                      <Navigation className="w-4 h-4 text-amber-400" />
+                      <span>4. Radio 1 km • Cero Solicitudes Fantasma</span>
+                    </div>
+                    <p className="text-slate-400 leading-relaxed">
+                      En otras apps abundan solicitudes que aceptas y de inmediato dicen <em>"ya fue tomada"</em> para forzar falsa demanda. En Rumbo, <strong>todas las solicitudes están 100% confirmadas a máximo 1 km a la redonda</strong> con pasajeros reales en la acera.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* TEMA 6: CASO REAL DE LA CALLE EN SAN SALVADOR */}
+              {drawerTopicId === 'case_study' && (
+                <div className="space-y-3.5 animate-fade-in text-xs">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    <div className="p-2.5 rounded-xl bg-slate-950 border border-slate-800 text-center">
+                      <span className="text-[10px] text-slate-500 block">Distancia</span>
+                      <strong className="text-white text-sm">10.8 km</strong>
+                    </div>
+                    <div className="p-2.5 rounded-xl bg-slate-950 border border-slate-800 text-center">
+                      <span className="text-[10px] text-slate-500 block">Tráfico</span>
+                      <strong className="text-amber-400 text-sm">66 min</strong>
+                    </div>
+                    <div className="p-2.5 rounded-xl bg-slate-950 border border-slate-800 text-center">
+                      <span className="text-[10px] text-slate-500 block">Tarifa Pasajero</span>
+                      <strong className="text-white text-sm">$5.20 USD</strong>
+                    </div>
+                    <div className="p-2.5 rounded-xl bg-slate-950 border border-rose-500/30 text-center">
+                      <span className="text-[10px] text-rose-400 block">Comisión App</span>
+                      <strong className="text-rose-400 text-sm">-$0.69 (13.34%)</strong>
+                    </div>
+                  </div>
+
+                  <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/25 space-y-1.5 text-xs">
+                    <div className="flex justify-between text-slate-300">
+                      <span>Ingreso tras comisión en app tradicional ($0.69):</span>
+                      <span className="font-bold text-white">$4.51 USD</span>
+                    </div>
+                    <div className="flex justify-between text-amber-300">
+                      <span>Gasolina en 66 min de tráfico lento ($5.13/gal):</span>
+                      <span className="font-bold text-amber-200">-$1.80 USD</span>
+                    </div>
+                    <div className="flex justify-between text-rose-300 pt-1 border-t border-amber-500/20">
+                      <span>Alquiler del carro proporcional (~$2.00/hr):</span>
+                      <span>-$2.00 USD</span>
+                    </div>
+                    <div className="flex justify-between text-rose-400 font-black text-sm pt-1 border-t border-rose-500/30">
+                      <span>Lo que realmente le quedó limpio por 66 min:</span>
+                      <span className="text-base text-rose-400">$0.71 USD</span>
+                    </div>
+                  </div>
+
+                  <p className="text-[11px] text-slate-400 leading-relaxed">
+                    👉 ¡El chofer se mató en el tráfico durante más de una hora para llevarse <strong>setenta y un centavos</strong>!  
+                    En <strong>Rumbo</strong> la comisión es <strong>$0.00</strong>: los $5.20 entran íntegros a tu bolsa, la tarifa protege tu tiempo en tráfico y el radar de gasolina cuida tu bolsillo.
+                  </p>
+                </div>
+              )}
 
             </div>
+
+            {/* Footer de acción del Drawer */}
+            <div className="p-4 bg-slate-950 border-t border-slate-800 flex items-center justify-between gap-3 shrink-0">
+              <button
+                type="button"
+                onClick={() => setIsDrawerOpen(false)}
+                className="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white font-bold text-xs cursor-pointer transition-colors"
+              >
+                Volver a la Pantalla
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setIsDrawerOpen(false);
+                  onStartRegistration();
+                }}
+                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-400 via-amber-500 to-amber-600 hover:brightness-110 text-slate-950 font-black text-xs flex items-center gap-2 cursor-pointer shadow-md transition-all active:scale-95"
+              >
+                <span>Comenzar Registro Ahora</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
           </div>
         </div>
-      </section>
+      )}
 
       {/* 7. LLAMADO FINAL A LA ACCIÓN (FOOTER CONVERTIDOR) */}
       <section className="px-4 sm:px-8 py-12 bg-gradient-to-b from-slate-900 to-slate-950 border-t border-slate-800 text-center space-y-5">
