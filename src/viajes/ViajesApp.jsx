@@ -144,18 +144,6 @@ export default function ViajesApp() {
   const [serviceType, setServiceType] = useState('PASSENGER'); // 'PASSENGER' | 'PACKAGE'
   const [transportType, setTransportType] = useState('CAR'); // 'CAR' | 'MOTO'
 
-  const handleSelectTransportType = (type) => {
-    setTransportType(type);
-    if (type === 'MOTO') {
-      setTripPreferences((prev) => ({
-        ...prev,
-        airConditioning: false,
-        passengers: 1,
-        extraLuggage: false
-      }));
-    }
-  };
-
   // Tema de la Aplicación: 'dark' | 'light' (mutuamente excluyente)
   const [theme, setTheme] = useState(() => localStorage.getItem('rumbo_theme') || 'dark');
   const isLight = theme === 'light';
@@ -412,10 +400,101 @@ export default function ViajesApp() {
     return opts.map((n) => n.toFixed(2));
   })();
 
+  // Manejo de Selección de Transporte (Auto vs Moto) con Recálculo y Locución
+  const handleSelectTransportType = (type) => {
+    setTransportType(type);
+    const isMoto = type === 'MOTO';
+    const nextPrefs = isMoto
+      ? { ...tripPreferences, airConditioning: false, passengers: 1, extraLuggage: false }
+      : { ...tripPreferences };
+    setTripPreferences(nextPrefs);
+
+    const recalculated = calculateSuggestedFare(
+      roadDistanceKm,
+      isMoto ? 115.0 : 42.0,
+      OFFICIAL_GOV_PRICES.regular,
+      trafficInfo.delayMinutes,
+      { ...nextPrefs, transportType: type }
+    );
+    const newFare = recalculated?.suggestedFare || (isMoto ? '1.50' : '2.50');
+    setProposedFare(newFare);
+    setHasCustomFare(false);
+
+    if (isMoto) {
+      speakAssistantMessage(`Se ha establecido viaje en moto. La nueva tarifa es de ${newFare} dólares.`);
+    } else {
+      speakAssistantMessage(`Se ha establecido viaje en vehículo. La nueva tarifa es de ${newFare} dólares.`);
+    }
+  };
+
+  // Manejo de Selección de Servicio: Pasajero vs Entrega de Paquetes
+  // Si es entrega de paquetes, se deshabilita el aire acondicionado
+  const handleSelectServiceType = (type) => {
+    setServiceType(type);
+    if (type === 'PACKAGE') {
+      const nextPrefs = { ...tripPreferences, airConditioning: false };
+      setTripPreferences(nextPrefs);
+      const recalculated = calculateSuggestedFare(
+        roadDistanceKm,
+        isMotoMode ? 115.0 : 42.0,
+        OFFICIAL_GOV_PRICES.regular,
+        trafficInfo.delayMinutes,
+        { ...nextPrefs, transportType }
+      );
+      const newFare = recalculated?.suggestedFare || '2.50';
+      setProposedFare(newFare);
+      setHasCustomFare(false);
+      speakAssistantMessage(
+        `Se ha establecido la entrega de paquetes. El aire acondicionado no es aplicable y ha sido desactivado. La nueva tarifa es de ${newFare} dólares.`
+      );
+    } else {
+      const nextPrefs = { ...tripPreferences };
+      setTripPreferences(nextPrefs);
+      const recalculated = calculateSuggestedFare(
+        roadDistanceKm,
+        isMotoMode ? 115.0 : 42.0,
+        OFFICIAL_GOV_PRICES.regular,
+        trafficInfo.delayMinutes,
+        { ...nextPrefs, transportType }
+      );
+      const newFare = recalculated?.suggestedFare || '2.50';
+      setProposedFare(newFare);
+      setHasCustomFare(false);
+      speakAssistantMessage(`Se ha establecido viaje de pasajeros. La nueva tarifa es de ${newFare} dólares.`);
+    }
+  };
+
+  // Manejo de Modalidad: Solo Ida vs Ida y Vuelta
+  const handleToggleRoundTrip = (enableRoundTrip) => {
+    const nextPrefs = { ...tripPreferences, isRoundTrip: enableRoundTrip };
+    setTripPreferences(nextPrefs);
+
+    const recalculated = calculateSuggestedFare(
+      roadDistanceKm,
+      isMotoMode ? 115.0 : 42.0,
+      OFFICIAL_GOV_PRICES.regular,
+      trafficInfo.delayMinutes,
+      { ...nextPrefs, transportType }
+    );
+    const newFare = recalculated?.suggestedFare || '2.50';
+    setProposedFare(newFare);
+    setHasCustomFare(false);
+
+    if (enableRoundTrip) {
+      speakAssistantMessage(`Se ha establecido la carrera de ida y vuelta. La nueva tarifa es de ${newFare} dólares.`);
+    } else {
+      speakAssistantMessage(`Se ha establecido viaje de solo ida. La nueva tarifa es de ${newFare} dólares.`);
+    }
+  };
+
   // Manejo de Aire Acondicionado y Recálculo Dinámico de Tarifa:
   // La tarifa base se calcula como la mínima sin aire acondicionado.
   // Al activar A/C se recalcula e incrementa automáticamente cubriendo consumo y climatización.
   const handleToggleAirConditioning = () => {
+    if (serviceType === 'PACKAGE') {
+      speakAssistantMessage('El aire acondicionado no es aplicable para la entrega de paquetes.');
+      return;
+    }
     if (isMotoMode) {
       speakAssistantMessage('El servicio en motocicleta no cuenta con aire acondicionado.');
       return;
@@ -437,13 +516,17 @@ export default function ViajesApp() {
     setHasCustomFare(false);
 
     if (nextState) {
-      speakAssistantMessage(`Aire acondicionado activado. Tarifa actualizada con climatización a ${newFare} dólares.`);
+      speakAssistantMessage(`Se ha establecido el aire acondicionado. La nueva tarifa es de ${newFare} dólares.`);
     } else {
-      speakAssistantMessage(`Aire acondicionado desactivado. Tarifa ajustada a la base mínima de ${newFare} dólares.`);
+      speakAssistantMessage(`Se ha desactivado el aire acondicionado. La nueva tarifa es de ${newFare} dólares.`);
     }
   };
 
   const handleEnableAcWithSuggestedFare = () => {
+    if (serviceType === 'PACKAGE') {
+      speakAssistantMessage('El aire acondicionado no es aplicable para la entrega de paquetes.');
+      return;
+    }
     if (isMotoMode) return;
     const nextPreferences = { ...tripPreferences, airConditioning: true };
     setTripPreferences(nextPreferences);
@@ -458,7 +541,7 @@ export default function ViajesApp() {
     const newFare = recalculated?.suggestedFare || '2.50';
     setProposedFare(newFare);
     setHasCustomFare(false);
-    speakAssistantMessage(`Aire acondicionado activado. Tarifa actualizada con climatización a ${newFare} dólares.`);
+    speakAssistantMessage(`Se ha establecido el aire acondicionado. La nueva tarifa es de ${newFare} dólares.`);
   };
 
   const handleFareInputChange = (val) => {
@@ -504,6 +587,7 @@ export default function ViajesApp() {
     }
   });
   const [showRegisterModal, setShowRegisterModal] = useState(false);
+  const [showGuestInviteModal, setShowGuestInviteModal] = useState(false);
   const [showPassengerRevokedModal, setShowPassengerRevokedModal] = useState(false);
   const [googleClientId, setGoogleClientId] = useState(
     () =>
@@ -1252,6 +1336,10 @@ export default function ViajesApp() {
     }
 
     if (intent.type === 'CHANGE_AC') {
+      if (serviceType === 'PACKAGE') {
+        askConfirmationAfterAdjustment('El aire acondicionado no es aplicable para la entrega de paquetes.');
+        return;
+      }
       if (isMotoMode) {
         askConfirmationAfterAdjustment('El servicio en motocicleta no cuenta con aire acondicionado.');
         return;
@@ -1273,11 +1361,11 @@ export default function ViajesApp() {
 
       if (nextEnabled) {
         askConfirmationAfterAdjustment(
-          `Aire acondicionado activado. Tarifa actualizada con climatización a ${newFare} dólares.`
+          `Se ha establecido el aire acondicionado. La nueva tarifa es de ${newFare} dólares.`
         );
       } else {
         askConfirmationAfterAdjustment(
-          `Aire acondicionado desactivado. Tarifa ajustada a la base mínima de ${newFare} dólares.`
+          `Se ha desactivado el aire acondicionado. La nueva tarifa es de ${newFare} dólares.`
         );
       }
       return;
@@ -1306,27 +1394,86 @@ export default function ViajesApp() {
     if (intent.type === 'CHANGE_TRANSPORT') {
       const isMoto = intent.transportType === 'MOTO';
       setTransportType(intent.transportType);
+      const nextPrefs = isMoto
+        ? {
+            ...tripPreferences,
+            airConditioning: false,
+            passengers: 1,
+            extraLuggage: false
+          }
+        : { ...tripPreferences };
+      setTripPreferences(nextPrefs);
+
+      const recalculated = calculateSuggestedFare(
+        roadDistanceKm,
+        isMoto ? 115.0 : 42.0,
+        OFFICIAL_GOV_PRICES.regular,
+        trafficInfo.delayMinutes,
+        { ...nextPrefs, transportType: intent.transportType }
+      );
+      const newFare = recalculated?.suggestedFare || (isMoto ? '1.50' : '2.50');
+      setProposedFare(newFare);
+      setHasCustomFare(false);
+
       if (isMoto) {
-        setTripPreferences((prev) => ({
-          ...prev,
-          airConditioning: false,
-          passengers: 1,
-          extraLuggage: false
-        }));
-        askConfirmationAfterAdjustment('Modo viaje en Moto seleccionado. Tarifa económica y filtro de tráfico aplicados.');
+        askConfirmationAfterAdjustment(`Se ha establecido viaje en moto. La nueva tarifa es de ${newFare} dólares.`);
       } else {
-        askConfirmationAfterAdjustment('Modo viaje en Carro seleccionado.');
+        askConfirmationAfterAdjustment(`Se ha establecido viaje en vehículo. La nueva tarifa es de ${newFare} dólares.`);
       }
       return;
     }
 
     if (intent.type === 'CHANGE_ROUND_TRIP') {
-      setTripPreferences((prev) => ({
-        ...prev,
-        isRoundTrip: intent.enabled
-      }));
-      const roundStatus = intent.enabled ? 'activado' : 'desactivado';
-      askConfirmationAfterAdjustment(`Viaje de ida y vuelta ${roundStatus}.`);
+      const nextPrefs = { ...tripPreferences, isRoundTrip: intent.enabled };
+      setTripPreferences(nextPrefs);
+
+      const recalculated = calculateSuggestedFare(
+        roadDistanceKm,
+        isMotoMode ? 115.0 : 42.0,
+        OFFICIAL_GOV_PRICES.regular,
+        trafficInfo.delayMinutes,
+        { ...nextPrefs, transportType }
+      );
+      const newFare = recalculated?.suggestedFare || '2.50';
+      setProposedFare(newFare);
+      setHasCustomFare(false);
+
+      if (intent.enabled) {
+        askConfirmationAfterAdjustment(`Se ha establecido la carrera de ida y vuelta. La nueva tarifa es de ${newFare} dólares.`);
+      } else {
+        askConfirmationAfterAdjustment(`Se ha establecido viaje de solo ida. La nueva tarifa es de ${newFare} dólares.`);
+      }
+      return;
+    }
+
+    if (intent.type === 'CHANGE_SERVICE') {
+      const isPackage = intent.serviceType === 'PACKAGE';
+      setServiceType(intent.serviceType);
+      const nextPrefs = isPackage
+        ? { ...tripPreferences, airConditioning: false }
+        : { ...tripPreferences };
+      setTripPreferences(nextPrefs);
+
+      const recalculated = calculateSuggestedFare(
+        roadDistanceKm,
+        isMotoMode ? 115.0 : 42.0,
+        OFFICIAL_GOV_PRICES.regular,
+        trafficInfo.delayMinutes,
+        { ...nextPrefs, transportType }
+      );
+      const newFare = recalculated?.suggestedFare || '2.50';
+      setProposedFare(newFare);
+      setHasCustomFare(false);
+
+      if (isPackage) {
+        askConfirmationAfterAdjustment(
+          `Se ha establecido la entrega de paquetes. El aire acondicionado no es aplicable y ha sido desactivado. La nueva tarifa es de ${newFare} dólares.`
+        );
+      } else {
+        askConfirmationAfterAdjustment(
+          `Se ha establecido viaje de pasajeros. La nueva tarifa es de ${newFare} dólares.`
+        );
+      }
       return;
     }
 
@@ -1469,9 +1616,8 @@ export default function ViajesApp() {
     );
   };
 
-  // 1. Iniciar Búsqueda (Fase Señuelo -> Subasta en 1 km)
-  const handleSearchDrivers = (e) => {
-    if (e && e.preventDefault) e.preventDefault();
+  // Ejecución directa del despacho y subasta
+  const executeSearchDrivers = () => {
     triggerSearchLaunchFeedback();
 
     // Detener cualquier escucha o diálogo de voz pendiente
@@ -1536,6 +1682,23 @@ export default function ViajesApp() {
       packageDetails,
       paymentTiming
     });
+  };
+
+  // 1. Iniciar Búsqueda (Detección de invitado e invitación exclusiva a registrarse)
+  const handleSearchDrivers = (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+
+    // Detectar si la sesión es de invitado (no ha iniciado sesión)
+    const isGuest = !userProfile || userProfile.isGuest || !userProfile.id;
+    if (isGuest) {
+      speakAssistantMessage(
+        'Detectamos que estás en modo invitado. Te invitamos a registrarte para tener beneficios exclusivos con cuotas inferiores al mínimo.'
+      );
+      setShowGuestInviteModal(true);
+      return;
+    }
+
+    executeSearchDrivers();
   };
 
   // Contador de TTL de 10 segundos para cada oferta activa
@@ -2560,7 +2723,7 @@ export default function ViajesApp() {
                   <div className="grid grid-cols-2 p-1 bg-slate-950 rounded-2xl border border-slate-800 text-xs font-bold">
                     <button
                       type="button"
-                      onClick={() => setServiceType('PASSENGER')}
+                      onClick={() => handleSelectServiceType('PASSENGER')}
                       className={`py-2.5 rounded-xl flex items-center justify-center gap-2 transition-all cursor-pointer ${
                         serviceType === 'PASSENGER'
                           ? 'bg-amber-500 text-slate-950 shadow-md font-black'
@@ -2572,7 +2735,7 @@ export default function ViajesApp() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => setServiceType('PACKAGE')}
+                      onClick={() => handleSelectServiceType('PACKAGE')}
                       className={`py-2.5 rounded-xl flex items-center justify-center gap-2 transition-all cursor-pointer ${
                         serviceType === 'PACKAGE'
                           ? 'bg-amber-500 text-slate-950 shadow-md font-black'
@@ -2589,7 +2752,7 @@ export default function ViajesApp() {
                     <button
                       type="button"
                       data-role="selection"
-                      onClick={() => setTripPreferences((prev) => ({ ...prev, isRoundTrip: false }))}
+                      onClick={() => handleToggleRoundTrip(false)}
                       className={`py-2 px-3 rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                         !tripPreferences.isRoundTrip
                           ? 'bg-amber-500 text-slate-950 font-black shadow-md'
@@ -2602,7 +2765,7 @@ export default function ViajesApp() {
                     <button
                       type="button"
                       data-role="selection"
-                      onClick={() => setTripPreferences((prev) => ({ ...prev, isRoundTrip: true }))}
+                      onClick={() => handleToggleRoundTrip(true)}
                       className={`py-2 px-3 rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                         tripPreferences.isRoundTrip
                           ? 'bg-gradient-to-r from-amber-500 to-amber-400 text-slate-950 font-black shadow-md'
@@ -2795,34 +2958,71 @@ export default function ViajesApp() {
               <div>
                 {/* Control Directo de Aire Acondicionado (Un solo toque) */}
                 {!isMotoMode && (
-                  <div className="mb-2.5 p-2.5 bg-slate-900/90 border border-slate-800 hover:border-slate-700/80 rounded-2xl flex items-center justify-between gap-2 shadow-sm transition-colors">
+                  <div className={`mb-2.5 p-2.5 bg-slate-900/90 border border-slate-800 rounded-2xl flex items-center justify-between gap-2 shadow-sm transition-colors ${serviceType === 'PACKAGE' ? 'opacity-65' : 'hover:border-slate-700/80'}`}>
                     <div className="flex items-center gap-2.5">
-                      <div className={`w-8 h-8 rounded-xl flex items-center justify-center transition-colors ${tripPreferences.airConditioning ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/40' : 'bg-slate-800 text-slate-400 border border-slate-700'}`}>
+                      <div className={`w-8 h-8 rounded-xl flex items-center justify-center transition-colors ${
+                        serviceType === 'PACKAGE'
+                          ? 'bg-slate-800 text-slate-500 border border-slate-700'
+                          : tripPreferences.airConditioning
+                            ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/40'
+                            : 'bg-slate-800 text-slate-400 border border-slate-700'
+                      }`}>
                         <Wind className="w-4 h-4" />
                       </div>
                       <div>
                         <div className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
-                          <span>{tripPreferences.airConditioning ? 'Aire Acondicionado Activo' : 'Sin Aire Acondicionado'}</span>
-                          <span className={`text-[9px] px-1.5 py-0.2 rounded font-mono font-bold ${tripPreferences.airConditioning ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30' : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'}`}>
-                            {tripPreferences.airConditioning ? 'Climatizado' : 'Tarifa Mínima'}
+                          <span>
+                            {serviceType === 'PACKAGE'
+                              ? 'Aire Acondicionado No Aplicable'
+                              : tripPreferences.airConditioning
+                                ? 'Aire Acondicionado Activo'
+                                : 'Sin Aire Acondicionado'}
+                          </span>
+                          <span className={`text-[9px] px-1.5 py-0.2 rounded font-mono font-bold ${
+                            serviceType === 'PACKAGE'
+                              ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                              : tripPreferences.airConditioning
+                                ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30'
+                                : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                          }`}>
+                            {serviceType === 'PACKAGE' ? 'Envío Paquete' : tripPreferences.airConditioning ? 'Climatizado' : 'Tarifa Mínima'}
                           </span>
                         </div>
                         <div className="text-[10px] text-slate-400">
-                          {tripPreferences.airConditioning ? 'Tarifa calculada con climatización' : 'Tarifa base mínima del servicio'}
+                          {serviceType === 'PACKAGE'
+                            ? 'No aplicable en entrega de paquetes'
+                            : tripPreferences.airConditioning
+                              ? 'Tarifa calculada con climatización'
+                              : 'Tarifa base mínima del servicio'}
                         </div>
                       </div>
                     </div>
                     <button
                       type="button"
+                      disabled={serviceType === 'PACKAGE'}
                       onClick={handleToggleAirConditioning}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-sm ${
-                        tripPreferences.airConditioning
-                          ? 'bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black shadow-cyan-500/20'
-                          : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 hover:border-slate-600'
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm ${
+                        serviceType === 'PACKAGE'
+                          ? 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed opacity-50'
+                          : tripPreferences.airConditioning
+                            ? 'bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black shadow-cyan-500/20 cursor-pointer'
+                            : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 hover:border-slate-600 cursor-pointer'
                       }`}
-                      title={tripPreferences.airConditioning ? "Desactivar A/C y volver a la tarifa mínima" : "Activar A/C e incrementar tarifa automáticamente"}
+                      title={
+                        serviceType === 'PACKAGE'
+                          ? "El aire acondicionado no aplica en servicio de entrega de paquetes"
+                          : tripPreferences.airConditioning
+                            ? "Desactivar A/C y volver a la tarifa mínima"
+                            : "Activar A/C e incrementar tarifa automáticamente"
+                      }
                     >
-                      <span>{tripPreferences.airConditioning ? '❄️ Con A/C' : '❄️ Activar A/C'}</span>
+                      <span>
+                        {serviceType === 'PACKAGE'
+                          ? '📦 No aplica'
+                          : tripPreferences.airConditioning
+                            ? '❄️ Con A/C'
+                            : '❄️ Activar A/C'}
+                      </span>
                     </button>
                   </div>
                 )}
@@ -3155,6 +3355,78 @@ export default function ViajesApp() {
             )}
           </div>
         </main>
+      )}
+
+      {/* ============================================================== */}
+      {/* MODAL INVITACIÓN: BENEFICIOS EXCLUSIVOS PARA USUARIO INVITADO  */}
+      {/* ============================================================== */}
+      {showGuestInviteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in">
+          <div className="w-full max-w-sm bg-gradient-to-b from-slate-900 to-slate-950 border border-amber-500/40 rounded-3xl p-6 shadow-2xl text-slate-100 space-y-4 text-center animate-pop-bounce">
+            <div className="w-14 h-14 mx-auto rounded-2xl bg-amber-500/20 border border-amber-500/40 text-amber-400 flex items-center justify-center shadow-lg">
+              <Gift className="w-7 h-7" />
+            </div>
+
+            <div className="space-y-1">
+              <span className="text-[10px] font-black tracking-wider uppercase px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 inline-block">
+                Invitación Exclusiva
+              </span>
+              <h3 className="font-black text-lg text-white">¡Viaja con Cuotas Inferiores al Mínimo!</h3>
+              <p className="text-xs text-slate-300 leading-relaxed">
+                Detectamos que no has iniciado sesión. Regístrate en 30 segundos y accede a beneficios exclusivos que los invitados no tienen:
+              </p>
+            </div>
+
+            <div className="p-3 bg-slate-800/70 rounded-2xl border border-slate-700/70 text-xs space-y-2.5 text-left">
+              <div className="flex items-start gap-2.5">
+                <span className="text-emerald-400 font-bold text-sm">🏷️</span>
+                <div>
+                  <span className="font-bold text-white block">Cuotas Inferiores al Mínimo</span>
+                  <span className="text-[11px] text-slate-300">Desbloquea ofertas preferenciales por debajo de la cuota base normal.</span>
+                </div>
+              </div>
+              <div className="flex items-start gap-2.5">
+                <span className="text-amber-400 font-bold text-sm">🎁</span>
+                <div>
+                  <span className="font-bold text-white block">Bono de Bienvenida de $1.00</span>
+                  <span className="text-[11px] text-slate-300">Descuento aplicado directamente en tu trayecto.</span>
+                </div>
+              </div>
+              <div className="flex items-start gap-2.5">
+                <span className="text-blue-400 font-bold text-sm">🛡️</span>
+                <div>
+                  <span className="font-bold text-white block">Perfil Verificado y Seguro</span>
+                  <span className="text-[11px] text-slate-300">Prioridad con conductores y resguardo en cada viaje.</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-2 pt-1">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowGuestInviteModal(false);
+                  setShowRegisterModal(true);
+                }}
+                className="w-full py-3 px-4 bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-black text-sm rounded-2xl shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-95"
+              >
+                <Sparkles className="w-4 h-4" />
+                <span>Registrarme y Obtener Beneficios</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setShowGuestInviteModal(false);
+                  executeSearchDrivers();
+                }}
+                className="w-full py-2.5 text-slate-400 hover:text-white font-bold text-xs rounded-xl hover:bg-slate-800/60 transition-colors cursor-pointer"
+              >
+                Continuar como Invitado por ahora ›
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* ============================================================== */}
@@ -4848,10 +5120,13 @@ export default function ViajesApp() {
         suggestedFare={suggestedFareInfo.suggestedFare}
         proposedFare={proposedFare}
         transportType={transportType}
+        serviceType={serviceType}
         onRequireSuggestedFare={handleEnableAcWithSuggestedFare}
         onChange={(newPrefs) => {
           if (newPrefs.airConditioning !== tripPreferences.airConditioning) {
             handleToggleAirConditioning();
+          } else if (newPrefs.isRoundTrip !== tripPreferences.isRoundTrip) {
+            handleToggleRoundTrip(newPrefs.isRoundTrip);
           } else {
             setTripPreferences(newPrefs);
           }

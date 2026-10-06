@@ -434,7 +434,15 @@ export const classifyUserVoiceIntent = (text) => {
     return { type: 'CHANGE_ROUND_TRIP', enabled, raw: text };
   }
 
-  // 10. Si dice directamente una cifra: ej. "3 dólares", "4", "2.50"
+  // 10. Ajuste de Tipo de Servicio: Pasajero vs Encomienda / Paquete
+  if (/(^|\s)(paquete|paquetes|encomienda|encomiendas|entrega|envio|mandado|paqueteria)(\s|$)/i.test(padded)) {
+    return { type: 'CHANGE_SERVICE', serviceType: 'PACKAGE', raw: text };
+  }
+  if (/(^|\s)(pasajero|pasajeros|viaje de pasajero|viajar)(\s|$)/i.test(padded) && !/(^|\s)(cuantos pasajeros|cantidad|somos)(\s|$)/i.test(padded)) {
+    return { type: 'CHANGE_SERVICE', serviceType: 'PASSENGER', raw: text };
+  }
+
+  // 11. Si dice directamente una cifra: ej. "3 dólares", "4", "2.50"
   const standaloneAmount = parseNumberFromSpanish(norm);
   if (standaloneAmount !== null && standaloneAmount > 0) {
     return { type: 'STANDALONE_NUMBER', amount: standaloneAmount, raw: text };

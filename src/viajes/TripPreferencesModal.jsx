@@ -22,6 +22,7 @@ export default function TripPreferencesModal({
   suggestedFare,
   proposedFare,
   transportType = 'CAR',
+  serviceType = 'PASSENGER',
   onRequireSuggestedFare
 }) {
   if (!isOpen) return null;
@@ -37,11 +38,12 @@ export default function TripPreferencesModal({
   } = preferences;
 
   const isMoto = transportType === 'MOTO';
+  const isPackage = serviceType === 'PACKAGE';
   const isMoreThan4 = passengers > 4;
   const cabinWeight = calculateCabinWeight(passengers, weightProfile, extraLuggage);
 
   const handleToggleAc = () => {
-    if (isMoto) return;
+    if (isMoto || isPackage) return;
     const nextState = !airConditioning;
     onChange({ ...preferences, airConditioning: nextState });
   };
@@ -110,9 +112,9 @@ export default function TripPreferencesModal({
           
           {/* Opción 1: Aire Acondicionado con Política Estricta */}
           <div
-            onClick={isMoto ? undefined : handleToggleAc}
+            onClick={isMoto || isPackage ? undefined : handleToggleAc}
             className={`p-3.5 rounded-2xl border transition-all flex flex-col gap-2 ${
-              isMoto
+              isMoto || isPackage
                 ? 'bg-slate-950/60 border-slate-800 text-slate-500 opacity-60 cursor-not-allowed'
                 : 'cursor-pointer ' + (airConditioning
                     ? 'bg-cyan-950/30 border-cyan-500/50 text-white'
@@ -122,7 +124,7 @@ export default function TripPreferencesModal({
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${
-                  !isMoto && airConditioning ? 'bg-cyan-500/20 text-cyan-400' : 'bg-slate-900 text-slate-500'
+                  !isMoto && !isPackage && airConditioning ? 'bg-cyan-500/20 text-cyan-400' : 'bg-slate-900 text-slate-500'
                 }`}>
                   <Wind className="w-5 h-5" />
                 </div>
@@ -130,28 +132,36 @@ export default function TripPreferencesModal({
                   <div className="font-bold text-white text-xs flex items-center gap-1.5">
                     <span>Aire Acondicionado (A/C)</span>
                     <span className="text-[10px] text-cyan-400 font-normal">
-                      {isMoto ? '(No disponible en moto)' : '(+15% motor)'}
+                      {isMoto ? '(No disponible en moto)' : isPackage ? '(No aplicable en paquetes)' : '(+15% motor)'}
                     </span>
                   </div>
                   <div className="text-[11px] text-slate-400">
-                    {isMoto ? 'Ventilación natural durante el viaje en motocicleta' : 'Viaje fresco con ventilación/clima encendido'}
+                    {isMoto ? 'Ventilación natural durante el viaje en motocicleta' : isPackage ? 'La entrega de encomiendas o paquetes no requiere climatización' : 'Viaje fresco con ventilación/clima encendido'}
                   </div>
                 </div>
               </div>
 
               <div className={`w-6 h-6 rounded-lg flex items-center justify-center border transition-all ${
-                !isMoto && airConditioning ? 'bg-cyan-500 border-cyan-400 text-slate-950 font-black' : 'border-slate-700 bg-slate-900'
+                !isMoto && !isPackage && airConditioning ? 'bg-cyan-500 border-cyan-400 text-slate-950 font-black' : 'border-slate-700 bg-slate-900'
               }`}>
-                {!isMoto && airConditioning && <Check className="w-4 h-4 stroke-[3]" />}
+                {!isMoto && !isPackage && airConditioning && <Check className="w-4 h-4 stroke-[3]" />}
               </div>
             </div>
 
             {/* Política Clara del A/C */}
-            {!isMoto && (
+            {!isMoto && !isPackage && (
               <div className="pt-2 border-t border-slate-800/80 text-[10px] leading-tight flex items-start gap-1.5 text-cyan-300 font-medium">
                 <Info className="w-3.5 h-3.5 flex-shrink-0 text-cyan-400 mt-0.5" />
                 <span>
                   <strong>Política:</strong> La tarifa inicial corresponde a la base mínima sin aire acondicionado. Al activarlo, la tarifa se recalcula e incrementa de forma automática para cubrir el consumo y climatización del vehículo.
+                </span>
+              </div>
+            )}
+            {isPackage && (
+              <div className="pt-2 border-t border-slate-800/80 text-[10px] leading-tight flex items-start gap-1.5 text-amber-300 font-medium">
+                <Info className="w-3.5 h-3.5 flex-shrink-0 text-amber-400 mt-0.5" />
+                <span>
+                  <strong>Entrega de paquetes:</strong> El aire acondicionado no es aplicable para el traslado de paquetes o encomiendas.
                 </span>
               </div>
             )}
