@@ -46,7 +46,7 @@ export default function DriverTripRequestsFeed({
         if (exists) return prev;
         const newReq = {
           id: incomingRequest.id,
-          passengerName: incomingRequest.passengerName || 'Pasajero Rumbo',
+          passengerName: (incomingRequest.passengerName || 'Pasajero').trim(),
           passengerPhoto: incomingRequest.passengerPhoto || null,
           rating: incomingRequest.passengerRating || 5.0,
           ratingCount: incomingRequest.passengerTrips || 1,
@@ -55,8 +55,8 @@ export default function DriverTripRequestsFeed({
           priceLabel: incomingRequest.priceLabel || 'Oferta directa',
           pickupDistanceMeters: Math.round((incomingRequest.distanceKm || 0.6) * 1000),
           tripDistanceKm: parseFloat(incomingRequest.roadDistanceKm || incomingRequest.distanceKm || 5.0),
-          origin: incomingRequest.origin || incomingRequest.originAddress || 'Origen del Pasajero',
-          destination: incomingRequest.destination || incomingRequest.destinationAddress || 'Destino Rumbo',
+          origin: incomingRequest.origin || incomingRequest.originAddress || 'Punto de recogida',
+          destination: incomingRequest.destination || incomingRequest.destinationAddress || 'Punto de destino',
           delayMinutes: incomingRequest.delayMinutes || 0
         };
         return [newReq, ...prev];

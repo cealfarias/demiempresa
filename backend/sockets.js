@@ -72,10 +72,10 @@ export function initializeWebSockets(httpServer) {
         const {
           passengerId,
           serviceType = 'PASSENGER',
-          originAddress = 'San Salvador',
+          originAddress = '',
           originLat,
           originLng,
-          destinationAddress = 'Destino Rumbo',
+          destinationAddress = '',
           destinationLat,
           destinationLng,
           destinationMunicipality = 'San Salvador',
@@ -115,6 +115,8 @@ export function initializeWebSockets(httpServer) {
         const safeDestLat = parseFloat(destinationLat) || 13.6738;
         const safeDestLng = parseFloat(destinationLng) || -89.2789;
         const safeFare = (parseFloat(proposedFare) || 3.50).toFixed(2);
+        const finalOrigin = (originAddress || tripData.origin || 'Ubicación de partida').trim();
+        const finalDest = (destinationAddress || tripData.destination || 'Punto de destino').trim();
 
         const insertRes = await pool.query(`
           INSERT INTO viajes_trips (
@@ -125,8 +127,8 @@ export function initializeWebSockets(httpServer) {
           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'REQUESTED')
           RETURNING *;
         `, [
-          serviceType, effectivePassengerId, originAddress, safeOriginLat, safeOriginLng,
-          destinationAddress, safeDestLat, safeDestLng, destinationMunicipality,
+          serviceType, effectivePassengerId, finalOrigin, safeOriginLat, safeOriginLng,
+          finalDest, safeDestLat, safeDestLng, destinationMunicipality,
           safeFare, creditApplied, packageDetails || null, paymentTiming || 'AT_ORIGIN'
         ]);
 
@@ -165,7 +167,7 @@ export function initializeWebSockets(httpServer) {
           changeNeeded: tripData.changeNeeded || '0.00',
           hasBonusDiscount: creditApplied > 0,
           timeLeft: 20,
-          passengerName: tripData.passengerName || 'Pasajero Rumbo',
+          passengerName: (tripData.passengerName || 'Pasajero').trim(),
           passengerPhone: tripData.passengerPhone || '',
           packageDetails: newTrip.package_details
         };
@@ -219,15 +221,19 @@ export function initializeWebSockets(httpServer) {
           ON CONFLICT (trip_id, driver_id, created_at) DO NOTHING;
         `, [tripId, driverInfo?.id || driverProfileId, proposedFare]).catch(() => {});
 
+        const vBrand = driverInfo?.vehicle_brand || '';
+        const vModel = driverInfo?.vehicle_model || '';
+        const fullModel = (vBrand || vModel) ? `${vBrand} ${vModel}`.trim() : 'Vehículo Autorizado';
+
         io.to(`trip:${tripId}`).emit('passenger:offer_received', {
           tripId,
           driverProfileId,
-          driverName: driverInfo?.full_name || 'Conductor Rumbo',
+          driverName: driverInfo?.full_name || 'Conductor Autorizado',
           driverPhone: driverInfo?.phone || '',
-          vehiclePlate: driverInfo?.vehicle_plate || 'P-584-912',
-          vehicleModel: `${driverInfo?.vehicle_brand || 'Toyota'} ${driverInfo?.vehicle_model || 'Corolla'}`,
-          vehicleColor: driverInfo?.vehicle_color || 'Gris Plata',
-          photoUrl: driverInfo?.photo_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
+          vehiclePlate: driverInfo?.vehicle_plate || '',
+          vehicleModel: fullModel,
+          vehicleColor: driverInfo?.vehicle_color || '',
+          photoUrl: driverInfo?.photo_url || null,
           proposedFare,
           expiresInSeconds: 30
         });
@@ -291,12 +297,16 @@ export function initializeWebSockets(httpServer) {
         }
 
         const passengerRes = await pool.query('SELECT * FROM viajes_users WHERE id::text = $1', [trip?.passenger_id]);
-        const passenger = passengerRes.rows[0] || { full_name: 'Pasajero Rumbo', phone: '7000-0000' };
+        const passenger = passengerRes.rows[0] || { full_name: 'Pasajero', phone: '' };
 
         const driverSocketId = driverSockets.get(driverProfileId) || (actualDriverId ? driverSockets.get(actualDriverId.toString()) : null);
         if (driverSocketId) {
           const socketDriver = io.sockets.sockets.get(driverSocketId);
           if (socketDriver) socketDriver.currentTripId = tripId;
+
+          const cleanPassPhone = passenger.phone ? passenger.phone.replace(/\D/g, '') : '';
+          const waMsg = encodeURIComponent('Hola, soy tu conductor de Rumbo, voy en camino a recogerte.');
+          const whatsappLink = cleanPassPhone ? `https://wa.me/503${cleanPassPhone}?text=${waMsg}` : '';
 
           io.to(driverSocketId).emit('trip:assigned', {
             tripId,
@@ -312,7 +322,7 @@ export function initializeWebSockets(httpServer) {
             destinationMunicipality: trip.destination_municipality,
             passengerName: passenger.full_name,
             passengerPhone: passenger.phone,
-            whatsappLink: `https://wa.me/503${passenger.phone.replace(/\D/g, '')}?text=Hola,%20soy%20tu%20conductor%20de%20demiempresa.online`,
+            whatsappLink,
             wazeUrl: `https://waze.com/ul?ll=${trip.origin_lat},${trip.origin_lng}&navigate=yes`,
             googleMapsUrl: `https://www.google.com/maps/dir/?api=1&destination=${trip.origin_lat},${trip.origin_lng}`
           });

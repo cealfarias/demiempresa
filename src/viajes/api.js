@@ -1210,6 +1210,51 @@ export async function fetchAdminTelemetryStatsApi() {
   }
 }
 
+/**
+ * 40. Admin: Consultar Precios Oficiales DGEHM Vigentes
+ */
+export async function fetchAdminOfficialGasPricesApi() {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/admin/gas/official-prices`);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'Error al obtener precios oficiales');
+    return data;
+  } catch (err) {
+    console.error('API Error fetchAdminOfficialGasPricesApi:', err);
+    throw err;
+  }
+}
 
+/**
+ * 41. Admin: Actualizar Precios Oficiales DGEHM en el Sistema
+ */
+export async function updateAdminOfficialGasPricesApi({ govRegularPrice, govEspecialPrice, govDieselPrice }) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/admin/gas/official-prices`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ govRegularPrice, govEspecialPrice, govDieselPrice })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'Error al actualizar precios oficiales');
+    return data;
+  } catch (err) {
+    console.error('API Error updateAdminOfficialGasPricesApi:', err);
+    throw err;
+  }
+}
 
-
+/**
+ * 42. Admin: Consultar Aportes y Colaboraciones de Conductores en Gasolineras
+ */
+export async function fetchAdminDriverGasReportsApi() {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/admin/gas/driver-reports`);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'Error al obtener reportes de conductores');
+    return data;
+  } catch (err) {
+    console.error('API Error fetchAdminDriverGasReportsApi:', err);
+    throw err;
+  }
+}

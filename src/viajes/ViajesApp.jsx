@@ -1719,7 +1719,7 @@ export default function ViajesApp() {
     // Emitir solicitud al WebSocket Gateway (Despacho a Conductores Reales)
     socket.emit('trip:request', {
       passengerId: userProfile?.id || 'guest-passenger',
-      passengerName: userProfile?.full_name || userProfile?.name || 'Pasajero Rumbo',
+      passengerName: userProfile?.full_name || userProfile?.name || 'Pasajero',
       passengerPhone: userProfile?.phone || '',
       serviceType,
       transportType,

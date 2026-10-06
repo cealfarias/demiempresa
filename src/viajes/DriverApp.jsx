@@ -409,8 +409,8 @@ export default function DriverApp() {
         id: reqData.tripId,
         serviceType: reqData.serviceType,
         transportType: reqData.transportType || 'CAR',
-        origin: reqData.origin || reqData.originAddress || 'Origen Rumbo',
-        destination: reqData.destination || reqData.destinationAddress || 'Destino Rumbo',
+        origin: reqData.origin || reqData.originAddress || 'Ubicación de recogida',
+        destination: reqData.destination || reqData.destinationAddress || 'Punto de destino',
         distanceKm: reqData.distanceKm || 0.5,
         roadDistanceKm: reqData.roadDistanceKm || reqData.distanceKm || 5.0,
         offeredFare: reqData.offeredFare || reqData.proposedFare || '3.50',
@@ -431,7 +431,7 @@ export default function DriverApp() {
     socket.on('trip:assigned', (assignedData) => {
       setActiveTrip({
         id: assignedData.tripId,
-        passengerName: assignedData.passengerName || 'Pasajero Rumbo',
+        passengerName: assignedData.passengerName || 'Pasajero',
         passengerPhone: assignedData.passengerPhone || '',
         origin: assignedData.originAddress,
         originLat: assignedData.originLat || 13.7013,

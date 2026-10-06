@@ -47,7 +47,8 @@ import {
   TrendingDown,
   ChevronLeft,
   Globe,
-  HelpCircle
+  HelpCircle,
+  Fuel
 } from 'lucide-react';
 import RumboLogo from '../viajes/RumboLogo';
 import ExitIntentRescueModal from '../viajes/ExitIntentRescueModal';
@@ -63,7 +64,10 @@ import {
   saveAdminWhatsAppConfigApi,
   testWhatsAppSendApi,
   resetDatabaseApi,
-  fetchAdminTelemetryStatsApi
+  fetchAdminTelemetryStatsApi,
+  fetchAdminOfficialGasPricesApi,
+  updateAdminOfficialGasPricesApi,
+  fetchAdminDriverGasReportsApi
 } from '../viajes/api';
 
 export default function AdminDashboardPage() {
@@ -139,6 +143,24 @@ export default function AdminDashboardPage() {
   const [customPassengerPhone, setCustomPassengerPhone] = useState('');
   const [customDriverPhone, setCustomDriverPhone] = useState('');
 
+  // Estados de Combustible Oficial DGEHM & Colaboraciones de Conductores
+  const [gasOfficialPrices, setGasOfficialPrices] = useState({
+    regular: 4.75,
+    especial: 5.13,
+    diesel: 4.25,
+    source: 'Dirección General de Energía, Hidrocarburos y Minas (DGEHM) El Salvador',
+    zone: 'Zona Central (San Salvador / La Libertad)',
+    updatedPeriod: 'Quincena Vigente Oficial'
+  });
+  const [gasForm, setGasForm] = useState({
+    regular: '4.75',
+    especial: '5.13',
+    diesel: '4.25'
+  });
+  const [driverGasReports, setDriverGasReports] = useState([]);
+  const [gasSaving, setGasSaving] = useState(false);
+  const [gasSaveSuccess, setGasSaveSuccess] = useState(false);
+
   const PASSENGER_URL = 'https://viajes.demiempresa.online/viajes';
   const DRIVER_URL = 'https://viajes.demiempresa.online/conductor';
 
@@ -187,22 +209,70 @@ export default function AdminDashboardPage() {
   const loadDashboardData = async () => {
     setLoadingData(true);
     try {
-      const [statsData, driversData, ticketsData, waData, telemData] = await Promise.all([
+      const [statsData, driversData, ticketsData, waData, telemData, gasData, gasReportsData] = await Promise.all([
         fetchAdminStatsApi(),
         fetchAdminDriversApi(),
         fetchInboxTicketsApi(),
         fetchAdminWhatsAppConfigApi().catch(() => null),
-        fetchAdminTelemetryStatsApi().catch(() => null)
+        fetchAdminTelemetryStatsApi().catch(() => null),
+        fetchAdminOfficialGasPricesApi().catch(() => null),
+        fetchAdminDriverGasReportsApi().catch(() => null)
       ]);
       setStats(statsData);
       setDrivers(driversData || []);
       setTickets(ticketsData || []);
       if (waData) setWaConfig(waData);
       if (telemData) setTelemetryStats(telemData);
+      if (gasData && gasData.officialPrices) {
+        setGasOfficialPrices(gasData.officialPrices);
+        setGasForm({
+          regular: String(gasData.officialPrices.regular || '4.75'),
+          especial: String(gasData.officialPrices.especial || '5.13'),
+          diesel: String(gasData.officialPrices.diesel || '4.25')
+        });
+      }
+      if (gasReportsData && gasReportsData.reports) {
+        setDriverGasReports(gasReportsData.reports);
+      }
     } catch (err) {
       console.warn('Error loading admin data:', err);
     } finally {
       setLoadingData(false);
+    }
+  };
+
+  const handleUpdateGasPrices = async (e) => {
+    if (e) e.preventDefault();
+    setGasSaving(true);
+    setGasSaveSuccess(false);
+    try {
+      const reg = parseFloat(gasForm.regular);
+      const esp = parseFloat(gasForm.especial);
+      const die = parseFloat(gasForm.diesel);
+      if (isNaN(reg) || isNaN(esp) || isNaN(die)) {
+        alert('Por favor ingresa valores numéricos válidos para Regular, Especial y Diésel.');
+        return;
+      }
+      const res = await updateAdminOfficialGasPricesApi({
+        govRegularPrice: reg,
+        govEspecialPrice: esp,
+        govDieselPrice: die
+      });
+      if (res && res.success) {
+        setGasSaveSuccess(true);
+        setGasOfficialPrices(prev => ({
+          ...prev,
+          regular: reg,
+          especial: esp,
+          diesel: die,
+          lastUpdate: new Date().toISOString()
+        }));
+        setTimeout(() => setGasSaveSuccess(false), 3500);
+      }
+    } catch (err) {
+      alert(err.message || 'Error al actualizar precios oficiales de combustible');
+    } finally {
+      setGasSaving(false);
     }
   };
 
@@ -661,6 +731,24 @@ export default function AdminDashboardPage() {
           <span className="px-1.5 py-0.5 rounded-full bg-indigo-500 text-white font-black text-[9px] uppercase tracking-wider">
             EN VIVO
           </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('GASOLINE')}
+          className={`py-3 px-4 text-xs font-black border-b-2 transition-all flex items-center gap-2 cursor-pointer relative ${
+            activeTab === 'GASOLINE'
+              ? 'border-amber-400 text-amber-400 bg-amber-500/10'
+              : 'border-transparent text-slate-400 hover:text-white'
+          }`}
+        >
+          <Fuel className="w-4 h-4 text-amber-400" />
+          <span>Combustible DGEHM & Aportes Choferes</span>
+          {driverGasReports.length > 0 && (
+            <span className="px-1.5 py-0.5 rounded-full bg-amber-500 text-slate-950 font-black text-[9px]">
+              {driverGasReports.length}
+            </span>
+          )}
         </button>
       </nav>
 
@@ -2474,6 +2562,290 @@ export default function AdminDashboardPage() {
               )}
             </div>
 
+          </div>
+        )}
+
+        {/* ================================================================== */}
+        {/* PESTAÑA F: PRECIOS OFICIALES DE COMBUSTIBLE DGEHM & APORTES CONDUCTORES */}
+        {/* ================================================================== */}
+        {activeTab === 'GASOLINE' && (
+          <div className="space-y-6 animate-fade-in">
+            {/* Header del Módulo */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-5 sm:p-6 bg-slate-900 border border-slate-800 rounded-3xl">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center justify-center font-bold text-xl shrink-0">
+                  <Fuel className="w-6 h-6" />
+                </div>
+                <div>
+                  <h2 className="text-base sm:text-lg font-black text-white flex items-center gap-2">
+                    <span>Precios Oficiales de Combustibles DGEHM & Aportes Colaborativos</span>
+                  </h2>
+                  <p className="text-xs text-slate-400">
+                    Monitoreo oficial del Gobierno de El Salvador (DGEHM) y reportes en tiempo real de choferes en gasolineras.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="px-3 py-1.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 text-xs font-bold font-mono">
+                  Quincena Oficial Vigente
+                </span>
+              </div>
+            </div>
+
+            {/* SECCIÓN 1: CONSULTAR Y ACTUALIZAR PRECIOS OFICIALES AL SISTEMA */}
+            <div className="p-5 sm:p-6 bg-slate-900 border border-slate-800 rounded-3xl space-y-4 shadow-xl">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-3">
+                <div>
+                  <h3 className="text-sm font-black text-white flex items-center gap-2">
+                    <TrendingUp className="w-4 h-4 text-amber-400" />
+                    <span>Precios de Referencia Oficiales (DGEHM El Salvador)</span>
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    Zona Central (San Salvador y La Libertad). Al actualizar aquí, el sistema recalcula los márgenes de ahorro para todos los conductores y la calculadora justa de tarifas.
+                  </p>
+                </div>
+                <span className="text-[11px] text-slate-400 font-mono">
+                  Fuente: {gasOfficialPrices?.source || 'DGEHM'}
+                </span>
+              </div>
+
+              <form onSubmit={handleUpdateGasPrices} className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  {/* Gasolina Especial */}
+                  <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider">
+                        Gasolina Especial
+                      </span>
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-300 font-bold">
+                        95 Octanos
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-lg font-black text-slate-400">$</span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="2.00"
+                        max="9.00"
+                        required
+                        value={gasForm.especial}
+                        onChange={(e) => setGasForm({ ...gasForm, especial: e.target.value })}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-lg font-black text-white font-mono focus:outline-none focus:border-amber-400"
+                      />
+                    </div>
+                    <span className="text-[10px] text-slate-400 block">
+                      Vigente en sistema: <strong className="text-white">${gasOfficialPrices?.especial?.toFixed(2)}</strong> / galón
+                    </span>
+                  </div>
+
+                  {/* Gasolina Regular */}
+                  <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-amber-400 uppercase tracking-wider">
+                        Gasolina Regular
+                      </span>
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-300 font-bold">
+                        90 Octanos
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-lg font-black text-slate-400">$</span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="2.00"
+                        max="9.00"
+                        required
+                        value={gasForm.regular}
+                        onChange={(e) => setGasForm({ ...gasForm, regular: e.target.value })}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-lg font-black text-white font-mono focus:outline-none focus:border-amber-400"
+                      />
+                    </div>
+                    <span className="text-[10px] text-slate-400 block">
+                      Vigente en sistema: <strong className="text-white">${gasOfficialPrices?.regular?.toFixed(2)}</strong> / galón
+                    </span>
+                  </div>
+
+                  {/* Diésel Bajo en Azufre */}
+                  <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-sky-400 uppercase tracking-wider">
+                        Diésel Bajo en Azufre
+                      </span>
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-sky-500/10 text-sky-300 font-bold">
+                        Ultra Low Sulfur
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-lg font-black text-slate-400">$</span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="2.00"
+                        max="9.00"
+                        required
+                        value={gasForm.diesel}
+                        onChange={(e) => setGasForm({ ...gasForm, diesel: e.target.value })}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-lg font-black text-white font-mono focus:outline-none focus:border-amber-400"
+                      />
+                    </div>
+                    <span className="text-[10px] text-slate-400 block">
+                      Vigente en sistema: <strong className="text-white">${gasOfficialPrices?.diesel?.toFixed(2)}</strong> / galón
+                    </span>
+                  </div>
+                </div>
+
+                {/* Mensaje de Confirmación */}
+                {gasSaveSuccess && (
+                  <div className="p-3 bg-emerald-500/15 border border-emerald-500/30 rounded-xl text-emerald-300 text-xs flex items-center gap-2 animate-fade-in font-bold">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <span>¡Precios oficiales DGEHM actualizados con éxito en todo el sistema y red de gasolineras!</span>
+                  </div>
+                )}
+
+                <div className="flex justify-end pt-2">
+                  <button
+                    type="submit"
+                    disabled={gasSaving}
+                    className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-400 hover:brightness-110 text-slate-950 font-black text-xs flex items-center gap-2 transition-all cursor-pointer shadow-lg shadow-amber-950/40 disabled:opacity-50"
+                  >
+                    {gasSaving ? (
+                      <>
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                        <span>Actualizando en PostgreSQL Cloud...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Check className="w-4 h-4" />
+                        <span>Actualizar Precios Oficiales al Sistema</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
+
+            {/* SECCIÓN 2: CONDUCTORES QUE HAN COLABORADO ACTUALIZANDO PRECIOS */}
+            <div className="p-5 sm:p-6 bg-slate-900 border border-slate-800 rounded-3xl space-y-4 shadow-xl">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-3">
+                <div>
+                  <h3 className="text-sm font-black text-white flex items-center gap-2">
+                    <Users className="w-4 h-4 text-emerald-400" />
+                    <span>Colaboraciones de Conductores: Precios de Combustible Verificados</span>
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    Registro de qué conductor reportó precios, de qué gasolinera, ubicación exacta y valor verificado al tanquear.
+                  </p>
+                </div>
+                <span className="text-[11px] font-mono font-bold text-amber-300">
+                  {driverGasReports.length} {driverGasReports.length === 1 ? 'colaboración registrada' : 'colaboraciones registradas'}
+                </span>
+              </div>
+
+              {driverGasReports.length === 0 ? (
+                <div className="p-8 text-center space-y-2 bg-slate-950/60 rounded-2xl border border-slate-800">
+                  <div className="w-12 h-12 mx-auto rounded-full bg-slate-800 flex items-center justify-center text-slate-400">
+                    <Fuel className="w-6 h-6" />
+                  </div>
+                  <h4 className="text-xs sm:text-sm font-bold text-slate-300">
+                    Aún no hay reportes de conductores registrados en esta quincena
+                  </h4>
+                  <p className="text-[11px] text-slate-500 max-w-md mx-auto">
+                    Cuando los conductores en la app tocan el botón de confirmar precio al tanquear en su gasolinera habitual, su nombre, vehículo, gasolinera y ubicación aparecerán listados aquí de inmediato.
+                  </p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs text-slate-300">
+                    <thead className="text-[10px] uppercase font-bold text-slate-400 bg-slate-950/70 border-b border-slate-800">
+                      <tr>
+                        <th className="py-3 px-3">Fecha / Hora</th>
+                        <th className="py-3 px-3">Conductor Colaborador</th>
+                        <th className="py-3 px-3">Gasolinera</th>
+                        <th className="py-3 px-3">Ubicación / Municipio</th>
+                        <th className="py-3 px-3">Combustible</th>
+                        <th className="py-3 px-3">Precio Reportado</th>
+                        <th className="py-3 px-3">Notas</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800/60">
+                      {driverGasReports.map((rep) => (
+                        <tr key={rep.id} className="hover:bg-slate-850/50 transition-colors">
+                          <td className="py-3 px-3 font-mono text-[11px] text-slate-400 whitespace-nowrap">
+                            {rep.reportedAt ? new Date(rep.reportedAt).toLocaleString('es-SV', {
+                              day: '2-digit',
+                              month: '2-digit',
+                              year: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            }) : 'Reciente'}
+                          </td>
+                          <td className="py-3 px-3">
+                            <div className="space-y-0.5">
+                              <span className="font-bold text-white block">
+                                {rep.driverName}
+                              </span>
+                              <div className="flex items-center gap-2 text-[10px] text-slate-400 font-mono">
+                                {rep.driverPhone && <span>📞 +503 {rep.driverPhone}</span>}
+                                {rep.vehiclePlate && (
+                                  <span className="px-1.5 py-0.2 rounded bg-slate-800 text-amber-300 border border-slate-700">
+                                    {rep.vehiclePlate}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </td>
+                          <td className="py-3 px-3">
+                            <div className="space-y-0.5">
+                              <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold ${
+                                rep.stationBrand === 'DLC' ? 'bg-emerald-500/20 text-emerald-300' :
+                                rep.stationBrand === 'Puma' ? 'bg-red-500/20 text-red-300' :
+                                rep.stationBrand === 'Texaco' ? 'bg-rose-500/20 text-rose-300' :
+                                'bg-amber-500/20 text-amber-300'
+                              }`}>
+                                {rep.stationBrand}
+                              </span>
+                              <span className="block font-semibold text-slate-200 text-xs">
+                                {rep.stationName}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="py-3 px-3">
+                            <div className="space-y-0.5 max-w-xs">
+                              <span className="text-amber-400 font-bold block text-[11px]">
+                                📍 {rep.stationMunicipality || 'San Salvador'}
+                              </span>
+                              <span className="text-[10px] text-slate-400 line-clamp-1">
+                                {rep.stationAddress || 'Área metropolitana'}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="py-3 px-3">
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                              rep.fuelType === 'ESPECIAL' ? 'bg-emerald-500/20 text-emerald-300' :
+                              rep.fuelType === 'DIESEL' ? 'bg-sky-500/20 text-sky-300' :
+                              'bg-amber-500/20 text-amber-300'
+                            }`}>
+                              {rep.fuelType}
+                            </span>
+                          </td>
+                          <td className="py-3 px-3">
+                            <span className="font-mono font-black text-sm text-white">
+                              ${Number(rep.reportedPrice).toFixed(2)}
+                            </span>
+                          </td>
+                          <td className="py-3 px-3 text-[11px] text-slate-400 italic">
+                            {rep.notes || 'Confirmado al recargar'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
           </div>
         )}
 

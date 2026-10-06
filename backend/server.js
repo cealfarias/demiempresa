@@ -1415,6 +1415,158 @@ app.post('/api/gas/report', async (req, res) => {
   }
 });
 
+// 5.2.1 ADMIN: CONSULTAR PRECIOS OFICIALES Y ESTADÍSTICAS DE COMBUSTIBLE
+app.get('/api/admin/gas/official-prices', async (req, res) => {
+  try {
+    const govRes = await pool.query(`
+      SELECT 
+        AVG(gov_regular_price) as avg_regular,
+        AVG(gov_especial_price) as avg_especial,
+        AVG(gov_diesel_price) as avg_diesel,
+        COUNT(*) as total_stations,
+        MAX(last_verified_at) as last_update
+      FROM viajes_gas_stations;
+    `);
+
+    const row = govRes.rows[0] || {};
+    const officialPrices = {
+      regular: parseFloat(row.avg_regular) || 4.75,
+      especial: parseFloat(row.avg_especial) || 5.13,
+      diesel: parseFloat(row.avg_diesel) || 4.25,
+      source: 'Dirección General de Energía, Hidrocarburos y Minas (DGEHM) El Salvador',
+      zone: 'Zona Central (San Salvador / La Libertad)',
+      updatedPeriod: 'Quincena Vigente Oficial',
+      lastUpdate: row.last_update || new Date().toISOString(),
+      totalStations: parseInt(row.total_stations) || 0
+    };
+
+    res.json({
+      success: true,
+      officialPrices
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 5.2.2 ADMIN: ACTUALIZAR PRECIOS OFICIALES DE REFERENCIA EN TODO EL SISTEMA
+app.post('/api/admin/gas/official-prices', async (req, res) => {
+  try {
+    const {
+      govRegularPrice,
+      govEspecialPrice,
+      govDieselPrice,
+      applyMarketOffsets = true
+    } = req.body;
+
+    const reg = parseFloat(govRegularPrice);
+    const esp = parseFloat(govEspecialPrice);
+    const die = parseFloat(govDieselPrice);
+
+    if (isNaN(reg) || isNaN(esp) || isNaN(die)) {
+      return res.status(400).json({ success: false, error: 'Por favor ingresa precios válidos para Regular, Especial y Diésel.' });
+    }
+
+    let updateQuery = `
+      UPDATE viajes_gas_stations
+      SET gov_regular_price = $1,
+          gov_especial_price = $2,
+          gov_diesel_price = $3,
+          last_verified_at = CURRENT_TIMESTAMP
+    `;
+
+    if (applyMarketOffsets) {
+      updateQuery += `,
+        especial_price = CASE 
+          WHEN brand = 'DLC' THEN ROUND(($2 - 0.10)::numeric, 2)
+          WHEN brand = 'Puma' THEN ROUND(($2 - 0.07)::numeric, 2)
+          WHEN brand = 'Texaco' THEN ROUND(($2 - 0.04)::numeric, 2)
+          WHEN brand = 'Uno' THEN ROUND(($2 - 0.03)::numeric, 2)
+          ELSE ROUND(($2 - 0.05)::numeric, 2)
+        END,
+        regular_price = CASE
+          WHEN brand = 'DLC' THEN ROUND(($1 - 0.10)::numeric, 2)
+          WHEN brand = 'Puma' THEN ROUND(($1 - 0.07)::numeric, 2)
+          WHEN brand = 'Uno' THEN ROUND(($1 - 0.04)::numeric, 2)
+          ELSE ROUND(($1 - 0.05)::numeric, 2)
+        END,
+        diesel_price = CASE
+          WHEN brand = 'DLC' THEN ROUND(($3 - 0.10)::numeric, 2)
+          WHEN brand = 'Puma' THEN ROUND(($3 - 0.07)::numeric, 2)
+          ELSE ROUND(($3 - 0.05)::numeric, 2)
+        END
+      `;
+    }
+
+    updateQuery += ' RETURNING *;';
+
+    const result = await pool.query(updateQuery, [reg, esp, die]);
+
+    res.json({
+      success: true,
+      message: 'Precios oficiales DGEHM y tarifas de red actualizadas exitosamente en el sistema.',
+      updatedStationsCount: result.rowCount,
+      officialPrices: {
+        regular: reg,
+        especial: esp,
+        diesel: die,
+        updatedAt: new Date().toISOString()
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 5.2.3 ADMIN: CONSULTAR QUÉ CONDUCTORES HAN COLABORADO ACTUALIZANDO PRECIOS
+app.get('/api/admin/gas/driver-reports', async (req, res) => {
+  try {
+    const reportsRes = await pool.query(`
+      SELECT 
+        gr.id,
+        gr.fuel_type,
+        gr.reported_price,
+        gr.notes,
+        gr.reported_at,
+        gs.id AS station_id,
+        gs.brand AS station_brand,
+        gs.station_name,
+        gs.address AS station_address,
+        gs.municipality AS station_municipality,
+        COALESCE(u.full_name, 'Conductor Verificado') AS driver_name,
+        COALESCE(u.phone, '') AS driver_phone,
+        COALESCE(dp.vehicle_plate, '') AS vehicle_plate
+      FROM viajes_gas_reports gr
+      JOIN viajes_gas_stations gs ON gr.station_id = gs.id
+      LEFT JOIN viajes_driver_profiles dp ON gr.driver_id = dp.id
+      LEFT JOIN viajes_users u ON dp.user_id = u.id
+      ORDER BY gr.reported_at DESC
+      LIMIT 100;
+    `);
+
+    res.json({
+      success: true,
+      reports: reportsRes.rows.map(r => ({
+        id: r.id,
+        fuelType: r.fuel_type,
+        reportedPrice: parseFloat(r.reported_price),
+        notes: r.notes,
+        reportedAt: r.reported_at,
+        stationId: r.station_id,
+        stationBrand: r.station_brand,
+        stationName: r.station_name,
+        stationAddress: r.station_address,
+        stationMunicipality: r.station_municipality,
+        driverName: r.driver_name,
+        driverPhone: r.driver_phone,
+        vehiclePlate: r.vehicle_plate
+      }))
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // =====================================================================
 // 6. RUTAS DEL LIBRO MAYOR CRIPTOGRÁFICO Y WALLET (UTXO INMUTABLE)
 // =====================================================================
