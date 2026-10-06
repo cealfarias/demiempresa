@@ -40,7 +40,6 @@ import DriverEarningsView from './DriverEarningsView';
 import DriverTripRequestsFeed from './DriverTripRequestsFeed';
 import DriverAccountStatementModal from './DriverAccountStatementModal';
 import RumboInboxModal from './RumboInboxModal';
-import ExitIntentRescueModal from './ExitIntentRescueModal';
 import {
   calculateTripFuelCost,
   estimateFuelEconomy,
@@ -691,13 +690,6 @@ export default function DriverApp() {
 
         {/* Modal de Invitación en caso de enlace duplicado o revocado */}
         {renderWorkInvitationModal()}
-
-        {/* Modal de Rescate Anti-Abandono: $50 en Viajes y Referidos */}
-        <ExitIntentRescueModal
-          role="DRIVER"
-          userProfile={driverProfile}
-          onOpenRegister={() => setShowRegistrationModal(true)}
-        />
       </>
     );
   }
@@ -1987,13 +1979,6 @@ export default function DriverApp() {
 
       {/* Modal de Invitación a Trabajar en Caso de Enlace Duplicado o Revocado */}
       {renderWorkInvitationModal()}
-
-      {/* Modal de Rescate Anti-Abandono: $50 en Viajes y Referidos */}
-      <ExitIntentRescueModal
-        role="DRIVER"
-        userProfile={driverProfile}
-        onOpenRegister={() => setShowRegistrationModal(true)}
-      />
 
     </div>
   );
