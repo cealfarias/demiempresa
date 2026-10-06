@@ -42,7 +42,9 @@ import {
   Activity,
   BarChart3,
   Timer,
-  MousePointerClick
+  MousePointerClick,
+  Gift,
+  TrendingDown
 } from 'lucide-react';
 import RumboLogo from '../viajes/RumboLogo';
 import ExitIntentRescueModal from '../viajes/ExitIntentRescueModal';
@@ -637,7 +639,10 @@ export default function AdminDashboardPage() {
 
         <button
           type="button"
-          onClick={() => setActiveTab('TELEMETRY')}
+          onClick={() => {
+            setActiveTab('TELEMETRY');
+            fetchAdminTelemetryStatsApi().then(data => { if (data) setTelemetryStats(data); }).catch(() => null);
+          }}
           className={`py-3 px-4 text-xs font-black border-b-2 transition-all flex items-center gap-2 cursor-pointer relative ${
             activeTab === 'TELEMETRY'
               ? 'border-indigo-400 text-indigo-400 bg-indigo-500/10'
@@ -2063,7 +2068,9 @@ export default function AdminDashboardPage() {
 
               {/* Barras Visuales de 24 Horas */}
               {(() => {
-                const hourly = telemetryStats?.hourlyDistribution || new Array(24).fill(0);
+                const hourly = Array.isArray(telemetryStats?.hourlyDistribution) && telemetryStats.hourlyDistribution.length === 24
+                  ? telemetryStats.hourlyDistribution
+                  : new Array(24).fill(0);
                 const maxVal = Math.max(...hourly, 1);
 
                 return (
@@ -2195,26 +2202,26 @@ export default function AdminDashboardPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-800/60 font-mono text-[11px]">
-                      {telemetryStats.recentEvents.map((ev, idx) => (
+                      {(telemetryStats?.recentEvents || []).map((ev, idx) => (
                         <tr key={idx} className="hover:bg-slate-850/40">
                           <td className="py-2.5 px-3 text-slate-400">
-                            {new Date(ev.createdAt).toLocaleTimeString('es-SV', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                            {ev?.createdAt ? new Date(ev.createdAt).toLocaleTimeString('es-SV', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : 'Reciente'}
                           </td>
                           <td className="py-2.5 px-3">
                             <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                              ev.role === 'DRIVER' ? 'bg-amber-500/20 text-amber-300' : 'bg-emerald-500/20 text-emerald-300'
+                              ev?.role === 'DRIVER' ? 'bg-amber-500/20 text-amber-300' : 'bg-emerald-500/20 text-emerald-300'
                             }`}>
-                              {ev.role === 'DRIVER' ? 'CONDUCTOR' : 'PASAJERO'}
+                              {ev?.role === 'DRIVER' ? 'CONDUCTOR' : 'PASAJERO'}
                             </span>
                           </td>
                           <td className="py-2.5 px-3 font-semibold text-white">
-                            {ev.eventType}
+                            {ev?.eventType || 'VISIT'}
                           </td>
                           <td className="py-2.5 px-3 text-slate-400">
-                            {ev.device || 'MÓVIL'}
+                            {ev?.device || 'MÓVIL'}
                           </td>
                           <td className="py-2.5 px-3 text-emerald-400 font-bold">
-                            {ev.duration > 0 ? `${ev.duration}s` : '0s'}
+                            {(ev?.duration ?? 0) > 0 ? `${ev.duration}s` : '0s'}
                           </td>
                         </tr>
                       ))}
