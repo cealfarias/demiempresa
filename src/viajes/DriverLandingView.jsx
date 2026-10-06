@@ -914,6 +914,51 @@ export default function DriverLandingView({ onStartRegistration, onCheckStatus, 
               <div className="text-[11px] text-slate-400 font-medium">Módem en Modo Reposo Seguro</div>
             </div>
           </div>
+
+          {/* BLOQUE DE ÉTICA DIGITAL: PRIVACIDAD Y PROCESAMIENTO TRANSPARENTE */}
+          <div className="pt-5 border-t border-slate-800 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-amber-500/15 text-amber-400 flex items-center justify-center shrink-0 border border-amber-500/30">
+                <ShieldCheck className="w-5 h-5" />
+              </div>
+              <div>
+                <span className="text-[11px] font-black uppercase tracking-wider text-amber-400">
+                  Ética Digital & Respeto al Usuario
+                </span>
+                <h4 className="text-base sm:text-lg font-black text-white">
+                  Cero Privilegios Abusivos • Procesamiento 100% Honesto y Transparente
+                </h4>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              
+              {/* Tarjeta 1: Cero permisos invasivos */}
+              <div className="p-4 sm:p-5 rounded-2xl bg-slate-950/80 border border-slate-800 space-y-2">
+                <div className="flex items-center gap-2 text-white font-bold text-xs sm:text-sm">
+                  <Lock className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <span>Tu Dispositivo es Tuyo: Cero Espionaje tras Bastidores</span>
+                </div>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  Otras plataformas exigen acceso a tus <strong>contactos, galería privada de fotos, micrófono permanente, lectura de otras apps en ejecución y GPS 24/7</strong> incluso con la aplicación cerrada. ¿Qué hacen con tus datos? Nadie lo sabe. 
+                  En Rumbo tenemos una política inquebrantable: <strong>únicamente solicitamos la ubicación mientras estás en servicio activo</strong> para enlazarte con viajes a 1 km. Ni fotos, ni micrófono, ni lectura de tu celular. Tu intimidad no se negocia.
+                </p>
+              </div>
+
+              {/* Tarjeta 2: Procesamiento honesto de viajes */}
+              <div className="p-4 sm:p-5 rounded-2xl bg-slate-950/80 border border-slate-800 space-y-2">
+                <div className="flex items-center gap-2 text-white font-bold text-xs sm:text-sm">
+                  <CheckCircle2 className="w-4 h-4 text-amber-400 shrink-0" />
+                  <span>Procesamiento Limpio: Cero Algoritmos Tramposos</span>
+                </div>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  Cero algoritmos de "caja negra" que te esconden el destino, simulan demoras falsas o retienen comisiones del 30% al 45%. 
+                  En Rumbo <strong>ves el pasajero, origen, destino exacto, distancia en kilómetros y el valor íntegro en efectivo antes de mover un metro</strong>. No hay intermediarios que manipulen la oferta: lo que ves en pantalla es exactamente lo que cobras.
+                </p>
+              </div>
+
+            </div>
+          </div>
         </div>
       </section>
 

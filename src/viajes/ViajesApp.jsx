@@ -3271,9 +3271,15 @@ export default function ViajesApp() {
                   <span>Buscar Conductor</span>
                   <ArrowRight className="w-5 h-5" />
                 </button>
-                <p className="text-center text-[11px] text-slate-400 mt-2">
-                  Conexión directa con conductores en un radio de 1 km • 100% Efectivo
-                </p>
+                <div className="text-center space-y-1 mt-2.5">
+                  <p className="text-[11px] text-slate-400">
+                    Conexión directa con conductores en un radio de 1 km • 100% Efectivo
+                  </p>
+                  <p className="text-[10px] text-slate-500 flex items-center justify-center gap-1.5">
+                    <ShieldCheck className="w-3 h-3 text-emerald-400 inline" />
+                    <span>Cero permisos abusivos • Procesamiento 100% honesto y transparente</span>
+                  </p>
+                </div>
               </div>
 
             </div>
@@ -3483,6 +3489,13 @@ export default function ViajesApp() {
                   <span className="text-[11px] text-slate-300">Enlace directo TCP Full-Duplex: tu celular no se calienta y ahorras hasta 95% de megas.</span>
                 </div>
               </div>
+              <div className="flex items-start gap-2.5">
+                <span className="text-purple-400 font-bold text-sm">🔒</span>
+                <div>
+                  <span className="font-bold text-white block">Cero Permisos Abusivos & Honestidad Total</span>
+                  <span className="text-[11px] text-slate-300">Sin acceso a fotos, contactos o micrófono. Sin algoritmos oscuros ni cobros escondidos tras bastidores.</span>
+                </div>
+              </div>
             </div>
 
             <div className="space-y-2 pt-1">
@@ -3534,6 +3547,15 @@ export default function ViajesApp() {
               >
                 ✕
               </button>
+            </div>
+
+            {/* Garantía de Privacidad y Cero Privilegios Abusivos */}
+            <div className="p-3 rounded-2xl bg-slate-950/80 border border-slate-800 text-xs text-slate-300 flex items-start gap-2.5">
+              <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+              <div className="leading-relaxed">
+                <strong className="text-white block">Cero Privilegios Abusivos & Honestidad Total:</strong>
+                No accedemos a tus fotos, contactos ni micrófono. Solo requerimos tu ubicación activa para coordinar tu viaje con choferes cercanos. Cero algoritmos oscuros tras bastidores.
+              </div>
             </div>
 
             {googleDuiStep ? (
