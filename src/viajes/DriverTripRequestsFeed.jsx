@@ -174,7 +174,7 @@ export default function DriverTripRequestsFeed({
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-1 text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20 text-[10px] font-semibold">
             <BatteryCharging className="w-3 h-3 text-emerald-400" />
-            <span>TCP Full-Duplex • -95% datos</span>
+            <span>Túnel Ultra-Rápido • -95% datos</span>
           </div>
           <span className="font-mono font-bold text-amber-300">
             {activeRequests.length} disp.

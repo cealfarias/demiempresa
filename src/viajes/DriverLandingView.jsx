@@ -818,7 +818,7 @@ export default function DriverLandingView({ onStartRegistration, onCheckStatus, 
               </div>
               <div>
                 <span className="text-[11px] font-black uppercase tracking-wider text-emerald-400">
-                  Ingeniería Rumbo • Arquitectura TCP Full-Duplex
+                  Ingeniería Rumbo • Arquitectura de Túnel Ultra-Rápido
                 </span>
                 <h3 className="text-xl sm:text-2xl font-black text-white">
                   Celular Frío, Batería para Todo el Día y Ahorro Extremo de Datos
@@ -833,7 +833,7 @@ export default function DriverLandingView({ onStartRegistration, onCheckStatus, 
 
           <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
             Sabemos lo que sufre el conductor en la calle: el celular pegado al parabrisas, hirviendo bajo el sol y la batería agotándose en 3 horas obligándote a vivir conectado al cargador del encendedor. 
-            En <strong>Rumbo</strong> rediseñamos la tecnología desde cero con <strong>conexiones persistentes TCP Full-Duplex por WebSockets</strong>. Tu módem celular descansa, tu teléfono trabaja frío y tu plan de datos rinde como nunca.
+            En <strong>Rumbo</strong> rediseñamos la tecnología desde cero con <strong>conexiones persistentes de túnel ultra rápido</strong>, manteniéndolo ligero y silencioso abierto. Tu módem celular descansa, tu teléfono trabaja frío y tu plan de datos rinde como nunca.
           </p>
 
           {/* Cuadro Comparativo: Apps Tradicionales vs Rumbo */}
@@ -844,7 +844,7 @@ export default function DriverLandingView({ onStartRegistration, onCheckStatus, 
               <div className="flex items-center justify-between">
                 <span className="text-xs font-black uppercase tracking-wider text-rose-400 flex items-center gap-1.5">
                   <Flame className="w-4 h-4 text-rose-400" />
-                  Otras Apps (HTTP Polling Tradicional)
+                  Otras Apps (Peticiones Continuas Tradicionales)
                 </span>
                 <span className="text-[10px] bg-rose-500/20 text-rose-300 px-2 py-0.5 rounded-full font-bold">Obsoleto</span>
               </div>
@@ -863,24 +863,24 @@ export default function DriverLandingView({ onStartRegistration, onCheckStatus, 
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-rose-400 font-bold">✕</span>
-                  <span><strong>Desperdicio de datos:</strong> 3 a 5 GB al mes consumidos solo en cabeceras HTTP vacías.</span>
+                  <span><strong>Desperdicio de datos:</strong> 3 a 5 GB al mes consumidos solo en consultas repetitivas vacías.</span>
                 </li>
               </ul>
             </div>
 
-            {/* Rumbo Sockets TCP */}
+            {/* Rumbo Túnel Ultra-Rápido */}
             <div className="p-4 sm:p-5 rounded-2xl bg-emerald-950/25 border border-emerald-500/30 space-y-3 shadow-lg shadow-emerald-950/20">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-black uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
                   <Cpu className="w-4 h-4 text-emerald-400" />
-                  Plataforma Rumbo (TCP Full-Duplex)
+                  Plataforma Rumbo (Túnel Ultra-Rápido)
                 </span>
                 <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full font-bold">Alta Eficiencia</span>
               </div>
               <ul className="text-xs text-slate-300 space-y-2.5">
                 <li className="flex items-start gap-2">
                   <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-                  <span><strong>Canal único persistente:</strong> Cero peticiones repetitivas. El servidor te avisa solo cuando hay un viaje real.</span>
+                  <span><strong>Túnel único persistente:</strong> Cero peticiones repetitivas. El servidor te avisa solo cuando hay un viaje real.</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
