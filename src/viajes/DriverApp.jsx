@@ -61,7 +61,20 @@ export default function DriverApp() {
   const [driverProfile, setDriverProfile] = useState(() => {
     try {
       const saved = localStorage.getItem('rumbo_driver_profile');
-      return saved ? JSON.parse(saved) : null;
+      if (!saved) return null;
+      const parsed = JSON.parse(saved);
+      // Purgar perfiles mock / dummy de pruebas para exigir autenticación auténtica en base de datos
+      if (
+        !parsed ||
+        parsed.id === 'drv-sv-1' ||
+        parsed.id?.startsWith('drv_sv_') ||
+        parsed.fullName?.includes('Conductor Rumbo') ||
+        parsed.dui === '00000000-0'
+      ) {
+        localStorage.removeItem('rumbo_driver_profile');
+        return null;
+      }
+      return parsed;
     } catch {
       return null;
     }
@@ -74,9 +87,9 @@ export default function DriverApp() {
   const [driverProfileId, setDriverProfileId] = useState(() => {
     try {
       const saved = localStorage.getItem('rumbo_driver_profile');
-      return saved ? (JSON.parse(saved).id || 'drv-sv-1') : 'drv-sv-1';
+      return saved ? JSON.parse(saved)?.id || null : null;
     } catch {
-      return 'drv-sv-1';
+      return null;
     }
   });
 

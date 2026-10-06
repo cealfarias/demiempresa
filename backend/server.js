@@ -608,7 +608,55 @@ app.get('/api/drivers/:id/status', async (req, res) => {
   }
 });
 
-// 5.1.1 ENVIAR CÓDIGO SMS OTP PARA INGRESO DE CONDUCTOR (CON SOPORTE DE AUTODETECCIÓN)
+// 5.1.0 HELPER: CONSULTA Y VERIFICACIÓN ESTRICTA DE EXPEDIENTES DE CONDUCTORES (CERO PLACEHOLDERS)
+async function findDriverRecordByPhone(cleanPhone) {
+  if (!cleanPhone || cleanPhone.length < 8) return null;
+  try {
+    const res = await pool.query(`
+      SELECT 
+        dp.id, dp.user_id, u.full_name, u.phone, u.dui,
+        dp.vehicle_plate, dp.vehicle_brand, dp.vehicle_model, dp.vehicle_year, dp.vehicle_color,
+        dp.license_number, dp.approval_status, dp.approved_at, dp.approved_by,
+        dp.photo_url, dp.is_active, dp.is_online, dp.trial_ends_at,
+        dp.rejection_reason, dp.current_week_bonuses_count
+      FROM viajes_driver_profiles dp
+      JOIN viajes_users u ON dp.user_id = u.id
+      WHERE REGEXP_REPLACE(u.phone, '[^0-9]', '', 'g') LIKE $1
+         OR dp.id::text = $2
+      ORDER BY dp.created_at DESC
+      LIMIT 1;
+    `, [`%${cleanPhone}%`, cleanPhone]);
+
+    if (res.rows.length > 0) {
+      const row = res.rows[0];
+      return {
+        id: row.id,
+        userId: row.user_id,
+        fullName: row.full_name,
+        phone: row.phone,
+        dui: row.dui,
+        vehiclePlate: row.vehicle_plate,
+        vehicleBrand: row.vehicle_brand,
+        vehicleModel: row.vehicle_model,
+        vehicleYear: row.vehicle_year,
+        vehicleColor: row.vehicle_color,
+        licenseNumber: row.license_number,
+        approvalStatus: row.approval_status || 'PENDING',
+        approvedAt: row.approved_at,
+        isActive: row.is_active !== false,
+        isOnline: Boolean(row.is_online),
+        trialEndsAt: row.trial_ends_at || new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+        rejectionReason: row.rejection_reason || null,
+        weeklyBonuses: row.current_week_bonuses_count || 0
+      };
+    }
+  } catch (err) {
+    console.warn('DB driver lookup warning:', err.message);
+  }
+  return null;
+}
+
+// 5.1.1 ENVIAR CÓDIGO SMS OTP PARA INGRESO DE CONDUCTOR AUTORIZADO
 const activeOtpCodes = new Map();
 
 app.post('/api/auth/send-sms-otp', async (req, res) => {
@@ -616,25 +664,82 @@ app.post('/api/auth/send-sms-otp', async (req, res) => {
     const { phone } = req.body;
     const cleanPhone = String(phone || '').replace(/\D/g, '').slice(-8);
     if (!cleanPhone || cleanPhone.length < 8) {
-      return res.status(400).json({ success: false, error: 'Por favor ingrese un número de celular válido de 8 dígitos.' });
+      return res.status(400).json({ success: false, error: 'Por favor ingresa un número de celular salvadoreño válido de 8 dígitos.' });
     }
 
-    // Generar código OTP de 6 dígitos
+    // 1. Tocar la puerta del backend: Verificar si está en la lista de conductores
+    const driver = await findDriverRecordByPhone(cleanPhone);
+
+    if (!driver) {
+      return res.status(404).json({
+        success: false,
+        code: 'DRIVER_NOT_REGISTERED',
+        error: `El número de celular (+503 ${cleanPhone}) no se encuentra registrado en nuestra lista de conductores autorizados.`,
+        message: 'Para ingresar a la plataforma, debes completar tu registro formal como conductor.',
+        canRegister: true,
+        registrationUrl: '/conductor?register=true'
+      });
+    }
+
+    // 2. Verificar estado de aprobación
+    if (driver.approvalStatus === 'PENDING') {
+      return res.status(403).json({
+        success: false,
+        code: 'DRIVER_PENDING_APPROVAL',
+        driverName: driver.fullName,
+        approvalStatus: 'PENDING',
+        canRegister: false,
+        error: `Estimado(a) ${driver.fullName}, tu solicitud de ingreso está actualmente en revisión y auditoría documental. Te notificaremos en cuanto tu cuenta sea aprobada por administración.`
+      });
+    }
+
+    if (driver.approvalStatus === 'REJECTED') {
+      return res.status(403).json({
+        success: false,
+        code: 'DRIVER_REJECTED',
+        driverName: driver.fullName,
+        approvalStatus: 'REJECTED',
+        canRegister: true,
+        registrationUrl: '/conductor?register=true',
+        error: `Estimado(a) ${driver.fullName}, tu expediente no fue aprobado (${driver.rejectionReason || 'documentación pendiente'}). Puedes actualizar tus documentos registrándote de nuevo.`
+      });
+    }
+
+    if (driver.approvalStatus === 'SUSPENDED' || !driver.isActive) {
+      return res.status(403).json({
+        success: false,
+        code: 'DRIVER_SUSPENDED',
+        driverName: driver.fullName,
+        approvalStatus: 'SUSPENDED',
+        canRegister: false,
+        error: `Estimado(a) ${driver.fullName}, tu cuenta de conductor se encuentra suspendida o inactiva. Por favor contacta al área de soporte administrativo.`
+      });
+    }
+
+    // 3. Conductor Aprobado: Generar pase OTP seguro de un solo uso
     const otpCode = String(Math.floor(100000 + Math.random() * 900000));
     activeOtpCodes.set(cleanPhone, {
       code: otpCode,
+      driverId: driver.id,
+      phone: cleanPhone,
       createdAt: Date.now(),
-      expiresAt: Date.now() + 5 * 60 * 1000
+      expiresAt: Date.now() + 10 * 60 * 1000
     });
 
-    console.log(`📲 SMS OTP generado para celular ${cleanPhone}: [${otpCode}]`);
+    console.log(`📲 Pase SMS generado para conductor aprobado [${driver.fullName}] (${cleanPhone}): [${otpCode}]`);
 
     res.json({
       success: true,
+      code: 'ACCESS_PASS_ISSUED',
       phone: cleanPhone,
-      otpCode,
-      message: `Código de confirmación enviado exitosamente al ${cleanPhone}.`,
-      expiresInSeconds: 300
+      message: `Pase de acceso emitido para el conductor verificado ${driver.fullName}.`,
+      driver: {
+        id: driver.id,
+        fullName: driver.fullName,
+        vehiclePlate: driver.vehiclePlate,
+        phone: driver.phone
+      },
+      expiresInSeconds: 600
     });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -651,70 +756,48 @@ app.post('/api/drivers/login-phone', async (req, res) => {
       return res.status(400).json({ success: false, error: 'Número de celular inválido.' });
     }
 
-    // Validar OTP si fue enviado
-    if (otpCode) {
-      const stored = activeOtpCodes.get(cleanPhone);
-      if (stored && stored.code !== String(otpCode).trim() && String(otpCode).trim() !== '123456') {
-        return res.status(400).json({ success: false, error: 'Código de confirmación incorrecto o expirado.' });
-      }
+    const codeToVerify = String(otpCode || '').trim();
+    if (!codeToVerify) {
+      return res.status(400).json({ success: false, error: 'Por favor ingresa el código de acceso recibido.' });
     }
 
-    let driverProfile = null;
-    try {
-      const profileRes = await pool.query(`
-        SELECT dp.*, u.full_name, u.phone, u.dui
-        FROM viajes_driver_profiles dp
-        JOIN viajes_users u ON dp.user_id = u.id
-        WHERE u.phone LIKE $1 OR dp.id::text = $2;
-      `, [`%${cleanPhone}%`, cleanPhone]);
+    // Validar pase de un solo uso
+    const stored = activeOtpCodes.get(cleanPhone);
+    const isValid = stored && stored.code === codeToVerify && Date.now() <= stored.expiresAt;
 
-      if (profileRes.rows.length > 0) {
-        const row = profileRes.rows[0];
-        driverProfile = {
-          id: row.id,
-          userId: row.user_id,
-          fullName: row.full_name,
-          phone: row.phone,
-          dui: row.dui,
-          vehiclePlate: row.vehicle_plate,
-          vehicleBrand: row.vehicle_brand,
-          vehicleModel: row.vehicle_model,
-          vehicleYear: row.vehicle_year,
-          vehicleColor: row.vehicle_color,
-          approvalStatus: row.approval_status || 'APPROVED',
-          isActive: row.is_active ?? true,
-          isOnline: true,
-          trialEndsAt: row.trial_ends_at || new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
-          weeklyBonuses: row.current_week_bonuses_count || 0
-        };
-      }
-    } catch (dbErr) {
-      console.warn('DB driver phone login fallback:', dbErr.message);
+    if (!isValid) {
+      return res.status(400).json({ success: false, error: 'Código de confirmación incorrecto, expirado o ya utilizado.' });
     }
 
-    if (!driverProfile) {
-      driverProfile = {
-        id: `drv_sv_${cleanPhone}`,
-        userId: `usr_drv_${cleanPhone}`,
-        fullName: `Conductor Rumbo (${cleanPhone})`,
-        phone: cleanPhone,
-        dui: '00000000-0',
-        vehiclePlate: `P ${Math.floor(100 + Math.random() * 899)}-${Math.floor(100 + Math.random() * 899)}`,
-        vehicleBrand: 'Toyota',
-        vehicleModel: 'Corolla',
-        vehicleYear: '2020',
-        vehicleColor: 'Gris Plata',
-        approvalStatus: 'APPROVED',
-        isActive: true,
-        isOnline: true,
-        trialEndsAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
-        weeklyBonuses: 0
-      };
+    // Quemado de un solo uso
+    activeOtpCodes.delete(cleanPhone);
+
+    // Obtener perfil auténtico del conductor
+    const driver = await findDriverRecordByPhone(cleanPhone);
+    if (!driver || driver.approvalStatus !== 'APPROVED' || !driver.isActive) {
+      return res.status(403).json({
+        success: false,
+        error: 'Acceso denegado: El conductor no se encuentra en estado aprobado y activo en la plataforma.'
+      });
     }
+
+    const newSessionId = `ses_${cleanPhone}_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+    activeDriverSessions.set(cleanPhone, {
+      sessionId: newSessionId,
+      driverId: driver.id,
+      loggedAt: new Date().toISOString()
+    });
+
+    const driverProfile = {
+      ...driver,
+      isOnline: true,
+      sessionToken: newSessionId
+    };
 
     res.json({
       success: true,
       driverProfile,
+      sessionToken: newSessionId,
       message: 'Confirmación exitosa. Acceso concedido a la consola del conductor.'
     });
   } catch (err) {
@@ -722,7 +805,7 @@ app.post('/api/drivers/login-phone', async (req, res) => {
   }
 });
 
-// 5.1.3 GENERAR ENLACE MÁGICO DE WHATSAPP PARA CONDUCTOR
+// 5.1.3 GENERAR ENLACE MÁGICO DE WHATSAPP PARA CONDUCTOR AUTORIZADO
 const activeMagicLinks = new Map();
 const activeDriverSessions = new Map(); // cleanPhone -> { sessionId, loggedAt }
 
@@ -731,37 +814,93 @@ app.post('/api/auth/send-magic-link', async (req, res) => {
     const { phone } = req.body;
     const cleanPhone = String(phone || '').replace(/\D/g, '').slice(-8);
     if (!cleanPhone || cleanPhone.length < 8) {
-      return res.status(400).json({ success: false, error: 'Por favor ingrese un número de celular válido de 8 dígitos.' });
+      return res.status(400).json({ success: false, error: 'Por favor ingresa un número de celular salvadoreño válido de 8 dígitos.' });
     }
 
+    // 1. Tocar la puerta del backend: Verificar si está en la lista de conductores
+    const driver = await findDriverRecordByPhone(cleanPhone);
+
+    if (!driver) {
+      return res.status(404).json({
+        success: false,
+        code: 'DRIVER_NOT_REGISTERED',
+        error: `El número de celular (+503 ${cleanPhone}) no se encuentra registrado en nuestra lista de conductores autorizados.`,
+        message: 'Para ingresar a la plataforma, debes completar tu registro formal como conductor.',
+        canRegister: true,
+        registrationUrl: '/conductor?register=true'
+      });
+    }
+
+    // 2. Verificar estado de aprobación
+    if (driver.approvalStatus === 'PENDING') {
+      return res.status(403).json({
+        success: false,
+        code: 'DRIVER_PENDING_APPROVAL',
+        driverName: driver.fullName,
+        approvalStatus: 'PENDING',
+        canRegister: false,
+        error: `Estimado(a) ${driver.fullName}, tu solicitud de ingreso está actualmente en revisión y auditoría documental. Te notificaremos en cuanto tu cuenta sea aprobada por administración.`
+      });
+    }
+
+    if (driver.approvalStatus === 'REJECTED') {
+      return res.status(403).json({
+        success: false,
+        code: 'DRIVER_REJECTED',
+        driverName: driver.fullName,
+        approvalStatus: 'REJECTED',
+        canRegister: true,
+        registrationUrl: '/conductor?register=true',
+        error: `Estimado(a) ${driver.fullName}, tu expediente no fue aprobado (${driver.rejectionReason || 'documentación pendiente'}). Puedes actualizar tus documentos registrándote de nuevo.`
+      });
+    }
+
+    if (driver.approvalStatus === 'SUSPENDED' || !driver.isActive) {
+      return res.status(403).json({
+        success: false,
+        code: 'DRIVER_SUSPENDED',
+        driverName: driver.fullName,
+        approvalStatus: 'SUSPENDED',
+        canRegister: false,
+        error: `Estimado(a) ${driver.fullName}, tu cuenta de conductor se encuentra suspendida o inactiva. Por favor contacta al área de soporte administrativo.`
+      });
+    }
+
+    // 3. Conductor Aprobado: Generar token de pase seguro de un solo uso
     const token = String(Math.floor(100000 + Math.random() * 900000));
-    const originUrl = req.headers.origin || req.headers.referer || 'https://demiempresa.online';
+    const originUrl = req.headers.origin || req.headers.referer || 'https://viajes.demiempresa.online';
     const baseUrl = originUrl.replace(/\/$/, '');
     const magicLinkUrl = `${baseUrl}/conductor?magicToken=${token}&phone=${cleanPhone}`;
 
     activeMagicLinks.set(cleanPhone, {
       token,
+      driverId: driver.id,
       phone: cleanPhone,
       createdAt: Date.now(),
-      expiresAt: Date.now() + 15 * 60 * 1000,
+      expiresAt: Date.now() + 10 * 60 * 1000,
       used: false,
       verified: false
     });
 
-    const whatsappMessage = `🚗 *Rumbo a tu Destino - Acceso de Conductor*\n\nHola, aquí tienes tu enlace directo para entrar a tu consola:\n👉 ${magicLinkUrl}\n\n(O si prefieres, tu código de acceso manual es: *${token}*)\n\nVálido por 15 minutos (Un solo uso).`;
+    const whatsappMessage = `🚗 *Rumbo a mi Destino - Pase de Acceso Conductor*\n\nHola ${driver.fullName},\n\nTu pase de acceso seguro es: *${token}*\n\nO entra directamente tocando este enlace:\n👉 ${magicLinkUrl}\n\n(Válido por 10 minutos para un solo ingreso)`;
     const whatsappWebLink = `https://wa.me/503${cleanPhone}?text=${encodeURIComponent(whatsappMessage)}`;
 
-    console.log(`🔗 Enlace Mágico generado para celular ${cleanPhone}: [${magicLinkUrl}]`);
+    console.log(`🔗 Enlace Mágico emitido para conductor aprobado [${driver.fullName}] (${cleanPhone}): [${magicLinkUrl}]`);
 
     res.json({
       success: true,
+      code: 'ACCESS_PASS_ISSUED',
       phone: cleanPhone,
-      token,
       magicLinkUrl,
       whatsappWebLink,
-      whatsappMessage,
-      message: `Enlace mágico generado exitosamente para ${cleanPhone}.`,
-      expiresInSeconds: 900
+      message: `Pase de acceso emitido exitosamente para el conductor aprobado ${driver.fullName}.`,
+      driver: {
+        id: driver.id,
+        fullName: driver.fullName,
+        vehiclePlate: driver.vehiclePlate,
+        phone: driver.phone
+      },
+      expiresInSeconds: 600
     });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -785,7 +924,7 @@ app.post('/api/drivers/verify-magic-token', async (req, res) => {
       activeMagicLinks.delete(cleanPhone);
       return res.status(400).json({
         success: false,
-        error: 'El enlace mágico ha expirado por tiempo (límite 15 min).',
+        error: 'El enlace o pase mágico ha expirado por tiempo (límite 10 minutos). Solicita uno nuevo.',
         isSharedOrDuplicate: true,
         workInvitation: {
           title: '¿Necesitas trabajar en la plataforma?',
@@ -800,7 +939,7 @@ app.post('/api/drivers/verify-magic-token', async (req, res) => {
       activeMagicLinks.delete(cleanPhone);
       return res.status(400).json({
         success: false,
-        error: 'Este enlace ya fue utilizado en otro dispositivo o fue compartido.',
+        error: 'Este pase ya fue utilizado en otro dispositivo o fue compartido.',
         isSharedOrDuplicate: true,
         workInvitation: {
           title: '¿Necesitas trabajar en la plataforma?',
@@ -810,11 +949,11 @@ app.post('/api/drivers/verify-magic-token', async (req, res) => {
       });
     }
 
-    const validToken = (stored && stored.token === String(token).trim()) || String(token).trim() === '123456';
+    const validToken = stored && stored.token === String(token).trim();
     if (!validToken) {
       return res.status(400).json({
         success: false,
-        error: 'El enlace mágico no es válido, ya fue utilizado o ha expirado.',
+        error: 'El pase de acceso no es válido, ya fue utilizado o ha expirado.',
         isSharedOrDuplicate: true,
         workInvitation: {
           title: '¿Necesitas trabajar en la plataforma?',
@@ -824,17 +963,27 @@ app.post('/api/drivers/verify-magic-token', async (req, res) => {
       });
     }
 
-    // 3. QUEMADO INMEDIATO DE UN SOLO USO: Destruir el token para que nadie más pueda usarlo si se comparte
+    // 3. QUEMADO INMEDIATO DE UN SOLO USO
     if (stored) {
       stored.used = true;
       stored.verified = true;
       activeMagicLinks.delete(cleanPhone);
     }
 
-    // 4. CONTROL DE DISPOSITIVO ÚNICO: Generar ID de sesión exclusivo. Expulsa sesiones previas en otros teléfonos
+    // 4. Obtener expediente auténtico de la base de datos
+    const driver = await findDriverRecordByPhone(cleanPhone);
+    if (!driver || driver.approvalStatus !== 'APPROVED' || !driver.isActive) {
+      return res.status(403).json({
+        success: false,
+        error: 'Acceso denegado: El conductor no se encuentra en estado aprobado y activo en la plataforma.'
+      });
+    }
+
+    // 5. CONTROL DE DISPOSITIVO ÚNICO: Generar ID de sesión exclusivo
     const newSessionId = `ses_${cleanPhone}_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
     activeDriverSessions.set(cleanPhone, {
       sessionId: newSessionId,
+      driverId: driver.id,
       loggedAt: new Date().toISOString()
     });
 
@@ -849,62 +998,11 @@ app.post('/api/drivers/verify-magic-token', async (req, res) => {
       }
     });
 
-    let driverProfile = null;
-    try {
-      const profileRes = await pool.query(`
-        SELECT dp.*, u.full_name, u.phone, u.dui
-        FROM viajes_driver_profiles dp
-        JOIN viajes_users u ON dp.user_id = u.id
-        WHERE u.phone LIKE $1 OR dp.id::text = $2;
-      `, [`%${cleanPhone}%`, cleanPhone]);
-
-      if (profileRes.rows.length > 0) {
-        const row = profileRes.rows[0];
-        driverProfile = {
-          id: row.id,
-          userId: row.user_id,
-          fullName: row.full_name,
-          phone: row.phone,
-          dui: row.dui,
-          vehiclePlate: row.vehicle_plate,
-          vehicleBrand: row.vehicle_brand,
-          vehicleModel: row.vehicle_model,
-          vehicleYear: row.vehicle_year,
-          vehicleColor: row.vehicle_color,
-          approvalStatus: row.approval_status || 'APPROVED',
-          isActive: row.is_active ?? true,
-          isOnline: true,
-          trialEndsAt: row.trial_ends_at || new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
-          weeklyBonuses: row.current_week_bonuses_count || 0,
-          sessionToken: newSessionId
-        };
-      }
-    } catch (dbErr) {
-      console.warn('DB driver phone login fallback:', dbErr.message);
-    }
-
-    if (!driverProfile) {
-      driverProfile = {
-        id: `drv_sv_${cleanPhone}`,
-        userId: `usr_drv_${cleanPhone}`,
-        fullName: `Conductor Rumbo (${cleanPhone})`,
-        phone: cleanPhone,
-        dui: '00000000-0',
-        vehiclePlate: `P ${Math.floor(100 + Math.random() * 899)}-${Math.floor(100 + Math.random() * 899)}`,
-        vehicleBrand: 'Toyota',
-        vehicleModel: 'Corolla',
-        vehicleYear: '2020',
-        vehicleColor: 'Gris Plata',
-        approvalStatus: 'APPROVED',
-        isActive: true,
-        isOnline: true,
-        trialEndsAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
-        weeklyBonuses: 0,
-        sessionToken: newSessionId
-      };
-    } else {
-      driverProfile.sessionToken = newSessionId;
-    }
+    const driverProfile = {
+      ...driver,
+      isOnline: true,
+      sessionToken: newSessionId
+    };
 
     res.json({
       success: true,

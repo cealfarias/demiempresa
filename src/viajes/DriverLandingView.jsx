@@ -28,7 +28,8 @@ import {
   ArrowLeft,
   ExternalLink,
   Copy,
-  Check
+  Check,
+  ShieldAlert
 } from 'lucide-react';
 import RumboLogo from './RumboLogo';
 import DriverAvatarNarrator from './DriverAvatarNarrator';
@@ -46,20 +47,21 @@ export default function DriverLandingView({ onStartRegistration, onCheckStatus, 
   const [showSupportModal, setShowSupportModal] = useState(false);
   const [showTermsModal, setShowTermsModal] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
-  const [loginStep, setLoginStep] = useState('PHONE'); // 'PHONE' | 'MAGIC_WAIT' | 'OTP_WAIT'
+  // Estados del flujo: 'PHONE' | 'NOT_REGISTERED' | 'PENDING_APPROVAL' | 'PASS_ISSUED'
+  const [loginStep, setLoginStep] = useState('PHONE');
   const [phoneInput, setPhoneInput] = useState('');
   const [otpCode, setOtpCode] = useState('');
-  const [isSendingOtp, setIsSendingOtp] = useState(false);
-  const [isVerifying, setIsVerifying] = useState(false);
-  const [autoDetectStatus, setAutoDetectStatus] = useState('idle'); // 'idle' | 'listening' | 'detected' | 'manual'
-  const [receivedSmsPreview, setReceivedSmsPreview] = useState(null);
-  const [magicLinkData, setMagicLinkData] = useState(null);
-  const [isCopiedLink, setIsCopiedLink] = useState(false);
+  const [isRequestingPass, setIsRequestingPass] = useState(false);
+  const [isVerifyingPass, setIsVerifyingPass] = useState(false);
   const [loginError, setLoginError] = useState('');
+  const [verifiedDriver, setVerifiedDriver] = useState(null); // { id, fullName, vehiclePlate, phone }
+  const [unregisteredPhone, setUnregisteredPhone] = useState('');
+  const [pendingDriverData, setPendingDriverData] = useState(null); // { fullName, phone, message }
+  const [passData, setPassData] = useState(null); // { whatsappWebLink, magicLinkUrl, expiresInSeconds }
+  const [isCopiedLink, setIsCopiedLink] = useState(false);
   const [workInvitation, setWorkInvitation] = useState(null);
 
   const autoDetectTimerRef = React.useRef(null);
-  const webOtpAbortRef = React.useRef(null);
 
   // Cerrar y limpiar modal
   const handleCloseLoginModal = () => {
@@ -67,40 +69,46 @@ export default function DriverLandingView({ onStartRegistration, onCheckStatus, 
     setLoginStep('PHONE');
     setPhoneInput('');
     setOtpCode('');
-    setIsSendingOtp(false);
-    setIsVerifying(false);
-    setAutoDetectStatus('idle');
-    setReceivedSmsPreview(null);
-    setMagicLinkData(null);
+    setIsRequestingPass(false);
+    setIsVerifyingPass(false);
+    setVerifiedDriver(null);
+    setUnregisteredPhone('');
+    setPendingDriverData(null);
+    setPassData(null);
     setIsCopiedLink(false);
     setLoginError('');
     setWorkInvitation(null);
     if (autoDetectTimerRef.current) {
-      clearTimeout(autoDetectTimerRef.current);
       clearInterval(autoDetectTimerRef.current);
-    }
-    if (webOtpAbortRef.current) {
-      try { webOtpAbortRef.current.abort(); } catch (e) {}
+      clearTimeout(autoDetectTimerRef.current);
     }
   };
 
-  // Enviar Enlace Mágico por WhatsApp
-  const handleSendMagicLink = async (e) => {
+  // Tocar la puerta del backend: Solicitar Pase de Acceso (WhatsApp o SMS)
+  const handleRequestPass = async (e, method = 'WHATSAPP') => {
     if (e) e.preventDefault();
     const clean = phoneInput.replace(/\D/g, '').slice(-8);
     if (clean.length < 8) {
-      setLoginError('Por favor ingresa un número de celular salvadoreño de 8 dígitos (ej. 7890-1234).');
+      setLoginError('Por favor ingresa un número de celular salvadoreño válido de 8 dígitos (ej. 7890-1234).');
       return;
     }
 
-    setIsSendingOtp(true);
+    setIsRequestingPass(true);
     setLoginError('');
+    setWorkInvitation(null);
+
     try {
-      const res = await sendMagicLinkApi({ phone: clean });
+      // El teléfono toca la puerta del backend con su número
+      const res = method === 'SMS'
+        ? await requestPhoneOtpApi({ phone: clean })
+        : await sendMagicLinkApi({ phone: clean });
+
       if (res && res.success) {
-        setMagicLinkData(res);
-        setOtpCode(res.token || '');
-        setLoginStep('MAGIC_WAIT');
+        // Conductor verificado y aprobado: El backend emitió el pase
+        setVerifiedDriver(res.driver || null);
+        setPassData(res);
+        setOtpCode('');
+        setLoginStep('PASS_ISSUED');
 
         // Escuchar en segundo plano si el enlace se abrió desde WhatsApp en el celular
         if (autoDetectTimerRef.current) clearInterval(autoDetectTimerRef.current);
@@ -109,7 +117,7 @@ export default function DriverLandingView({ onStartRegistration, onCheckStatus, 
             const status = await checkMagicTokenStatusApi({ phone: clean });
             if (status && status.verified) {
               clearInterval(poll);
-              const authRes = await verifyMagicTokenApi({ phone: clean, token: res.token });
+              const authRes = await verifyMagicTokenApi({ phone: clean, token: res.token || 'VALID' });
               if (authRes && authRes.success && authRes.driverProfile) {
                 localStorage.setItem('rumbo_driver_profile', JSON.stringify(authRes.driverProfile));
                 handleCloseLoginModal();
@@ -121,133 +129,54 @@ export default function DriverLandingView({ onStartRegistration, onCheckStatus, 
         autoDetectTimerRef.current = poll;
 
       } else {
-        setLoginError(res?.error || 'No se pudo generar el enlace mágico.');
+        setLoginError(res?.error || 'No se pudo generar el pase de acceso. Intenta nuevamente.');
       }
     } catch (err) {
-      setLoginError(err.message || 'Error de conexión al generar enlace de WhatsApp.');
-    } finally {
-      setIsSendingOtp(false);
-    }
-  };
-
-  // Validar Enlace Mágico / Token de WhatsApp y Entrar a la Consola
-  const handleVerifyMagicToken = async (tokenToUse) => {
-    const finalToken = (tokenToUse || otpCode).trim();
-    if (!finalToken) {
-      setLoginError('Ingresa el código o abre el enlace en tu WhatsApp.');
-      return;
-    }
-    const clean = phoneInput.replace(/\D/g, '').slice(-8);
-    setIsVerifying(true);
-    setLoginError('');
-
-    try {
-      const res = await verifyMagicTokenApi({ phone: clean, token: finalToken });
-      if (res && res.success && res.driverProfile) {
-        localStorage.setItem('rumbo_driver_profile', JSON.stringify(res.driverProfile));
-        handleCloseLoginModal();
-        if (onDriverLoggedIn) {
-          onDriverLoggedIn(res.driverProfile);
-        }
+      console.log('Driver gate response:', err);
+      if (err.code === 'DRIVER_NOT_REGISTERED') {
+        // La plataforma no lo tiene en su lista de conductores aprobados
+        setUnregisteredPhone(clean);
+        setLoginStep('NOT_REGISTERED');
+      } else if (err.code === 'DRIVER_PENDING_APPROVAL') {
+        // Está registrado pero pendiente de aprobación
+        setPendingDriverData({
+          fullName: err.driverName || 'Conductor',
+          phone: clean,
+          message: err.message || 'Tu expediente está en proceso de revisión administrativa.'
+        });
+        setLoginStep('PENDING_APPROVAL');
+      } else if (err.code === 'DRIVER_REJECTED') {
+        setUnregisteredPhone(clean);
+        setLoginError(err.message || 'Tu expediente no cumple con los requisitos de validación.');
+        setLoginStep('NOT_REGISTERED');
       } else {
-        const isSharedOrDup = res?.isSharedOrDuplicate || res?.error?.includes('utilizado') || res?.error?.includes('compartido') || res?.error?.includes('expirado');
-        if (isSharedOrDup) {
-          setWorkInvitation(res?.workInvitation || {
-            title: '¿Necesitas trabajar en la plataforma?',
-            message: 'Inscríbete como conductor, solo son $15 a la semana sin cobro de comisión'
-          });
-        }
-        setLoginError(res?.error || 'Enlace o código incorrecto.');
+        setLoginError(err.message || 'Error de conexión al verificar el expediente del conductor.');
       }
-    } catch (err) {
-      setWorkInvitation({
-        title: '¿Necesitas trabajar en la plataforma?',
-        message: 'Inscríbete como conductor, solo son $15 a la semana sin cobro de comisión'
-      });
-      setLoginError(err.message || 'Error al validar el enlace mágico.');
     } finally {
-      setIsVerifying(false);
+      setIsRequestingPass(false);
     }
   };
 
-  // Paso 1 Alternativo: Enviar SMS con código OTP
-  const handleSendOtp = async (e) => {
-    if (e) e.preventDefault();
-    const clean = phoneInput.replace(/\D/g, '').slice(-8);
-    if (clean.length < 8) {
-      setLoginError('Por favor ingresa un número de celular salvadoreño de 8 dígitos (ej. 7890-1234).');
-      return;
-    }
-
-    setIsSendingOtp(true);
-    setLoginError('');
-    try {
-      const res = await requestPhoneOtpApi({ phone: clean });
-      if (res && res.success) {
-        setLoginStep('OTP_WAIT');
-        setAutoDetectStatus('listening');
-        const code = res.otpCode || '123456';
-
-        // 1. Escuchar vía Web OTP API nativa en Android / Chrome móvil si está soportado
-        if (typeof window !== 'undefined' && 'OTPCredential' in window && window.AbortController) {
-          try {
-            const ac = new AbortController();
-            webOtpAbortRef.current = ac;
-            navigator.credentials.get({
-              otp: { transport: ['sms'] },
-              signal: ac.signal
-            }).then((content) => {
-              if (content && content.code) {
-                applyDetectedOtp(content.code);
-              }
-            }).catch(() => {
-              // Si el usuario cancela o no soporta, el timer de respaldo lo procesa
-            });
-          } catch (e) {
-            // Seguir con autodetección por radar
-          }
-        }
-
-        // 2. Autodetección inteligente en tu celular (2.5 segundos con confirmación inmediata)
-        if (autoDetectTimerRef.current) clearTimeout(autoDetectTimerRef.current);
-        autoDetectTimerRef.current = setTimeout(() => {
-          applyDetectedOtp(code);
-        }, 2200);
-
-      } else {
-        setLoginError(res?.error || 'No se pudo enviar el SMS. Intenta nuevamente.');
-      }
-    } catch (err) {
-      setLoginError('Error de conexión al solicitar el código SMS.');
-    } finally {
-      setIsSendingOtp(false);
-    }
-  };
-
-  // Aplicar código detectado y dar pase automático
-  const applyDetectedOtp = (code) => {
-    setAutoDetectStatus('detected');
-    setReceivedSmsPreview(code);
-    setOtpCode(code);
-    // Ingreso directo e instantáneo a la consola
-    setTimeout(() => {
-      executeLogin(code);
-    }, 700);
-  };
-
-  // Confirmar código e ingresar a la consola del conductor
-  const executeLogin = async (codeToVerify) => {
+  // Validar Pase de Acceso e Ingresar a la Consola
+  const handleVerifyPass = async (codeToVerify) => {
     const finalCode = (codeToVerify || otpCode).trim();
-    if (!finalCode) {
-      setLoginError('Por favor ingresa el código de 6 dígitos recibido por SMS.');
+    if (!finalCode || finalCode.length < 4) {
+      setLoginError('Por favor ingresa el código de acceso recibido.');
       return;
     }
     const clean = phoneInput.replace(/\D/g, '').slice(-8);
-    setIsVerifying(true);
+    setIsVerifyingPass(true);
     setLoginError('');
 
     try {
-      const res = await loginDriverWithPhoneApi({ phone: clean, otpCode: finalCode });
+      let res;
+      try {
+        res = await verifyMagicTokenApi({ phone: clean, token: finalCode });
+      } catch (tokenErr) {
+        // Fallback a login por SMS si vino vía SMS
+        res = await loginDriverWithPhoneApi({ phone: clean, otpCode: finalCode });
+      }
+
       if (res && res.success && res.driverProfile) {
         localStorage.setItem('rumbo_driver_profile', JSON.stringify(res.driverProfile));
         handleCloseLoginModal();
@@ -255,14 +184,19 @@ export default function DriverLandingView({ onStartRegistration, onCheckStatus, 
           onDriverLoggedIn(res.driverProfile);
         }
       } else {
-        setLoginError(res?.error || 'Código incorrecto o expirado.');
-        setAutoDetectStatus('manual');
+        setLoginError(res?.error || 'Pase de acceso incorrecto o expirado.');
       }
     } catch (err) {
-      setLoginError(err.message || 'Error al verificar el código de celular.');
-      setAutoDetectStatus('manual');
+      const isSharedOrDup = err?.isSharedOrDuplicate || err?.message?.includes('utilizado') || err?.message?.includes('compartido') || err?.message?.includes('expirado');
+      if (isSharedOrDup) {
+        setWorkInvitation(err?.workInvitation || {
+          title: '¿Necesitas trabajar en la plataforma?',
+          message: 'Inscríbete como conductor, solo son $15 a la semana sin cobro de comisión'
+        });
+      }
+      setLoginError(err.message || 'Error al validar el pase de acceso.');
     } finally {
-      setIsVerifying(false);
+      setIsVerifyingPass(false);
     }
   };
 
@@ -858,7 +792,7 @@ export default function DriverLandingView({ onStartRegistration, onCheckStatus, 
         onClose={() => setShowSupportModal(false)}
       />
 
-      {/* MODAL DE INGRESO POR CELULAR CON AUTODETECCIÓN DE SMS */}
+      {/* MODAL DE INGRESO Y VERIFICACIÓN ESTRICTA DE CONDUCTORES */}
       {showLoginModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in">
           <div className="w-full max-w-sm bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950 border-2 border-amber-400/70 rounded-3xl p-6 shadow-2xl space-y-4 animate-pop-bounce relative">
@@ -870,21 +804,22 @@ export default function DriverLandingView({ onStartRegistration, onCheckStatus, 
               ✕
             </button>
 
-            {loginStep === 'PHONE' ? (
+            {/* CASO 1: TOCAR LA PUERTA (SOLICITAR PASE DE ACCESO) */}
+            {loginStep === 'PHONE' && (
               <>
                 <div className="text-center space-y-1.5 pt-2">
-                  <div className="w-14 h-14 mx-auto rounded-full bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center text-emerald-300">
-                    <MessageCircle className="w-7 h-7" />
+                  <div className="w-14 h-14 mx-auto rounded-full bg-amber-500/15 border border-amber-400/40 flex items-center justify-center text-amber-300">
+                    <LogIn className="w-7 h-7" />
                   </div>
                   <h3 className="text-lg font-black text-white">
-                    Ingreso con Enlace Mágico
+                    Acceso a Consola de Conductor
                   </h3>
                   <p className="text-xs text-slate-300 leading-relaxed">
-                    Ingresa tu número de celular. Te enviaremos un enlace a tu WhatsApp para que entres a tu consola con 1 solo toque.
+                    Ingresa tu número de teléfono registrado. Nuestro sistema validará tu expediente en la lista de conductores aprobados y emitirá tu pase de acceso seguro.
                   </p>
                 </div>
 
-                <form onSubmit={handleSendMagicLink} className="space-y-4">
+                <form onSubmit={(e) => handleRequestPass(e, 'WHATSAPP')} className="space-y-4">
                   <div>
                     <label className="block text-xs font-semibold text-slate-300 mb-1.5">
                       Número de Celular (El Salvador)
@@ -901,7 +836,7 @@ export default function DriverLandingView({ onStartRegistration, onCheckStatus, 
                         placeholder="Ej. 7890-1234"
                         autoFocus
                         required
-                        className="w-full px-3.5 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-sm font-bold text-white placeholder-slate-500 focus:outline-none focus:border-emerald-400 tracking-wider"
+                        className="w-full px-3.5 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-sm font-bold text-white placeholder-slate-500 focus:outline-none focus:border-amber-400 tracking-wider"
                       />
                     </div>
                   </div>
@@ -913,27 +848,20 @@ export default function DriverLandingView({ onStartRegistration, onCheckStatus, 
                     </div>
                   )}
 
-                  <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-[11px] text-emerald-200/90 flex items-start gap-2">
-                    <Sparkles className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-                    <span>
-                      <strong>14 Días Gratis:</strong> Al ingresar se activará tu acceso sin cuotas semanales ni comisiones.
-                    </span>
-                  </div>
-
                   <button
                     type="submit"
-                    disabled={isSendingOtp}
-                    className="w-full py-3.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:brightness-110 text-slate-950 font-black text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg shadow-emerald-950/40 transition-all cursor-pointer disabled:opacity-50"
+                    disabled={isRequestingPass}
+                    className="w-full py-3.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-400 hover:brightness-110 text-slate-950 font-black text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg shadow-amber-950/40 transition-all cursor-pointer disabled:opacity-50"
                   >
-                    {isSendingOtp ? (
+                    {isRequestingPass ? (
                       <>
                         <span className="w-4 h-4 border-2 border-slate-950 border-t-transparent rounded-full animate-spin"></span>
-                        <span>Generando Enlace Mágico...</span>
+                        <span>Verificando expediente en base de datos...</span>
                       </>
                     ) : (
                       <>
-                        <MessageCircle className="w-4 h-4" />
-                        <span>Recibir Enlace Mágico por WhatsApp</span>
+                        <Zap className="w-4 h-4" />
+                        <span>Solicitar Pase de Acceso</span>
                       </>
                     )}
                   </button>
@@ -941,18 +869,108 @@ export default function DriverLandingView({ onStartRegistration, onCheckStatus, 
                   <div className="text-center pt-0.5">
                     <button
                       type="button"
-                      onClick={handleSendOtp}
-                      disabled={isSendingOtp}
+                      onClick={(e) => handleRequestPass(e, 'SMS')}
+                      disabled={isRequestingPass}
                       className="text-[11px] text-slate-400 hover:text-amber-300 transition-colors cursor-pointer"
                     >
-                      O recibir código tradicional por SMS
+                      O solicitar código de verificación por SMS
                     </button>
                   </div>
                 </form>
               </>
-            ) : loginStep === 'MAGIC_WAIT' ? (
-              /* PASO 2: ENLACE MÁGICO DE WHATSAPP */
-              <div className="space-y-4 pt-1">
+            )}
+
+            {/* CASO 2: NÚMERO NO REGISTRADO O NO ENCONTRADO EN LA LISTA */}
+            {loginStep === 'NOT_REGISTERED' && (
+              <div className="space-y-4 pt-2 text-center animate-fade-in">
+                <div className="w-16 h-16 mx-auto rounded-full bg-rose-500/15 border-2 border-rose-500/40 flex items-center justify-center text-rose-400">
+                  <ShieldAlert className="w-8 h-8" />
+                </div>
+                <div>
+                  <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-rose-500/20 text-rose-300 font-bold border border-rose-500/30 uppercase tracking-wider inline-block mb-1.5">
+                    Acceso Restringido
+                  </span>
+                  <h3 className="text-lg font-black text-white">
+                    Número No Registrado
+                  </h3>
+                  <p className="text-xs text-slate-300 mt-2 leading-relaxed">
+                    El número <strong className="text-amber-300 font-mono">+503 {unregisteredPhone}</strong> no se encuentra en nuestra lista de conductores aprobados.
+                  </p>
+                  <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
+                    Para ingresar y trabajar en la plataforma con <strong>0% de comisión</strong>, debes completar tu registro formal como conductor.
+                  </p>
+                </div>
+
+                {/* BOTÓN PRINCIPAL: REGISTRARSE COMO CONDUCTOR */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleCloseLoginModal();
+                    onStartRegistration();
+                  }}
+                  className="w-full py-3.5 rounded-xl bg-gradient-to-r from-amber-400 via-amber-500 to-amber-600 hover:brightness-110 text-slate-950 font-black text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg shadow-amber-950/50 transition-all cursor-pointer"
+                >
+                  <Car className="w-4 h-4" />
+                  <span>Inscribirme como Conductor Ahora</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+
+                <div className="pt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLoginStep('PHONE');
+                      setLoginError('');
+                    }}
+                    className="text-xs text-slate-400 hover:text-white flex items-center justify-center gap-1 mx-auto cursor-pointer"
+                  >
+                    <ArrowLeft className="w-3.5 h-3.5" />
+                    <span>Intentar con otro número de celular</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* CASO 3: EXPEDIENTE EN AUDITORÍA / PENDIENTE DE APROBACIÓN */}
+            {loginStep === 'PENDING_APPROVAL' && (
+              <div className="space-y-4 pt-2 text-center animate-fade-in">
+                <div className="w-16 h-16 mx-auto rounded-full bg-cyan-500/15 border-2 border-cyan-500/40 flex items-center justify-center text-cyan-300">
+                  <Clock className="w-8 h-8" />
+                </div>
+                <div>
+                  <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 font-bold border border-cyan-500/30 uppercase tracking-wider inline-block mb-1.5">
+                    Expediente en Auditoría
+                  </span>
+                  <h3 className="text-lg font-black text-white">
+                    Revisión Administrativa
+                  </h3>
+                  <p className="text-xs text-slate-200 mt-2 leading-relaxed">
+                    Estimado(a) <strong>{pendingDriverData?.fullName || 'Conductor'}</strong>, tu documentación fue recibida y se encuentra en proceso de validación oficial.
+                  </p>
+                  <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
+                    Te notificaremos tan pronto como administración apruebe tu expediente para que puedas ingresar con tu pase de acceso.
+                  </p>
+                </div>
+
+                <div className="pt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLoginStep('PHONE');
+                      setLoginError('');
+                    }}
+                    className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
+                  >
+                    <ArrowLeft className="w-3.5 h-3.5" />
+                    <span>Volver a intentar con otro número</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* CASO 4: CONDUCTOR APROBADO -> PASE DE ACCESO EMITIDO */}
+            {loginStep === 'PASS_ISSUED' && (
+              <div className="space-y-4 pt-1 animate-fade-in">
                 <div className="flex items-center justify-between">
                   <button
                     type="button"
@@ -965,244 +983,76 @@ export default function DriverLandingView({ onStartRegistration, onCheckStatus, 
                     <ArrowLeft className="w-3.5 h-3.5" />
                     <span>Cambiar número</span>
                   </button>
-                  <span className="text-[11px] font-bold text-slate-400">
+                  <span className="text-[11px] font-bold text-slate-400 font-mono">
                     🇸🇻 +503 {phoneInput.replace(/\D/g, '').slice(-8)}
                   </span>
                 </div>
 
                 <div className="text-center py-2 space-y-2">
-                  <div className="relative w-20 h-20 mx-auto flex items-center justify-center">
-                    <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-500/20 animate-ping"></span>
-                    <div className="relative rounded-full p-4 bg-slate-800 border-2 border-emerald-400 text-emerald-400 shadow-lg shadow-emerald-500/25">
-                      <MessageCircle className="w-8 h-8 animate-pulse" />
-                    </div>
+                  <div className="w-16 h-16 mx-auto rounded-full bg-emerald-500/20 border-2 border-emerald-400 text-emerald-400 flex items-center justify-center shadow-lg shadow-emerald-500/25">
+                    <ShieldCheck className="w-8 h-8" />
                   </div>
 
                   <div>
                     <h4 className="text-base font-black text-white">
-                      ¡Enlace Mágico Listo!
+                      ¡Pase de Acceso Emitido!
                     </h4>
-                    <p className="text-xs text-slate-300 mt-1 leading-relaxed">
-                      Toca el enlace azul en tu WhatsApp para entrar con <strong>1 solo toque</strong>, o actívalo directamente desde aquí.
+                    {verifiedDriver && (
+                      <div className="mt-1.5 p-2 rounded-xl bg-slate-800/80 border border-slate-700 text-left text-xs space-y-0.5">
+                        <div className="text-emerald-400 font-bold flex items-center gap-1.5">
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          <span>Conductor Aprobado: {verifiedDriver.fullName}</span>
+                        </div>
+                        {verifiedDriver.vehiclePlate && (
+                          <div className="text-slate-400 text-[11px] pl-5">
+                            Vehículo: <span className="text-slate-200 font-mono font-bold">{verifiedDriver.vehiclePlate}</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    <p className="text-xs text-slate-300 mt-2 leading-relaxed">
+                      Abre el enlace directo enviado a tu WhatsApp o ingresa tu código de 6 dígitos a continuación para entrar a tu consola.
                     </p>
                   </div>
                 </div>
 
-                {/* BOTÓN 1: ABRIR WHATSAPP Y ENTRAR */}
-                <a
-                  href={magicLinkData?.whatsappWebLink}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={() => {
-                    setTimeout(() => {
-                      handleVerifyMagicToken(magicLinkData?.token);
-                    }, 1800);
-                  }}
-                  className="w-full py-3.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:brightness-110 text-slate-950 font-black text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg shadow-emerald-950/40 transition-all cursor-pointer"
-                >
-                  <MessageCircle className="w-4 h-4" />
-                  <span>👉 Abrir mi WhatsApp y Entrar</span>
-                  <ExternalLink className="w-3.5 h-3.5 ml-0.5" />
-                </a>
-
-                {/* BOTÓN 2: ACTIVAR Y ENTRAR YA EN ESTA PESTAÑA */}
-                <button
-                  type="button"
-                  onClick={() => handleVerifyMagicToken(magicLinkData?.token)}
-                  disabled={isVerifying}
-                  className="w-full py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/40 font-black text-xs flex items-center justify-center gap-2 shadow transition-all cursor-pointer disabled:opacity-50"
-                >
-                  {isVerifying ? (
-                    <>
-                      <span className="w-4 h-4 border-2 border-amber-300 border-t-transparent rounded-full animate-spin"></span>
-                      <span>Entrando a la consola...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Zap className="w-4 h-4 text-amber-400" />
-                      <span>⚡ Activar Enlace Mágico y Entrar Ya</span>
-                    </>
-                  )}
-                </button>
-
-                {/* COPIAR ENLACE AL PORTAPAPELES */}
-                <div className="text-center pt-0.5">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (magicLinkData?.magicLinkUrl) {
-                        navigator.clipboard.writeText(magicLinkData.magicLinkUrl);
-                        setIsCopiedLink(true);
-                        setTimeout(() => setIsCopiedLink(false), 2500);
-                      }
-                    }}
-                    className="text-[11px] text-slate-400 hover:text-white flex items-center justify-center gap-1.5 mx-auto cursor-pointer"
+                {/* BOTÓN ABRIR WHATSAPP SI ESTÁ DISPONIBLE */}
+                {passData?.whatsappWebLink && (
+                  <a
+                    href={passData.whatsappWebLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full py-3.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:brightness-110 text-slate-950 font-black text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg shadow-emerald-950/40 transition-all cursor-pointer"
                   >
-                    {isCopiedLink ? (
-                      <>
-                        <Check className="w-3.5 h-3.5 text-emerald-400" />
-                        <span className="text-emerald-400 font-bold">¡Enlace copiado al portapapeles!</span>
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="w-3.5 h-3.5" />
-                        <span>Copiar enlace directo</span>
-                      </>
-                    )}
-                  </button>
-                </div>
+                    <MessageCircle className="w-4 h-4" />
+                    <span>👉 Abrir en mi WhatsApp y Entrar</span>
+                    <ExternalLink className="w-3.5 h-3.5 ml-0.5" />
+                  </a>
+                )}
 
-                {/* CÓDIGO MANUAL DE RESPALDO */}
-                <div className="pt-2 border-t border-slate-800 space-y-1.5 text-center">
-                  <label className="block text-[11px] text-slate-400">
-                    O escribe tu código de acceso manual:
+                {/* INGRESO MANUAL DE CÓDIGO */}
+                <div className="pt-2 border-t border-slate-800 space-y-2">
+                  <label className="block text-[11px] font-semibold text-slate-300 text-center">
+                    O ingresa tu código de acceso (6 dígitos):
                   </label>
                   <div className="flex items-center gap-2">
                     <input
                       type="text"
                       maxLength={6}
                       value={otpCode}
-                      onChange={(e) => setOtpCode(e.target.value)}
+                      onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ''))}
                       placeholder="• • • • • •"
-                      className="w-full text-center py-2 bg-slate-800 border border-slate-700 rounded-xl text-base font-black tracking-[0.3em] text-amber-300 focus:outline-none focus:border-amber-400"
+                      className="w-full text-center py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-lg font-black tracking-[0.4em] text-amber-300 focus:outline-none focus:border-amber-400 font-mono"
                     />
                     <button
                       type="button"
-                      onClick={() => handleVerifyMagicToken(otpCode)}
-                      disabled={isVerifying}
-                      className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl cursor-pointer"
+                      onClick={() => handleVerifyPass(otpCode)}
+                      disabled={isVerifyingPass || otpCode.length < 4}
+                      className="px-4 py-2.5 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 font-black text-xs rounded-xl cursor-pointer transition-colors shrink-0"
                     >
-                      Entrar
+                      {isVerifyingPass ? 'Validando...' : 'Entrar'}
                     </button>
                   </div>
-                </div>
-
-                {workInvitation ? (
-                  <div className="p-4 rounded-2xl bg-amber-950/40 border border-amber-500/50 space-y-2.5 text-center animate-fade-in">
-                    <div className="w-10 h-10 rounded-2xl bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center justify-center mx-auto">
-                      <Car className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-bold border border-amber-500/30 inline-block mb-1">
-                        Regla de Dispositivo Único
-                      </span>
-                      <h5 className="text-sm font-black text-white">
-                        {workInvitation.title || '¿Necesitas trabajar en la plataforma?'}
-                      </h5>
-                      <p className="text-xs font-bold text-emerald-400 mt-1">
-                        {workInvitation.message || 'Inscríbete como conductor, solo son $15 a la semana sin cobro de comisión'}
-                      </p>
-                      {loginError && (
-                        <p className="text-[11px] text-slate-400 mt-1">
-                          {loginError}
-                        </p>
-                      )}
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        handleCloseLoginModal();
-                        if (onStartRegistration) onStartRegistration();
-                      }}
-                      className="w-full py-2.5 bg-gradient-to-r from-amber-500 to-emerald-500 hover:brightness-110 text-slate-950 font-black text-xs rounded-xl cursor-pointer shadow flex items-center justify-center gap-1.5 transition-transform active:scale-95"
-                    >
-                      <Car className="w-4 h-4" />
-                      <span>Inscribirme como Conductor ($15/semana)</span>
-                    </button>
-                  </div>
-                ) : loginError ? (
-                  <div className="p-2.5 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs flex items-center gap-2">
-                    <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
-                    <span>{loginError}</span>
-                  </div>
-                ) : null}
-              </div>
-            ) : (
-              /* PASO 2 ALTERNATIVO: SMS TRADICIONAL */
-              <div className="space-y-4 pt-1">
-                <div className="flex items-center justify-between">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setLoginStep('PHONE');
-                      if (autoDetectTimerRef.current) clearTimeout(autoDetectTimerRef.current);
-                      setAutoDetectStatus('idle');
-                    }}
-                    className="flex items-center gap-1 text-[11px] text-amber-400 hover:text-amber-300 font-bold cursor-pointer"
-                  >
-                    <ArrowLeft className="w-3.5 h-3.5" />
-                    <span>Cambiar número</span>
-                  </button>
-                  <span className="text-[11px] font-bold text-slate-400">
-                    🇸🇻 +503 {phoneInput.replace(/\D/g, '').slice(-8)}
-                  </span>
-                </div>
-
-                {/* RADAR DE AUTODETECCIÓN SMS */}
-                <div className="text-center py-2 space-y-2">
-                  <div className="relative w-20 h-20 mx-auto flex items-center justify-center">
-                    {autoDetectStatus === 'detected' ? (
-                      <div className="w-16 h-16 rounded-full bg-emerald-500/20 border-2 border-emerald-400 text-emerald-400 flex items-center justify-center animate-bounce">
-                        <CheckCircle2 className="w-8 h-8" />
-                      </div>
-                    ) : (
-                      <>
-                        <span className="absolute inline-flex h-full w-full rounded-full bg-amber-400/20 animate-ping"></span>
-                        <div className="relative rounded-full p-4 bg-slate-800 border-2 border-amber-400 text-amber-400 shadow-lg shadow-amber-500/25">
-                          <Radio className="w-8 h-8 animate-pulse" />
-                        </div>
-                      </>
-                    )}
-                  </div>
-
-                  {autoDetectStatus === 'detected' ? (
-                    <div className="space-y-1">
-                      <p className="text-sm font-black text-emerald-400">
-                        ¡SMS Autodetectado con Éxito!
-                      </p>
-                      <p className="text-xs text-slate-300">
-                        Accediendo a tu consola activa...
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="space-y-1">
-                      <p className="text-sm font-black text-amber-300 flex items-center justify-center gap-1.5">
-                        <Radio className="w-4 h-4 text-amber-400 animate-pulse" />
-                        <span>Autodetectando SMS en tu celular...</span>
-                      </p>
-                      <p className="text-[11px] text-slate-400 leading-tight">
-                        La aplicación lee el mensaje de confirmación automáticamente.
-                      </p>
-                    </div>
-                  )}
-                </div>
-
-                {/* Banner de SMS Recibido si fue detectado */}
-                {receivedSmsPreview && (
-                  <div className="p-2.5 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
-                      <span>Código recibido: <strong>{receivedSmsPreview}</strong></span>
-                    </div>
-                    <span className="text-[10px] bg-emerald-400/20 text-emerald-300 px-2 py-0.5 rounded-full font-bold">
-                      Confirmado
-                    </span>
-                  </div>
-                )}
-
-                {/* Campo Código OTP */}
-                <div className="space-y-1.5">
-                  <label className="block text-[11px] font-semibold text-slate-300 text-center">
-                    Código de Confirmación (6 dígitos)
-                  </label>
-                  <input
-                    type="text"
-                    maxLength={6}
-                    value={otpCode}
-                    onChange={(e) => setOtpCode(e.target.value)}
-                    placeholder="• • • • • •"
-                    className="w-full text-center py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-lg font-black tracking-[0.4em] text-amber-300 focus:outline-none focus:border-amber-400"
-                  />
                 </div>
 
                 {loginError && (
@@ -1211,51 +1061,19 @@ export default function DriverLandingView({ onStartRegistration, onCheckStatus, 
                     <span>{loginError}</span>
                   </div>
                 )}
-
-                {/* Botón de Entrada Inmediata */}
-                <button
-                  type="button"
-                  onClick={() => executeLogin(otpCode || receivedSmsPreview || '123456')}
-                  disabled={isVerifying}
-                  className="w-full py-3 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 hover:brightness-110 text-slate-950 font-black text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg shadow-amber-500/25 transition-all cursor-pointer disabled:opacity-50"
-                >
-                  {isVerifying ? (
-                    <>
-                      <span className="w-4 h-4 border-2 border-slate-950 border-t-transparent rounded-full animate-spin"></span>
-                      <span>Ingresando a la consola...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Zap className="w-4 h-4" />
-                      <span>⚡ Autodetectar e ingresar de una vez</span>
-                    </>
-                  )}
-                </button>
-
-                <div className="text-center pt-1">
-                  <button
-                    type="button"
-                    onClick={() => handleSendOtp()}
-                    disabled={isSendingOtp}
-                    className="text-[11px] text-slate-400 hover:text-amber-300 flex items-center justify-center gap-1 mx-auto cursor-pointer"
-                  >
-                    <RefreshCw className={`w-3 h-3 ${isSendingOtp ? 'animate-spin' : ''}`} />
-                    <span>Reenviar código SMS</span>
-                  </button>
-                </div>
               </div>
             )}
 
             <div className="pt-2 border-t border-slate-800 text-center">
               <p className="text-[11px] text-slate-400">
-                ¿Deseas completar tu registro formal?{' '}
+                ¿Deseas registrar un nuevo expediente?{' '}
                 <button
                   type="button"
                   onClick={() => {
                     handleCloseLoginModal();
                     onStartRegistration();
                   }}
-                  className="text-amber-400 hover:underline font-bold"
+                  className="text-amber-400 hover:underline font-bold cursor-pointer"
                 >
                   Regístrate aquí
                 </button>

@@ -718,7 +718,7 @@ export async function updateDriverAuthorizationApi(driverId, { status, rejection
 }
 
 /**
- * 24. Solicitar Código SMS OTP para Conductor
+ * 24. Solicitar Código SMS OTP para Conductor Autorizado
  */
 export async function requestPhoneOtpApi({ phone }) {
   try {
@@ -727,29 +727,25 @@ export async function requestPhoneOtpApi({ phone }) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ phone })
     });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Error al enviar SMS OTP');
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const err = new Error(data.error || 'Error al solicitar el código SMS');
+      err.code = data.code;
+      err.canRegister = data.canRegister;
+      err.registrationUrl = data.registrationUrl;
+      err.approvalStatus = data.approvalStatus;
+      err.driverName = data.driverName;
+      throw err;
+    }
     return data;
   } catch (err) {
-    console.warn('Fallback local requestPhoneOtpApi:', err);
-    const cleanPhone = String(phone || '').replace(/\D/g, '').slice(-8);
-    const mockOtp = String(Math.floor(100000 + Math.random() * 900000));
-    // Guardar para validación offline
-    localStorage.setItem(`rumbo_sms_otp_${cleanPhone}`, JSON.stringify({
-      code: mockOtp,
-      expiresAt: Date.now() + 5 * 60 * 1000
-    }));
-    return {
-      success: true,
-      phone: cleanPhone,
-      otpCode: mockOtp,
-      message: `Código SMS enviado exitosamente al ${cleanPhone}`
-    };
+    console.error('API Error requestPhoneOtpApi:', err);
+    throw err;
   }
 }
 
 /**
- * 25. Ingresar Conductor con Número Celular y Autodetección SMS OTP
+ * 25. Ingresar Conductor con Número Celular y Código de Verificación
  */
 export async function loginDriverWithPhoneApi({ phone, otpCode }) {
   try {
@@ -758,47 +754,21 @@ export async function loginDriverWithPhoneApi({ phone, otpCode }) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ phone, otpCode })
     });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Error al iniciar sesión con celular');
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const err = new Error(data.error || 'Error al iniciar sesión con celular');
+      err.code = data.code;
+      throw err;
+    }
     return data;
   } catch (err) {
-    console.warn('Fallback local loginDriverWithPhoneApi:', err);
-    const cleanPhone = String(phone || '').replace(/\D/g, '').slice(-8);
-    const storedProfiles = JSON.parse(localStorage.getItem('rumbo_registered_drivers') || '[]');
-    let profile = storedProfiles.find(d => String(d.phone || '').replace(/\D/g, '').includes(cleanPhone) || d.id === `drv_sv_${cleanPhone}`);
-
-    if (!profile) {
-      profile = {
-        id: `drv_sv_${cleanPhone}`,
-        userId: `usr_drv_${cleanPhone}`,
-        fullName: `Conductor Rumbo (${cleanPhone})`,
-        phone: cleanPhone,
-        dui: '00000000-0',
-        vehiclePlate: `P ${Math.floor(100 + Math.random() * 899)}-${Math.floor(100 + Math.random() * 899)}`,
-        vehicleBrand: 'Toyota',
-        vehicleModel: 'Corolla',
-        vehicleYear: '2020',
-        vehicleColor: 'Gris Plata',
-        approvalStatus: 'APPROVED',
-        isActive: true,
-        isOnline: true,
-        trialEndsAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
-        weeklyBonuses: 0
-      };
-      storedProfiles.unshift(profile);
-      localStorage.setItem('rumbo_registered_drivers', JSON.stringify(storedProfiles));
-    }
-
-    return {
-      success: true,
-      driverProfile: profile,
-      message: 'Ingreso confirmado exitosamente.'
-    };
+    console.error('API Error loginDriverWithPhoneApi:', err);
+    throw err;
   }
 }
 
 /**
- * 26. Solicitar Enlace Mágico por WhatsApp para Conductor
+ * 26. Solicitar Pase / Enlace Mágico por WhatsApp para Conductor Autorizado
  */
 export async function sendMagicLinkApi({ phone }) {
   try {
@@ -807,37 +777,25 @@ export async function sendMagicLinkApi({ phone }) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ phone })
     });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Error al generar enlace mágico');
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const err = new Error(data.error || 'Error al generar el pase de acceso');
+      err.code = data.code;
+      err.canRegister = data.canRegister;
+      err.registrationUrl = data.registrationUrl;
+      err.approvalStatus = data.approvalStatus;
+      err.driverName = data.driverName;
+      throw err;
+    }
     return data;
   } catch (err) {
-    console.warn('Fallback local sendMagicLinkApi:', err);
-    const cleanPhone = String(phone || '').replace(/\D/g, '').slice(-8);
-    const token = String(Math.floor(100000 + Math.random() * 900000));
-    const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://demiempresa.online';
-    const magicLinkUrl = `${baseUrl}/conductor?magicToken=${token}&phone=${cleanPhone}`;
-    const whatsappMessage = `🚗 *Rumbo a tu Destino - Acceso de Conductor*\n\nHola, aquí tienes tu enlace directo para entrar a tu consola:\n👉 ${magicLinkUrl}\n\n(O tu código de acceso: *${token}*)`;
-    const whatsappWebLink = `https://wa.me/503${cleanPhone}?text=${encodeURIComponent(whatsappMessage)}`;
-
-    localStorage.setItem(`rumbo_magic_token_${cleanPhone}`, JSON.stringify({
-      token,
-      expiresAt: Date.now() + 15 * 60 * 1000
-    }));
-
-    return {
-      success: true,
-      phone: cleanPhone,
-      token,
-      magicLinkUrl,
-      whatsappWebLink,
-      whatsappMessage,
-      message: `Enlace mágico generado para ${cleanPhone}`
-    };
+    console.error('API Error sendMagicLinkApi:', err);
+    throw err;
   }
 }
 
 /**
- * 27. Verificar Enlace Mágico / Token de WhatsApp
+ * 27. Verificar Enlace Mágico / Token de WhatsApp y Entrar a Consola
  */
 export async function verifyMagicTokenApi({ phone, token }) {
   try {
@@ -846,48 +804,18 @@ export async function verifyMagicTokenApi({ phone, token }) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ phone, token })
     });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Error al validar enlace mágico');
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const err = new Error(data.error || 'Error al validar pase mágico');
+      err.code = data.code;
+      err.isSharedOrDuplicate = data.isSharedOrDuplicate;
+      err.workInvitation = data.workInvitation;
+      throw err;
+    }
     return data;
   } catch (err) {
-    console.warn('Fallback local verifyMagicTokenApi:', err);
-    const cleanPhone = String(phone || '').replace(/\D/g, '').slice(-8);
-    const stored = JSON.parse(localStorage.getItem(`rumbo_magic_token_${cleanPhone}`) || 'null');
-    const valid = (stored && stored.token === String(token).trim()) || String(token).trim() === '123456';
-    if (!valid && String(token).length < 4) {
-      throw new Error('El enlace mágico es inválido o ha expirado.');
-    }
-
-    const storedProfiles = JSON.parse(localStorage.getItem('rumbo_registered_drivers') || '[]');
-    let profile = storedProfiles.find(d => String(d.phone || '').replace(/\D/g, '').includes(cleanPhone) || d.id === `drv_sv_${cleanPhone}`);
-
-    if (!profile) {
-      profile = {
-        id: `drv_sv_${cleanPhone}`,
-        userId: `usr_drv_${cleanPhone}`,
-        fullName: `Conductor Rumbo (${cleanPhone})`,
-        phone: cleanPhone,
-        dui: '00000000-0',
-        vehiclePlate: `P ${Math.floor(100 + Math.random() * 899)}-${Math.floor(100 + Math.random() * 899)}`,
-        vehicleBrand: 'Toyota',
-        vehicleModel: 'Corolla',
-        vehicleYear: '2020',
-        vehicleColor: 'Gris Plata',
-        approvalStatus: 'APPROVED',
-        isActive: true,
-        isOnline: true,
-        trialEndsAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
-        weeklyBonuses: 0
-      };
-      storedProfiles.unshift(profile);
-      localStorage.setItem('rumbo_registered_drivers', JSON.stringify(storedProfiles));
-    }
-
-    return {
-      success: true,
-      driverProfile: profile,
-      message: 'Enlace mágico verificado exitosamente.'
-    };
+    console.error('API Error verifyMagicTokenApi:', err);
+    throw err;
   }
 }
 
