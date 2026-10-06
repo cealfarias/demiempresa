@@ -357,16 +357,128 @@ export function initializeWebSockets(httpServer) {
     });
 
     /**
-     * 4.1 Cancelación de Viaje por el Pasajero
+     * 4.1 Cancelación de Viaje (Solo permitido en fase de Búsqueda sin Conductor Asignado)
      */
-    socket.on('trip:cancel', async ({ tripId }) => {
+    socket.on('trip:cancel', async ({ tripId }, callback) => {
       try {
+        if (!tripId) {
+          if (callback) callback({ success: false, error: 'tripId requerido' });
+          return;
+        }
+
+        const tripRes = await pool.query(
+          "SELECT id, status, driver_id FROM viajes_trips WHERE id::text = $1",
+          [tripId]
+        );
+        const trip = tripRes.rows[0];
+
+        // Regla Implacable: Si ya hay un conductor asignado o el viaje está en ejecución, NO se puede cancelar unilateralmente
+        if (trip && trip.driver_id && trip.status !== 'REQUESTED' && trip.status !== 'CANCELLED' && trip.status !== 'COMPLETED') {
+          console.warn(`⚠️ [trip:cancel] Intento de cancelación unilateral en carrera activa #${tripId}. Denegado.`);
+          if (callback) {
+            callback({
+              success: false,
+              inProgress: true,
+              error: 'Una carrera en ejecución no puede cancelarse unilateralmente. Debe solicitar cancelación por mutuo acuerdo.'
+            });
+          }
+          return;
+        }
+
+        // Si aún está en subasta/búsqueda (REQUESTED) sin chofer asignado, se cancela la búsqueda
         await pool.query("UPDATE viajes_trips SET status = 'CANCELLED' WHERE id::text = $1", [tripId]).catch(() => {});
         io.to(`trip:${tripId}`).emit('trip:canceled', { tripId });
         io.to('drivers_channel').emit('trip:canceled', { tripId });
-        console.log(`🛑 [trip:cancel] Solicitud #${tripId} cancelada por el pasajero.`);
+        console.log(`🛑 [trip:cancel] Solicitud de búsqueda #${tripId} cancelada limpiamente antes de asignar chofer.`);
+        if (callback) callback({ success: true });
       } catch (err) {
         console.error('Error en trip:cancel:', err);
+        if (callback) callback({ success: false, error: err.message });
+      }
+    });
+
+    /**
+     * 4.1.1 Solicitud de Cancelación por Mutuo Acuerdo (Para Carreras en Ejecución)
+     */
+    socket.on('trip:request_mutual_cancel', async ({ tripId, requestedBy, reason }, callback) => {
+      try {
+        if (!tripId) {
+          if (callback) callback({ success: false, error: 'tripId requerido' });
+          return;
+        }
+
+        const tripRes = await pool.query(
+          "SELECT id, status, driver_id FROM viajes_trips WHERE id::text = $1",
+          [tripId]
+        );
+        const trip = tripRes.rows[0];
+        if (!trip || trip.status === 'COMPLETED' || trip.status === 'CANCELLED') {
+          if (callback) callback({ success: false, error: 'El viaje ya no está activo' });
+          return;
+        }
+
+        console.log(`🤝 [trip:request_mutual_cancel] Solicitud de mutuo acuerdo para viaje #${tripId} por ${requestedBy}: ${reason}`);
+
+        // Notificar a la contraparte en la sala del viaje
+        socket.to(`trip:${tripId}`).emit('trip:cancel_requested_by_peer', {
+          tripId,
+          requestedBy, // 'PASSENGER' | 'DRIVER'
+          reason: reason || 'Motivo de fuerza mayor'
+        });
+
+        if (callback) callback({ success: true });
+      } catch (err) {
+        console.error('Error en trip:request_mutual_cancel:', err);
+        if (callback) callback({ success: false, error: err.message });
+      }
+    });
+
+    /**
+     * 4.1.2 Respuesta a la Solicitud de Cancelación por Mutuo Acuerdo
+     */
+    socket.on('trip:respond_mutual_cancel', async ({ tripId, accepted, respondedBy }, callback) => {
+      try {
+        if (!tripId) {
+          if (callback) callback({ success: false, error: 'tripId requerido' });
+          return;
+        }
+
+        const tripRes = await pool.query(
+          "SELECT id, status, driver_id FROM viajes_trips WHERE id::text = $1",
+          [tripId]
+        );
+        const trip = tripRes.rows[0];
+        if (!trip) {
+          if (callback) callback({ success: false, error: 'Viaje no encontrado' });
+          return;
+        }
+
+        if (accepted) {
+          // Ambas partes acordaron cancelar
+          await pool.query("UPDATE viajes_trips SET status = 'CANCELLED' WHERE id::text = $1", [tripId]);
+          if (trip.driver_id) {
+            await releaseDriverLock(trip.driver_id, tripId);
+          }
+          io.to(`trip:${tripId}`).emit('trip:mutual_cancellation_confirmed', {
+            tripId,
+            message: 'La carrera fue cancelada de mutuo acuerdo por ambas partes.'
+          });
+          io.to('drivers_channel').emit('trip:canceled', { tripId });
+          console.log(`✅ [trip:respond_mutual_cancel] Carrera #${tripId} CANCELADA de mutuo acuerdo.`);
+        } else {
+          // La contraparte rechazó cancelar, la carrera continúa
+          io.to(`trip:${tripId}`).emit('trip:mutual_cancellation_declined', {
+            tripId,
+            respondedBy,
+            message: 'La solicitud de cancelación fue rechazada. La carrera continúa hasta su destino.'
+          });
+          console.log(`❌ [trip:respond_mutual_cancel] Solicitud de cancelación en viaje #${tripId} RECHAZADA por ${respondedBy}.`);
+        }
+
+        if (callback) callback({ success: true });
+      } catch (err) {
+        console.error('Error en trip:respond_mutual_cancel:', err);
+        if (callback) callback({ success: false, error: err.message });
       }
     });
 

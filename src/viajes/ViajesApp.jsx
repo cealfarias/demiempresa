@@ -13,6 +13,7 @@ import {
   Megaphone,
   AlertCircle,
   ShieldCheck,
+  ShieldAlert,
   ChevronRight,
   ExternalLink,
   Volume2,
@@ -803,6 +804,13 @@ export default function ViajesApp() {
   const [creditDiscountApplied, setCreditDiscountApplied] = useState(false);
   const [driverEtaMinutes, setDriverEtaMinutes] = useState(4);
 
+  // Estados de Cancelación por Mutuo Acuerdo (Carrera en Ejecución)
+  const [showMutualCancelModal, setShowMutualCancelModal] = useState(false);
+  const [cancelReason, setCancelReason] = useState('Inconveniente de fuerza mayor');
+  const [waitingCancelPeerResponse, setWaitingCancelPeerResponse] = useState(false);
+  const [incomingPeerCancelRequest, setIncomingPeerCancelRequest] = useState(null);
+  const [cancelNoticeMsg, setCancelNoticeMsg] = useState(null);
+
   // Persistir borrador del formulario cuando el usuario está cotizando
   useEffect(() => {
     if (appState === 'DECOY_FORM') {
@@ -950,14 +958,42 @@ export default function ViajesApp() {
       setAppState('IN_TRIP_HUB');
     });
 
-    // Escuchar viaje cancelado
+    // Escuchar viaje cancelado (fase de búsqueda)
     socket.on('trip:canceled', () => {
       localStorage.removeItem('rumbo_passenger_active_session');
       setActiveOffers([]);
       setAssignedTrip(null);
       setTripId(null);
       setAppState('DECOY_FORM');
-      speakAssistantMessage('El viaje ha sido cancelado.');
+      speakAssistantMessage('La búsqueda de viaje ha sido cancelada.');
+    });
+
+    // Escuchar solicitud de cancelación por mutuo acuerdo recibida del conductor
+    socket.on('trip:cancel_requested_by_peer', (data) => {
+      console.log('Solicitud de cancelación por mutuo acuerdo del chofer:', data);
+      setIncomingPeerCancelRequest(data);
+    });
+
+    // Escuchar confirmación de cancelación por mutuo acuerdo
+    socket.on('trip:mutual_cancellation_confirmed', () => {
+      localStorage.removeItem('rumbo_passenger_active_session');
+      setActiveOffers([]);
+      setAssignedTrip(null);
+      setTripId(null);
+      setAppState('DECOY_FORM');
+      setIncomingPeerCancelRequest(null);
+      setShowMutualCancelModal(false);
+      setWaitingCancelPeerResponse(false);
+      speakAssistantMessage('La carrera ha sido cancelada de mutuo acuerdo.');
+    });
+
+    // Escuchar rechazo de cancelación por mutuo acuerdo
+    socket.on('trip:mutual_cancellation_declined', () => {
+      setWaitingCancelPeerResponse(false);
+      setShowMutualCancelModal(false);
+      setCancelNoticeMsg('El conductor no aceptó cancelar. La carrera continúa hasta su destino.');
+      setTimeout(() => setCancelNoticeMsg(null), 6000);
+      speakAssistantMessage('El conductor no aceptó cancelar. La carrera continúa.');
     });
 
     // Escuchar cambios de estado del viaje
@@ -985,6 +1021,9 @@ export default function ViajesApp() {
       socket.off('passenger:offer_received');
       socket.off('trip:confirmed');
       socket.off('trip:canceled');
+      socket.off('trip:cancel_requested_by_peer');
+      socket.off('trip:mutual_cancellation_confirmed');
+      socket.off('trip:mutual_cancellation_declined');
       socket.off('trip:status_changed');
       socket.off('passenger_session_revoked');
     };
@@ -3457,7 +3496,7 @@ export default function ViajesApp() {
               }}
               className="text-xs px-3 py-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-white"
             >
-              Cancelar
+              Cancelar Búsqueda
             </button>
           </div>
 
@@ -5118,6 +5157,26 @@ export default function ViajesApp() {
               </a>
             </div>
 
+            {/* Aviso de solicitud de cancelación por mutuo acuerdo */}
+            {cancelNoticeMsg && (
+              <div className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-300 text-xs text-center font-medium animate-fade-in">
+                {cancelNoticeMsg}
+              </div>
+            )}
+
+            {/* Protocolo de Mutuo Acuerdo (Solo si la carrera aún está en ejecución) */}
+            {tripStatus !== 'COMPLETED' && (
+              <div className="pt-1 text-center">
+                <button
+                  type="button"
+                  onClick={() => setShowMutualCancelModal(true)}
+                  className="text-[11px] text-slate-500 hover:text-rose-400 underline transition-colors cursor-pointer"
+                >
+                  ¿Inconveniente? Solicitar Cancelación por Mutuo Acuerdo
+                </button>
+              </div>
+            )}
+
             {/* Acción de finalización para el pasajero */}
             {tripStatus === 'COMPLETED' && (
               <button
@@ -5454,6 +5513,129 @@ export default function ViajesApp() {
             >
               Entendido
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Oficial de Términos de Referencia, Exenciones y Políticas de Privacidad */}
+      {showMutualCancelModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
+          <div className="relative w-full max-w-sm bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl text-slate-100 space-y-4">
+            <div className="w-12 h-12 rounded-2xl bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center justify-center mx-auto shadow">
+              <ShieldAlert className="w-6 h-6" />
+            </div>
+
+            <div className="text-center space-y-1">
+              <h3 className="text-base font-bold text-white">Cancelar por Mutuo Acuerdo</h3>
+              <p className="text-xs text-slate-400">
+                Una vez asignada la carrera no puede cancelarse de forma unilateral. El conductor debe aprobar la solicitud.
+              </p>
+            </div>
+
+            {waitingCancelPeerResponse ? (
+              <div className="p-4 bg-slate-950 border border-amber-500/30 rounded-2xl text-center space-y-2">
+                <div className="w-6 h-6 border-2 border-amber-400 border-t-transparent rounded-full animate-spin mx-auto"></div>
+                <div className="text-xs font-bold text-amber-300">Solicitud enviada al conductor</div>
+                <p className="text-[11px] text-slate-400">Esperando que el conductor acepte o rechace desde su teléfono...</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div>
+                  <label className="text-[11px] text-slate-400 font-semibold block mb-1">Motivo de la solicitud:</label>
+                  <select
+                    value={cancelReason}
+                    onChange={(e) => setCancelReason(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-400"
+                  >
+                    <option value="Emergencia personal de fuerza mayor">Emergencia personal de fuerza mayor</option>
+                    <option value="Inconveniente con la ruta o tiempo">Inconveniente con la ruta o tiempo</option>
+                    <option value="Acuerdo directo presencial con el chofer">Acuerdo directo presencial con el chofer</option>
+                    <option value="Error involuntario de destino">Error involuntario de destino</option>
+                  </select>
+                </div>
+
+                <div className="flex gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setShowMutualCancelModal(false)}
+                    className="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-xl cursor-pointer"
+                  >
+                    Volver a la Carrera
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (tripId) {
+                        socket.emit('trip:request_mutual_cancel', {
+                          tripId,
+                          requestedBy: 'PASSENGER',
+                          reason: cancelReason
+                        });
+                        setWaitingCancelPeerResponse(true);
+                      }
+                    }}
+                    className="flex-1 py-2.5 bg-rose-600 hover:bg-rose-500 text-white font-black text-xs rounded-xl shadow cursor-pointer"
+                  >
+                    Enviar Solicitud
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Solicitud de Cancelación Entrante desde el Conductor */}
+      {incomingPeerCancelRequest && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in">
+          <div className="relative w-full max-w-sm bg-slate-900 border border-rose-500/40 rounded-3xl p-6 shadow-2xl text-slate-100 space-y-4">
+            <div className="w-12 h-12 rounded-2xl bg-rose-500/20 text-rose-400 border border-rose-500/30 flex items-center justify-center mx-auto shadow">
+              <ShieldAlert className="w-6 h-6" />
+            </div>
+
+            <div className="text-center space-y-1">
+              <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-rose-500/20 text-rose-300 font-bold border border-rose-500/30 inline-block uppercase">
+                Solicitud de Cancelación
+              </span>
+              <h3 className="text-base font-black text-white">El Conductor Solicita Cancelar</h3>
+              <p className="text-xs text-slate-300">
+                Motivo: <strong className="text-rose-300">{incomingPeerCancelRequest.reason || 'Fuerza mayor'}</strong>
+              </p>
+              <p className="text-[11px] text-slate-400 pt-1">
+                ¿Aceptas cancelar esta carrera de mutuo acuerdo? Si no aceptas, el viaje continúa.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  socket.emit('trip:respond_mutual_cancel', {
+                    tripId: incomingPeerCancelRequest.tripId || tripId,
+                    accepted: false,
+                    respondedBy: 'PASSENGER'
+                  });
+                  setIncomingPeerCancelRequest(null);
+                }}
+                className="py-3 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-xl cursor-pointer"
+              >
+                Rechazar (Continuar)
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  socket.emit('trip:respond_mutual_cancel', {
+                    tripId: incomingPeerCancelRequest.tripId || tripId,
+                    accepted: true,
+                    respondedBy: 'PASSENGER'
+                  });
+                  setIncomingPeerCancelRequest(null);
+                }}
+                className="py-3 bg-rose-600 hover:bg-rose-500 text-white font-black text-xs rounded-xl shadow cursor-pointer"
+              >
+                Aceptar Cancelación
+              </button>
+            </div>
           </div>
         </div>
       )}
