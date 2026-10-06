@@ -48,10 +48,11 @@ export default function DriverTripRequestsFeed({
         if (exists) return prev;
         const newReq = {
           id: incomingRequest.id,
-          passengerName: (incomingRequest.passengerName || 'Pasajero').trim(),
+          passengerName: (incomingRequest.passengerName || 'Pasajero Invitado').trim(),
           passengerPhoto: incomingRequest.passengerPhoto || null,
           rating: incomingRequest.passengerRating || 5.0,
           ratingCount: incomingRequest.passengerTrips || 1,
+          isGuest: Boolean(incomingRequest.isGuest || incomingRequest.passengerName === 'Pasajero' || incomingRequest.passengerName === 'Pasajero Invitado'),
           timeAgo: 'Reciente',
           price: parseFloat(incomingRequest.offeredFare || incomingRequest.suggestedFare || 4.00),
           priceLabel: incomingRequest.priceLabel || 'Oferta directa',
@@ -205,6 +206,15 @@ export default function DriverTripRequestsFeed({
               )}
               <span className="text-xs font-bold text-white truncate max-w-full">
                 {req.passengerName}
+              </span>
+              <span
+                className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${
+                  req.isGuest
+                    ? 'bg-amber-500/15 text-amber-300 border-amber-500/30'
+                    : 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
+                }`}
+              >
+                {req.isGuest ? 'Invitado' : 'Verificado'}
               </span>
               <div className="flex items-center gap-0.5 text-[10px] text-amber-400 font-bold">
                 <Star className="w-2.5 h-2.5 fill-amber-400" />

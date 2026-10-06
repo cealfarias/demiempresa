@@ -167,7 +167,11 @@ export function initializeWebSockets(httpServer) {
           changeNeeded: tripData.changeNeeded || '0.00',
           hasBonusDiscount: creditApplied > 0,
           timeLeft: 20,
-          passengerName: (tripData.passengerName || 'Pasajero').trim(),
+          passengerName: (tripData.passengerName || 'Pasajero Invitado').trim(),
+          passengerPhoto: tripData.passengerPhoto || null,
+          passengerRating: tripData.passengerRating || 5.0,
+          passengerTrips: tripData.passengerTrips || 1,
+          isGuest: Boolean(tripData.isGuest),
           passengerPhone: tripData.passengerPhone || '',
           packageDetails: newTrip.package_details
         };

@@ -407,6 +407,11 @@ export default function DriverApp() {
       console.log('🚗 Nueva solicitud recibida en el conductor:', reqData);
       setIncomingRequest({
         id: reqData.tripId,
+        passengerName: (reqData.passengerName || 'Pasajero Invitado').trim(),
+        passengerPhoto: reqData.passengerPhoto || null,
+        passengerRating: reqData.passengerRating || 5.0,
+        passengerTrips: reqData.passengerTrips || 1,
+        isGuest: Boolean(reqData.isGuest),
         serviceType: reqData.serviceType,
         transportType: reqData.transportType || 'CAR',
         origin: reqData.origin || reqData.originAddress || 'Ubicación de recogida',
