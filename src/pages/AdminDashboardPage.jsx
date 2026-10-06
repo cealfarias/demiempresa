@@ -2002,7 +2002,7 @@ export default function AdminDashboardPage() {
                   {telemetryStats?.avgDurationFormatted ?? '0s'}
                 </div>
                 <div className="text-[11px] text-emerald-400 font-semibold">
-                  {(telemetryStats?.avgDurationSeconds ?? 0) >= 40 ? '🟢 Alta Retención' : '🟡 Exploración Rápida'}
+                  {(telemetryStats?.avgDurationSeconds ?? 0) === 0 ? '⚪ Sin sesiones aún' : ((telemetryStats.avgDurationSeconds >= 40) ? '🟢 Alta Retención' : '🟡 Exploración Rápida')}
                 </div>
               </div>
 
@@ -2041,7 +2041,7 @@ export default function AdminDashboardPage() {
                   <Smartphone className="w-4 h-4 text-indigo-400" />
                 </div>
                 <div className="text-2xl sm:text-3xl font-black text-white font-mono">
-                  {telemetryStats?.deviceBreakdown?.mobilePercent ?? 100}%
+                  {telemetryStats?.deviceBreakdown?.mobilePercent ?? 0}%
                 </div>
                 <div className="text-[11px] text-slate-400">
                   {telemetryStats?.deviceBreakdown?.mobile ?? 0} Móvil • {telemetryStats?.deviceBreakdown?.desktop ?? 0} PC
@@ -2071,14 +2071,15 @@ export default function AdminDashboardPage() {
                 const hourly = Array.isArray(telemetryStats?.hourlyDistribution) && telemetryStats.hourlyDistribution.length === 24
                   ? telemetryStats.hourlyDistribution
                   : new Array(24).fill(0);
-                const maxVal = Math.max(...hourly, 1);
+                const maxVal = Math.max(...hourly, 0);
+                const hasTraffic = maxVal > 0;
 
                 return (
                   <div className="space-y-2 pt-2">
                     <div className="h-44 flex items-end gap-1 sm:gap-2 px-1 pt-6 border-b border-slate-800 pb-2">
                       {hourly.map((count, hr) => {
-                        const heightPct = Math.round((count / maxVal) * 100);
-                        const isPeak = count === maxVal && count > 0;
+                        const heightPct = hasTraffic ? Math.round((count / maxVal) * 100) : 0;
+                        const isPeak = hasTraffic && count === maxVal && count > 0;
 
                         return (
                           <div key={hr} className="flex-1 flex flex-col items-center gap-1 h-full justify-end group relative">
@@ -2088,14 +2089,14 @@ export default function AdminDashboardPage() {
                             </div>
 
                             <div
-                              className={`w-full rounded-t-md transition-all duration-300 min-h-[4px] ${
+                              className={`w-full rounded-t-md transition-all duration-300 ${
                                 isPeak
                                   ? 'bg-gradient-to-t from-amber-500 to-yellow-300 shadow-md shadow-amber-500/30 ring-1 ring-amber-400'
                                   : count > 0
                                   ? 'bg-gradient-to-t from-indigo-600 to-indigo-400'
-                                  : 'bg-slate-800/60'
+                                  : 'bg-slate-800/40'
                               }`}
-                              style={{ height: `${Math.max(4, heightPct)}%` }}
+                              style={{ height: count > 0 ? `${Math.max(8, heightPct)}%` : '3px' }}
                             />
                             <span className="text-[9px] sm:text-[10px] font-mono text-slate-400">
                               {hr % 3 === 0 ? `${hr}h` : ''}
@@ -2105,19 +2106,25 @@ export default function AdminDashboardPage() {
                       })}
                     </div>
 
-                    <div className="flex items-center justify-between text-xs text-slate-400 pt-1">
-                      <div className="flex items-center gap-4 text-[11px]">
-                        <span className="flex items-center gap-1.5">
-                          <span className="w-2.5 h-2.5 rounded bg-amber-400" />
-                          <span>Hora Pico Principal</span>
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between text-xs text-slate-400 pt-1 gap-2">
+                      {hasTraffic ? (
+                        <div className="flex items-center gap-4 text-[11px]">
+                          <span className="flex items-center gap-1.5">
+                            <span className="w-2.5 h-2.5 rounded bg-amber-400" />
+                            <span>Hora Pico Principal ({maxVal} visitas)</span>
+                          </span>
+                          <span className="flex items-center gap-1.5">
+                            <span className="w-2.5 h-2.5 rounded bg-indigo-500" />
+                            <span>Tráfico Regular</span>
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-[11px] text-slate-400 italic">
+                          ⚪ Sin visitas registradas aún en las últimas 24 horas. Los picos subirán en vivo con el tráfico.
                         </span>
-                        <span className="flex items-center gap-1.5">
-                          <span className="w-2.5 h-2.5 rounded bg-indigo-500" />
-                          <span>Tráfico Regular</span>
-                        </span>
-                      </div>
-                      <span className="text-[11px] text-slate-400">
-                        Total Eventos Registrados: <strong>{telemetryStats?.totalEvents ?? 0}</strong>
+                      )}
+                      <span className="text-[11px] text-slate-400 font-mono">
+                        Total Eventos Registrados: <strong className="text-white">{telemetryStats?.totalEvents ?? 0}</strong>
                       </span>
                     </div>
                   </div>

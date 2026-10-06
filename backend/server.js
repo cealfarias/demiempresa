@@ -2215,16 +2215,20 @@ app.get('/api/admin/telemetry/stats', async (req, res) => {
       if (sess.maxDuration < 10) bounceSessions++;
     });
 
-    const totalSessions = sessionsMap.size || 1;
-    const avgDurationSeconds = Math.round(totalSessionDuration / totalSessions);
-    const bounceRate = Math.round((bounceSessions / totalSessions) * 100);
+    const totalSessions = sessionsMap.size;
+    const avgDurationSeconds = totalSessions > 0 ? Math.round(totalSessionDuration / totalSessions) : 0;
+    const bounceRate = totalSessions > 0 ? Math.round((bounceSessions / totalSessions) * 100) : 0;
 
     const formatDuration = (sec) => {
+      if (!sec || sec <= 0) return '0s';
       if (sec < 60) return `${sec}s`;
       const m = Math.floor(sec / 60);
       const s = sec % 60;
       return `${m}m ${s}s`;
     };
+
+    const totalDevices = mobileCount + desktopCount;
+    const mobilePercent = totalDevices > 0 ? Math.round((mobileCount / totalDevices) * 100) : 0;
 
     res.json({
       success: true,
@@ -2246,7 +2250,7 @@ app.get('/api/admin/telemetry/stats', async (req, res) => {
         deviceBreakdown: {
           mobile: mobileCount,
           desktop: desktopCount,
-          mobilePercent: (mobileCount + desktopCount) > 0 ? Math.round((mobileCount / (mobileCount + desktopCount)) * 100) : 100
+          mobilePercent
         },
         eventTypeCounts,
         recentEvents: events.slice(0, 20).map(e => ({

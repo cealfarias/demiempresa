@@ -1097,7 +1097,7 @@ export async function fetchAdminTelemetryStatsApi() {
     const data = await res.json();
     return data.stats;
   } catch (err) {
-    console.warn('Fallback telemetría local:', err);
+    // Cálculo 100% REAL basado estrictamente en eventos capturados (0 inventados)
     let cached = [];
     if (typeof localStorage !== 'undefined') {
       try {
@@ -1105,30 +1105,79 @@ export async function fetchAdminTelemetryStatsApi() {
       } catch {}
     }
 
-    const uniqueSess = new Set(cached.map(c => c.sessionId));
-    const passCount = cached.filter(c => c.role === 'PASSENGER').length;
-    const drivCount = cached.filter(c => c.role === 'DRIVER').length;
-    const exitShown = cached.filter(c => c.eventType === 'EXIT_INTENT_SHOWN').length;
-    const exitConv = cached.filter(c => (c.eventType || '').includes('CONVERTED')).length;
+    const sessions = new Map();
+    const hourlyCounts = new Array(24).fill(0);
+    let mobileCount = 0;
+    let desktopCount = 0;
+    let passCount = 0;
+    let drivCount = 0;
+    let exitShown = 0;
+    let exitConv = 0;
+
+    for (const ev of cached) {
+      const sId = ev.sessionId || 'anon';
+      const dur = Number(ev.durationSeconds) || 0;
+      if (!sessions.has(sId) || dur > sessions.get(sId).duration) {
+        sessions.set(sId, { duration: dur, role: ev.role, device: ev.deviceType });
+      }
+
+      if (ev.timestamp) {
+        const evDate = new Date(ev.timestamp);
+        const svHour = (evDate.getUTCHours() - 6 + 24) % 24;
+        hourlyCounts[svHour]++;
+      }
+
+      if (ev.deviceType === 'MOBILE') mobileCount++;
+      else if (ev.deviceType === 'DESKTOP') desktopCount++;
+
+      if (ev.role === 'PASSENGER') passCount++;
+      else if (ev.role === 'DRIVER') drivCount++;
+
+      if (ev.eventType === 'EXIT_INTENT_SHOWN') exitShown++;
+      if ((ev.eventType || '').includes('CONVERTED')) exitConv++;
+    }
+
+    let totalDuration = 0;
+    let bounceCount = 0;
+    sessions.forEach((s) => {
+      totalDuration += s.duration;
+      if (s.duration < 10) bounceCount++;
+    });
+
+    const totalSessions = sessions.size;
+    const avgSec = totalSessions > 0 ? Math.round(totalDuration / totalSessions) : 0;
+    const bounceRate = totalSessions > 0 ? `${Math.round((bounceCount / totalSessions) * 100)}%` : '0%';
+    const totalDevices = mobileCount + desktopCount;
+    const mobilePct = totalDevices > 0 ? Math.round((mobileCount / totalDevices) * 100) : 0;
 
     return {
       totalEvents: cached.length,
-      uniqueVisitors: Math.max(uniqueSess.size, 1),
+      uniqueVisitors: totalSessions,
       passengerVisits: passCount,
       driverVisits: drivCount,
-      avgDurationSeconds: 45,
-      avgDurationFormatted: '45s',
-      bounceRate: '0%',
-      bounceSessions: 0,
-      hourlyDistribution: new Array(24).fill(0).map((_, i) => (i >= 8 && i <= 20 ? 1 : 0)),
+      avgDurationSeconds: avgSec,
+      avgDurationFormatted: avgSec > 0 ? (avgSec < 60 ? `${avgSec}s` : `${Math.floor(avgSec / 60)}m ${avgSec % 60}s`) : '0s',
+      bounceRate,
+      bounceSessions: bounceCount,
+      hourlyDistribution: hourlyCounts,
       exitIntent: {
         shown: exitShown,
         converted: exitConv,
         rate: exitShown > 0 ? `${Math.round((exitConv / exitShown) * 100)}%` : '0%'
       },
-      deviceBreakdown: { mobile: cached.length, desktop: 0, mobilePercent: 100 },
+      deviceBreakdown: {
+        mobile: mobileCount,
+        desktop: desktopCount,
+        mobilePercent: mobilePct
+      },
       eventTypeCounts: {},
-      recentEvents: cached.slice(0, 15)
+      recentEvents: cached.slice(0, 20).map(c => ({
+        eventType: c.eventType,
+        role: c.role,
+        device: c.deviceType,
+        duration: Number(c.durationSeconds) || 0,
+        createdAt: c.timestamp ? new Date(c.timestamp).toISOString() : new Date().toISOString()
+      }))
     };
   }
 }
