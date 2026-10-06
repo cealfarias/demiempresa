@@ -29,7 +29,10 @@ import {
   ExternalLink,
   Copy,
   Check,
-  ShieldAlert
+  ShieldAlert,
+  Lock,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import RumboLogo from './RumboLogo';
 import DriverAvatarNarrator from './DriverAvatarNarrator';
@@ -50,6 +53,9 @@ export default function DriverLandingView({ onStartRegistration, onCheckStatus, 
   // Estados del flujo: 'PHONE' | 'NOT_REGISTERED' | 'PENDING_APPROVAL' | 'PASS_ISSUED'
   const [loginStep, setLoginStep] = useState('PHONE');
   const [phoneInput, setPhoneInput] = useState('');
+  const [passwordInput, setPasswordInput] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [otpCode, setOtpCode] = useState('');
   const [isRequestingPass, setIsRequestingPass] = useState(false);
   const [isVerifyingPass, setIsVerifyingPass] = useState(false);
@@ -68,6 +74,9 @@ export default function DriverLandingView({ onStartRegistration, onCheckStatus, 
     setShowLoginModal(false);
     setLoginStep('PHONE');
     setPhoneInput('');
+    setPasswordInput('');
+    setShowPassword(false);
+    setIsLoggingIn(false);
     setOtpCode('');
     setIsRequestingPass(false);
     setIsVerifyingPass(false);
@@ -81,6 +90,66 @@ export default function DriverLandingView({ onStartRegistration, onCheckStatus, 
     if (autoDetectTimerRef.current) {
       clearInterval(autoDetectTimerRef.current);
       clearTimeout(autoDetectTimerRef.current);
+    }
+  };
+
+  // Login tradicional y directo: Teléfono + Contraseña / Clave
+  const handlePasswordLogin = async (e) => {
+    if (e) e.preventDefault();
+    const clean = phoneInput.replace(/\D/g, '').slice(-8);
+    if (clean.length < 8) {
+      setLoginError('Por favor ingresa un número de celular salvadoreño válido de 8 dígitos (ej. 7890-1234).');
+      return;
+    }
+    if (!passwordInput.trim()) {
+      setLoginError('Por favor ingresa tu contraseña o clave de acceso.');
+      return;
+    }
+
+    setIsLoggingIn(true);
+    setLoginError('');
+    setWorkInvitation(null);
+
+    try {
+      const res = await loginDriverWithPhoneApi({
+        phone: clean,
+        password: passwordInput.trim()
+      });
+
+      if (res && res.success && res.driverProfile) {
+        localStorage.setItem('rumbo_driver_profile', JSON.stringify(res.driverProfile));
+        handleCloseLoginModal();
+        if (onDriverLoggedIn) {
+          onDriverLoggedIn(res.driverProfile);
+        }
+      } else {
+        setLoginError(res?.error || 'No se pudo iniciar sesión. Por favor verifica tus datos.');
+      }
+    } catch (err) {
+      console.log('Driver login response:', err);
+      if (err.code === 'DRIVER_NOT_REGISTERED') {
+        setUnregisteredPhone(clean);
+        setLoginStep('NOT_REGISTERED');
+      } else if (err.code === 'DRIVER_PENDING_APPROVAL') {
+        setPendingDriverData({
+          fullName: err.driverName || 'Conductor',
+          phone: clean,
+          message: err.message || 'Tu solicitud de ingreso está actualmente en revisión y auditoría documental.'
+        });
+        setLoginStep('PENDING_APPROVAL');
+      } else if (err.code === 'INVALID_PASSWORD') {
+        setLoginError('La contraseña o clave de acceso ingresada es incorrecta. Por favor verifícala e intenta nuevamente.');
+      } else if (err.code === 'DRIVER_REJECTED') {
+        setUnregisteredPhone(clean);
+        setLoginError(err.message || 'Tu expediente no fue aprobado por administración.');
+        setLoginStep('NOT_REGISTERED');
+      } else if (err.code === 'DRIVER_SUSPENDED') {
+        setLoginError(err.message || 'Tu cuenta se encuentra suspendida o inactiva.');
+      } else {
+        setLoginError(err.message || 'Error al conectar con la plataforma.');
+      }
+    } finally {
+      setIsLoggingIn(false);
     }
   };
 
@@ -804,22 +873,22 @@ export default function DriverLandingView({ onStartRegistration, onCheckStatus, 
               ✕
             </button>
 
-            {/* CASO 1: TOCAR LA PUERTA (SOLICITAR PASE DE ACCESO) */}
+            {/* CASO 1: INGRESO TRADICIONAL (TELÉFONO + CONTRASEÑA / CLAVE) */}
             {loginStep === 'PHONE' && (
               <>
                 <div className="text-center space-y-1.5 pt-2">
-                  <div className="w-14 h-14 mx-auto rounded-full bg-amber-500/15 border border-amber-400/40 flex items-center justify-center text-amber-300">
+                  <div className="w-14 h-14 mx-auto rounded-full bg-amber-500/15 border border-amber-400/40 flex items-center justify-center text-amber-300 shadow-md shadow-amber-500/20">
                     <LogIn className="w-7 h-7" />
                   </div>
                   <h3 className="text-lg font-black text-white">
                     Acceso a Consola de Conductor
                   </h3>
                   <p className="text-xs text-slate-300 leading-relaxed">
-                    Ingresa tu número de teléfono registrado. Nuestro sistema validará tu expediente en la lista de conductores aprobados y emitirá tu pase de acceso seguro.
+                    Ingresa con tu número de teléfono salvadoreño y tu clave de acceso autorizada.
                   </p>
                 </div>
 
-                <form onSubmit={(e) => handleRequestPass(e, 'WHATSAPP')} className="space-y-4">
+                <form onSubmit={handlePasswordLogin} className="space-y-3.5">
                   <div>
                     <label className="block text-xs font-semibold text-slate-300 mb-1.5">
                       Número de Celular (El Salvador)
@@ -836,8 +905,41 @@ export default function DriverLandingView({ onStartRegistration, onCheckStatus, 
                         placeholder="Ej. 7890-1234"
                         autoFocus
                         required
-                        className="w-full px-3.5 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-sm font-bold text-white placeholder-slate-500 focus:outline-none focus:border-amber-400 tracking-wider"
+                        className="w-full px-3.5 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-sm font-bold text-white placeholder-slate-500 focus:outline-none focus:border-amber-400 tracking-wider font-mono"
                       />
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="text-xs font-semibold text-slate-300">
+                        Contraseña / Clave de Acceso
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setShowSupportModal(true)}
+                        className="text-[11px] text-amber-400 hover:underline cursor-pointer"
+                      >
+                        ¿Olvidaste tu clave?
+                      </button>
+                    </div>
+                    <div className="relative flex items-center">
+                      <input
+                        type={showPassword ? 'text' : 'password'}
+                        value={passwordInput}
+                        onChange={(e) => setPasswordInput(e.target.value)}
+                        placeholder="Ingresa tu clave"
+                        required
+                        className="w-full px-3.5 py-2.5 pr-11 bg-slate-800 border border-slate-700 rounded-xl text-sm font-bold text-white placeholder-slate-500 focus:outline-none focus:border-amber-400 tracking-wider"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 text-slate-400 hover:text-white transition-colors cursor-pointer p-1"
+                        tabIndex={-1}
+                      >
+                        {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
                     </div>
                   </div>
 
@@ -850,32 +952,21 @@ export default function DriverLandingView({ onStartRegistration, onCheckStatus, 
 
                   <button
                     type="submit"
-                    disabled={isRequestingPass}
+                    disabled={isLoggingIn}
                     className="w-full py-3.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-400 hover:brightness-110 text-slate-950 font-black text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg shadow-amber-950/40 transition-all cursor-pointer disabled:opacity-50"
                   >
-                    {isRequestingPass ? (
+                    {isLoggingIn ? (
                       <>
                         <span className="w-4 h-4 border-2 border-slate-950 border-t-transparent rounded-full animate-spin"></span>
-                        <span>Verificando expediente en base de datos...</span>
+                        <span>Verificando credenciales...</span>
                       </>
                     ) : (
                       <>
-                        <Zap className="w-4 h-4" />
-                        <span>Solicitar Pase de Acceso</span>
+                        <LogIn className="w-4 h-4" />
+                        <span>Ingresar a mi Consola</span>
                       </>
                     )}
                   </button>
-
-                  <div className="text-center pt-0.5">
-                    <button
-                      type="button"
-                      onClick={(e) => handleRequestPass(e, 'SMS')}
-                      disabled={isRequestingPass}
-                      className="text-[11px] text-slate-400 hover:text-amber-300 transition-colors cursor-pointer"
-                    >
-                      O solicitar código de verificación por SMS
-                    </button>
-                  </div>
                 </form>
               </>
             )}

@@ -745,19 +745,23 @@ export async function requestPhoneOtpApi({ phone }) {
 }
 
 /**
- * 25. Ingresar Conductor con Número Celular y Código de Verificación
+ * 25. Ingresar Conductor con Número Celular y Contraseña / Clave de Acceso
  */
-export async function loginDriverWithPhoneApi({ phone, otpCode }) {
+export async function loginDriverWithPhoneApi({ phone, password, otpCode }) {
   try {
     const res = await fetch(`${API_BASE_URL}/api/drivers/login-phone`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ phone, otpCode })
+      body: JSON.stringify({ phone, password, otpCode })
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
       const err = new Error(data.error || 'Error al iniciar sesión con celular');
       err.code = data.code;
+      err.canRegister = data.canRegister;
+      err.registrationUrl = data.registrationUrl;
+      err.driverName = data.driverName;
+      err.approvalStatus = data.approvalStatus;
       throw err;
     }
     return data;

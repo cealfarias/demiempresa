@@ -36,7 +36,10 @@ import {
   Volume2,
   VolumeX,
   LogOut,
-  Globe
+  Globe,
+  Lock,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import { registerDriverApi, fetchDriverStatusApi } from './api';
 import {
@@ -173,10 +176,13 @@ export default function DriverRegistrationModal({ isOpen, onClose, onDriverRegis
   const [showTermsModal, setShowTermsModal] = useState(false);
   const [termsTab, setTermsTab] = useState('ALL');
 
+  const [showRegPassword, setShowRegPassword] = useState(false);
+
   // Form State
   const [form, setForm] = useState({
     fullName: '',
     phone: '',
+    password: '',
     dui: '',
     documentType: 'DUI', // 'DUI' | 'PASSPORT_RESIDENCE'
     emergencyContactName: '',
@@ -346,6 +352,7 @@ export default function DriverRegistrationModal({ isOpen, onClose, onDriverRegis
   const validateStep1 = () => {
     if (!form.fullName.trim()) return 'Ingresa tu nombre completo como aparece en tu DUI.';
     if (!form.phone.trim() || form.phone.replace(/\D/g, '').length < 8) return 'Ingresa un número telefónico de El Salvador válido (8 dígitos).';
+    if (!form.password.trim() || form.password.trim().length < 4) return 'Define tu contraseña o clave de acceso (mínimo 4 caracteres).';
     if (!/^\d{8}-\d{1}$/.test(form.dui)) return 'El DUI debe tener el formato salvadoreño oficial (ej. 01234567-8).';
     return null;
   };
@@ -394,6 +401,7 @@ export default function DriverRegistrationModal({ isOpen, onClose, onDriverRegis
       const payload = {
         fullName: form.fullName.trim(),
         phone: form.phone.trim(),
+        password: form.password.trim(),
         dui: form.dui.trim(),
         emergencyContactName: form.emergencyContactName?.trim() || '',
         emergencyContactPhone: form.emergencyContactPhone?.trim() || '',
@@ -921,6 +929,31 @@ export default function DriverRegistrationModal({ isOpen, onClose, onDriverRegis
                       onChange={handleDuiChange}
                       className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-100 font-mono placeholder-slate-500 focus:outline-none focus:border-amber-400 transition-colors"
                     />
+                  </div>
+
+                  <div className="space-y-1 sm:col-span-2">
+                    <label className="text-xs font-bold text-slate-300 flex items-center justify-between">
+                      <span>Contraseña o Clave de Acceso *</span>
+                      <span className="text-[10px] text-amber-400 font-normal">Para ingresar a tu consola</span>
+                    </label>
+                    <div className="relative flex items-center">
+                      <input
+                        type={showRegPassword ? 'text' : 'password'}
+                        required
+                        placeholder="Define una contraseña segura (mínimo 4 caracteres)"
+                        value={form.password}
+                        onChange={(e) => setForm({ ...form, password: e.target.value })}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 pr-11 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-400 transition-colors tracking-wider"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowRegPassword(!showRegPassword)}
+                        className="absolute right-3 text-slate-400 hover:text-white transition-colors cursor-pointer p-1"
+                        tabIndex={-1}
+                      >
+                        {showRegPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
                   </div>
 
                   <div className="space-y-1.5 sm:col-span-2">

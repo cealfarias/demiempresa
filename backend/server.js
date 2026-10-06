@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import express from 'express';
 import http from 'http';
 import cors from 'cors';
@@ -9,6 +10,28 @@ import { AdService, AD_PRICING_PLANS } from './services/adService.js';
 import { LedgerService } from './services/ledgerService.js';
 
 dotenv.config();
+
+// Funciones de seguridad y verificación de claves de conductores
+function hashPassword(password) {
+  if (!password) return null;
+  const salt = crypto.randomBytes(16).toString('hex');
+  const hash = crypto.pbkdf2Sync(String(password).trim(), salt, 1000, 64, 'sha512').toString('hex');
+  return `${salt}:${hash}`;
+}
+
+function verifyPassword(password, storedPasswordHash) {
+  if (!password || !storedPasswordHash) return false;
+  const input = String(password).trim();
+  const stored = String(storedPasswordHash).trim();
+  // Compatibilidad directa con claves insertadas en texto plano vía SQL
+  if (!stored.includes(':')) {
+    return input === stored;
+  }
+  const [salt, key] = stored.split(':');
+  if (!salt || !key) return input === stored;
+  const hash = crypto.pbkdf2Sync(input, salt, 1000, 64, 'sha512').toString('hex');
+  return hash === key;
+}
 
 const app = express();
 const server = http.createServer(app);
@@ -439,6 +462,7 @@ app.post('/api/drivers/register', async (req, res) => {
 
     const cleanPlate = vehiclePlate.trim().toUpperCase();
     const cleanLicense = licenseNumber.trim().toUpperCase();
+    const passwordHash = req.body.password ? hashPassword(req.body.password) : null;
 
     // 1. Verificar si la placa ya pertenece a otro conductor
     const plateCheck = await pool.query(
@@ -454,15 +478,15 @@ app.post('/api/drivers/register', async (req, res) => {
     let user;
     if (userRes.rows.length === 0) {
       const newUser = await pool.query(
-        'INSERT INTO viajes_users (full_name, phone, dui, role) VALUES ($1, $2, $3, $4) RETURNING *',
-        [fullName, phone, dui, 'DRIVER']
+        'INSERT INTO viajes_users (full_name, phone, dui, role, password_hash) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+        [fullName, phone, dui, 'DRIVER', passwordHash]
       );
       user = newUser.rows[0];
     } else {
       user = userRes.rows[0];
       await pool.query(
-        'UPDATE viajes_users SET full_name = $1, phone = $2 WHERE id = $3',
-        [fullName, phone, user.id]
+        'UPDATE viajes_users SET full_name = $1, phone = $2, password_hash = COALESCE($3, password_hash) WHERE id = $4',
+        [fullName, phone, passwordHash, user.id]
       );
     }
 
@@ -498,10 +522,11 @@ app.post('/api/drivers/register', async (req, res) => {
           vehicle_photo_inside = COALESCE($18, vehicle_photo_inside),
           emergency_contact_name = $19,
           emergency_contact_phone = $20,
+          password_hash = COALESCE($21, password_hash),
           approval_status = 'PENDING',
           rejection_reason = NULL,
           updated_at = NOW()
-        WHERE user_id = $21
+        WHERE user_id = $22
         RETURNING *;
       `, [
         cleanPlate, vehicleBrand || 'Toyota', vehicleModel || 'Corolla', vehicleColor || 'Gris Plata',
@@ -510,6 +535,7 @@ app.post('/api/drivers/register', async (req, res) => {
         circulationCardUrl || null, policeRecordUrl || null, criminalRecordUrl || null,
         vehiclePhotoFront || null, vehiclePhotoInside || null,
         emergencyContactName || null, emergencyContactPhone || null,
+        passwordHash,
         user.id
       ]);
       profile = updateRes.rows[0];
@@ -522,6 +548,7 @@ app.post('/api/drivers/register', async (req, res) => {
           circulation_card_url, police_record_url, criminal_record_url,
           vehicle_photo_front, vehicle_photo_inside,
           emergency_contact_name, emergency_contact_phone,
+          password_hash,
           approval_status, is_active, is_online
         ) VALUES (
           $1, $2, $3, $4, $5, $6,
@@ -530,6 +557,7 @@ app.post('/api/drivers/register', async (req, res) => {
           $15, $16, $17,
           $18, $19,
           $20, $21,
+          $22,
           'PENDING', FALSE, FALSE
         ) RETURNING *;
       `, [
@@ -538,7 +566,8 @@ app.post('/api/drivers/register', async (req, res) => {
         defaultPhoto, duiFrontUrl || null, duiBackUrl || null, licenseFrontUrl || null, licenseBackUrl || null,
         circulationCardUrl || null, policeRecordUrl || null, criminalRecordUrl || null,
         vehiclePhotoFront || null, vehiclePhotoInside || null,
-        emergencyContactName || null, emergencyContactPhone || null
+        emergencyContactName || null, emergencyContactPhone || null,
+        passwordHash
       ]);
       profile = insertRes.rows[0];
     }
@@ -618,7 +647,8 @@ async function findDriverRecordByPhone(cleanPhone) {
         dp.vehicle_plate, dp.vehicle_brand, dp.vehicle_model, dp.vehicle_year, dp.vehicle_color,
         dp.license_number, dp.approval_status, dp.approved_at, dp.approved_by,
         dp.photo_url, dp.is_active, dp.is_online, dp.trial_ends_at,
-        dp.rejection_reason, dp.current_week_bonuses_count
+        dp.rejection_reason, dp.current_week_bonuses_count,
+        COALESCE(dp.password_hash, u.password_hash) AS password_hash
       FROM viajes_driver_profiles dp
       JOIN viajes_users u ON dp.user_id = u.id
       WHERE REGEXP_REPLACE(u.phone, '[^0-9]', '', 'g') LIKE $1
@@ -647,7 +677,8 @@ async function findDriverRecordByPhone(cleanPhone) {
         isOnline: Boolean(row.is_online),
         trialEndsAt: row.trial_ends_at || new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
         rejectionReason: row.rejection_reason || null,
-        weeklyBonuses: row.current_week_bonuses_count || 0
+        weeklyBonuses: row.current_week_bonuses_count || 0,
+        passwordHash: row.password_hash || null
       };
     }
   } catch (err) {
@@ -656,7 +687,7 @@ async function findDriverRecordByPhone(cleanPhone) {
   return null;
 }
 
-// 5.1.1 ENVIAR CÓDIGO SMS OTP PARA INGRESO DE CONDUCTOR AUTORIZADO
+// 5.1.1 ENVIAR CÓDIGO SMS OTP PARA INGRESO DE CONDUCTOR AUTORIZADO (COMPATIBILIDAD)
 const activeOtpCodes = new Map();
 
 app.post('/api/auth/send-sms-otp', async (req, res) => {
@@ -746,41 +777,112 @@ app.post('/api/auth/send-sms-otp', async (req, res) => {
   }
 });
 
-// 5.1.2 CONFIRMACIÓN DE CELULAR Y ACCESO DIRECTO DEL CONDUCTOR
-app.post('/api/drivers/login-phone', async (req, res) => {
+// 5.1.2 ACCESO DE CONDUCTOR: TELÉFONO Y CONTRASEÑA / CLAVE (TRADICIONAL DIRECTO)
+app.post(['/api/drivers/login-phone', '/api/drivers/login'], async (req, res) => {
   try {
-    const { phone, otpCode } = req.body;
+    const { phone, password, otpCode } = req.body;
     const cleanPhone = String(phone || '').replace(/\D/g, '').slice(-8);
 
     if (!cleanPhone || cleanPhone.length < 8) {
-      return res.status(400).json({ success: false, error: 'Número de celular inválido.' });
+      return res.status(400).json({ success: false, error: 'Por favor ingresa un número de celular salvadoreño válido de 8 dígitos.' });
     }
 
-    const codeToVerify = String(otpCode || '').trim();
-    if (!codeToVerify) {
-      return res.status(400).json({ success: false, error: 'Por favor ingresa el código de acceso recibido.' });
-    }
-
-    // Validar pase de un solo uso
-    const stored = activeOtpCodes.get(cleanPhone);
-    const isValid = stored && stored.code === codeToVerify && Date.now() <= stored.expiresAt;
-
-    if (!isValid) {
-      return res.status(400).json({ success: false, error: 'Código de confirmación incorrecto, expirado o ya utilizado.' });
-    }
-
-    // Quemado de un solo uso
-    activeOtpCodes.delete(cleanPhone);
-
-    // Obtener perfil auténtico del conductor
+    // 1. Tocar la puerta del backend: Verificar si está en la lista de conductores
     const driver = await findDriverRecordByPhone(cleanPhone);
-    if (!driver || driver.approvalStatus !== 'APPROVED' || !driver.isActive) {
-      return res.status(403).json({
+
+    if (!driver) {
+      return res.status(404).json({
         success: false,
-        error: 'Acceso denegado: El conductor no se encuentra en estado aprobado y activo en la plataforma.'
+        code: 'DRIVER_NOT_REGISTERED',
+        error: `El número de celular (+503 ${cleanPhone}) no se encuentra registrado en nuestra lista de conductores autorizados.`,
+        message: 'Para ingresar a la plataforma, debes completar tu registro formal como conductor.',
+        canRegister: true,
+        registrationUrl: '/conductor?register=true'
       });
     }
 
+    // 2. Verificar estado de aprobación administrativa
+    if (driver.approvalStatus === 'PENDING') {
+      return res.status(403).json({
+        success: false,
+        code: 'DRIVER_PENDING_APPROVAL',
+        driverName: driver.fullName,
+        approvalStatus: 'PENDING',
+        canRegister: false,
+        error: `Estimado(a) ${driver.fullName}, tu solicitud de ingreso está actualmente en revisión y auditoría documental. Te notificaremos en cuanto tu cuenta sea aprobada por administración.`
+      });
+    }
+
+    if (driver.approvalStatus === 'REJECTED') {
+      return res.status(403).json({
+        success: false,
+        code: 'DRIVER_REJECTED',
+        driverName: driver.fullName,
+        approvalStatus: 'REJECTED',
+        canRegister: true,
+        registrationUrl: '/conductor?register=true',
+        error: `Estimado(a) ${driver.fullName}, tu expediente no fue aprobado (${driver.rejectionReason || 'documentación pendiente'}). Puedes actualizar tus documentos registrándote de nuevo.`
+      });
+    }
+
+    if (driver.approvalStatus === 'SUSPENDED' || !driver.isActive) {
+      return res.status(403).json({
+        success: false,
+        code: 'DRIVER_SUSPENDED',
+        driverName: driver.fullName,
+        approvalStatus: 'SUSPENDED',
+        canRegister: false,
+        error: `Estimado(a) ${driver.fullName}, tu cuenta de conductor se encuentra suspendida o inactiva. Por favor contacta al área de soporte administrativo.`
+      });
+    }
+
+    // 3. Verificación de Contraseña / Clave de Acceso
+    const submittedPassword = String(password || '').trim();
+
+    if (driver.passwordHash) {
+      if (!submittedPassword) {
+        return res.status(400).json({
+          success: false,
+          code: 'PASSWORD_REQUIRED',
+          error: 'Por favor ingresa tu contraseña o clave de acceso.'
+        });
+      }
+
+      const isValidPassword = verifyPassword(submittedPassword, driver.passwordHash);
+      if (!isValidPassword) {
+        return res.status(401).json({
+          success: false,
+          code: 'INVALID_PASSWORD',
+          error: 'La contraseña o clave de acceso ingresada es incorrecta. Por favor verifícala e intenta nuevamente.'
+        });
+      }
+    } else {
+      // Si el conductor está aprobado en la BD pero aún no tiene clave asignada (ej. expedientes previos)
+      if (submittedPassword) {
+        const newHash = hashPassword(submittedPassword);
+        try {
+          await pool.query('UPDATE viajes_driver_profiles SET password_hash = $1 WHERE id = $2', [newHash, driver.id]);
+          await pool.query('UPDATE viajes_users SET password_hash = $1 WHERE id = $2', [newHash, driver.userId]);
+          driver.passwordHash = newHash;
+        } catch (dbErr) {
+          console.warn('No se pudo persistir password_hash:', dbErr.message);
+        }
+      } else if (otpCode) {
+        const stored = activeOtpCodes.get(cleanPhone);
+        if (!stored || stored.code !== String(otpCode).trim() || Date.now() > stored.expiresAt) {
+          return res.status(400).json({ success: false, error: 'Código de confirmación inválido o expirado.' });
+        }
+        activeOtpCodes.delete(cleanPhone);
+      } else {
+        return res.status(400).json({
+          success: false,
+          code: 'PASSWORD_REQUIRED',
+          error: 'Por favor ingresa tu clave de acceso para entrar a la plataforma.'
+        });
+      }
+    }
+
+    // 4. Conductor Aprobado y Clave Correcta: Iniciar sesión exclusiva
     const newSessionId = `ses_${cleanPhone}_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
     activeDriverSessions.set(cleanPhone, {
       sessionId: newSessionId,
@@ -788,19 +890,27 @@ app.post('/api/drivers/login-phone', async (req, res) => {
       loggedAt: new Date().toISOString()
     });
 
+    // Despachar evento para sincronizar estado de sesión
+    io.emit('driver_session_revoked', {
+      phone: cleanPhone,
+      activeSessionId: newSessionId
+    });
+
     const driverProfile = {
       ...driver,
       isOnline: true,
       sessionToken: newSessionId
     };
+    delete driverProfile.passwordHash;
 
     res.json({
       success: true,
       driverProfile,
       sessionToken: newSessionId,
-      message: 'Confirmación exitosa. Acceso concedido a la consola del conductor.'
+      message: 'Autenticación exitosa. Bienvenido a tu consola de conductor.'
     });
   } catch (err) {
+    console.error('Error en login de conductor:', err);
     res.status(500).json({ success: false, error: err.message });
   }
 });
@@ -1528,7 +1638,9 @@ async function initializeDatabase() {
         ALTER TABLE viajes_driver_profiles ADD COLUMN IF NOT EXISTS emergency_contact_name VARCHAR(150);
         ALTER TABLE viajes_driver_profiles ADD COLUMN IF NOT EXISTS emergency_contact_phone VARCHAR(20);
         ALTER TABLE viajes_driver_profiles ADD COLUMN IF NOT EXISTS rejection_reason TEXT;
+        ALTER TABLE viajes_driver_profiles ADD COLUMN IF NOT EXISTS password_hash TEXT;
         ALTER TABLE viajes_driver_profiles ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
+        ALTER TABLE viajes_users ADD COLUMN IF NOT EXISTS password_hash TEXT;
       EXCEPTION WHEN others THEN null; END $$;
     `);
 
