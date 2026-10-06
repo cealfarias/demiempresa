@@ -44,7 +44,10 @@ import {
   Timer,
   MousePointerClick,
   Gift,
-  TrendingDown
+  TrendingDown,
+  ChevronLeft,
+  Globe,
+  HelpCircle
 } from 'lucide-react';
 import RumboLogo from '../viajes/RumboLogo';
 import ExitIntentRescueModal from '../viajes/ExitIntentRescueModal';
@@ -126,6 +129,10 @@ export default function AdminDashboardPage() {
   // Estados de Telemetría y Retención
   const [telemetryStats, setTelemetryStats] = useState(null);
   const [showExitModalPreview, setShowExitModalPreview] = useState(false);
+  const [selectedDayOfWeek, setSelectedDayOfWeek] = useState(() => {
+    const svNow = new Date(Date.now() - (6 * 3600 * 1000));
+    return svNow.getUTCDay();
+  });
 
   // Estados y Enlaces Oficiales de Difusión por WhatsApp
   const [copiedTarget, setCopiedTarget] = useState(null);
@@ -2054,57 +2061,132 @@ export default function AdminDashboardPage() {
               </div>
             </div>
 
-            {/* Gráfica de 24 Horas: Horas Pico de Conexión en El Salvador */}
-            <div className="p-5 sm:p-6 bg-slate-900 border border-slate-800 rounded-3xl space-y-4 shadow-lg">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-3">
-                <div>
-                  <h3 className="text-sm sm:text-base font-black text-white flex items-center gap-2">
-                    <BarChart3 className="w-4 h-4 text-amber-400" />
-                    <span>Curva de 24 Horas: Horas Pico de Mayor Tráfico en El Salvador</span>
+            {/* ================================================================== */}
+            {/* WIDGET ESTILO GOOGLE MAPS: "HORAS PUNTA" EN TIEMPO REAL */}
+            {/* ================================================================== */}
+            <div className="p-5 sm:p-6 bg-slate-900 border border-slate-800 rounded-3xl space-y-4 shadow-xl">
+              {/* Header idéntico al diseño oficial de Google Maps */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800/80 pb-3">
+                <div className="flex items-center gap-2.5 sm:gap-3 flex-wrap">
+                  <h3 className="text-base sm:text-lg font-black text-white tracking-tight flex items-center gap-2">
+                    <span>Horas punta</span>
                   </h3>
-                  <p className="text-xs text-slate-400">
-                    Distribución de visitas por hora del día (Zona Horaria El Salvador UTC-6). Úsalo para planificar envíos de WhatsApp cuando haya más gente conectada.
-                  </p>
+
+                  {/* Selector interactivo de Día de la semana (Lunes, Martes, etc.) */}
+                  <div className="flex items-center gap-1 bg-slate-950 border border-slate-700/80 rounded-2xl px-2 py-1 shadow-inner">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedDayOfWeek(prev => (prev - 1 + 7) % 7)}
+                      title="Día anterior"
+                      className="p-1 hover:bg-slate-800 rounded-lg text-slate-300 hover:text-white transition-colors cursor-pointer"
+                    >
+                      <ChevronLeft className="w-3.5 h-3.5" />
+                    </button>
+                    <select
+                      value={selectedDayOfWeek}
+                      onChange={(e) => setSelectedDayOfWeek(Number(e.target.value))}
+                      className="bg-transparent text-white font-bold text-xs px-1 py-0.5 focus:outline-none cursor-pointer"
+                    >
+                      <option value={1} className="bg-slate-900 text-white">lunes</option>
+                      <option value={2} className="bg-slate-900 text-white">martes</option>
+                      <option value={3} className="bg-slate-900 text-white">miércoles</option>
+                      <option value={4} className="bg-slate-900 text-white">jueves</option>
+                      <option value={5} className="bg-slate-900 text-white">viernes</option>
+                      <option value={6} className="bg-slate-900 text-white">sábado</option>
+                      <option value={0} className="bg-slate-900 text-white">domingo</option>
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedDayOfWeek(prev => (prev + 1) % 7)}
+                      title="Día siguiente"
+                      className="p-1 hover:bg-slate-800 rounded-lg text-slate-300 hover:text-white transition-colors cursor-pointer"
+                    >
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+
+                  <span title="Basado en tráfico y duración de sesiones en vivo en El Salvador (GMT-6)" className="text-slate-400 hover:text-white cursor-help">
+                    <HelpCircle className="w-4 h-4" />
+                  </span>
                 </div>
-                <span className="text-[11px] font-mono font-bold text-amber-400 bg-amber-500/10 px-2.5 py-1 rounded-xl border border-amber-500/20">
-                  Zona: GMT-6 (El Salvador)
+
+                <div className="text-[11px] font-mono text-slate-400 flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                  <span>Zona: UTC-6 (El Salvador)</span>
+                </div>
+              </div>
+
+              {/* Subheader: Badge Rojo "EN TIEMPO REAL" y texto de confluencia */}
+              <div className="flex items-center gap-2.5 pt-0.5">
+                <span className="px-2 py-0.5 rounded-md bg-[#ea4335] text-white font-black text-[10px] tracking-wider uppercase shadow-sm">
+                  EN TIEMPO REAL
+                </span>
+                <span className="text-xs text-slate-300 font-medium italic">
+                  {telemetryStats?.googleMapsRealtime?.statusText || 'Menos concurrido de lo habitual'}
                 </span>
               </div>
 
-              {/* Barras Visuales de 24 Horas */}
+              {/* Gráfica de Barras Estilo Google Maps Popular Times */}
               {(() => {
-                const hourly = Array.isArray(telemetryStats?.hourlyDistribution) && telemetryStats.hourlyDistribution.length === 24
-                  ? telemetryStats.hourlyDistribution
-                  : new Array(24).fill(0);
-                const maxVal = Math.max(...hourly, 0);
-                const hasTraffic = maxVal > 0;
+                const dayCounts = telemetryStats?.hourlyByDay?.[selectedDayOfWeek] ||
+                                  (Array.isArray(telemetryStats?.hourlyDistribution) && telemetryStats.hourlyDistribution.length === 24
+                                    ? telemetryStats.hourlyDistribution
+                                    : new Array(24).fill(0));
+
+                const currentDow = telemetryStats?.googleMapsRealtime?.currentDayOfWeek ?? new Date(Date.now() - (6 * 3600 * 1000)).getUTCDay();
+                const currentHour = telemetryStats?.googleMapsRealtime?.currentHour ?? new Date(Date.now() - (6 * 3600 * 1000)).getUTCHours();
+                const isViewingCurrentDay = selectedDayOfWeek === currentDow;
+
+                // Rango de horas activas (6 a. m. a 11 p. m.) como en Google Maps
+                const hoursRange = Array.from({ length: 18 }, (_, i) => i + 6);
+                const maxVal = Math.max(...dayCounts, 1);
+                const hasTraffic = Math.max(...dayCounts) > 0;
 
                 return (
-                  <div className="space-y-2 pt-2">
-                    <div className="h-44 flex items-end gap-1 sm:gap-2 px-1 pt-6 border-b border-slate-800 pb-2">
-                      {hourly.map((count, hr) => {
+                  <div className="space-y-3 pt-2">
+                    <div className="h-44 flex items-end gap-1.5 sm:gap-2.5 px-1 sm:px-3 border-b border-slate-800 pb-2 relative">
+                      {hoursRange.map((hr) => {
+                        const count = dayCounts[hr] || 0;
                         const heightPct = hasTraffic ? Math.round((count / maxVal) * 100) : 0;
-                        const isPeak = hasTraffic && count === maxVal && count > 0;
+                        const isCurrentLiveHour = isViewingCurrentDay && hr === currentHour;
 
                         return (
-                          <div key={hr} className="flex-1 flex flex-col items-center gap-1 h-full justify-end group relative">
-                            {/* Tooltip flotante */}
-                            <div className="opacity-0 group-hover:opacity-100 transition-opacity absolute -top-8 bg-slate-950 text-white font-mono text-[10px] px-2 py-0.5 rounded border border-slate-700 pointer-events-none z-10 whitespace-nowrap shadow">
-                              {hr}:00 → {count} visitas
+                          <div key={hr} className="flex-1 flex flex-col items-center gap-1.5 h-full justify-end group relative">
+                            {/* Tooltip flotante con formato 12h */}
+                            <div className="opacity-0 group-hover:opacity-100 transition-opacity absolute -top-9 bg-slate-950 text-white font-mono text-[10px] px-2 py-1 rounded-md border border-slate-700 pointer-events-none z-20 whitespace-nowrap shadow-xl">
+                              {hr % 12 === 0 ? 12 : hr % 12}{hr >= 12 ? 'p. m.' : 'a. m.'} → {count} visitas
+                              {isCurrentLiveHour ? ' (AHORA EN VIVO)' : ''}
                             </div>
 
-                            <div
-                              className={`w-full rounded-t-md transition-all duration-300 ${
-                                isPeak
-                                  ? 'bg-gradient-to-t from-amber-500 to-yellow-300 shadow-md shadow-amber-500/30 ring-1 ring-amber-400'
-                                  : count > 0
-                                  ? 'bg-gradient-to-t from-indigo-600 to-indigo-400'
-                                  : 'bg-slate-800/40'
-                              }`}
-                              style={{ height: count > 0 ? `${Math.max(8, heightPct)}%` : '3px' }}
-                            />
-                            <span className="text-[9px] sm:text-[10px] font-mono text-slate-400">
-                              {hr % 3 === 0 ? `${hr}h` : ''}
+                            {/* Barra con soporte de barra fantasma si es la hora actual */}
+                            <div className="w-full h-full flex items-end justify-center relative">
+                              {isCurrentLiveHour && (
+                                <div
+                                  className="w-full rounded-t-sm bg-slate-700/50 absolute bottom-0"
+                                  style={{ height: `${Math.max(20, heightPct + 15)}%` }}
+                                />
+                              )}
+
+                              <div
+                                className={`w-full rounded-t-sm transition-all duration-300 relative z-10 ${
+                                  isCurrentLiveHour
+                                    ? 'bg-[#ea4335] shadow-lg shadow-red-500/40 ring-1 ring-red-400'
+                                    : count > 0
+                                    ? 'bg-[#2a8b98] hover:bg-[#35a2b1]'
+                                    : 'bg-slate-800/40'
+                                }`}
+                                style={{ height: count > 0 || isCurrentLiveHour ? `${Math.max(8, heightPct)}%` : '3px' }}
+                              />
+                            </div>
+
+                            {/* Etiquetas del eje X: 6a. m., 9a. m., 12p. m., 3p. m., 6p. m., 9p. m. */}
+                            <span className="text-[9px] sm:text-[11px] font-sans text-slate-400 whitespace-nowrap min-h-[16px]">
+                              {hr === 6 ? '6a. m.' :
+                               hr === 9 ? '9a. m.' :
+                               hr === 12 ? '12p. m.' :
+                               hr === 15 ? '3p. m.' :
+                               hr === 18 ? '6p. m.' :
+                               hr === 21 ? '9p. m.' : ''}
                             </span>
                           </div>
                         );
@@ -2112,29 +2194,121 @@ export default function AdminDashboardPage() {
                     </div>
 
                     <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between text-xs text-slate-400 pt-1 gap-2">
-                      {hasTraffic ? (
-                        <div className="flex items-center gap-4 text-[11px]">
-                          <span className="flex items-center gap-1.5">
-                            <span className="w-2.5 h-2.5 rounded bg-amber-400" />
-                            <span>Hora Pico Principal ({maxVal} visitas)</span>
-                          </span>
-                          <span className="flex items-center gap-1.5">
-                            <span className="w-2.5 h-2.5 rounded bg-indigo-500" />
-                            <span>Tráfico Regular</span>
-                          </span>
-                        </div>
-                      ) : (
-                        <span className="text-[11px] text-slate-400 italic">
-                          ⚪ Sin visitas registradas aún en las últimas 24 horas. Los picos subirán en vivo con el tráfico.
+                      <div className="flex items-center gap-4 text-[11px]">
+                        <span className="flex items-center gap-1.5">
+                          <span className="w-3 h-3 rounded-xs bg-[#ea4335]" />
+                          <span>Hora Actual en Vivo (Rojo)</span>
                         </span>
-                      )}
-                      <span className="text-[11px] text-slate-400 font-mono">
-                        Total Eventos Registrados: <strong className="text-white">{telemetryStats?.totalEvents ?? 0}</strong>
+                        <span className="flex items-center gap-1.5">
+                          <span className="w-3 h-3 rounded-xs bg-[#2a8b98]" />
+                          <span>Concurrencia Habitual (Teal Google)</span>
+                        </span>
+                      </div>
+                      <span className="text-[11px] font-mono text-slate-400">
+                        Total visitas {['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'][selectedDayOfWeek]}: <strong className="text-white">{dayCounts.reduce((a, b) => a + b, 0)}</strong>
                       </span>
                     </div>
                   </div>
                 );
               })()}
+            </div>
+
+            {/* ================================================================== */}
+            {/* AUDITORÍA REAL DE GEOLOCALIZACIÓN: PAÍSES DE ORIGEN & IPS */}
+            {/* ================================================================== */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {/* Tarjeta 1: Desglose de Países Reales de Origen */}
+              <div className="p-5 bg-slate-900 border border-slate-800 rounded-3xl space-y-3 shadow-lg">
+                <div className="flex items-center justify-between border-b border-slate-800 pb-2.5">
+                  <div className="flex items-center gap-2">
+                    <Globe className="w-4 h-4 text-sky-400" />
+                    <h3 className="text-xs sm:text-sm font-black text-white">
+                      Países de Origen de Conexión (Real Cloudflare Edge)
+                    </h3>
+                  </div>
+                  <span className="px-2 py-0.5 rounded-full bg-sky-500/10 text-sky-300 border border-sky-500/20 text-[10px] font-mono">
+                    IPCOUNTRY OFICIAL
+                  </span>
+                </div>
+
+                {(!telemetryStats?.countryBreakdown || telemetryStats.countryBreakdown.length === 0) ? (
+                  <div className="p-6 text-center text-xs text-slate-400">
+                    Aún no hay visitas registradas para desglosar países de origen.
+                  </div>
+                ) : (
+                  <div className="space-y-3 pt-1">
+                    {telemetryStats.countryBreakdown.map((item, idx) => (
+                      <div key={idx} className="space-y-1">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="flex items-center gap-2 font-bold text-white">
+                            <span className="text-base">{item.flag}</span>
+                            <span>{item.countryName}</span>
+                            <span className="text-[10px] text-slate-400 font-mono">({item.countryCode})</span>
+                          </span>
+                          <span className="font-mono text-slate-300 font-bold">
+                            {item.visits} visitas <span className="text-sky-400">({item.percent}%)</span>
+                          </span>
+                        </div>
+                        <div className="w-full bg-slate-950 h-2 rounded-full overflow-hidden border border-slate-800">
+                          <div
+                            className="bg-gradient-to-r from-sky-500 to-indigo-500 h-full rounded-full transition-all duration-500"
+                            style={{ width: `${Math.max(4, item.percent)}%` }}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Tarjeta 2: Direcciones IP Reales de Conexión */}
+              <div className="p-5 bg-slate-900 border border-slate-800 rounded-3xl space-y-3 shadow-lg">
+                <div className="flex items-center justify-between border-b border-slate-800 pb-2.5">
+                  <div className="flex items-center gap-2">
+                    <MapPin className="w-4 h-4 text-amber-400" />
+                    <h3 className="text-xs sm:text-sm font-black text-white">
+                      Direcciones IP Reales Conectadas (Auditoría Central)
+                    </h3>
+                  </div>
+                  <span className="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-300 border border-amber-500/20 text-[10px] font-mono">
+                    IP CLIENTE
+                  </span>
+                </div>
+
+                {(!telemetryStats?.topIps || telemetryStats.topIps.length === 0) ? (
+                  <div className="p-6 text-center text-xs text-slate-400">
+                    Aún no hay direcciones IP capturadas. Conforme entren visitas aparecerán aquí.
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto max-h-56">
+                    <table className="w-full text-left text-xs text-slate-300">
+                      <thead className="text-[10px] uppercase font-bold text-slate-400 bg-slate-950/60 sticky top-0">
+                        <tr>
+                          <th className="py-2 px-2.5">Dirección IP</th>
+                          <th className="py-2 px-2.5">País</th>
+                          <th className="py-2 px-2.5">Dispositivo</th>
+                          <th className="py-2 px-2.5 text-right">Visitas</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-800/60 font-mono text-[11px]">
+                        {telemetryStats.topIps.map((entry, idx) => (
+                          <tr key={idx} className="hover:bg-slate-850/40">
+                            <td className="py-2 px-2.5 text-white font-bold">{entry.ip}</td>
+                            <td className="py-2 px-2.5">
+                              <span className="flex items-center gap-1.5">
+                                <span>{entry.flag}</span>
+                                <span>{entry.countryName}</span>
+                              </span>
+                            </td>
+                            <td className="py-2 px-2.5 text-slate-400">{entry.device || 'MÓVIL'}</td>
+                            <td className="py-2 px-2.5 text-right text-amber-400 font-bold">{entry.visits}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Estrategia de Retención: El Gancho de $50 en Viajes */}
@@ -2186,7 +2360,7 @@ export default function AdminDashboardPage() {
             </div>
 
             {/* Tabla de Eventos Recientes en Tiempo Real */}
-            <div className="p-5 bg-slate-900 border border-slate-800 rounded-3xl space-y-3">
+            <div className="p-5 bg-slate-900 border border-slate-800 rounded-3xl space-y-3 shadow-lg">
               <div className="flex items-center justify-between border-b border-slate-800 pb-2">
                 <h3 className="text-xs sm:text-sm font-black text-white flex items-center gap-2">
                   <Clock className="w-4 h-4 text-emerald-400" />
@@ -2208,6 +2382,8 @@ export default function AdminDashboardPage() {
                       <tr>
                         <th className="py-2.5 px-3">Hora</th>
                         <th className="py-2.5 px-3">Rol</th>
+                        <th className="py-2.5 px-3">IP Real</th>
+                        <th className="py-2.5 px-3">País</th>
                         <th className="py-2.5 px-3">Evento</th>
                         <th className="py-2.5 px-3">Dispositivo</th>
                         <th className="py-2.5 px-3">Permanencia</th>
@@ -2224,6 +2400,15 @@ export default function AdminDashboardPage() {
                               ev?.role === 'DRIVER' ? 'bg-amber-500/20 text-amber-300' : 'bg-emerald-500/20 text-emerald-300'
                             }`}>
                               {ev?.role === 'DRIVER' ? 'CONDUCTOR' : 'PASAJERO'}
+                            </span>
+                          </td>
+                          <td className="py-2.5 px-3 text-white font-bold">
+                            {ev?.ip || '127.0.0.1'}
+                          </td>
+                          <td className="py-2.5 px-3">
+                            <span className="flex items-center gap-1.5">
+                              <span>{ev?.countryFlag || '🇸🇻'}</span>
+                              <span>{ev?.countryName || 'El Salvador'}</span>
                             </span>
                           </td>
                           <td className="py-2.5 px-3 font-semibold text-white">

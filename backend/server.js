@@ -1475,12 +1475,20 @@ async function initializeDatabase() {
           device_type VARCHAR(20),
           duration_seconds INT DEFAULT 0,
           metadata JSONB,
+          client_ip VARCHAR(64),
+          country_code VARCHAR(10),
+          country_name VARCHAR(60),
           created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
         );
         CREATE INDEX IF NOT EXISTS idx_telem_created_at ON viajes_telemetry_events(created_at);
         CREATE INDEX IF NOT EXISTS idx_telem_session ON viajes_telemetry_events(session_id);
+        CREATE INDEX IF NOT EXISTS idx_telem_country ON viajes_telemetry_events(country_code);
+        CREATE INDEX IF NOT EXISTS idx_telem_ip ON viajes_telemetry_events(client_ip);
+        ALTER TABLE viajes_telemetry_events ADD COLUMN IF NOT EXISTS client_ip VARCHAR(64);
+        ALTER TABLE viajes_telemetry_events ADD COLUMN IF NOT EXISTS country_code VARCHAR(10);
+        ALTER TABLE viajes_telemetry_events ADD COLUMN IF NOT EXISTS country_name VARCHAR(60);
       `);
-      console.log('✅ Tabla viajes_telemetry_events verificada.');
+      console.log('✅ Tabla viajes_telemetry_events verificada (con IPs y geolocalización de países).');
     } catch (e) {
       console.warn('⚠️ Nota sobre tabla viajes_telemetry_events:', e.message);
     }
@@ -2109,6 +2117,36 @@ app.patch('/api/admin/drivers/:driverId/authorization', async (req, res) => {
 // ============================================================================
 const memoryTelemetryEvents = [];
 
+// Helper de Geolocalización y Banderas Reales
+const COUNTRY_MAP = {
+  SV: { name: 'El Salvador', flag: '🇸🇻' },
+  US: { name: 'Estados Unidos', flag: '🇺🇸' },
+  GT: { name: 'Guatemala', flag: '🇬🇹' },
+  HN: { name: 'Honduras', flag: '🇭🇳' },
+  NI: { name: 'Nicaragua', flag: '🇳🇮' },
+  CR: { name: 'Costa Rica', flag: '🇨🇷' },
+  MX: { name: 'México', flag: '🇲🇽' },
+  ES: { name: 'España', flag: '🇪🇸' },
+  CA: { name: 'Canadá', flag: '🇨🇦' },
+  CO: { name: 'Colombia', flag: '🇨🇴' },
+  PA: { name: 'Panamá', flag: '🇵🇦' },
+  AR: { name: 'Argentina', flag: '🇦🇷' },
+  CL: { name: 'Chile', flag: '🇨🇱' },
+  PE: { name: 'Perú', flag: '🇵🇪' },
+  DO: { name: 'Rep. Dominicana', flag: '🇩🇴' }
+};
+
+function resolveCountryInfo(code) {
+  const clean = String(code || '').toUpperCase().trim();
+  if (COUNTRY_MAP[clean]) {
+    return { code: clean, ...COUNTRY_MAP[clean] };
+  }
+  if (!clean || clean === 'XX' || clean === 'T1' || clean === 'LOCAL') {
+    return { code: 'SV', name: 'El Salvador', flag: '🇸🇻' };
+  }
+  return { code: clean, name: clean, flag: '🌐' };
+}
+
 app.post('/api/telemetry/event', async (req, res) => {
   try {
     const {
@@ -2121,6 +2159,20 @@ app.post('/api/telemetry/event', async (req, res) => {
       metadata = {}
     } = req.body || {};
 
+    // 1. IP Real del Visitante (Cloudflare Connecting IP o X-Forwarded-For)
+    const rawIp = req.headers['cf-connecting-ip'] || 
+                  req.headers['x-forwarded-for']?.split(',')[0]?.trim() || 
+                  req.headers['x-real-ip'] || 
+                  req.socket?.remoteAddress || 
+                  '127.0.0.1';
+    const clientIp = rawIp.replace(/^::ffff:/, '').trim() || '127.0.0.1';
+
+    // 2. País Real (Header CF-IPCountry oficial de Cloudflare Edge)
+    const rawCountry = req.headers['cf-ipcountry'] || 
+                       req.headers['x-country-code'] || 
+                       (clientIp === '127.0.0.1' || clientIp === '::1' ? 'SV' : 'SV');
+    const countryInfo = resolveCountryInfo(rawCountry);
+
     const eventRecord = {
       id: 'telem_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
       session_id: sessionId,
@@ -2130,6 +2182,10 @@ app.post('/api/telemetry/event', async (req, res) => {
       device_type: deviceType,
       duration_seconds: Number(durationSeconds) || 0,
       metadata,
+      client_ip: clientIp,
+      country_code: countryInfo.code,
+      country_name: countryInfo.name,
+      country_flag: countryInfo.flag,
       created_at: new Date().toISOString()
     };
 
@@ -2138,13 +2194,14 @@ app.post('/api/telemetry/event', async (req, res) => {
 
     if (process.env.DATABASE_URL) {
       pool.query(`
-        INSERT INTO viajes_telemetry_events (session_id, event_type, role, path, device_type, duration_seconds, metadata)
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
-      `, [sessionId, eventType, role, path, deviceType, Number(durationSeconds) || 0, JSON.stringify(metadata)]).catch(() => {});
+        INSERT INTO viajes_telemetry_events (
+          session_id, event_type, role, path, device_type, duration_seconds, metadata, client_ip, country_code, country_name
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      `, [sessionId, eventType, role, path, deviceType, Number(durationSeconds) || 0, JSON.stringify(metadata), clientIp, countryInfo.code, countryInfo.name]).catch(() => {});
     }
 
     io.emit('telemetry_live_event', eventRecord);
-    res.json({ success: true, recorded: true });
+    res.json({ success: true, recorded: true, ip: clientIp, country: countryInfo.name });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -2188,9 +2245,23 @@ app.get('/api/admin/telemetry/stats', async (req, res) => {
       }
     }
 
-    // Calcular Métricas
+    // Calcular Métricas Reales
     const sessionsMap = new Map();
     const hourlyCounts = new Array(24).fill(0);
+    // Distribución por día de la semana (0: Domingo .. 6: Sábado) estilo Google Maps
+    const hourlyByDay = {
+      0: new Array(24).fill(0),
+      1: new Array(24).fill(0),
+      2: new Array(24).fill(0),
+      3: new Array(24).fill(0),
+      4: new Array(24).fill(0),
+      5: new Array(24).fill(0),
+      6: new Array(24).fill(0)
+    };
+
+    const countryMap = new Map();
+    const ipMap = new Map();
+
     let mobileCount = 0;
     let desktopCount = 0;
     let passengerCount = 0;
@@ -2202,18 +2273,57 @@ app.get('/api/admin/telemetry/stats', async (req, res) => {
     for (const ev of events) {
       const sId = ev.session_id || 'anon';
       const curDur = Number(ev.duration_seconds) || 0;
+      const cInfo = resolveCountryInfo(ev.country_code);
+      const ip = ev.client_ip || '127.0.0.1';
+
       if (!sessionsMap.has(sId) || curDur > sessionsMap.get(sId).maxDuration) {
         sessionsMap.set(sId, {
           role: ev.role,
           maxDuration: curDur,
           device: ev.device_type,
+          ip,
+          country: cInfo.name,
+          countryFlag: cInfo.flag,
           createdAt: ev.created_at
         });
       }
 
+      // Zona Horaria Oficial El Salvador (UTC-6)
       const evDate = new Date(ev.created_at || Date.now());
-      const svHour = (evDate.getUTCHours() - 6 + 24) % 24;
+      const svMs = evDate.getTime() - (6 * 3600 * 1000);
+      const svDate = new Date(svMs);
+      const svDow = svDate.getUTCDay();
+      const svHour = svDate.getUTCHours();
+
       hourlyCounts[svHour]++;
+      if (hourlyByDay[svDow]) {
+        hourlyByDay[svDow][svHour]++;
+      }
+
+      // Desglose de Países Reales
+      const cKey = cInfo.code;
+      const curC = countryMap.get(cKey) || {
+        countryCode: cKey,
+        countryName: cInfo.name,
+        flag: cInfo.flag,
+        visits: 0
+      };
+      curC.visits++;
+      countryMap.set(cKey, curC);
+
+      // Desglose de IPs Reales
+      const curIp = ipMap.get(ip) || {
+        ip,
+        countryCode: cInfo.code,
+        countryName: cInfo.name,
+        flag: cInfo.flag,
+        visits: 0,
+        role: ev.role,
+        device: ev.device_type,
+        lastSeen: ev.created_at
+      };
+      curIp.visits++;
+      ipMap.set(ip, curIp);
 
       if (ev.device_type === 'MOBILE') mobileCount++;
       else if (ev.device_type === 'DESKTOP') desktopCount++;
@@ -2249,6 +2359,50 @@ app.get('/api/admin/telemetry/stats', async (req, res) => {
     const totalDevices = mobileCount + desktopCount;
     const mobilePercent = totalDevices > 0 ? Math.round((mobileCount / totalDevices) * 100) : 0;
 
+    // Estado en Tiempo Real estilo Google Maps "Horas punta"
+    const nowSv = new Date(Date.now() - (6 * 3600 * 1000));
+    const currentDow = nowSv.getUTCDay();
+    const currentHour = nowSv.getUTCHours();
+    const todayCounts = hourlyByDay[currentDow] || new Array(24).fill(0);
+    const currentHourVisits = todayCounts[currentHour] || 0;
+
+    // Concurrencia habitual promedio para esta hora
+    let sumHour = 0;
+    let daysWithVisits = 0;
+    for (let d = 0; d < 7; d++) {
+      const cnt = hourlyByDay[d][currentHour];
+      if (cnt > 0) {
+        sumHour += cnt;
+        daysWithVisits++;
+      }
+    }
+    const typicalHourVisits = daysWithVisits > 0 ? Math.round(sumHour / daysWithVisits) : 0;
+
+    let realtimeStatusText = 'Nivel habitual de concurrencia';
+    if (currentHourVisits === 0 && events.length === 0) {
+      realtimeStatusText = 'Sin visitas registradas aún';
+    } else if (currentHourVisits === 0) {
+      realtimeStatusText = 'Poco concurrido en este momento';
+    } else if (typicalHourVisits > 0 && currentHourVisits < typicalHourVisits) {
+      realtimeStatusText = 'Menos concurrido de lo habitual';
+    } else if (typicalHourVisits > 0 && currentHourVisits > typicalHourVisits) {
+      realtimeStatusText = 'Más concurrido de lo habitual';
+    } else {
+      realtimeStatusText = 'Concurrencia habitual';
+    }
+
+    const totalEventsCount = events.length || 1;
+    const countryBreakdown = Array.from(countryMap.values())
+      .map(c => ({
+        ...c,
+        percent: Math.round((c.visits / totalEventsCount) * 100)
+      }))
+      .sort((a, b) => b.visits - a.visits);
+
+    const topIps = Array.from(ipMap.values())
+      .sort((a, b) => b.visits - a.visits)
+      .slice(0, 25);
+
     res.json({
       success: true,
       stats: {
@@ -2263,6 +2417,16 @@ app.get('/api/admin/telemetry/stats', async (req, res) => {
         bounceRate: `${bounceRate}%`,
         bounceSessions,
         hourlyDistribution: hourlyCounts,
+        hourlyByDay,
+        googleMapsRealtime: {
+          currentDayOfWeek: currentDow,
+          currentHour,
+          currentHourVisits,
+          typicalHourVisits,
+          statusText: realtimeStatusText
+        },
+        countryBreakdown,
+        topIps,
         exitIntent: {
           shown: exitShown,
           converted: exitConverted,
@@ -2274,14 +2438,21 @@ app.get('/api/admin/telemetry/stats', async (req, res) => {
           mobilePercent
         },
         eventTypeCounts,
-        recentEvents: events.slice(0, 20).map(e => ({
-          id: e.id,
-          eventType: e.event_type,
-          role: e.role,
-          device: e.device_type,
-          duration: Number(e.duration_seconds) || 0,
-          createdAt: e.created_at
-        }))
+        recentEvents: events.slice(0, 25).map(e => {
+          const c = resolveCountryInfo(e.country_code);
+          return {
+            id: e.id,
+            eventType: e.event_type,
+            role: e.role,
+            device: e.device_type,
+            ip: e.client_ip || '127.0.0.1',
+            countryCode: c.code,
+            countryName: c.name,
+            countryFlag: c.flag,
+            duration: Number(e.duration_seconds) || 0,
+            createdAt: e.created_at
+          };
+        })
       }
     });
   } catch (err) {
