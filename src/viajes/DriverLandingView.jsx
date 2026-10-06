@@ -32,7 +32,10 @@ import {
   ShieldAlert,
   Lock,
   Eye,
-  EyeOff
+  EyeOff,
+  BatteryCharging,
+  Cpu,
+  Flame
 } from 'lucide-react';
 import RumboLogo from './RumboLogo';
 import DriverAvatarNarrator from './DriverAvatarNarrator';
@@ -795,6 +798,120 @@ export default function DriverLandingView({ onStartRegistration, onCheckStatus, 
               <span className="text-slate-200">
                 <strong>Ahorro acumulado:</strong> Ahorrar $0.10 a $0.15 por galón representa hasta <strong>$40 a $60 dólares extra al mes</strong> que se quedan en el bolsillo de tu familia.
               </span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* 6.1 INGENIERÍA RUMBO: AHORRO EXTREMO DE BATERÍA & DATOS MÓVILES */}
+      <section className="px-4 sm:px-8 py-10 max-w-4xl mx-auto w-full">
+        <div className="p-6 sm:p-8 rounded-3xl bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950 border border-emerald-500/30 space-y-6 shadow-2xl relative overflow-hidden">
+          {/* Luz ambiental decorativa */}
+          <div className="absolute -top-24 -right-24 w-60 h-60 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+          <div className="absolute -bottom-24 -left-24 w-60 h-60 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
+
+          {/* Encabezado */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-5">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-emerald-500/15 text-emerald-400 flex items-center justify-center shrink-0 border border-emerald-500/30 shadow-inner">
+                <BatteryCharging className="w-6 h-6 animate-pulse" />
+              </div>
+              <div>
+                <span className="text-[11px] font-black uppercase tracking-wider text-emerald-400">
+                  Ingeniería Rumbo • Arquitectura TCP Full-Duplex
+                </span>
+                <h3 className="text-xl sm:text-2xl font-black text-white">
+                  Celular Frío, Batería para Todo el Día y Ahorro Extremo de Datos
+                </h3>
+              </div>
+            </div>
+            <div className="inline-flex items-center gap-1.5 self-start sm:self-auto bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 px-3 py-1.5 rounded-full text-xs font-black">
+              <Zap className="w-3.5 h-3.5" />
+              <span>Hasta -95% en consumo de internet</span>
+            </div>
+          </div>
+
+          <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
+            Sabemos lo que sufre el conductor en la calle: el celular pegado al parabrisas, hirviendo bajo el sol y la batería agotándose en 3 horas obligándote a vivir conectado al cargador del encendedor. 
+            En <strong>Rumbo</strong> rediseñamos la tecnología desde cero con <strong>conexiones persistentes TCP Full-Duplex por WebSockets</strong>. Tu módem celular descansa, tu teléfono trabaja frío y tu plan de datos rinde como nunca.
+          </p>
+
+          {/* Cuadro Comparativo: Apps Tradicionales vs Rumbo */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
+            
+            {/* Apps Tradicionales */}
+            <div className="p-4 sm:p-5 rounded-2xl bg-rose-950/20 border border-rose-500/20 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-black uppercase tracking-wider text-rose-400 flex items-center gap-1.5">
+                  <Flame className="w-4 h-4 text-rose-400" />
+                  Otras Apps (HTTP Polling Tradicional)
+                </span>
+                <span className="text-[10px] bg-rose-500/20 text-rose-300 px-2 py-0.5 rounded-full font-bold">Obsoleto</span>
+              </div>
+              <ul className="text-xs text-slate-400 space-y-2.5">
+                <li className="flex items-start gap-2">
+                  <span className="text-rose-400 font-bold">✕</span>
+                  <span><strong>+1,200 peticiones por hora:</strong> Preguntan al servidor segundo a segundo si hay carreras.</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-rose-400 font-bold">✕</span>
+                  <span><strong>Teléfono hirviendo:</strong> El módem celular 4G/5G nunca descansa, sobrecalienta el equipo y degrada la batería.</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-rose-400 font-bold">✕</span>
+                  <span><strong>Batería muerta en 3-4 horas:</strong> Vives atado al cable cargador y deterioras el acumulador de tu carro.</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-rose-400 font-bold">✕</span>
+                  <span><strong>Desperdicio de datos:</strong> 3 a 5 GB al mes consumidos solo en cabeceras HTTP vacías.</span>
+                </li>
+              </ul>
+            </div>
+
+            {/* Rumbo Sockets TCP */}
+            <div className="p-4 sm:p-5 rounded-2xl bg-emerald-950/25 border border-emerald-500/30 space-y-3 shadow-lg shadow-emerald-950/20">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-black uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
+                  <Cpu className="w-4 h-4 text-emerald-400" />
+                  Plataforma Rumbo (TCP Full-Duplex)
+                </span>
+                <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full font-bold">Alta Eficiencia</span>
+              </div>
+              <ul className="text-xs text-slate-300 space-y-2.5">
+                <li className="flex items-start gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                  <span><strong>Canal único persistente:</strong> Cero peticiones repetitivas. El servidor te avisa solo cuando hay un viaje real.</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                  <span><strong>Celular fresco en el tablero:</strong> Tu módem descansa en modo reposo; cero riesgo de apagones por calor.</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                  <span><strong>Batería para toda la jornada:</strong> Trabajas tu turno completo sin ansiedad de quedarte sin energía.</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                  <span><strong>Ahorras hasta 95% de megas:</strong> Micro-tramas de datos ultraligeras. Tu paquete de internet dura semanas.</span>
+                </li>
+              </ul>
+            </div>
+
+          </div>
+
+          {/* Tres Métricas Clave */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1 text-center">
+            <div className="p-3 bg-slate-950/80 rounded-2xl border border-slate-800">
+              <div className="text-2xl font-black text-emerald-400 font-mono">-95%</div>
+              <div className="text-[11px] text-slate-400 font-medium">Consumo de Datos Móviles</div>
+            </div>
+            <div className="p-3 bg-slate-950/80 rounded-2xl border border-slate-800">
+              <div className="text-2xl font-black text-amber-400 font-mono">&lt; 50 ms</div>
+              <div className="text-[11px] text-slate-400 font-medium">Latencia de Notificación Inmediata</div>
+            </div>
+            <div className="p-3 bg-slate-950/80 rounded-2xl border border-slate-800">
+              <div className="text-2xl font-black text-sky-400 font-mono">100%</div>
+              <div className="text-[11px] text-slate-400 font-medium">Módem en Modo Reposo Seguro</div>
             </div>
           </div>
         </div>

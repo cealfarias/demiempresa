@@ -3476,6 +3476,13 @@ export default function ViajesApp() {
                   <span className="text-[11px] text-slate-300">Prioridad con conductores y resguardo en cada viaje.</span>
                 </div>
               </div>
+              <div className="flex items-start gap-2.5">
+                <span className="text-emerald-400 font-bold text-sm">🔋</span>
+                <div>
+                  <span className="font-bold text-white block">Ahorro Extremo de Batería y Datos</span>
+                  <span className="text-[11px] text-slate-300">Enlace directo TCP Full-Duplex: tu celular no se calienta y ahorras hasta 95% de megas.</span>
+                </div>
+              </div>
             </div>
 
             <div className="space-y-2 pt-1">

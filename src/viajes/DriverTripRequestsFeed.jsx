@@ -18,7 +18,9 @@ import {
   LogOut,
   FileText,
   Inbox,
-  Share2
+  Share2,
+  BatteryCharging,
+  Zap
 } from 'lucide-react';
 import { triggerCashRewardFeedback } from './soundFeedbackService';
 
@@ -161,17 +163,23 @@ export default function DriverTripRequestsFeed({
         </div>
       </div>
 
-      {/* Indicador de cercanía garantizada: 1 km a la redonda */}
-      <div className="px-4 py-2 bg-slate-950 flex items-center justify-between text-[11px] text-slate-400 border-b border-slate-800/80">
+      {/* Indicador de cercanía garantizada y bajo consumo de batería/datos */}
+      <div className="px-4 py-1.5 bg-slate-950 flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-400 border-b border-slate-800/80">
         <div className="flex items-center gap-1.5">
           <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
           <span>
-            Radio: <strong>1 km a la redonda</strong> • 100% confirmado sin solicitudes fantasma
+            Radio: <strong>1 km a la redonda</strong> • Cero viajes fantasma
           </span>
         </div>
-        <span className="font-mono font-bold text-amber-300">
-          {activeRequests.length} disponibles
-        </span>
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20 text-[10px] font-semibold">
+            <BatteryCharging className="w-3 h-3 text-emerald-400" />
+            <span>TCP Full-Duplex • -95% datos</span>
+          </div>
+          <span className="font-mono font-bold text-amber-300">
+            {activeRequests.length} disp.
+          </span>
+        </div>
       </div>
 
       {/* 2. LISTA SCROLLABLE DE SOLICITUDES IDÉNTICA AL SCREENSHOT */}
