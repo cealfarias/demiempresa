@@ -143,53 +143,106 @@ export const formatResolvedDestination = (place) => {
   return place.display_name || '';
 };
 
+export function calculateBearing(origCoords, destCoords) {
+  if (!origCoords || !destCoords) return 90.0;
+  const radLat1 = (origCoords.lat * Math.PI) / 180;
+  const radLat2 = (destCoords.lat * Math.PI) / 180;
+  const dLng = ((destCoords.lng - origCoords.lng) * Math.PI) / 180;
+  const y = Math.sin(dLng) * Math.cos(radLat2);
+  const x = Math.cos(radLat1) * Math.sin(radLat2) - Math.sin(radLat1) * Math.cos(radLat2) * Math.cos(dLng);
+  let bearing = (Math.atan2(y, x) * 180) / Math.PI;
+  bearing = (bearing + 360) % 360;
+  return Number(bearing.toFixed(1));
+}
+
+export function getAngularDifference(b1, b2) {
+  return Math.abs(((b1 - b2 + 180) % 360) - 180);
+}
+
 export function calculateCorridor(origCoords, destCoords) {
   if (!origCoords || !destCoords) {
     return {
+      corridorCode: 'ESTE_EJERCITO',
       direction: 'ESTE',
       directionLabel: 'De Este a Este',
-      corridorName: 'Corredor Oriente (Hacia el Este)',
-      straightLineKm: 5.0
+      corridorName: 'Corredor Oriente - Bulevar del Ejército (Soyapango / Ilopango / San Martín)',
+      straightLineKm: 5.0,
+      bearing: 90.0
     };
   }
   const deltaLat = destCoords.lat - origCoords.lat;
   const deltaLng = destCoords.lng - origCoords.lng;
   const straightLineKm = Math.sqrt(
     Math.pow(deltaLat * 111, 2) +
-    Math.pow(deltaLng * 111 * Math.cos(origCoords.lat * Math.PI / 180), 2)
+    Math.pow(deltaLng * 111 * Math.cos((origCoords.lat * Math.PI) / 180), 2)
   );
+  const bearing = calculateBearing(origCoords, destCoords);
 
+  let corridorCode = 'ESTE_EJERCITO';
   let direction = 'ESTE';
   let directionLabel = 'De Este a Este';
-  let corridorName = 'Corredor Oriente (Hacia Soyapango / Ilopango / San Martín)';
+  let corridorName = 'Corredor Oriente - Bulevar del Ejército (Soyapango / Ilopango / San Martín)';
 
+  // Clasificación por cuadrantes geográficos y discriminación de ejes viales
   if (Math.abs(deltaLng) >= Math.abs(deltaLat)) {
     if (deltaLng > 0) {
       direction = 'ESTE';
       directionLabel = 'De Este a Este';
-      corridorName = 'Corredor Oriente (Hacia Soyapango / Ilopango / San Martín)';
+      // Diferenciación de Carretera de Oro vs Bulevar del Ejército
+      if (destCoords.lat >= 13.715) {
+        corridorCode = 'ESTE_ORO';
+        corridorName = 'Corredor Oriente - Carretera de Oro (Altavista / Tonacatepeque / Delgado Norte)';
+      } else {
+        corridorCode = 'ESTE_EJERCITO';
+        corridorName = 'Corredor Oriente - Bulevar del Ejército (Soyapango / Ilopango / San Martín)';
+      }
     } else {
       direction = 'OESTE';
       directionLabel = 'De Oeste a Oeste';
-      corridorName = 'Corredor Poniente (Hacia Santa Tecla / Antiguo Cuscatlán / La Libertad)';
+      // Diferenciación de Carretera al Puerto (Zaragoza / Nuevo Cuscatlán) vs Panamericana (Santa Tecla / Lourdes)
+      if (destCoords.lat <= 13.655) {
+        corridorCode = 'OESTE_PUERTO';
+        corridorName = 'Corredor Poniente - Carretera al Puerto (Zaragoza / Nuevo Cuscatlán / San José V.)';
+      } else {
+        corridorCode = 'OESTE_PANAMERICANA';
+        corridorName = 'Corredor Poniente - Panamericana (Santa Tecla / Antiguo Cuscatlán / Lourdes)';
+      }
     }
   } else {
     if (deltaLat > 0) {
       direction = 'NORTE';
       directionLabel = 'De Norte a Norte';
-      corridorName = 'Corredor Norte (Hacia Apopa / Nejapa / Aguilares)';
+      // Diferenciación de Constitución vs Troncal del Norte
+      if (destCoords.lng <= -89.225) {
+        corridorCode = 'NORTE_CONSTITUCION';
+        corridorName = 'Corredor Norte - Constitución (Nejapa / Quezaltepeque)';
+      } else {
+        corridorCode = 'NORTE_TRONCAL';
+        corridorName = 'Corredor Norte - Troncal del Norte (Ciudad Delgado / Apopa / Guazapa / Aguilares)';
+      }
     } else {
       direction = 'SUR';
       directionLabel = 'De Sur a Sur';
-      corridorName = 'Corredor Sur (Hacia San Marcos / Los Planes / La Paz)';
+      // DISCRIMINACIÓN CRÍTICA DEL CORREDOR SUR (EVITA ZONAS DISPAREJAS):
+      // Autopista a Comalapa (San Marcos / Sto. Tomás / Santiago Texacuangos) vs Carretera a Los Planes (Planes / Panchimalco / Rosario de Mora)
+      // Separadas topográficamente por la cordillera y el Cerro San Jacinto
+      if (destCoords.lng > -89.205) {
+        corridorCode = 'SUR_COMALAPA';
+        corridorName = 'Corredor Sur - Autopista Comalapa (San Marcos / Sto. Tomás / Santiago Texacuangos)';
+      } else {
+        corridorCode = 'SUR_PANCHIMALCO';
+        corridorName = 'Corredor Sur - Carretera Los Planes (Planes de Renderos / Panchimalco / Rosario de Mora)';
+      }
     }
   }
 
   return {
+    corridorCode,
     direction,
     directionLabel,
     corridorName,
-    straightLineKm: Number(straightLineKm.toFixed(1))
+    straightLineKm: Number(straightLineKm.toFixed(1)),
+    bearing
   };
 }
 
@@ -217,6 +270,10 @@ export default function ViajesApp() {
   const [appState, setAppState] = useState(() => initialActiveTripSession?.appState || 'DECOY_FORM');
   // Modalidad del Viaje: 'UNDECIDED' | 'PRIVATE' | 'SHARED'
   const [rideMode, setRideMode] = useState(() => initialActiveTripSession?.rideMode || 'UNDECIDED');
+  const rideModeRef = useRef(rideMode);
+  useEffect(() => {
+    rideModeRef.current = rideMode;
+  }, [rideMode]);
   const [sharedPoolGenderFilter, setSharedPoolGenderFilter] = useState('ALL'); // 'ALL' | 'WOMEN_ONLY'
   const [poolStatus, setPoolStatus] = useState(null);
   const [isJoinedToPool, setIsJoinedToPool] = useState(false);
@@ -1317,6 +1374,165 @@ export default function ViajesApp() {
     };
   }, []);
 
+  // 0. Selección de Modalidad (Privado vs Compartido) por Voz o Clic con locución guiada
+  const handleSelectRideMode = (mode, coords) => {
+    triggerSelectionFeedback();
+    const activeCoords = coords || originCoords || { lat: 13.7013, lng: -89.2244 };
+    if (mode === 'PRIVATE') {
+      setRideMode('PRIVATE');
+      setVoiceDialogueStep('AWAITING_DESTINATION');
+      speakAndThenListen('Has seleccionado viaje privado. Dime, ¿cuál es tu destino?', {
+        onListeningChange: (listening) => setIsListeningVoice(listening),
+        onResult: (spokenText) => processVoiceDestination(spokenText, activeCoords),
+        onError: () => {
+          setIsListeningVoice(false);
+          setVoiceDialogueStep('IDLE');
+        }
+      });
+    } else if (mode === 'SHARED') {
+      if (!userProfile) {
+        setShowSharedRegisterPrompt(true);
+        speakAssistantMessage('Para viajar en colectivo compartido debes registrarte o iniciar sesión.');
+        return;
+      }
+      setRideMode('SHARED');
+      speakAndThenListen('Has seleccionado colectivo compartido con descuento del 30%. Dime, ¿cuál es tu destino?', {
+        onListeningChange: (listening) => setIsListeningVoice(listening),
+        onResult: (spokenText) => handleProcessSharedVoiceDestination(spokenText),
+        onError: () => {
+          setIsListeningVoice(false);
+        }
+      });
+    }
+  };
+
+  const handleVoiceSelectRideMode = (spokenText, coords) => {
+    const text = (spokenText || '').toLowerCase();
+    if (
+      text.includes('compartid') ||
+      text.includes('colectiv') ||
+      text.includes('grupo') ||
+      text.includes('junt') ||
+      text.includes('barat') ||
+      text.includes('descuent')
+    ) {
+      handleSelectRideMode('SHARED', coords);
+    } else if (
+      text.includes('privad') ||
+      text.includes('solo') ||
+      text.includes('carro') ||
+      text.includes('taxi') ||
+      text.includes('rápido') ||
+      text.includes('directo')
+    ) {
+      handleSelectRideMode('PRIVATE', coords);
+    } else {
+      speakAndThenListen('¿Prefieres viaje privado o colectivo compartido?', {
+        onListeningChange: (listening) => setIsListeningVoice(listening),
+        onResult: (ans) => handleVoiceSelectRideMode(ans, coords),
+        onError: () => setIsListeningVoice(false)
+      });
+    }
+  };
+
+  // Procesar destino en colectivo compartido: geocodificar, calcular tarifa y locutar descuento del 30%
+  const handleProcessSharedVoiceDestination = async (spokenText) => {
+    setDestination(spokenText);
+    unlockAudioAndSpeech();
+    triggerListeningEndFeedback();
+    setIsListeningVoice(false);
+
+    try {
+      const oCoords = originCoords || { lat: 13.7013, lng: -89.2244 };
+      const viewboxParam = `&viewbox=${oCoords.lng - 0.25},${oCoords.lat + 0.25},${oCoords.lng + 0.25},${oCoords.lat - 0.25}&bounded=0`;
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
+          spokenText + ', El Salvador'
+        )}&countrycodes=sv&limit=1&addressdetails=1${viewboxParam}`,
+        { headers: { 'Accept-Language': 'es' } }
+      );
+      let dCoords = null;
+      let resolvedText = spokenText;
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data[0]) {
+          dCoords = {
+            lat: parseFloat(data[0].lat),
+            lng: parseFloat(data[0].lon)
+          };
+          const formatted = formatResolvedDestination(data[0]);
+          if (formatted) resolvedText = formatted;
+        }
+      }
+
+      if (!dCoords) {
+        speakAndThenListen(`No logré encontrar "${spokenText}". Por favor, dime otra referencia o colonia.`, {
+          onListeningChange: (l) => setIsListeningVoice(l),
+          onResult: (t) => handleProcessSharedVoiceDestination(t),
+          onError: () => setIsListeningVoice(false)
+        });
+        return;
+      }
+
+      setDestinationCoords(dCoords);
+      setDestination(resolvedText);
+
+      // Calcular ruta real por carretera
+      const routeRes = await calculateRoadDistance(oCoords, dCoords);
+      const distKm = routeRes?.distanceKm || 5.0;
+      setRoadDistanceKm(distKm);
+
+      // Calcular tarifa base con fuelService
+      const fareData = calculateSuggestedFare(
+        distKm,
+        42.0,
+        OFFICIAL_GOV_PRICES.regular,
+        routeRes?.delayMinutes || 0,
+        { ...tripPreferences, transportType: 'CAR' }
+      );
+      const normalFareNum = parseFloat(fareData?.suggestedFare || '5.00');
+      const discount30Val = Number((normalFareNum * 0.30).toFixed(2));
+      const finalFareVal = Number((normalFareNum * 0.70).toFixed(2));
+      setProposedFare(normalFareNum.toFixed(2));
+
+      // Locución estricta solicitada por el usuario:
+      // "la tarifa normal es de $$ tu descuento es de $$ pagaras al conductor en efectivo $$$"
+      const speechMsg = `La tarifa normal es de ${normalFareNum.toFixed(2)} dólares. Tu descuento del 30% es de ${discount30Val.toFixed(2)} dólares. Pagarás al conductor en efectivo ${finalFareVal.toFixed(2)} dólares.`;
+      speakAssistantMessage(speechMsg);
+
+    } catch (err) {
+      console.warn('handleProcessSharedVoiceDestination error:', err);
+      speakAssistantMessage('No pude calcular la ruta para el colectivo. Intenta dictar nuevamente.');
+    }
+  };
+
+  // Dictado directo por voz para destino en Colectivo Compartido con feedback visual
+  const handleDictateSharedDestination = () => {
+    if (isListeningVoice) {
+      stopVoiceDictation();
+      stopSpeaking();
+      setIsListeningVoice(false);
+      triggerListeningEndFeedback();
+      return;
+    }
+
+    unlockAudioAndSpeech();
+    triggerListeningStartFeedback();
+    setIsListeningVoice(true);
+
+    startVoiceDictation({
+      onListeningChange: (listening) => setIsListeningVoice(listening),
+      onResult: (spokenText) => {
+        handleProcessSharedVoiceDestination(spokenText);
+      },
+      onError: (errType, userMsg) => {
+        setIsListeningVoice(false);
+        triggerListeningErrorFeedback();
+        speakAssistantMessage(userMsg || 'No logré escucharte. Toca de nuevo el micrófono para dictar tu destino.');
+      }
+    });
+  };
+
   // Solicitar ubicación interactiva del pasajero cada vez que entra a la app (si ya completó la bienvenida)
   useEffect(() => {
     const isWelcomeCompleted = typeof window !== 'undefined' && localStorage.getItem('rumbo_welcome_completed');
@@ -1328,19 +1544,47 @@ export default function ViajesApp() {
     const startReturningVoiceGreeting = () => {
       if (speechActuallyStarted) return;
       unlockAudioAndSpeech();
-      setVoiceDialogueStep('AWAITING_DESTINATION');
-      speakAndThenListen('Hola, dime ¿cuál es tu rumbo?', {
-        onStart: () => {
-          speechActuallyStarted = true;
-        },
-        onListeningChange: (listening) => setIsListeningVoice(listening),
-        onResult: (spokenText) => processVoiceDestination(spokenText),
-        onError: (err) => {
-          console.warn('Returning voice dialogue err:', err);
-          setIsListeningVoice(false);
-          setVoiceDialogueStep('IDLE');
-        }
-      });
+      const currentMode = rideModeRef.current;
+      if (currentMode === 'UNDECIDED') {
+        speakAndThenListen('Hola, bienvenido a Rumbo. ¿Deseas viaje privado o colectivo compartido?', {
+          onStart: () => {
+            speechActuallyStarted = true;
+          },
+          onListeningChange: (listening) => setIsListeningVoice(listening),
+          onResult: (spokenText) => handleVoiceSelectRideMode(spokenText),
+          onError: (err) => {
+            console.warn('Returning voice dialogue err:', err);
+            setIsListeningVoice(false);
+            setVoiceDialogueStep('IDLE');
+          }
+        });
+      } else if (currentMode === 'PRIVATE') {
+        setVoiceDialogueStep('AWAITING_DESTINATION');
+        speakAndThenListen('Hola, dime ¿cuál es tu rumbo?', {
+          onStart: () => {
+            speechActuallyStarted = true;
+          },
+          onListeningChange: (listening) => setIsListeningVoice(listening),
+          onResult: (spokenText) => processVoiceDestination(spokenText),
+          onError: (err) => {
+            console.warn('Returning voice dialogue err:', err);
+            setIsListeningVoice(false);
+            setVoiceDialogueStep('IDLE');
+          }
+        });
+      } else if (currentMode === 'SHARED') {
+        speakAndThenListen('Dime, ¿cuál es tu destino en el colectivo compartido?', {
+          onStart: () => {
+            speechActuallyStarted = true;
+          },
+          onListeningChange: (listening) => setIsListeningVoice(listening),
+          onResult: (spokenText) => handleProcessSharedVoiceDestination(spokenText),
+          onError: (err) => {
+            console.warn('Shared voice dialogue err:', err);
+            setIsListeningVoice(false);
+          }
+        });
+      }
     };
 
     // Disparar desde el primer milisegundo que el usuario llega
@@ -1410,21 +1654,47 @@ export default function ViajesApp() {
 
   // 1. Iniciar Diálogo Conversacional por Voz
   const initiateVoiceDialogue = (coords) => {
-    setVoiceDialogueStep('AWAITING_DESTINATION');
-    speakAndThenListen(
-      'Hola, dime ¿cuál es tu rumbo?',
-      {
-        onListeningChange: (listening) => setIsListeningVoice(listening),
-        onResult: (spokenText) => processVoiceDestination(spokenText, coords || originCoords),
-        onError: (errType, userMsg) => {
-          console.warn('Voice dialogue error:', errType);
-          setIsListeningVoice(false);
-          setVoiceDialogueStep('IDLE');
-          triggerListeningErrorFeedback();
-          speakAssistantMessage(userMsg || 'No logré escucharte. Toca el micrófono para intentar de nuevo.');
+    const currentMode = rideModeRef.current;
+    if (currentMode === 'UNDECIDED') {
+      speakAndThenListen(
+        'Hola, bienvenido a Rumbo. ¿Deseas viaje privado o colectivo compartido?',
+        {
+          onListeningChange: (listening) => setIsListeningVoice(listening),
+          onResult: (spokenText) => handleVoiceSelectRideMode(spokenText, coords || originCoords),
+          onError: (errType, userMsg) => {
+            console.warn('Voice dialogue error:', errType);
+            setIsListeningVoice(false);
+          }
         }
-      }
-    );
+      );
+    } else if (currentMode === 'PRIVATE') {
+      setVoiceDialogueStep('AWAITING_DESTINATION');
+      speakAndThenListen(
+        'Hola, dime ¿cuál es tu rumbo?',
+        {
+          onListeningChange: (listening) => setIsListeningVoice(listening),
+          onResult: (spokenText) => processVoiceDestination(spokenText, coords || originCoords),
+          onError: (errType, userMsg) => {
+            console.warn('Voice dialogue error:', errType);
+            setIsListeningVoice(false);
+            setVoiceDialogueStep('IDLE');
+            triggerListeningErrorFeedback();
+            speakAssistantMessage(userMsg || 'No logré escucharte. Toca el micrófono para intentar de nuevo.');
+          }
+        }
+      );
+    } else {
+      speakAndThenListen(
+        'Dime, ¿cuál es tu destino en el colectivo compartido?',
+        {
+          onListeningChange: (listening) => setIsListeningVoice(listening),
+          onResult: (spokenText) => handleProcessSharedVoiceDestination(spokenText),
+          onError: () => {
+            setIsListeningVoice(false);
+          }
+        }
+      );
+    }
   };
 
   // 2. Procesar Destino Dictado, Geocodificar y Calcular Ruta y Tarifa
@@ -2609,8 +2879,10 @@ export default function ViajesApp() {
       destinationAddress: destination || 'Punto de destino',
       destinationLat: currentDest.lat,
       destinationLng: currentDest.lng,
+      corridorCode: corridor.corridorCode,
       corridorName: corridor.corridorName,
       direction: corridor.direction,
+      bearing: corridor.bearing,
       distanceKm: roadDistanceKm || 5.0,
       normalFare: normalFareNum
     }, (res) => {
@@ -2853,11 +3125,7 @@ export default function ViajesApp() {
               {/* OPCIÓN 1: VIAJE PRIVADO */}
               <button
                 type="button"
-                onClick={() => {
-                  setRideMode('PRIVATE');
-                  triggerSelectionFeedback();
-                  speakAssistantMessage('Has seleccionado viaje privado.');
-                }}
+                onClick={() => handleSelectRideMode('PRIVATE')}
                 className="p-5 rounded-2xl bg-slate-800/80 hover:bg-slate-800 border-2 border-slate-700/80 hover:border-amber-400 text-left transition-all group cursor-pointer shadow-lg active:scale-95 flex items-center justify-between"
               >
                 <div className="flex items-center gap-4">
@@ -2879,15 +3147,7 @@ export default function ViajesApp() {
               {/* OPCIÓN 2: COLECTIVO COMPARTIDO CON DESCUENTO DEL 30% */}
               <button
                 type="button"
-                onClick={() => {
-                  if (!userProfile) {
-                    setShowSharedRegisterPrompt(true);
-                  } else {
-                    setRideMode('SHARED');
-                    triggerSelectionFeedback();
-                    speakAssistantMessage('Has seleccionado colectivo compartido con descuento del 30%.');
-                  }
-                }}
+                onClick={() => handleSelectRideMode('SHARED')}
                 className="p-5 rounded-2xl bg-gradient-to-r from-emerald-950/40 via-slate-900 to-amber-950/30 hover:border-emerald-400 border-2 border-emerald-500/50 text-left transition-all group cursor-pointer shadow-xl active:scale-95 flex items-center justify-between relative overflow-hidden"
               >
                 <div className="absolute top-2 right-2 px-2.5 py-0.5 rounded-full bg-emerald-500 text-slate-950 text-[10px] font-black uppercase tracking-wider shadow">
@@ -3901,11 +4161,15 @@ export default function ViajesApp() {
                   <div className="absolute right-2 top-2 flex items-center gap-1">
                     <button
                       type="button"
-                      onClick={handleDictateDestination}
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-white cursor-pointer"
-                      title="Dictar destino"
+                      onClick={handleDictateSharedDestination}
+                      className={`p-1.5 rounded-lg transition-all cursor-pointer ${
+                        isListeningVoice
+                          ? 'bg-rose-500/20 text-rose-400 border border-rose-500/50 animate-pulse'
+                          : 'text-amber-400 hover:text-amber-300 hover:bg-slate-700'
+                      }`}
+                      title={isListeningVoice ? "Escuchando... Toca para pausar" : "Dictar destino por voz"}
                     >
-                      <Mic className="w-4 h-4 text-amber-400" />
+                      <Mic className="w-4 h-4" />
                     </button>
                     <button
                       type="button"
@@ -3946,7 +4210,11 @@ export default function ViajesApp() {
                 <div className="grid grid-cols-2 gap-2 text-xs">
                   <button
                     type="button"
-                    onClick={() => setSharedPoolGenderFilter('ALL')}
+                    onClick={() => {
+                      setSharedPoolGenderFilter('ALL');
+                      triggerSelectionFeedback();
+                      speakAssistantMessage('Has seleccionado compañía sin preferencia.');
+                    }}
                     className={`py-2 px-3 rounded-xl font-bold transition-all cursor-pointer border ${
                       sharedPoolGenderFilter === 'ALL'
                         ? 'bg-emerald-500 border-emerald-400 text-slate-950 shadow-md font-black'
@@ -3957,7 +4225,11 @@ export default function ViajesApp() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => setSharedPoolGenderFilter('WOMEN_ONLY')}
+                    onClick={() => {
+                      setSharedPoolGenderFilter('WOMEN_ONLY');
+                      triggerSelectionFeedback();
+                      speakAssistantMessage('Has seleccionado la compañía solo de mujeres.');
+                    }}
                     className={`py-2 px-3 rounded-xl font-bold transition-all cursor-pointer border ${
                       sharedPoolGenderFilter === 'WOMEN_ONLY'
                         ? 'bg-gradient-to-r from-pink-500 to-rose-500 border-pink-400 text-white shadow-md font-black'
@@ -4035,10 +4307,17 @@ export default function ViajesApp() {
                             {seatNum}
                           </span>
                           <div className="truncate">
-                            <div className="font-bold truncate text-[11px]">
-                              {isOccupied
-                                ? (isMe || (seatNum === 1 && isJoinedToPool) ? 'Tú' : 'Otro pasajero')
-                                : `Esperando pasajero ${seatNum}...`}
+                            <div className="font-bold truncate text-[11px] flex items-center gap-1.5">
+                              <span>
+                                {isOccupied
+                                  ? (isMe || (seatNum === 1 && isJoinedToPool) ? 'Tú (Tu Parada)' : 'Otro pasajero')
+                                  : `Esperando pasajero ${seatNum}...`}
+                              </span>
+                              {(isMe || (seatNum === 1 && isJoinedToPool)) && isOccupied && (
+                                <span className="font-mono text-[9px] text-emerald-400 font-bold bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/30">
+                                  Pagarás: ${finalFareVal.toFixed(2)} USD
+                                </span>
+                              )}
                             </div>
                             {isOccupied && stopDest && (
                               <div className="text-[10px] text-slate-400 truncate">

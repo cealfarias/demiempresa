@@ -914,8 +914,10 @@ function handleJoinSharedPool(payload, socket, io) {
     destinationAddress = 'Destino',
     destinationLat = 13.6738,
     destinationLng = -89.2789,
+    corridorCode = 'ESTE_EJERCITO',
     corridorName = 'Corredor Oriente',
     direction = 'ESTE',
+    bearing = 90.0,
     distanceKm = 5.0,
     normalFare = 5.00
   } = payload;
@@ -923,22 +925,35 @@ function handleJoinSharedPool(payload, socket, io) {
   const normalFareNum = parseFloat(normalFare || 5.00);
   const discountAmount = Number((normalFareNum * 0.30).toFixed(2));
   const finalFare = Number((normalFareNum * 0.70).toFixed(2));
+  const numBearing = parseFloat(bearing) || 90.0;
 
-  // Buscar un pool abierto compatible dentro de radio de 1.5 km en el mismo corredor y dirección
+  // Buscar un pool abierto compatible dentro de radio de 1.5 km en el mismo corredor vial y rumbo continuo
   let targetPool = null;
   for (const [, p] of activeSharedPools.entries()) {
-    if (p.direction === direction && p.passengers.length < 4) {
-      if (genderFilter === 'WOMEN_ONLY' || p.genderFilter === 'WOMEN_ONLY') {
-        if (p.genderFilter !== genderFilter) continue;
-      }
-      const distToPoolOrigin = Math.sqrt(
-        Math.pow((originLat - p.originLat) * 111, 2) +
-        Math.pow((originLng - p.originLng) * 111 * Math.cos(originLat * Math.PI / 180), 2)
-      );
-      if (distToPoolOrigin <= 1.5) {
-        targetPool = p;
-        break;
-      }
+    if (p.passengers.length >= 4) continue;
+
+    // Validación de dirección general y sub-eje vial específico (evita zonas topográficamente separadas)
+    if (p.direction !== direction) continue;
+    if (p.corridorCode && corridorCode && p.corridorCode !== corridorCode) continue;
+
+    // Control angular de bearing: ruta paralela o continua con desviación máxima de 28 grados
+    if (p.bearing != null && numBearing != null) {
+      const angularDiff = Math.abs(((numBearing - p.bearing + 180) % 360) - 180);
+      if (angularDiff > 28) continue;
+    }
+
+    // Filtro de seguridad de género
+    if (genderFilter === 'WOMEN_ONLY' || p.genderFilter === 'WOMEN_ONLY') {
+      if (p.genderFilter !== genderFilter) continue;
+    }
+
+    const distToPoolOrigin = Math.sqrt(
+      Math.pow((originLat - p.originLat) * 111, 2) +
+      Math.pow((originLng - p.originLng) * 111 * Math.cos(originLat * Math.PI / 180), 2)
+    );
+    if (distToPoolOrigin <= 1.5) {
+      targetPool = p;
+      break;
     }
   }
 
@@ -946,8 +961,10 @@ function handleJoinSharedPool(payload, socket, io) {
     const poolId = `pool-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
     targetPool = {
       id: poolId,
+      corridorCode,
       corridorName,
       direction,
+      bearing: numBearing,
       genderFilter,
       originLat: parseFloat(originLat),
       originLng: parseFloat(originLng),
@@ -986,27 +1003,41 @@ function handleJoinSharedPool(payload, socket, io) {
   // ORDENAR ESTRICTAMENTE POR ORDEN DE DISTANCIA DESDE EL ORIGEN (QUIÉN BAJA PRIMERO)
   targetPool.passengers.sort((a, b) => a.distanceKm - b.distanceKm);
 
-  const stops = targetPool.passengers.map((p, idx) => ({
+  // STOPS PARA PASAJEROS: CONFIDENCIALIDAD TOTAL. No se comparten las tarifas personales ajenas.
+  const stopsForPassengers = targetPool.passengers.map((p, idx) => ({
     seatNumber: idx + 1,
     passengerId: p.passengerId,
+    destinationAddress: p.destinationAddress,
+    distanceKm: p.distanceKm,
+    label: `Parada ${idx + 1} (~${p.distanceKm} km)`
+  }));
+
+  // STOPS PARA EL CONDUCTOR: Desglose completo de cobro y recaudación por cada asiento
+  const stopsForDriver = targetPool.passengers.map((p, idx) => ({
+    seatNumber: idx + 1,
+    passengerId: p.passengerId,
+    passengerName: p.passengerName,
+    phone: p.phone,
     destinationAddress: p.destinationAddress,
     distanceKm: p.distanceKm,
     normalFare: p.normalFare,
     discountAmount: p.discountAmount,
     finalFare: p.finalFare,
-    label: `Parada ${idx + 1} (${p.distanceKm} km)`
+    label: `Parada ${idx + 1} (${p.distanceKm} km) - $${p.finalFare} USD`
   }));
 
   const isComplete = targetPool.passengers.length >= 4;
 
   const poolStatusPayload = {
     poolId: targetPool.id,
+    corridorCode: targetPool.corridorCode,
     corridorName: targetPool.corridorName,
     direction: targetPool.direction,
+    bearing: targetPool.bearing,
     seatsFilled: targetPool.passengers.length,
     totalSeats: 4,
     isComplete,
-    stops
+    stops: stopsForPassengers
   };
 
   io.to(`pool:${targetPool.id}`).emit('pool:status', poolStatusPayload);
@@ -1018,6 +1049,7 @@ function handleJoinSharedPool(payload, socket, io) {
       id: targetPool.id,
       tripId: targetPool.id,
       serviceType: 'SHARED_POOL',
+      corridorCode: targetPool.corridorCode,
       corridorName: targetPool.corridorName,
       passengerCount: 4,
       origin: targetPool.originAddress,
@@ -1033,7 +1065,7 @@ function handleJoinSharedPool(payload, socket, io) {
       roadDistanceKm: targetPool.passengers[3].distanceKm,
       trafficLabel: 'Colectivo Completo (4 Pasajeros)',
       timeLeft: 30,
-      stops: stops
+      stops: stopsForDriver
     };
 
     io.to('drivers_channel').emit('trip:new_request', poolTripPayload);
@@ -1044,7 +1076,7 @@ function handleJoinSharedPool(payload, socket, io) {
     });
   }
 
-  return { success: true, poolId: targetPool.id, stops, seatsFilled: targetPool.passengers.length };
+  return { success: true, poolId: targetPool.id, stops: stopsForPassengers, seatsFilled: targetPool.passengers.length };
 }
 
 function handleLeaveSharedPool(poolId, passengerId, socket, io) {
@@ -1056,24 +1088,23 @@ function handleLeaveSharedPool(poolId, passengerId, socket, io) {
     activeSharedPools.delete(poolId);
   } else {
     pool.passengers.sort((a, b) => a.distanceKm - b.distanceKm);
-    const stops = pool.passengers.map((p, idx) => ({
+    const stopsForPassengers = pool.passengers.map((p, idx) => ({
       seatNumber: idx + 1,
       passengerId: p.passengerId,
       destinationAddress: p.destinationAddress,
       distanceKm: p.distanceKm,
-      normalFare: p.normalFare,
-      discountAmount: p.discountAmount,
-      finalFare: p.finalFare,
-      label: `Parada ${idx + 1} (${p.distanceKm} km)`
+      label: `Parada ${idx + 1} (~${p.distanceKm} km)`
     }));
     io.to(`pool:${poolId}`).emit('pool:status', {
       poolId: pool.id,
+      corridorCode: pool.corridorCode,
       corridorName: pool.corridorName,
       direction: pool.direction,
+      bearing: pool.bearing,
       seatsFilled: pool.passengers.length,
       totalSeats: 4,
       isComplete: false,
-      stops
+      stops: stopsForPassengers
     });
   }
 }
