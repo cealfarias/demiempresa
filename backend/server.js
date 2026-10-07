@@ -370,7 +370,8 @@ app.post('/api/b2b/leads', async (req, res) => {
 app.get('/api/b2b/feed/:municipality', async (req, res) => {
   try {
     const { municipality } = req.params;
-    const feed = await AdService.getFeedForDestination(municipality);
+    const department = req.query.department || 'San Salvador';
+    const feed = await AdService.getFeedForDestination(municipality, department);
     res.json(feed);
   } catch (err) {
     res.status(500).json({ error: err.message });

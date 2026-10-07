@@ -44,7 +44,9 @@ import {
   Globe,
   FileText,
   Search,
-  Check
+  Check,
+  Compass,
+  Star
 } from 'lucide-react';
 import RumboLogo from './RumboLogo';
 import AdModal from './AdModal';
@@ -141,6 +143,56 @@ export const formatResolvedDestination = (place) => {
   return place.display_name || '';
 };
 
+export function calculateCorridor(origCoords, destCoords) {
+  if (!origCoords || !destCoords) {
+    return {
+      direction: 'ESTE',
+      directionLabel: 'De Este a Este',
+      corridorName: 'Corredor Oriente (Hacia el Este)',
+      straightLineKm: 5.0
+    };
+  }
+  const deltaLat = destCoords.lat - origCoords.lat;
+  const deltaLng = destCoords.lng - origCoords.lng;
+  const straightLineKm = Math.sqrt(
+    Math.pow(deltaLat * 111, 2) +
+    Math.pow(deltaLng * 111 * Math.cos(origCoords.lat * Math.PI / 180), 2)
+  );
+
+  let direction = 'ESTE';
+  let directionLabel = 'De Este a Este';
+  let corridorName = 'Corredor Oriente (Hacia Soyapango / Ilopango / San Martín)';
+
+  if (Math.abs(deltaLng) >= Math.abs(deltaLat)) {
+    if (deltaLng > 0) {
+      direction = 'ESTE';
+      directionLabel = 'De Este a Este';
+      corridorName = 'Corredor Oriente (Hacia Soyapango / Ilopango / San Martín)';
+    } else {
+      direction = 'OESTE';
+      directionLabel = 'De Oeste a Oeste';
+      corridorName = 'Corredor Poniente (Hacia Santa Tecla / Antiguo Cuscatlán / La Libertad)';
+    }
+  } else {
+    if (deltaLat > 0) {
+      direction = 'NORTE';
+      directionLabel = 'De Norte a Norte';
+      corridorName = 'Corredor Norte (Hacia Apopa / Nejapa / Aguilares)';
+    } else {
+      direction = 'SUR';
+      directionLabel = 'De Sur a Sur';
+      corridorName = 'Corredor Sur (Hacia San Marcos / Los Planes / La Paz)';
+    }
+  }
+
+  return {
+    direction,
+    directionLabel,
+    corridorName,
+    straightLineKm: Number(straightLineKm.toFixed(1))
+  };
+}
+
 export default function ViajesApp() {
   // 1. Leer borrador guardado y sesión de viaje activa para resistir recargas y F5 sin perder datos
   const initialDraft = (() => {
@@ -163,6 +215,15 @@ export default function ViajesApp() {
 
   // Máquina de Estados: 'DECOY_FORM' | 'AUCTION' | 'IN_TRIP_HUB'
   const [appState, setAppState] = useState(() => initialActiveTripSession?.appState || 'DECOY_FORM');
+  // Modalidad del Viaje: 'UNDECIDED' | 'PRIVATE' | 'SHARED'
+  const [rideMode, setRideMode] = useState(() => initialActiveTripSession?.rideMode || 'UNDECIDED');
+  const [sharedPoolGenderFilter, setSharedPoolGenderFilter] = useState('ALL'); // 'ALL' | 'WOMEN_ONLY'
+  const [poolStatus, setPoolStatus] = useState(null);
+  const [isJoinedToPool, setIsJoinedToPool] = useState(false);
+  const [showSharedRegisterPrompt, setShowSharedRegisterPrompt] = useState(false);
+  const [showRatingModal, setShowRatingModal] = useState(false);
+  const [tripRating, setTripRating] = useState(5);
+  const [driverTip, setDriverTip] = useState(0);
   const [serviceType, setServiceType] = useState(() => initialActiveTripSession?.serviceType || initialDraft.serviceType || 'PASSENGER'); // 'PASSENGER' | 'PACKAGE'
   const [transportType, setTransportType] = useState(() => initialActiveTripSession?.transportType || initialDraft.transportType || 'CAR'); // 'CAR' | 'MOTO'
 
@@ -849,6 +910,7 @@ export default function ViajesApp() {
           proposedFare,
           serviceType,
           transportType,
+          rideMode,
           cashBill,
           assignedTrip,
           tripStatus
@@ -860,7 +922,7 @@ export default function ViajesApp() {
     } else if (appState === 'DECOY_FORM') {
       localStorage.removeItem('rumbo_passenger_active_session');
     }
-  }, [appState, tripId, origin, originCoords, destination, destinationCoords, destinationMunicipality, proposedFare, serviceType, transportType, cashBill, assignedTrip, tripStatus]);
+  }, [appState, rideMode, tripId, origin, originCoords, destination, destinationCoords, destinationMunicipality, proposedFare, serviceType, transportType, cashBill, assignedTrip, tripStatus]);
 
   // Prevenir recargas accidentales si hay un viaje o búsqueda en curso
   useEffect(() => {
@@ -951,12 +1013,39 @@ export default function ViajesApp() {
 
     // Escuchar confirmación de viaje asignado
     socket.on('trip:confirmed', (data) => {
+      const driverObj = data.driver || {
+        id: data.driverId,
+        name: data.driverName || 'Conductor Autorizado',
+        vehiclePlate: data.vehiclePlate || 'EN CAMINO',
+        vehicleBrand: data.vehicleBrand || '',
+        vehicleModel: data.vehicleModel || 'Vehículo Autorizado',
+        vehicleColor: data.vehicleColor || '',
+        photo: data.photoUrl || null,
+        photoUrl: data.photoUrl || null,
+        phone: data.driverPhone || ''
+      };
       setAssignedTrip((prev) => ({
         ...prev,
         ...data,
-        cashToPay: data.cashToCollect || data.agreedFare || prev?.cashToPay || proposedFare
+        driver: driverObj,
+        cashToPay: data.isSharedPool
+          ? (data.stops?.find(s => s.passengerId === userProfile?.id)?.finalFare || (parseFloat(proposedFare || '5.00') * 0.70).toFixed(2))
+          : (data.cashToCollect || data.agreedFare || prev?.cashToPay || proposedFare)
       }));
       setAppState('IN_TRIP_HUB');
+      setTripStatus('DRIVER_EN_ROUTE');
+      triggerSelectionFeedback();
+      speakAssistantMessage('Conductor asignado. Se dirige hacia el punto de recogida.');
+    });
+
+    // Escuchar estado en vivo del colectivo compartido
+    socket.on('pool:status', (statusData) => {
+      setPoolStatus(statusData);
+    });
+
+    // Escuchar notificación de colectivo completado y despachado
+    socket.on('pool:dispatched', () => {
+      speakAssistantMessage('¡Cupos completos! Despachando conductor cercano para este colectivo.');
     });
 
     // Escuchar viaje cancelado (fase de búsqueda)
@@ -999,9 +1088,19 @@ export default function ViajesApp() {
 
     // Escuchar cambios de estado del viaje
     socket.on('trip:status_changed', ({ status }) => {
-      if (status === 'ARRIVED') setTripStatus('DRIVER_ARRIVED');
-      if (status === 'IN_TRANSIT') setTripStatus('IN_TRANSIT');
-      if (status === 'COMPLETED') setTripStatus('COMPLETED');
+      if (status === 'ARRIVED') {
+        setTripStatus('DRIVER_ARRIVED');
+        speakAssistantMessage('¡Tu conductor ha llegado al punto de recogida!');
+      }
+      if (status === 'IN_TRANSIT') {
+        setTripStatus('IN_TRANSIT');
+        speakAssistantMessage('En trayecto hacia tu destino. Conoce las promociones exclusivas en tu ruta.');
+      }
+      if (status === 'COMPLETED') {
+        setTripStatus('COMPLETED');
+        setShowRatingModal(true);
+        speakAssistantMessage('Has llegado a tu destino. ¡Gracias por viajar con Rumbo!');
+      }
     });
 
     // Regla de Dispositivo Único Implacable para Pasajeros
@@ -1021,6 +1120,8 @@ export default function ViajesApp() {
     return () => {
       socket.off('passenger:offer_received');
       socket.off('trip:confirmed');
+      socket.off('pool:status');
+      socket.off('pool:dispatched');
       socket.off('trip:canceled');
       socket.off('trip:cancel_requested_by_peer');
       socket.off('trip:mutual_cancellation_confirmed');
@@ -2452,8 +2553,8 @@ export default function ViajesApp() {
       setDriverEtaMinutes((prev) => (prev > 1 ? prev - 1 : 1));
     }, 25000);
 
-    // Si es un viaje con conductor real conectado vía WebSocket, el conductor controla los estados
-    if (assignedTrip?.driver?.id) {
+    // Si es un viaje con conductor real conectado vía WebSocket o asignado, el conductor controla los estados
+    if (assignedTrip?.driver?.id || assignedTrip?.tripId || assignedTrip?.isSharedPool) {
       return () => {
         clearInterval(tEta);
       };
@@ -2483,6 +2584,61 @@ export default function ViajesApp() {
       setCopiedLink(true);
       setTimeout(() => setCopiedLink(false), 3000);
     }
+  };
+
+  // Unirse al Colectivo Compartido en Tiempo Real
+  const handleJoinSharedPoolClient = () => {
+    if (!userProfile) {
+      setShowSharedRegisterPrompt(true);
+      return;
+    }
+    const currentOrigin = originCoords || { lat: 13.7013, lng: -89.2244 };
+    const currentDest = destinationCoords || { lat: 13.6738, lng: -89.2789 };
+    const corridor = calculateCorridor(currentOrigin, currentDest);
+    const normalFareNum = parseFloat(proposedFare || '5.00');
+
+    setIsJoinedToPool(true);
+    socket.emit('pool:join', {
+      passengerId: userProfile.id || userProfile.dui || `user-${Date.now()}`,
+      passengerName: userProfile.fullName || 'Pasajero',
+      phone: userProfile.phone || '',
+      genderFilter: sharedPoolGenderFilter,
+      originAddress: origin || 'Punto de partida',
+      originLat: currentOrigin.lat,
+      originLng: currentOrigin.lng,
+      destinationAddress: destination || 'Punto de destino',
+      destinationLat: currentDest.lat,
+      destinationLng: currentDest.lng,
+      corridorName: corridor.corridorName,
+      direction: corridor.direction,
+      distanceKm: roadDistanceKm || 5.0,
+      normalFare: normalFareNum
+    }, (res) => {
+      if (res && res.stops) {
+        setPoolStatus((prev) => ({
+          ...prev,
+          poolId: res.poolId,
+          seatsFilled: res.seatsFilled,
+          stops: res.stops
+        }));
+      }
+    });
+
+    triggerCashRewardFeedback();
+    speakAssistantMessage(`Te has unido al colectivo compartido en ${corridor.corridorName}. Esperando completar los 4 asientos.`);
+  };
+
+  // Salir del Colectivo Compartido
+  const handleLeaveSharedPoolClient = () => {
+    if (poolStatus?.poolId) {
+      socket.emit('pool:leave', {
+        poolId: poolStatus.poolId,
+        passengerId: userProfile?.id || userProfile?.dui
+      });
+    }
+    setIsJoinedToPool(false);
+    setPoolStatus(null);
+    speakAssistantMessage('Has salido del colectivo compartido.');
   };
 
   return (
@@ -2676,12 +2832,119 @@ export default function ViajesApp() {
       {/* ============================================================== */}
       {/* FASE 1: SEÑUELO MINIMALISTA (Captura limpia y sin distracciones) */}
       {/* ============================================================== */}
-      {appState === 'DECOY_FORM' && (
+      {appState === 'DECOY_FORM' && rideMode === 'UNDECIDED' && (
+        <main className="flex-1 max-w-lg mx-auto w-full p-4 flex flex-col justify-center animate-fade-in">
+          <div className={`border rounded-3xl p-6 sm:p-7 shadow-2xl space-y-6 text-center transition-colors ${
+            isLight ? 'bg-white border-slate-200 shadow-slate-200/60 text-slate-900' : 'bg-slate-900 border-slate-800 text-slate-100'
+          }`}>
+            <div className="space-y-2">
+              <div className="w-14 h-14 mx-auto rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 shadow-md">
+                <Compass className="w-7 h-7" />
+              </div>
+              <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight">
+                ¿Cómo deseas viajar hoy?
+              </h2>
+              <p className="text-xs text-slate-400 max-w-sm mx-auto leading-relaxed">
+                Selecciona la modalidad para tu traslado directo en El Salvador.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 gap-3.5 pt-1 text-left">
+              {/* OPCIÓN 1: VIAJE PRIVADO */}
+              <button
+                type="button"
+                onClick={() => {
+                  setRideMode('PRIVATE');
+                  triggerSelectionFeedback();
+                  speakAssistantMessage('Has seleccionado viaje privado.');
+                }}
+                className="p-5 rounded-2xl bg-slate-800/80 hover:bg-slate-800 border-2 border-slate-700/80 hover:border-amber-400 text-left transition-all group cursor-pointer shadow-lg active:scale-95 flex items-center justify-between"
+              >
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-2xl bg-slate-900 border border-slate-700 flex items-center justify-center text-amber-400 group-hover:scale-110 transition-transform shrink-0 shadow">
+                    <Car className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-base text-white group-hover:text-amber-300 flex items-center gap-1.5">
+                      <span>🚗 Viaje Privado</span>
+                    </h3>
+                    <p className="text-xs text-slate-400 mt-0.5 leading-relaxed">
+                      Vehículo exclusivo para ti. Ruta directa a tu destino sin paradas compartidas.
+                    </p>
+                  </div>
+                </div>
+                <ChevronRight className="w-5 h-5 text-slate-500 group-hover:text-amber-400 shrink-0 ml-2" />
+              </button>
+
+              {/* OPCIÓN 2: COLECTIVO COMPARTIDO CON DESCUENTO DEL 30% */}
+              <button
+                type="button"
+                onClick={() => {
+                  if (!userProfile) {
+                    setShowSharedRegisterPrompt(true);
+                  } else {
+                    setRideMode('SHARED');
+                    triggerSelectionFeedback();
+                    speakAssistantMessage('Has seleccionado colectivo compartido con descuento del 30%.');
+                  }
+                }}
+                className="p-5 rounded-2xl bg-gradient-to-r from-emerald-950/40 via-slate-900 to-amber-950/30 hover:border-emerald-400 border-2 border-emerald-500/50 text-left transition-all group cursor-pointer shadow-xl active:scale-95 flex items-center justify-between relative overflow-hidden"
+              >
+                <div className="absolute top-2 right-2 px-2.5 py-0.5 rounded-full bg-emerald-500 text-slate-950 text-[10px] font-black uppercase tracking-wider shadow">
+                  Descuento del 30%
+                </div>
+                <div className="flex items-center gap-4 pt-1">
+                  <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-300 group-hover:scale-110 transition-transform shrink-0 shadow">
+                    <Users className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-base text-white group-hover:text-emerald-300 flex items-center gap-1.5">
+                      <span>👥 Colectivo Compartido</span>
+                    </h3>
+                    <p className="text-xs text-slate-400 mt-0.5 leading-relaxed">
+                      Comparte ruta en tu mismo corredor (radio 1 km). 4 pasajeros en línea recta, despacho por distancia.
+                    </p>
+                  </div>
+                </div>
+                <ChevronRight className="w-5 h-5 text-emerald-400 group-hover:translate-x-1 transition-transform shrink-0 ml-2" />
+              </button>
+            </div>
+          </div>
+        </main>
+      )}
+
+      {/* MODALIDAD PRIVADA */}
+      {appState === 'DECOY_FORM' && rideMode === 'PRIVATE' && (
         <main className="flex-1 max-w-lg mx-auto w-full p-4 flex flex-col justify-center animate-fade-in">
           
           <div className={`border rounded-3xl p-5 sm:p-6 shadow-2xl space-y-4 transition-colors ${
             isLight ? 'bg-white border-slate-200 shadow-slate-200/60 text-slate-900' : 'bg-slate-900 border-slate-800 text-slate-100'
           }`}>
+
+            {/* Selector rápido para cambiar modalidad */}
+            <div className="flex items-center justify-between pb-2 border-b border-slate-800 text-xs">
+              <button
+                type="button"
+                onClick={() => setRideMode('UNDECIDED')}
+                className="text-slate-400 hover:text-white flex items-center gap-1 font-semibold cursor-pointer"
+              >
+                <span>← Cambiar a selección</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!userProfile) {
+                    setShowSharedRegisterPrompt(true);
+                  } else {
+                    setRideMode('SHARED');
+                  }
+                }}
+                className="text-emerald-400 hover:text-emerald-300 font-bold flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 cursor-pointer text-[11px]"
+              >
+                <Users className="w-3.5 h-3.5" />
+                <span>Colectivo (-30%)</span>
+              </button>
+            </div>
             
             <form onSubmit={handleSearchDrivers} className="space-y-4">
               
@@ -3513,6 +3776,343 @@ export default function ViajesApp() {
           </div>
         </main>
       )}
+
+      {/* ============================================================== */}
+      {/* MODALIDAD COLECTIVO COMPARTIDO: VISTA DEDICADA CON DESCUENTO 30% */}
+      {/* ============================================================== */}
+      {appState === 'DECOY_FORM' && rideMode === 'SHARED' && (() => {
+        const currentOrigin = originCoords || { lat: 13.7013, lng: -89.2244 };
+        const currentDest = destinationCoords || { lat: 13.6738, lng: -89.2789 };
+        const corridor = calculateCorridor(currentOrigin, currentDest);
+        const normalFareVal = parseFloat(proposedFare || '5.00');
+        const discount30Val = Number((normalFareVal * 0.30).toFixed(2));
+        const finalFareVal = Number((normalFareVal * 0.70).toFixed(2));
+
+        return (
+          <main className="flex-1 max-w-lg mx-auto w-full p-4 flex flex-col justify-center animate-fade-in space-y-4">
+            <div className={`border rounded-3xl p-5 sm:p-6 shadow-2xl space-y-4 transition-colors ${
+              isLight ? 'bg-white border-slate-200 shadow-slate-200/60 text-slate-900' : 'bg-slate-900 border-slate-800 text-slate-100'
+            }`}>
+              
+              {/* Cabecera Colectivo con botón para volver a privada */}
+              <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (isJoinedToPool) handleLeaveSharedPoolClient();
+                    setRideMode('UNDECIDED');
+                  }}
+                  className="text-xs text-slate-400 hover:text-white flex items-center gap-1 font-semibold cursor-pointer"
+                >
+                  <span>← Cambiar a selección</span>
+                </button>
+                <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[10px] font-black uppercase tracking-wider">
+                  Descuento del 30%
+                </span>
+              </div>
+
+              <div className="text-center space-y-1">
+                <h2 className="text-xl font-black text-white flex items-center justify-center gap-2">
+                  <Users className="w-5 h-5 text-emerald-400" />
+                  <span>Colectivo Compartido</span>
+                </h2>
+                <p className="text-xs text-slate-400">
+                  Comparte ruta en tu mismo corredor con hasta 4 pasajeros (radio 1 km).
+                </p>
+              </div>
+
+              {/* Punto de Recogida (Origen) */}
+              <div>
+                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1 flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <MapPin className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Tu Punto de Recogida (Radio ≤ 1 km)</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setShowMapModal(true)}
+                    className="text-[11px] text-amber-400 hover:text-amber-300 font-bold flex items-center gap-1 cursor-pointer"
+                  >
+                    <Map className="w-3.5 h-3.5" />
+                    <span>Mapa</span>
+                  </button>
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    required
+                    value={origin}
+                    onChange={(e) => setOrigin(e.target.value)}
+                    placeholder="¿Dónde te recogen en tu corredor?"
+                    className="w-full pl-3 pr-24 py-2.5 bg-slate-800/80 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-emerald-400 text-sm"
+                  />
+                  <div className="absolute right-2 top-2 flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={handleDictateOrigin}
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-white cursor-pointer"
+                      title="Dictar por voz"
+                    >
+                      <Mic className="w-4 h-4 text-emerald-400" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleGetGpsLocation}
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-white cursor-pointer"
+                      title="Detectar GPS"
+                    >
+                      <Navigation className="w-4 h-4 text-emerald-400" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Punto de Llegada (Destino en el Corredor) */}
+              <div>
+                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1 flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <Navigation className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Destino en tu Corredor</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setShowDestMapModal(true)}
+                    className="text-[11px] text-amber-400 hover:text-amber-300 font-bold flex items-center gap-1 cursor-pointer"
+                  >
+                    <Map className="w-3.5 h-3.5" />
+                    <span>Mapa</span>
+                  </button>
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    required
+                    value={destination}
+                    onChange={(e) => setDestination(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleGeocodeManualDestination(destination);
+                      }
+                    }}
+                    placeholder="¿Hacia dónde vas? (Ej. Soyapango, San Martín...)"
+                    className="w-full pl-3 pr-20 py-2.5 bg-slate-800/80 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-emerald-400 text-sm"
+                  />
+                  <div className="absolute right-2 top-2 flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={handleDictateDestination}
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-white cursor-pointer"
+                      title="Dictar destino"
+                    >
+                      <Mic className="w-4 h-4 text-amber-400" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleGeocodeManualDestination(destination)}
+                      className="p-1.5 rounded-lg text-amber-400 hover:text-amber-300 cursor-pointer"
+                      title="Buscar"
+                    >
+                      <Search className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Tarjeta de Corredor y Línea Recta */}
+              <div className="p-3.5 bg-slate-950/90 rounded-2xl border border-emerald-500/30 space-y-1.5 text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                    Corredor en Línea Recta:
+                  </span>
+                  <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-bold text-[10px] border border-emerald-500/30">
+                    {corridor.directionLabel}
+                  </span>
+                </div>
+                <div className="font-bold text-white text-sm">
+                  {corridor.corridorName}
+                </div>
+                <div className="text-[11px] text-slate-400 flex items-center justify-between">
+                  <span>Ruta aproximada en línea recta</span>
+                  <span className="font-mono text-amber-300 font-bold">~{roadDistanceKm} km</span>
+                </div>
+              </div>
+
+              {/* Filtro de Seguridad / Género */}
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider">
+                  Filtro de Compañía a Bordo:
+                </label>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setSharedPoolGenderFilter('ALL')}
+                    className={`py-2 px-3 rounded-xl font-bold transition-all cursor-pointer border ${
+                      sharedPoolGenderFilter === 'ALL'
+                        ? 'bg-emerald-500 border-emerald-400 text-slate-950 shadow-md font-black'
+                        : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    👥 Sin preferencia
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSharedPoolGenderFilter('WOMEN_ONLY')}
+                    className={`py-2 px-3 rounded-xl font-bold transition-all cursor-pointer border ${
+                      sharedPoolGenderFilter === 'WOMEN_ONLY'
+                        ? 'bg-gradient-to-r from-pink-500 to-rose-500 border-pink-400 text-white shadow-md font-black'
+                        : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    👩 Solo Mujeres
+                  </button>
+                </div>
+              </div>
+
+              {/* Desglose de Tarifa Estricto según Requerimiento del Usuario */}
+              <div className="p-4 bg-gradient-to-br from-emerald-950/50 via-slate-900 to-slate-950 rounded-2xl border-2 border-emerald-500/50 space-y-2.5">
+                <div className="flex items-center justify-between text-xs text-slate-400">
+                  <span>Tarifa normal:</span>
+                  <span className="line-through font-mono text-sm">${normalFareVal.toFixed(2)} USD</span>
+                </div>
+                <div className="flex items-center justify-between text-xs text-emerald-400 font-bold">
+                  <span>Tu Descuento del 30%:</span>
+                  <span className="font-mono text-sm">-${discount30Val.toFixed(2)} USD</span>
+                </div>
+                <div className="pt-2 border-t border-slate-800 flex items-baseline justify-between">
+                  <span className="text-xs font-black uppercase text-amber-300 tracking-wider">
+                    PAGARÁS AL CONDUCTOR:
+                  </span>
+                  <div className="text-3xl font-black text-white font-mono text-right">
+                    ${finalFareVal.toFixed(2)} <span className="text-xs font-sans text-emerald-400 font-bold">USD</span>
+                  </div>
+                </div>
+                <div className="p-2 rounded-xl bg-slate-950/70 border border-slate-800 text-[10px] text-slate-400 leading-relaxed">
+                  💡 <strong>Promoción directa:</strong> En viajes colectivos ya cuentas con tu descuento del 30%. Tus créditos de $1.00 USD quedan guardados para tus viajes privados.
+                </div>
+              </div>
+
+              {/* BURBUJA DE PARADAS ORDENADA POR ORDEN DE DISTANCIA (QUIÉN DESPACHA PRIMERO) */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-bold text-white flex items-center gap-1.5">
+                    <span>Burbuja del Colectivo (4 Pasajeros)</span>
+                  </span>
+                  <span className="text-[11px] font-mono font-bold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/30">
+                    {poolStatus?.seatsFilled || (isJoinedToPool ? 1 : 0)} / 4 cupos
+                  </span>
+                </div>
+
+                <div className="space-y-1.5 bg-slate-950/80 rounded-2xl p-3 border border-slate-800">
+                  <div className="text-[10px] text-slate-400 mb-1 flex items-center justify-between">
+                    <span>Orden de despacho por cercanía:</span>
+                    <span className="text-emerald-400 font-bold">Cero esperas para el chofer</span>
+                  </div>
+
+                  {/* Asientos / Paradas 1 a 4 */}
+                  {[1, 2, 3, 4].map((seatNum) => {
+                    const assignedStop = poolStatus?.stops?.find(s => s.seatNumber === seatNum);
+                    const isMe = assignedStop && (assignedStop.passengerId === (userProfile?.id || userProfile?.dui));
+                    const isOccupied = Boolean(assignedStop || (seatNum === 1 && isJoinedToPool));
+                    const stopDest = assignedStop?.destinationAddress || (seatNum === 1 && isJoinedToPool ? destination || 'Tu destino' : null);
+                    const stopDist = assignedStop?.distanceKm || (seatNum === 1 && isJoinedToPool ? roadDistanceKm : null);
+
+                    return (
+                      <div
+                        key={seatNum}
+                        className={`p-2.5 rounded-xl border text-xs flex items-center justify-between gap-2 transition-all ${
+                          isOccupied
+                            ? isMe || (seatNum === 1 && isJoinedToPool)
+                              ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-200'
+                              : 'bg-slate-900 border-slate-700 text-slate-300'
+                            : 'bg-slate-950 border-dashed border-slate-800 text-slate-600'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className={`w-5 h-5 rounded-full flex items-center justify-center font-bold text-[10px] shrink-0 ${
+                            isOccupied ? 'bg-emerald-500 text-slate-950' : 'bg-slate-800 text-slate-500'
+                          }`}>
+                            {seatNum}
+                          </span>
+                          <div className="truncate">
+                            <div className="font-bold truncate text-[11px]">
+                              {isOccupied
+                                ? (isMe || (seatNum === 1 && isJoinedToPool) ? 'Tú' : 'Otro pasajero')
+                                : `Esperando pasajero ${seatNum}...`}
+                            </div>
+                            {isOccupied && stopDest && (
+                              <div className="text-[10px] text-slate-400 truncate">
+                                {stopDest} {stopDist ? `(~${stopDist} km)` : ''}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="text-right shrink-0">
+                          {seatNum === 1 && isOccupied && (
+                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                              1º en despachar
+                            </span>
+                          )}
+                          {seatNum === 2 && isOccupied && (
+                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300 border border-blue-500/30">
+                              2º en despachar
+                            </span>
+                          )}
+                          {seatNum === 3 && isOccupied && (
+                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                              3º en despachar
+                            </span>
+                          )}
+                          {seatNum === 4 && isOccupied && (
+                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                              Destino final
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Acciones de Unión al Colectivo */}
+              <div className="pt-2">
+                {!isJoinedToPool ? (
+                  <button
+                    type="button"
+                    onClick={handleJoinSharedPoolClient}
+                    className="w-full py-4 bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:brightness-110 text-slate-950 font-black text-sm sm:text-base rounded-2xl shadow-xl shadow-emerald-500/30 flex items-center justify-center gap-2 cursor-pointer transition-transform active:scale-95 border border-emerald-400"
+                  >
+                    <Users className="w-5 h-5" />
+                    <span>Unirme al Colectivo (Descuento del 30%)</span>
+                  </button>
+                ) : (
+                  <div className="space-y-2">
+                    <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl flex items-center justify-between text-xs text-emerald-300 animate-pulse">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping"></span>
+                        <span>Esperando 4 pasajeros para despacho automático...</span>
+                      </div>
+                      <span className="font-mono font-bold text-amber-300">
+                        {poolStatus?.seatsFilled || 1}/4
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleLeaveSharedPoolClient}
+                      className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold cursor-pointer"
+                    >
+                      Salir del Colectivo
+                    </button>
+                  </div>
+                )}
+              </div>
+
+            </div>
+          </main>
+        );
+      })()}
 
       {/* ============================================================== */}
       {/* FASE SUBASTA EN VIVO: OFERTAS CON TTL ESTRICTO DE 10 SEGUNDOS */}
@@ -5707,6 +6307,150 @@ export default function ViajesApp() {
         onOpenRegister={() => setShowWelcomeModal(true)}
         onOpenReferral={() => setShowReferralModal(true)}
       />
+
+      {/* Modal Requisito de Usuario Verificado para Colectivo Compartido */}
+      {showSharedRegisterPrompt && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in">
+          <div className="w-full max-w-sm bg-gradient-to-b from-slate-900 to-slate-950 border border-emerald-500/40 rounded-3xl p-6 shadow-2xl text-slate-100 space-y-4 text-center animate-pop-bounce">
+            <div className="w-14 h-14 mx-auto rounded-2xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 flex items-center justify-center shadow-lg">
+              <ShieldCheck className="w-7 h-7" />
+            </div>
+
+            <div className="space-y-1">
+              <span className="text-[10px] font-black tracking-wider uppercase px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 inline-block">
+                Seguridad Colectivo Rumbo
+              </span>
+              <h3 className="font-black text-lg text-white">Requisito de Usuario Verificado</h3>
+              <p className="text-xs text-slate-300 leading-relaxed">
+                Para viajar en <strong>Colectivo Compartido</strong> se requiere usuario verificado con DUI y teléfono por seguridad y tranquilidad de todos los pasajeros a bordo.
+              </p>
+            </div>
+
+            <div className="p-3 bg-slate-800/70 rounded-2xl border border-slate-700/70 text-xs text-left space-y-2">
+              <div className="flex items-center gap-2 text-emerald-400 font-bold">
+                <span>✓</span>
+                <span>Descuento directo del 30% en cada colectivo</span>
+              </div>
+              <div className="flex items-center gap-2 text-amber-400 font-bold">
+                <span>🎁</span>
+                <span>Bono de bienvenida de $1.00 USD adicional</span>
+              </div>
+              <div className="flex items-center gap-2 text-slate-300">
+                <span>🛡️</span>
+                <span>Comunidad segura con identidad validada</span>
+              </div>
+            </div>
+
+            <div className="space-y-2 pt-1">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowSharedRegisterPrompt(false);
+                  setShowRegisterModal(true);
+                }}
+                className="w-full py-3.5 px-4 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black text-sm rounded-2xl shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-95"
+              >
+                <Sparkles className="w-4 h-4" />
+                <span>Registrarme con Google y DUI</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setShowSharedRegisterPrompt(false);
+                  setRideMode('PRIVATE');
+                }}
+                className="w-full py-2.5 text-slate-400 hover:text-white font-bold text-xs rounded-xl hover:bg-slate-800/60 transition-colors cursor-pointer"
+              >
+                Continuar en Viaje Privado ›
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Calificación de Viaje (Fase 6: Finalizado) */}
+      {showRatingModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in">
+          <div className="w-full max-w-sm bg-gradient-to-b from-slate-900 to-slate-950 border border-amber-500/40 rounded-3xl p-6 shadow-2xl text-slate-100 space-y-4 text-center animate-pop-bounce">
+            <div className="w-14 h-14 mx-auto rounded-2xl bg-amber-500/20 border border-amber-500/40 text-amber-400 flex items-center justify-center shadow-lg">
+              <Star className="w-8 h-8 fill-amber-400" />
+            </div>
+
+            <div className="space-y-1">
+              <h3 className="font-black text-lg text-white">¡Has llegado a tu destino!</h3>
+              <p className="text-xs text-slate-300">
+                ¿Cómo estuvo tu experiencia con {assignedTrip?.driver?.name || 'tu conductor'}?
+              </p>
+            </div>
+
+            {/* 5 Estrellas */}
+            <div className="flex items-center justify-center gap-2 py-1">
+              {[1, 2, 3, 4, 5].map((star) => (
+                <button
+                  key={star}
+                  type="button"
+                  onClick={() => setTripRating(star)}
+                  className="p-1 hover:scale-125 transition-transform cursor-pointer"
+                >
+                  <Star
+                    className={`w-7 h-7 ${
+                      star <= tripRating ? 'text-amber-400 fill-amber-400' : 'text-slate-600'
+                    }`}
+                  />
+                </button>
+              ))}
+            </div>
+
+            {/* Propina voluntaria */}
+            <div className="space-y-1.5 pt-1 text-left">
+              <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider text-center">
+                Propina voluntaria para el conductor:
+              </label>
+              <div className="grid grid-cols-3 gap-2 text-xs">
+                {[
+                  { val: 0, label: '$0.00' },
+                  { val: 0.50, label: '+$0.50' },
+                  { val: 1.00, label: '+$1.00' }
+                ].map((tip) => (
+                  <button
+                    key={tip.val}
+                    type="button"
+                    onClick={() => setDriverTip(tip.val)}
+                    className={`py-2 rounded-xl text-center font-bold font-mono transition-all cursor-pointer border ${
+                      driverTip === tip.val
+                        ? 'bg-amber-500 border-amber-400 text-slate-950 font-black'
+                        : 'bg-slate-800 border-slate-700 text-slate-300'
+                    }`}
+                  >
+                    {tip.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowRatingModal(false);
+                  localStorage.removeItem('rumbo_passenger_active_session');
+                  setAppState('DECOY_FORM');
+                  setRideMode('UNDECIDED');
+                  setTripId(null);
+                  setAssignedTrip(null);
+                  setTripStatus('DRIVER_EN_ROUTE');
+                  triggerCashRewardFeedback();
+                  speakAssistantMessage('¡Gracias por calificar tu viaje con Rumbo!');
+                }}
+                className="w-full py-3.5 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black text-sm rounded-2xl shadow-lg cursor-pointer transition-all active:scale-95"
+              >
+                <span>Finalizar y Enviar Calificación</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

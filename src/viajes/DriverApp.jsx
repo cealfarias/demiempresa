@@ -218,23 +218,39 @@ function DriverAppContent() {
       creditApplied: '0.00'
     };
 
-    setActiveTrip(safeTrip);
-    setTripState('EN_ROUTE_TO_PICKUP');
     setIncomingRequest(null);
-    setPendingOffer(null);
 
     // Emitir eventos a través del WebSocket hacia el servidor y el pasajero
     if (req.id && driverProfileId) {
-      socket.emit('driver:accept_trip', {
-        tripId: req.id,
-        driverProfileId,
-        agreedFare: fare.toFixed(2)
-      });
-      socket.emit('driver:offer', {
-        tripId: req.id,
-        driverProfileId,
-        proposedFare: fare
-      });
+      const reqBasePrice = parseFloat(req.price || req.offeredFare || req.proposedFare || 0);
+      const isCounterOffer = fare > reqBasePrice;
+
+      if (isCounterOffer) {
+        // Es contraoferta: emitir solo propuesta temporal sin auto-asignarse antes de tiempo
+        socket.emit('driver:offer', {
+          tripId: req.id,
+          driverProfileId,
+          proposedFare: fare
+        });
+        setPendingOffer({
+          tripId: req.id,
+          offeredFare: fare,
+          origin: req.origin,
+          destination: req.destination,
+          roadDistanceKm: req.roadDistanceKm
+        });
+        setActiveTrip(null);
+      } else {
+        // Acepta la tarifa exacta: match atómico inmediato
+        setActiveTrip(safeTrip);
+        setTripState('EN_ROUTE_TO_PICKUP');
+        setPendingOffer(null);
+        socket.emit('driver:accept_trip', {
+          tripId: req.id,
+          driverProfileId,
+          agreedFare: fare.toFixed(2)
+        });
+      }
     }
   };
 
@@ -778,7 +794,7 @@ function DriverAppContent() {
     if (activeTrip?.id) {
       socket.emit('trip:update_status', {
         tripId: activeTrip.id,
-        newStatus,
+        newStatus: newStatus === 'DONE' ? 'COMPLETED' : newStatus,
         driverProfileId
       });
     }

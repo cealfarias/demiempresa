@@ -99,22 +99,31 @@ export default function AdModal({ isOpen, onClose }) {
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">
-                    Municipio de Cobertura
+                    Zona o Cobertura de tu Negocio
                   </label>
                   <select
                     value={municipality}
                     onChange={(e) => setMunicipality(e.target.value)}
                     className="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white focus:outline-none focus:border-amber-400 text-sm"
                   >
-                    <option value="San Salvador">San Salvador</option>
-                    <option value="Santa Tecla">Santa Tecla</option>
-                    <option value="Antiguo Cuscatlán">Antiguo Cuscatlán</option>
-                    <option value="Soyapango">Soyapango</option>
-                    <option value="Mejicanos">Mejicanos</option>
-                    <option value="Apopa">Apopa</option>
-                    <option value="Ilopango">Ilopango</option>
-                    <option value="San Miguel">San Miguel</option>
-                    <option value="Santa Ana">Santa Ana</option>
+                    <optgroup label="Multi-Sucursal / Departamental">
+                      <option value="Todo San Salvador">Todo el Depto. de San Salvador (Multi-Sucursal)</option>
+                      <option value="Todo La Libertad">Todo el Depto. de La Libertad (Multi-Sucursal)</option>
+                      <option value="Todo Santa Ana">Todo el Depto. de Santa Ana</option>
+                      <option value="Todo San Miguel">Todo el Depto. de San Miguel</option>
+                      <option value="TODOS">Nacional (Todo El Salvador)</option>
+                    </optgroup>
+                    <optgroup label="Local / Municipio Específico">
+                      <option value="San Salvador">San Salvador Centro</option>
+                      <option value="Santa Tecla">Santa Tecla</option>
+                      <option value="Antiguo Cuscatlán">Antiguo Cuscatlán</option>
+                      <option value="Soyapango">Soyapango</option>
+                      <option value="Mejicanos">Mejicanos</option>
+                      <option value="Apopa">Apopa</option>
+                      <option value="Ilopango">Ilopango</option>
+                      <option value="San Miguel">San Miguel Ciudad</option>
+                      <option value="Santa Ana">Santa Ana Ciudad</option>
+                    </optgroup>
                   </select>
                 </div>
               </div>
@@ -226,10 +235,10 @@ export default function AdModal({ isOpen, onClose }) {
                       $17.50 <span className="text-xs font-normal text-slate-400">/sem</span>
                     </div>
                     <div className="text-[11px] text-slate-400 mb-2">o $60.00 USD/mes</div>
-                    <ul className="text-xs text-slate-300 space-y-1">
-                      <li>• Video Reel + Banner</li>
-                      <li>• Red de envíos con choferes a 1km</li>
-                      <li>• Máxima visibilidad</li>
+                    <ul className="space-y-1 text-[11px] text-slate-300">
+                      <li>• Video Reel + Banner prioritario</li>
+                      <li>• Flota de envíos y traslados inter-sucursales</li>
+                      <li>• Despachos express con choferes a 1 km</li>
                     </ul>
                   </div>
 

@@ -58,9 +58,9 @@ export class AdService {
   }
 
   /**
-   * Obtiene el feed publicitario (Reels y Banners) geocercado por municipio de destino
+   * Obtiene el feed publicitario (Reels y Banners) geocercado por municipio y departamento de destino
    */
-  static async getFeedForDestination(destinationMunicipality) {
+  static async getFeedForDestination(destinationMunicipality, destinationDepartment) {
     const query = `
       SELECT c.*, m.business_name, m.whatsapp, camp.plan_type
       FROM viajes_ad_creatives c
@@ -68,11 +68,17 @@ export class AdService {
       JOIN viajes_merchants m ON camp.merchant_id = m.id
       WHERE c.is_active = TRUE
         AND camp.status = 'ACTIVE'
-        AND (LOWER(c.target_municipality) = LOWER($1) OR c.target_municipality = 'TODOS')
+        AND (
+          LOWER(c.target_municipality) = LOWER($1)
+          OR LOWER(c.target_municipality) = LOWER($2)
+          OR c.target_municipality = 'TODOS'
+          OR c.target_municipality ILIKE '%' || $1 || '%'
+          OR c.target_municipality ILIKE '%' || $2 || '%'
+        )
       ORDER BY RANDOM()
       LIMIT 10;
     `;
-    const res = await pool.query(query, [destinationMunicipality || 'TODOS']);
+    const res = await pool.query(query, [destinationMunicipality || 'TODOS', destinationDepartment || 'San Salvador']);
     return res.rows;
   }
 

@@ -44,30 +44,37 @@ export default function DriverTripRequestsFeed({
   useEffect(() => {
     if (incomingRequest) {
       setActiveRequests((prev) => {
-        const exists = prev.find((r) => r.id === incomingRequest.id);
+        const reqId = incomingRequest.id || incomingRequest.tripId;
+        const exists = prev.find((r) => r.id === reqId);
         if (exists) return prev;
+        const isPool = incomingRequest.serviceType === 'SHARED_POOL';
         const newReq = {
-          id: incomingRequest.id,
-          passengerName: (incomingRequest.passengerName || 'Pasajero Invitado').trim(),
+          id: reqId,
+          isPool,
+          serviceType: incomingRequest.serviceType || 'PASSENGER',
+          passengerCount: incomingRequest.passengerCount || (isPool ? 4 : 1),
+          corridorName: incomingRequest.corridorName || '',
+          stops: incomingRequest.stops || [],
+          passengerName: isPool ? 'Colectivo (4 Pasajeros)' : (incomingRequest.passengerName || 'Pasajero Invitado').trim(),
           passengerPhone: incomingRequest.passengerPhone ? String(incomingRequest.passengerPhone) : '',
-          passengerPhoto: incomingRequest.passengerPhoto || null,
+          passengerPhoto: isPool ? null : (incomingRequest.passengerPhoto || null),
           rating: incomingRequest.passengerRating || 5.0,
-          ratingCount: incomingRequest.passengerTrips || 1,
-          isGuest: Boolean(incomingRequest.isGuest || incomingRequest.passengerName === 'Pasajero' || incomingRequest.passengerName === 'Pasajero Invitado'),
+          ratingCount: isPool ? 4 : (incomingRequest.passengerTrips || 1),
+          isGuest: isPool ? false : Boolean(incomingRequest.isGuest || incomingRequest.passengerName === 'Pasajero' || incomingRequest.passengerName === 'Pasajero Invitado'),
           timeAgo: 'Reciente',
-          price: parseFloat(incomingRequest.offeredFare || incomingRequest.suggestedFare || 4.00),
-          priceLabel: incomingRequest.priceLabel || 'Oferta directa',
+          price: parseFloat(incomingRequest.offeredFare || incomingRequest.proposedFare || incomingRequest.suggestedFare || (isPool ? 21.60 : 4.00)),
+          priceLabel: isPool ? '👥 4 Cupos Llenos • Cero Esperas' : (incomingRequest.priceLabel || 'Oferta directa'),
           pickupDistanceMeters: Math.round((incomingRequest.distanceKm || 0.6) * 1000),
           tripDistanceKm: parseFloat(incomingRequest.roadDistanceKm || incomingRequest.distanceKm || 5.0),
           origin: incomingRequest.origin || incomingRequest.originAddress || 'Punto de recogida',
           originLat: parseFloat(incomingRequest.originLat) || 13.7013,
           originLng: parseFloat(incomingRequest.originLng) || -89.2244,
-          destination: incomingRequest.destination || incomingRequest.destinationAddress || 'Punto de destino',
+          destination: incomingRequest.destination || incomingRequest.destinationAddress || (isPool ? 'Ruta de 4 Paradas' : 'Punto de destino'),
           destinationLat: parseFloat(incomingRequest.destinationLat) || 13.6738,
           destinationLng: parseFloat(incomingRequest.destinationLng) || -89.2789,
           delayMinutes: parseInt(incomingRequest.delayMinutes || 0, 10),
           preferences: incomingRequest.preferences || {},
-          cashBill: incomingRequest.cashBill || '10',
+          cashBill: isPool ? 'EXACT' : (incomingRequest.cashBill || '10'),
           changeNeeded: incomingRequest.changeNeeded || '0.00'
         };
         return [newReq, ...prev];
@@ -245,6 +252,19 @@ export default function DriverTripRequestsFeed({
 
             {/* Columna Central: Precio, Distancias y Direcciones */}
             <div className="flex-1 min-w-0 space-y-1.5">
+              {req.isPool && (
+                <div className="flex items-center gap-1.5 pb-0.5">
+                  <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[10px] font-black uppercase tracking-wider">
+                    👥 Colectivo (4 Pasajeros)
+                  </span>
+                  {req.corridorName && (
+                    <span className="text-[10px] text-amber-300 font-bold truncate">
+                      {req.corridorName}
+                    </span>
+                  )}
+                </div>
+              )}
+
               {/* Precio y etiqueta */}
               <div className="flex items-baseline gap-2">
                 <span className="text-2xl font-black text-white font-mono tracking-tight">
@@ -283,6 +303,28 @@ export default function DriverTripRequestsFeed({
               <div className="text-xs text-slate-400 line-clamp-1">
                 {req.destination}
               </div>
+
+              {/* Lista de Paradas para Colectivo (Ordenadas por distancia) */}
+              {req.isPool && req.stops && req.stops.length > 0 && (
+                <div className="mt-1 pt-1.5 border-t border-slate-800/80 space-y-1 text-[10px]">
+                  <div className="font-bold text-emerald-400 flex items-center justify-between">
+                    <span>4 Paradas ordenadas por distancia:</span>
+                    <span className="font-mono text-amber-300">Cero esperas</span>
+                  </div>
+                  <div className="space-y-0.5">
+                    {req.stops.map((s, idx) => (
+                      <div key={idx} className="flex items-center justify-between text-slate-300 bg-slate-900/80 px-2 py-0.5 rounded border border-slate-800">
+                        <span className="truncate max-w-[210px]">
+                          <strong>#{idx + 1}</strong> {s.destinationAddress || s.label}
+                        </span>
+                        <span className="font-mono text-emerald-300 font-bold ml-1">
+                          ${s.finalFare}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Botón Acción Lateral (3 puntos ⋮) */}

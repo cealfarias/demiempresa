@@ -251,6 +251,109 @@ export function initializeWebSockets(httpServer) {
      */
     socket.on('driver:accept_trip', async ({ tripId, driverProfileId, agreedFare }, callback) => {
       try {
+        const isSharedPool = String(tripId).startsWith('pool-');
+        if (isSharedPool) {
+          const rawPoolId = tripId;
+          const poolData = activeSharedPools.get(rawPoolId);
+          if (!poolData) {
+            if (callback) callback({ success: false, reason: 'El colectivo ya fue asignado o finalizó.' });
+            return;
+          }
+
+          const driverRes = await pool.query(`
+            SELECT dp.*, u.full_name, u.phone
+            FROM viajes_driver_profiles dp
+            JOIN viajes_users u ON dp.user_id = u.id
+            WHERE dp.id::text = $1 OR dp.vehicle_plate = $1;
+          `, [driverProfileId]);
+
+          let driver = driverRes.rows[0];
+          if (!driver) {
+            const fallbackRes = await pool.query(`
+              SELECT dp.*, u.full_name, u.phone
+              FROM viajes_driver_profiles dp
+              JOIN viajes_users u ON dp.user_id = u.id
+              ORDER BY dp.created_at ASC
+              LIMIT 1;
+            `);
+            driver = fallbackRes.rows[0];
+          }
+
+          const actualDriverId = driver?.id;
+          const vBrand = driver?.vehicle_brand || '';
+          const vModel = driver?.vehicle_model || '';
+          const fullModel = (vBrand || vModel) ? `${vBrand} ${vModel}`.trim() : 'Vehículo Autorizado';
+
+          const driverObj = {
+            id: actualDriverId,
+            name: driver?.full_name || 'Conductor Autorizado',
+            vehiclePlate: driver?.vehicle_plate || 'EN CAMINO',
+            vehicleBrand: vBrand,
+            vehicleModel: fullModel,
+            vehicleColor: driver?.vehicle_color || '',
+            photo: driver?.photo_url || null,
+            photoUrl: driver?.photo_url || null,
+            phone: driver?.phone ? String(driver.phone) : ''
+          };
+
+          const totalDriverFare = poolData.passengers.reduce((sum, p) => sum + parseFloat(p.finalFare), 0).toFixed(2);
+
+          // Emitir a todos los pasajeros en la sala del colectivo
+          io.to(`pool:${rawPoolId}`).emit('trip:confirmed', {
+            tripId: rawPoolId,
+            serviceType: 'SHARED_POOL',
+            isSharedPool: true,
+            driver: driverObj,
+            driverName: driverObj.name,
+            vehiclePlate: driverObj.vehiclePlate,
+            vehicleBrand: driverObj.vehicleBrand,
+            vehicleModel: driverObj.vehicleModel,
+            vehicleColor: driverObj.vehicleColor,
+            photoUrl: driverObj.photoUrl,
+            driverPhone: driverObj.phone,
+            destinationMunicipality: 'Ruta Compartida (4 Paradas)'
+          });
+
+          // Notificar al conductor asignado
+          const driverSocketId = driverSockets.get(driverProfileId) || (actualDriverId ? driverSockets.get(actualDriverId.toString()) : null);
+          if (driverSocketId) {
+            const socketDriver = io.sockets.sockets.get(driverSocketId);
+            if (socketDriver) socketDriver.currentTripId = rawPoolId;
+
+            io.to(driverSocketId).emit('trip:assigned', {
+              tripId: rawPoolId,
+              serviceType: 'SHARED_POOL',
+              isSharedPool: true,
+              agreedFare: totalDriverFare,
+              cashToCollect: totalDriverFare,
+              creditApplied: '0.00',
+              passengerCount: poolData.passengers.length,
+              originAddress: poolData.originAddress,
+              originLat: poolData.originLat,
+              originLng: poolData.originLng,
+              destinationAddress: poolData.passengers[poolData.passengers.length - 1].destinationAddress,
+              destinationLat: poolData.passengers[poolData.passengers.length - 1].destinationLat,
+              destinationLng: poolData.passengers[poolData.passengers.length - 1].destinationLng,
+              destinationMunicipality: 'Ruta Compartida (4 Paradas)',
+              passengerName: 'Colectivo Compartido (4 Pasajeros)',
+              passengerPhone: '',
+              roadDistanceKm: poolData.passengers[poolData.passengers.length - 1].distanceKm,
+              stops: poolData.passengers.map((p, idx) => ({
+                seatNumber: idx + 1,
+                destinationAddress: p.destinationAddress,
+                distanceKm: p.distanceKm,
+                finalFare: p.finalFare,
+                passengerPhone: p.phone,
+                label: `Parada ${idx + 1} (${p.distanceKm} km)`
+              }))
+            });
+          }
+
+          io.to('drivers_channel').emit('offer:rejected_other_won', { tripId: rawPoolId });
+          if (callback) callback({ success: true, tripId: rawPoolId });
+          return;
+        }
+
         const lockResult = await atomicAcceptTrip(tripId, driverProfileId);
         if (!lockResult.success) {
           if (callback) callback({ success: false, reason: lockResult.reason });
@@ -337,17 +440,34 @@ export function initializeWebSockets(httpServer) {
           });
         }
 
+        const vBrand = driver?.vehicle_brand || '';
+        const vModel = driver?.vehicle_model || '';
+        const fullModel = (vBrand || vModel) ? `${vBrand} ${vModel}`.trim() : 'Vehículo Autorizado';
+
+        const driverObj = {
+          id: actualDriverId,
+          name: driver?.full_name || 'Conductor Autorizado',
+          vehiclePlate: driver?.vehicle_plate || 'EN CAMINO',
+          vehicleBrand: vBrand,
+          vehicleModel: fullModel,
+          vehicleColor: driver?.vehicle_color || '',
+          photo: driver?.photo_url || null,
+          photoUrl: driver?.photo_url || null,
+          phone: driver?.phone ? String(driver.phone) : ''
+        };
+
         io.to(`trip:${tripId}`).emit('trip:confirmed', {
           tripId,
           agreedFare: effectiveFare.toFixed(2),
           cashToCollect: cashToCollect.toFixed(2),
-          driverName: driver?.full_name || 'Conductor Autorizado',
-          vehiclePlate: driver?.vehicle_plate || '',
-          vehicleBrand: driver?.vehicle_brand || '',
-          vehicleModel: driver?.vehicle_model || '',
-          vehicleColor: driver?.vehicle_color || '',
-          photoUrl: driver?.photo_url || null,
-          driverPhone: driver?.phone ? String(driver?.phone) : '',
+          driver: driverObj,
+          driverName: driverObj.name,
+          vehiclePlate: driverObj.vehiclePlate,
+          vehicleBrand: driverObj.vehicleBrand,
+          vehicleModel: driverObj.vehicleModel,
+          vehicleColor: driverObj.vehicleColor,
+          photoUrl: driverObj.photoUrl,
+          driverPhone: driverObj.phone,
           destinationMunicipality: trip?.destination_municipality || 'San Salvador'
         });
 
@@ -452,17 +572,34 @@ export function initializeWebSockets(httpServer) {
           });
         }
 
+        const vBrand = driver?.vehicle_brand || '';
+        const vModel = driver?.vehicle_model || '';
+        const fullModel = (vBrand || vModel) ? `${vBrand} ${vModel}`.trim() : 'Vehículo Autorizado';
+
+        const driverObj = {
+          id: actualDriverId,
+          name: driver?.full_name || 'Conductor Autorizado',
+          vehiclePlate: driver?.vehicle_plate || 'EN CAMINO',
+          vehicleBrand: vBrand,
+          vehicleModel: fullModel,
+          vehicleColor: driver?.vehicle_color || '',
+          photo: driver?.photo_url || null,
+          photoUrl: driver?.photo_url || null,
+          phone: driver?.phone ? String(driver.phone) : ''
+        };
+
         io.to(`trip:${tripId}`).emit('trip:confirmed', {
           tripId,
           agreedFare,
           cashToCollect: cashToCollect.toFixed(2),
-          driverName: driver.full_name,
-          vehiclePlate: driver.vehicle_plate,
-          vehicleBrand: driver.vehicle_brand,
-          vehicleModel: driver.vehicle_model,
-          vehicleColor: driver.vehicle_color,
-          photoUrl: driver.photo_url,
-          driverPhone: driver.phone ? String(driver.phone) : '',
+          driver: driverObj,
+          driverName: driverObj.name,
+          vehiclePlate: driverObj.vehiclePlate,
+          vehicleBrand: driverObj.vehicleBrand,
+          vehicleModel: driverObj.vehicleModel,
+          vehicleColor: driverObj.vehicleColor,
+          photoUrl: driverObj.photoUrl,
+          driverPhone: driverObj.phone,
           destinationMunicipality: trip.destination_municipality
         });
 
@@ -690,28 +827,35 @@ export function initializeWebSockets(httpServer) {
      */
     socket.on('trip:update_status', async ({ tripId, newStatus, driverProfileId }, callback) => {
       try {
+        const normalizedStatus = (newStatus === 'DONE' ? 'COMPLETED' : newStatus);
         const updateRes = await pool.query(`
           UPDATE viajes_trips
           SET status = $1,
               completed_at = CASE WHEN $1 = 'COMPLETED' THEN CURRENT_TIMESTAMP ELSE completed_at END
-          WHERE id = $2 AND driver_id = $3
+          WHERE id::text = $2
           RETURNING *;
-        `, [newStatus, tripId, driverProfileId]);
+        `, [normalizedStatus, tripId]);
 
         const updatedTrip = updateRes.rows[0];
 
-        if (newStatus === 'COMPLETED' && updatedTrip) {
-          await ReferralService.processTripCompletionForReferral(
-            tripId,
-            updatedTrip.passenger_id,
-            updatedTrip.agreed_fare
-          );
-          await releaseDriverLock(driverProfileId, tripId);
+        if (normalizedStatus === 'COMPLETED' && updatedTrip) {
+          try {
+            await ReferralService.processTripCompletionForReferral(
+              tripId,
+              updatedTrip.passenger_id,
+              updatedTrip.agreed_fare
+            );
+          } catch (refErr) {
+            console.warn('Referral completion notice:', refErr.message);
+          }
+          if (driverProfileId) {
+            await releaseDriverLock(driverProfileId, tripId).catch(() => {});
+          }
         }
 
         io.to(`trip:${tripId}`).emit('trip:status_changed', {
           tripId,
-          status: newStatus
+          status: normalizedStatus
         });
 
         if (callback) callback({ success: true, trip: updatedTrip });
@@ -721,12 +865,215 @@ export function initializeWebSockets(httpServer) {
       }
     });
 
+    /**
+     * 6. Colectivo Compartido: Gestión de Pools por Corredor
+     */
+    socket.on('pool:join', (payload, callback) => {
+      try {
+        const result = handleJoinSharedPool(payload, socket, io);
+        if (callback) callback(result);
+      } catch (err) {
+        console.error('Error en pool:join:', err);
+        if (callback) callback({ success: false, error: err.message });
+      }
+    });
+
+    socket.on('pool:leave', ({ poolId, passengerId }, callback) => {
+      try {
+        handleLeaveSharedPool(poolId, passengerId, socket, io);
+        if (callback) callback({ success: true });
+      } catch (err) {
+        if (callback) callback({ success: false, error: err.message });
+      }
+    });
+
     socket.on('disconnect', () => {
       if (socket.userId) connectedUsers.delete(socket.userId);
       if (socket.driverProfileId) driverSockets.delete(socket.driverProfileId);
+      if (socket.currentPoolId && socket.userId) {
+        handleLeaveSharedPool(socket.currentPoolId, socket.userId, socket, io);
+      }
       console.log(`🔌 Cliente desconectado: ${socket.id}`);
     });
   });
 
   return io;
+}
+
+const activeSharedPools = new Map();
+
+function handleJoinSharedPool(payload, socket, io) {
+  const {
+    passengerId,
+    passengerName = 'Pasajero',
+    genderFilter = 'ALL',
+    phone = '',
+    originAddress = 'Origen',
+    originLat = 13.7013,
+    originLng = -89.2244,
+    destinationAddress = 'Destino',
+    destinationLat = 13.6738,
+    destinationLng = -89.2789,
+    corridorName = 'Corredor Oriente',
+    direction = 'ESTE',
+    distanceKm = 5.0,
+    normalFare = 5.00
+  } = payload;
+
+  const normalFareNum = parseFloat(normalFare || 5.00);
+  const discountAmount = Number((normalFareNum * 0.30).toFixed(2));
+  const finalFare = Number((normalFareNum * 0.70).toFixed(2));
+
+  // Buscar un pool abierto compatible dentro de radio de 1.5 km en el mismo corredor y dirección
+  let targetPool = null;
+  for (const [, p] of activeSharedPools.entries()) {
+    if (p.direction === direction && p.passengers.length < 4) {
+      if (genderFilter === 'WOMEN_ONLY' || p.genderFilter === 'WOMEN_ONLY') {
+        if (p.genderFilter !== genderFilter) continue;
+      }
+      const distToPoolOrigin = Math.sqrt(
+        Math.pow((originLat - p.originLat) * 111, 2) +
+        Math.pow((originLng - p.originLng) * 111 * Math.cos(originLat * Math.PI / 180), 2)
+      );
+      if (distToPoolOrigin <= 1.5) {
+        targetPool = p;
+        break;
+      }
+    }
+  }
+
+  if (!targetPool) {
+    const poolId = `pool-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+    targetPool = {
+      id: poolId,
+      corridorName,
+      direction,
+      genderFilter,
+      originLat: parseFloat(originLat),
+      originLng: parseFloat(originLng),
+      originAddress,
+      passengers: [],
+      createdAt: Date.now()
+    };
+    activeSharedPools.set(poolId, targetPool);
+  }
+
+  // Quitar pasajero si ya estaba en el pool
+  targetPool.passengers = targetPool.passengers.filter(p => p.passengerId !== passengerId);
+
+  // Agregar nuevo pasajero
+  targetPool.passengers.push({
+    passengerId,
+    passengerName,
+    phone,
+    genderFilter,
+    pickupAddress: originAddress,
+    pickupLat: parseFloat(originLat),
+    pickupLng: parseFloat(originLng),
+    destinationAddress,
+    destinationLat: parseFloat(destinationLat),
+    destinationLng: parseFloat(destinationLng),
+    distanceKm: parseFloat(distanceKm || 5.0),
+    normalFare: normalFareNum.toFixed(2),
+    discountAmount: discountAmount.toFixed(2),
+    finalFare: finalFare.toFixed(2),
+    socketId: socket.id
+  });
+
+  socket.join(`pool:${targetPool.id}`);
+  socket.currentPoolId = targetPool.id;
+
+  // ORDENAR ESTRICTAMENTE POR ORDEN DE DISTANCIA DESDE EL ORIGEN (QUIÉN BAJA PRIMERO)
+  targetPool.passengers.sort((a, b) => a.distanceKm - b.distanceKm);
+
+  const stops = targetPool.passengers.map((p, idx) => ({
+    seatNumber: idx + 1,
+    passengerId: p.passengerId,
+    destinationAddress: p.destinationAddress,
+    distanceKm: p.distanceKm,
+    normalFare: p.normalFare,
+    discountAmount: p.discountAmount,
+    finalFare: p.finalFare,
+    label: `Parada ${idx + 1} (${p.distanceKm} km)`
+  }));
+
+  const isComplete = targetPool.passengers.length >= 4;
+
+  const poolStatusPayload = {
+    poolId: targetPool.id,
+    corridorName: targetPool.corridorName,
+    direction: targetPool.direction,
+    seatsFilled: targetPool.passengers.length,
+    totalSeats: 4,
+    isComplete,
+    stops
+  };
+
+  io.to(`pool:${targetPool.id}`).emit('pool:status', poolStatusPayload);
+
+  // Si se completaron los 4 pasajeros, DESPACHO INMEDIATO AL CANAL DE CONDUCTORES
+  if (isComplete) {
+    const totalDriverFare = targetPool.passengers.reduce((sum, p) => sum + parseFloat(p.finalFare), 0).toFixed(2);
+    const poolTripPayload = {
+      id: targetPool.id,
+      tripId: targetPool.id,
+      serviceType: 'SHARED_POOL',
+      corridorName: targetPool.corridorName,
+      passengerCount: 4,
+      origin: targetPool.originAddress,
+      originLat: targetPool.originLat,
+      originLng: targetPool.originLng,
+      destination: targetPool.passengers[3].destinationAddress,
+      destinationLat: targetPool.passengers[3].destinationLat,
+      destinationLng: targetPool.passengers[3].destinationLng,
+      destinationMunicipality: 'Ruta Compartida',
+      offeredFare: totalDriverFare,
+      proposedFare: totalDriverFare,
+      suggestedFare: totalDriverFare,
+      roadDistanceKm: targetPool.passengers[3].distanceKm,
+      trafficLabel: 'Colectivo Completo (4 Pasajeros)',
+      timeLeft: 30,
+      stops: stops
+    };
+
+    io.to('drivers_channel').emit('trip:new_request', poolTripPayload);
+    io.to(`pool:${targetPool.id}`).emit('pool:dispatched', {
+      poolId: targetPool.id,
+      totalFare: totalDriverFare,
+      message: '¡4 cupos completos! Buscando conductor cercano.'
+    });
+  }
+
+  return { success: true, poolId: targetPool.id, stops, seatsFilled: targetPool.passengers.length };
+}
+
+function handleLeaveSharedPool(poolId, passengerId, socket, io) {
+  const pool = activeSharedPools.get(poolId);
+  if (!pool) return;
+  pool.passengers = pool.passengers.filter(p => p.passengerId !== passengerId);
+  socket.leave(`pool:${poolId}`);
+  if (pool.passengers.length === 0) {
+    activeSharedPools.delete(poolId);
+  } else {
+    pool.passengers.sort((a, b) => a.distanceKm - b.distanceKm);
+    const stops = pool.passengers.map((p, idx) => ({
+      seatNumber: idx + 1,
+      passengerId: p.passengerId,
+      destinationAddress: p.destinationAddress,
+      distanceKm: p.distanceKm,
+      normalFare: p.normalFare,
+      discountAmount: p.discountAmount,
+      finalFare: p.finalFare,
+      label: `Parada ${idx + 1} (${p.distanceKm} km)`
+    }));
+    io.to(`pool:${poolId}`).emit('pool:status', {
+      poolId: pool.id,
+      corridorName: pool.corridorName,
+      direction: pool.direction,
+      seatsFilled: pool.passengers.length,
+      totalSeats: 4,
+      isComplete: false,
+      stops
+    });
+  }
 }
