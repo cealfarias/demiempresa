@@ -58,7 +58,58 @@ import {
   initSessionTelemetry
 } from './api';
 
-export default function DriverApp() {
+class DriverErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+  componentDidCatch(error, errorInfo) {
+    console.error("Error capturado en DriverApp:", error, errorInfo);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-center p-6 text-center space-y-4 font-sans">
+          <div className="w-16 h-16 rounded-3xl bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center justify-center text-3xl shadow-lg">
+            ⚠️
+          </div>
+          <h2 className="text-xl font-black">Panel de Conductor Recuperado</h2>
+          <p className="text-xs text-slate-400 max-w-sm">
+            {this.state.error?.message || "Ocurrió un error inesperado al renderizar el viaje."}
+          </p>
+          <div className="flex gap-3 pt-2">
+            <button
+              type="button"
+              onClick={() => {
+                try {
+                  localStorage.removeItem('rumbo_driver_active_trip');
+                  localStorage.removeItem('rumbo_driver_trip_state');
+                } catch {}
+                window.location.reload();
+              }}
+              className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl cursor-pointer"
+            >
+              Limpiar Estado Local
+            </button>
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              className="px-4 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black rounded-xl shadow cursor-pointer"
+            >
+              Recargar Aplicación
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+function DriverAppContent() {
   const [driverProfile, setDriverProfile] = useState(() => {
     try {
       const saved = localStorage.getItem('rumbo_driver_profile');
@@ -142,26 +193,49 @@ export default function DriverApp() {
   };
 
   const handleAcceptRequestFromFeed = (req, finalPrice) => {
+    if (!req) return;
     const fare = parseFloat(finalPrice || req.price || 4.00);
-    setActiveTrip({
+    const originLat = parseFloat(req.originLat) || 13.7013;
+    const originLng = parseFloat(req.originLng) || -89.2244;
+    const distKm = parseFloat(req.tripDistanceKm || req.roadDistanceKm || req.distanceKm || 5.0);
+
+    const safeTrip = {
       id: req.id,
       passengerName: req.passengerName || 'Pasajero Rumbo',
-      passengerPhone: req.passengerPhone || 'No proporcionado',
-      origin: req.origin,
-      originLat: 13.7013,
-      originLng: -89.2244,
-      destination: req.destination,
-      roadDistanceKm: req.tripDistanceKm || 5.0,
-      delayMinutes: req.delayMinutes || 0,
+      passengerPhone: req.passengerPhone ? String(req.passengerPhone) : '',
+      origin: req.origin || 'Punto de recogida',
+      originLat,
+      originLng,
+      destination: req.destination || 'Punto de destino',
+      roadDistanceKm: distKm,
+      delayMinutes: parseInt(req.delayMinutes || 0, 10),
       suggestedFare: fare,
-      preferences: {},
-      cashBill: '10',
-      changeNeeded: (10.00 - fare).toFixed(2),
+      preferences: typeof req.preferences === 'object' && req.preferences ? req.preferences : {},
+      cashBill: req.cashBill || '10',
+      changeNeeded: (10.00 - fare > 0 ? (10.00 - fare).toFixed(2) : '0.00'),
       agreedFare: fare.toFixed(2),
       cashToCollect: fare.toFixed(2),
       creditApplied: '0.00'
-    });
+    };
+
+    setActiveTrip(safeTrip);
     setTripState('EN_ROUTE_TO_PICKUP');
+    setIncomingRequest(null);
+    setPendingOffer(null);
+
+    // Emitir eventos a través del WebSocket hacia el servidor y el pasajero
+    if (req.id && driverProfileId) {
+      socket.emit('driver:accept_trip', {
+        tripId: req.id,
+        driverProfileId,
+        agreedFare: fare.toFixed(2)
+      });
+      socket.emit('driver:offer', {
+        tripId: req.id,
+        driverProfileId,
+        proposedFare: fare
+      });
+    }
   };
 
   // Solicitud entrante real (se llena únicamente vía WebSockets cuando un pasajero solicita viaje)
@@ -255,10 +329,10 @@ export default function DriverApp() {
           setActiveTrip((prev) => ({
             ...prev,
             ...res.trip,
-            passengerName: res.trip.passenger?.name || prev?.passengerName,
-            passengerPhone: res.trip.passenger?.phone || prev?.passengerPhone,
-            cashToCollect: res.trip.cashToCollect || prev?.cashToCollect,
-            agreedFare: res.trip.agreedFare || prev?.agreedFare
+            passengerName: res.trip.passenger?.name || prev?.passengerName || 'Pasajero',
+            passengerPhone: String(res.trip.passenger?.phone || prev?.passengerPhone || ''),
+            cashToCollect: parseFloat(res.trip.cashToCollect || prev?.cashToCollect || 4.00).toFixed(2),
+            agreedFare: parseFloat(res.trip.agreedFare || prev?.agreedFare || 4.00).toFixed(2)
           }));
           if (res.trip.status === 'ARRIVED') setTripState('ARRIVED');
           else if (res.trip.status === 'IN_TRANSIT') setTripState('IN_TRANSIT');
@@ -504,6 +578,7 @@ export default function DriverApp() {
       setIncomingRequest({
         id: reqData.tripId,
         passengerName: (reqData.passengerName || 'Pasajero Invitado').trim(),
+        passengerPhone: reqData.passengerPhone ? String(reqData.passengerPhone) : '',
         passengerPhoto: reqData.passengerPhoto || null,
         passengerRating: reqData.passengerRating || 5.0,
         passengerTrips: reqData.passengerTrips || 1,
@@ -511,7 +586,11 @@ export default function DriverApp() {
         serviceType: reqData.serviceType,
         transportType: reqData.transportType || 'CAR',
         origin: reqData.origin || reqData.originAddress || 'Ubicación de recogida',
+        originLat: parseFloat(reqData.originLat) || 13.7013,
+        originLng: parseFloat(reqData.originLng) || -89.2244,
         destination: reqData.destination || reqData.destinationAddress || 'Punto de destino',
+        destinationLat: parseFloat(reqData.destinationLat) || 13.6738,
+        destinationLng: parseFloat(reqData.destinationLng) || -89.2789,
         distanceKm: reqData.distanceKm || 0.5,
         roadDistanceKm: reqData.roadDistanceKm || reqData.distanceKm || 5.0,
         offeredFare: reqData.offeredFare || reqData.proposedFare || '3.50',
@@ -530,22 +609,23 @@ export default function DriverApp() {
 
     // Escuchar asignación de viaje ganada
     socket.on('trip:assigned', (assignedData) => {
+      const fare = parseFloat(assignedData.agreedFare || assignedData.cashToCollect || 4.00);
       setActiveTrip({
         id: assignedData.tripId,
         passengerName: assignedData.passengerName || 'Pasajero',
-        passengerPhone: assignedData.passengerPhone || '',
-        origin: assignedData.originAddress,
-        originLat: assignedData.originLat || 13.7013,
-        originLng: assignedData.originLng || -89.2244,
-        destination: assignedData.destinationAddress,
-        roadDistanceKm: assignedData.roadDistanceKm || assignedData.distanceKm || 7.8,
-        delayMinutes: assignedData.delayMinutes || 0,
-        suggestedFare: assignedData.suggestedFare,
-        preferences: assignedData.preferences || {},
+        passengerPhone: assignedData.passengerPhone ? String(assignedData.passengerPhone) : '',
+        origin: assignedData.originAddress || 'Ubicación de recogida',
+        originLat: parseFloat(assignedData.originLat) || 13.7013,
+        originLng: parseFloat(assignedData.originLng) || -89.2244,
+        destination: assignedData.destinationAddress || 'Punto de destino',
+        roadDistanceKm: parseFloat(assignedData.roadDistanceKm || assignedData.distanceKm || 5.0),
+        delayMinutes: parseInt(assignedData.delayMinutes || 0, 10),
+        suggestedFare: assignedData.suggestedFare ? parseFloat(assignedData.suggestedFare) : fare,
+        preferences: typeof assignedData.preferences === 'object' && assignedData.preferences ? assignedData.preferences : {},
         cashBill: assignedData.cashBill || '10',
         changeNeeded: assignedData.changeNeeded || '0.00',
-        agreedFare: assignedData.agreedFare,
-        cashToCollect: assignedData.cashToCollect,
+        agreedFare: fare.toFixed(2),
+        cashToCollect: parseFloat(assignedData.cashToCollect || fare).toFixed(2),
         creditApplied: assignedData.creditApplied || '0.00'
       });
       setIncomingRequest(null);
@@ -1029,7 +1109,7 @@ export default function DriverApp() {
               <div className="flex items-center gap-2 overflow-hidden">
                 <Fuel className="w-4 h-4 text-amber-400 flex-shrink-0 animate-bounce" />
                 <span className="truncate">
-                  <strong>⛽ Estación en ruta:</strong> {nearbyStationAlert.name} • Regular: <strong className="text-white">${nearbyStationAlert.regular.toFixed(2)}/gal</strong> (-${nearbyStationAlert.savingsRegular.toFixed(2)} vs oficial)
+                  <strong>⛽ Estación en ruta:</strong> {nearbyStationAlert.name} • Regular: <strong className="text-white">${parseFloat(nearbyStationAlert.regular || 0).toFixed(2)}/gal</strong> (-${parseFloat(nearbyStationAlert.savingsRegular || 0).toFixed(2)} vs oficial)
                 </span>
               </div>
               <button
@@ -1266,22 +1346,30 @@ export default function DriverApp() {
                 </div>
 
                 <div className="flex gap-2">
-                  <a
-                    href={`tel:${activeTrip.passengerPhone}`}
-                    className="p-2.5 bg-slate-800 hover:bg-slate-700 text-emerald-400 rounded-xl border border-slate-700"
-                    title="Llamada telefónica"
-                  >
-                    <Phone className="w-5 h-5" />
-                  </a>
-                  <a
-                    href={`https://wa.me/503${activeTrip.passengerPhone.replace(/\D/g, '')}?text=Hola,%20soy%20tu%20conductor%20de%20Rumbo`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="p-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl shadow"
-                    title="WhatsApp directo"
-                  >
-                    <MessageCircle className="w-5 h-5" />
-                  </a>
+                  {activeTrip.passengerPhone ? (
+                    <>
+                      <a
+                        href={`tel:${String(activeTrip.passengerPhone)}`}
+                        className="p-2.5 bg-slate-800 hover:bg-slate-700 text-emerald-400 rounded-xl border border-slate-700 cursor-pointer"
+                        title="Llamada telefónica"
+                      >
+                        <Phone className="w-5 h-5" />
+                      </a>
+                      <a
+                        href={`https://wa.me/503${String(activeTrip.passengerPhone).replace(/\D/g, '')}?text=Hola,%20soy%20tu%20conductor%20de%20Rumbo`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="p-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl shadow cursor-pointer"
+                        title="WhatsApp directo"
+                      >
+                        <MessageCircle className="w-5 h-5" />
+                      </a>
+                    </>
+                  ) : (
+                    <div className="text-[11px] text-slate-500 italic py-2 flex items-center">
+                      Teléfono no registrado
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -2273,6 +2361,14 @@ export default function DriverApp() {
       )}
 
     </div>
+  );
+}
+
+export default function DriverApp() {
+  return (
+    <DriverErrorBoundary>
+      <DriverAppContent />
+    </DriverErrorBoundary>
   );
 }
 

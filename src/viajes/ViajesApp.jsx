@@ -5045,6 +5045,16 @@ export default function ViajesApp() {
       {/* ============================================================== */}
       {/* FASE 2: HUB COMERCIAL POST-ACEPTACIÓN (En Espera y Trayecto)   */}
       {/* ============================================================== */}
+      {appState === 'IN_TRIP_HUB' && !assignedTrip && (
+        <main className="flex-1 max-w-lg mx-auto w-full p-6 space-y-4 animate-fade-in flex flex-col items-center justify-center text-center py-20">
+          <div className="w-14 h-14 rounded-full border border-amber-500/40 bg-amber-500/10 flex items-center justify-center text-amber-400">
+            <div className="w-6 h-6 border-2 border-amber-400 border-t-transparent rounded-full animate-spin" />
+          </div>
+          <h4 className="text-base font-bold text-white mt-2">Conectando detalles de tu viaje...</h4>
+          <p className="text-xs text-slate-400 max-w-xs">Estamos sincronizando la información del vehículo y conductor asignado.</p>
+        </main>
+      )}
+
       {appState === 'IN_TRIP_HUB' && assignedTrip && (
         <main className="flex-1 max-w-lg mx-auto w-full p-4 space-y-4 animate-fade-in flex flex-col">
           

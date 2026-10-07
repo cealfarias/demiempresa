@@ -247,6 +247,121 @@ export function initializeWebSockets(httpServer) {
     });
 
     /**
+     * 3.1 Conductor Acepta Directamente la Solicitud (Match Inmediato Atómico)
+     */
+    socket.on('driver:accept_trip', async ({ tripId, driverProfileId, agreedFare }, callback) => {
+      try {
+        const lockResult = await atomicAcceptTrip(tripId, driverProfileId);
+        if (!lockResult.success) {
+          if (callback) callback({ success: false, reason: lockResult.reason });
+          return;
+        }
+
+        const driverRes = await pool.query(`
+          SELECT dp.*, u.full_name, u.phone
+          FROM viajes_driver_profiles dp
+          JOIN viajes_users u ON dp.user_id = u.id
+          WHERE dp.id::text = $1 OR dp.vehicle_plate = $1;
+        `, [driverProfileId]);
+
+        let driver = driverRes.rows[0];
+        if (!driver) {
+          const fallbackRes = await pool.query(`
+            SELECT dp.*, u.full_name, u.phone
+            FROM viajes_driver_profiles dp
+            JOIN viajes_users u ON dp.user_id = u.id
+            ORDER BY dp.created_at ASC
+            LIMIT 1;
+          `);
+          driver = fallbackRes.rows[0];
+        }
+
+        const actualDriverId = driver?.id;
+        const tripRes = await pool.query('SELECT * FROM viajes_trips WHERE id::text = $1', [tripId]);
+        const trip = tripRes.rows[0];
+        const effectiveFare = parseFloat(agreedFare || trip?.proposed_fare || 4.00);
+        const creditApplied = parseFloat(trip?.credit_applied || 0.00);
+        const cashToCollect = Math.max(0.00, effectiveFare - creditApplied);
+
+        await pool.query(`
+          UPDATE viajes_trips
+          SET driver_id = $1,
+              agreed_fare = $2,
+              cash_to_collect = $3,
+              status = 'ACCEPTED',
+              accepted_at = CURRENT_TIMESTAMP
+          WHERE id::text = $4;
+        `, [actualDriverId, effectiveFare.toFixed(2), cashToCollect.toFixed(2), tripId]);
+
+        if (creditApplied > 0 && trip?.passenger_id) {
+          const credit = await ReferralService.getAvailableCredit(trip.passenger_id);
+          if (credit && actualDriverId) {
+            await ReferralService.redeemCredit(credit.id, tripId, actualDriverId);
+          }
+        }
+
+        const passengerRes = await pool.query('SELECT * FROM viajes_users WHERE id::text = $1', [trip?.passenger_id]);
+        const passenger = passengerRes.rows[0] || { full_name: 'Pasajero', phone: '' };
+
+        const driverSocketId = driverSockets.get(driverProfileId) || (actualDriverId ? driverSockets.get(actualDriverId.toString()) : null);
+        if (driverSocketId) {
+          const socketDriver = io.sockets.sockets.get(driverSocketId);
+          if (socketDriver) socketDriver.currentTripId = tripId;
+
+          const cleanPassPhone = passenger.phone ? String(passenger.phone).replace(/\D/g, '') : '';
+          const waMsg = encodeURIComponent('Hola, soy tu conductor de Rumbo, voy en camino a recogerte.');
+          const whatsappLink = cleanPassPhone ? `https://wa.me/503${cleanPassPhone}?text=${waMsg}` : '';
+
+          io.to(driverSocketId).emit('trip:assigned', {
+            tripId,
+            agreedFare: effectiveFare.toFixed(2),
+            cashToCollect: cashToCollect.toFixed(2),
+            creditApplied: creditApplied.toFixed(2),
+            originAddress: trip?.origin_address || 'Ubicación de partida',
+            originLat: trip?.origin_lat || 13.7013,
+            originLng: trip?.origin_lng || -89.2244,
+            destinationAddress: trip?.destination_address || 'Punto de destino',
+            destinationLat: trip?.destination_lat || 13.6738,
+            destinationLng: trip?.destination_lng || -89.2789,
+            destinationMunicipality: trip?.destination_municipality || 'San Salvador',
+            passengerName: passenger.full_name || 'Pasajero',
+            passengerPhone: passenger.phone ? String(passenger.phone) : '',
+            whatsappLink,
+            roadDistanceKm: parseFloat(trip?.distance_km || 5.0),
+            suggestedFare: trip?.proposed_fare || effectiveFare.toFixed(2),
+            preferences: trip?.package_details?.preferences || {},
+            cashBill: trip?.payment_timing === 'EXACT' ? 'EXACT' : '10',
+            changeNeeded: '0.00',
+            wazeUrl: `https://waze.com/ul?ll=${trip?.origin_lat || 13.7013},${trip?.origin_lng || -89.2244}&navigate=yes`,
+            googleMapsUrl: `https://www.google.com/maps/dir/?api=1&destination=${trip?.origin_lat || 13.7013},${trip?.origin_lng || -89.2244}`
+          });
+        }
+
+        io.to(`trip:${tripId}`).emit('trip:confirmed', {
+          tripId,
+          agreedFare: effectiveFare.toFixed(2),
+          cashToCollect: cashToCollect.toFixed(2),
+          driverName: driver?.full_name || 'Conductor Autorizado',
+          vehiclePlate: driver?.vehicle_plate || '',
+          vehicleBrand: driver?.vehicle_brand || '',
+          vehicleModel: driver?.vehicle_model || '',
+          vehicleColor: driver?.vehicle_color || '',
+          photoUrl: driver?.photo_url || null,
+          driverPhone: driver?.phone ? String(driver?.phone) : '',
+          destinationMunicipality: trip?.destination_municipality || 'San Salvador'
+        });
+
+        socket.to(`trip:${tripId}`).emit('offer:rejected_other_won', { tripId });
+        io.to('drivers_channel').emit('offer:rejected_other_won', { tripId });
+
+        if (callback) callback({ success: true, tripId });
+      } catch (err) {
+        console.error('Error en driver:accept_trip:', err);
+        if (callback) callback({ success: false, error: err.message });
+      }
+    });
+
+    /**
      * 4. Asignación Atómica
      */
     socket.on('passenger:accept_offer', async ({ tripId, driverProfileId, agreedFare }, callback) => {
@@ -308,7 +423,7 @@ export function initializeWebSockets(httpServer) {
           const socketDriver = io.sockets.sockets.get(driverSocketId);
           if (socketDriver) socketDriver.currentTripId = tripId;
 
-          const cleanPassPhone = passenger.phone ? passenger.phone.replace(/\D/g, '') : '';
+          const cleanPassPhone = passenger.phone ? String(passenger.phone).replace(/\D/g, '') : '';
           const waMsg = encodeURIComponent('Hola, soy tu conductor de Rumbo, voy en camino a recogerte.');
           const whatsappLink = cleanPassPhone ? `https://wa.me/503${cleanPassPhone}?text=${waMsg}` : '';
 
@@ -317,18 +432,23 @@ export function initializeWebSockets(httpServer) {
             agreedFare,
             cashToCollect: cashToCollect.toFixed(2),
             creditApplied: creditApplied.toFixed(2),
-            originAddress: trip.origin_address,
-            originLat: trip.origin_lat,
-            originLng: trip.origin_lng,
-            destinationAddress: trip.destination_address,
-            destinationLat: trip.destination_lat,
-            destinationLng: trip.destination_lng,
-            destinationMunicipality: trip.destination_municipality,
-            passengerName: passenger.full_name,
-            passengerPhone: passenger.phone,
+            originAddress: trip?.origin_address || 'Ubicación de partida',
+            originLat: trip?.origin_lat || 13.7013,
+            originLng: trip?.origin_lng || -89.2244,
+            destinationAddress: trip?.destination_address || 'Punto de destino',
+            destinationLat: trip?.destination_lat || 13.6738,
+            destinationLng: trip?.destination_lng || -89.2789,
+            destinationMunicipality: trip?.destination_municipality || 'San Salvador',
+            passengerName: passenger.full_name || 'Pasajero',
+            passengerPhone: passenger.phone ? String(passenger.phone) : '',
             whatsappLink,
-            wazeUrl: `https://waze.com/ul?ll=${trip.origin_lat},${trip.origin_lng}&navigate=yes`,
-            googleMapsUrl: `https://www.google.com/maps/dir/?api=1&destination=${trip.origin_lat},${trip.origin_lng}`
+            roadDistanceKm: parseFloat(trip?.distance_km || 5.0),
+            suggestedFare: trip?.proposed_fare || agreedFare,
+            preferences: trip?.package_details?.preferences || {},
+            cashBill: trip?.payment_timing === 'EXACT' ? 'EXACT' : '10',
+            changeNeeded: '0.00',
+            wazeUrl: `https://waze.com/ul?ll=${trip?.origin_lat || 13.7013},${trip?.origin_lng || -89.2244}&navigate=yes`,
+            googleMapsUrl: `https://www.google.com/maps/dir/?api=1&destination=${trip?.origin_lat || 13.7013},${trip?.origin_lng || -89.2244}`
           });
         }
 
@@ -342,7 +462,7 @@ export function initializeWebSockets(httpServer) {
           vehicleModel: driver.vehicle_model,
           vehicleColor: driver.vehicle_color,
           photoUrl: driver.photo_url,
-          driverPhone: driver.phone,
+          driverPhone: driver.phone ? String(driver.phone) : '',
           destinationMunicipality: trip.destination_municipality
         });
 

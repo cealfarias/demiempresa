@@ -49,6 +49,7 @@ export default function DriverTripRequestsFeed({
         const newReq = {
           id: incomingRequest.id,
           passengerName: (incomingRequest.passengerName || 'Pasajero Invitado').trim(),
+          passengerPhone: incomingRequest.passengerPhone ? String(incomingRequest.passengerPhone) : '',
           passengerPhoto: incomingRequest.passengerPhoto || null,
           rating: incomingRequest.passengerRating || 5.0,
           ratingCount: incomingRequest.passengerTrips || 1,
@@ -59,8 +60,15 @@ export default function DriverTripRequestsFeed({
           pickupDistanceMeters: Math.round((incomingRequest.distanceKm || 0.6) * 1000),
           tripDistanceKm: parseFloat(incomingRequest.roadDistanceKm || incomingRequest.distanceKm || 5.0),
           origin: incomingRequest.origin || incomingRequest.originAddress || 'Punto de recogida',
+          originLat: parseFloat(incomingRequest.originLat) || 13.7013,
+          originLng: parseFloat(incomingRequest.originLng) || -89.2244,
           destination: incomingRequest.destination || incomingRequest.destinationAddress || 'Punto de destino',
-          delayMinutes: incomingRequest.delayMinutes || 0
+          destinationLat: parseFloat(incomingRequest.destinationLat) || 13.6738,
+          destinationLng: parseFloat(incomingRequest.destinationLng) || -89.2789,
+          delayMinutes: parseInt(incomingRequest.delayMinutes || 0, 10),
+          preferences: incomingRequest.preferences || {},
+          cashBill: incomingRequest.cashBill || '10',
+          changeNeeded: incomingRequest.changeNeeded || '0.00'
         };
         return [newReq, ...prev];
       });
@@ -68,19 +76,26 @@ export default function DriverTripRequestsFeed({
   }, [incomingRequest]);
 
   const handleOpenAction = (req) => {
+    if (!req) return;
     setSelectedRequest(req);
-    setCounterOfferAmount(req.price.toFixed(2));
+    const baseP = parseFloat(req.price || 4.00);
+    setCounterOfferAmount(baseP.toFixed(2));
   };
 
   const handleAcceptOffer = (req, finalPrice) => {
-    triggerCashRewardFeedback();
+    try {
+      triggerCashRewardFeedback();
+    } catch {}
+    const safePrice = parseFloat(finalPrice || req?.price || 4.00);
     if (onAcceptRequest) {
-      onAcceptRequest(req, finalPrice);
+      onAcceptRequest(req, safePrice);
     } else if (onSendOffer) {
-      onSendOffer(finalPrice, 3);
+      onSendOffer(safePrice, 3);
     }
     // Remover de la lista
-    setActiveRequests((prev) => prev.filter((r) => r.id !== req.id));
+    if (req?.id) {
+      setActiveRequests((prev) => prev.filter((r) => r.id !== req.id));
+    }
     setSelectedRequest(null);
   };
 
