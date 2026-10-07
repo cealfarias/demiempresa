@@ -4,6 +4,15 @@
 
 let activeAudioContext = null;
 let activeRecognition = null;
+let isAssistantSpeaking = false;
+let speechCooldownUntil = 0;
+let lastSpokenTexts = [];
+let speechSessionCounter = 0;
+
+/**
+ * Indica si el asistente está hablando activamente o dentro de la ventana de enfriamiento acústico
+ */
+export const getIsAssistantSpeaking = () => isAssistantSpeaking || (Date.now() < speechCooldownUntil);
 
 /**
  * Desbloquea de forma inmediata el contexto de audio y síntesis
@@ -33,6 +42,8 @@ export const unlockAudioAndSpeech = () => {
  * Detiene cualquier voz en reproducción
  */
 export const stopSpeaking = () => {
+  isAssistantSpeaking = false;
+  speechCooldownUntil = Date.now() + 400;
   if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
     try {
       window.speechSynthesis.cancel();
@@ -41,12 +52,17 @@ export const stopSpeaking = () => {
 };
 
 /**
- * Detiene la escucha activa del micrófono
+ * Detiene y aborta la escucha activa del micrófono de manera inmediata
+ * Desconecta listeners para evitar que los buffers residuales disparen onresult tardíos
  */
 export const stopVoiceDictation = () => {
   if (activeRecognition) {
     try {
-      activeRecognition.stop();
+      activeRecognition.onstart = null;
+      activeRecognition.onresult = null;
+      activeRecognition.onerror = null;
+      activeRecognition.onend = null;
+      activeRecognition.abort();
     } catch {}
     activeRecognition = null;
   }
@@ -71,8 +87,64 @@ export const setVoiceMuted = (muted) => {
 export const getVoiceMuted = () => isVoiceMuted;
 
 /**
+ * Detecta si una transcripción capturada por el micrófono corresponde
+ * al eco acústico de la voz del asistente emitida por los altavoces del dispositivo.
+ */
+export const isAcousticSelfEcho = (transcript) => {
+  if (!transcript) return false;
+  const norm = normalizeVoiceText(transcript);
+  if (!norm || norm.length < 4) return false;
+
+  // Frases o patrones del sistema que un pasajero jamás dictaría como comando de respuesta
+  const systemPhrases = [
+    'deseas buscar conductor ahora',
+    'deseas buscar conductor',
+    'deseas cambiar la tarifa',
+    'ajustar detalles del viaje',
+    'aire acondicionado pasajeros o mascotas',
+    'iniciando la busqueda para',
+    'encontre la ruta a tu destino',
+    'kilometros de distancia',
+    'tardaras aproximadamente',
+    'tarifa minima estimada',
+    'calculada sin aire acondicionado',
+    'con aire acondicionado incluido',
+    'se ha establecido el aire',
+    'se ha desactivado el aire',
+    'excelente buscando conductor cercano',
+    'no logre captar',
+    'no logre encontrar',
+    'pin de recogida colocado',
+    'detectamos que estas en modo invitado'
+  ];
+
+  for (const sys of systemPhrases) {
+    if (norm.includes(sys) || (sys.includes(norm) && norm.length >= 10)) {
+      return true;
+    }
+  }
+
+  // Comparación contra el historial de frases habladas recientemente por el asistente
+  for (const spoken of lastSpokenTexts) {
+    if (!spoken) continue;
+    if (norm.length >= 12 && spoken.includes(norm)) {
+      return true;
+    }
+    const words = norm.split(' ').filter(w => w.length > 2);
+    if (words.length >= 3) {
+      const matchCount = words.filter(w => spoken.includes(w)).length;
+      if (matchCount / words.length >= 0.8) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+};
+
+/**
  * Reproduce el mensaje del Asistente de Viaje y ejecuta onEnd al terminar.
- * IMPORTANTE: Apaga el micrófono mientras habla para evitar retroalimentación (eco).
+ * Aplica Half-Duplex Mute Lock y ventana de enfriamiento de 700ms para evitar retroalimentación en bucle.
  */
 export const speakAssistantMessage = (message, onEnd, onStart) => {
   if (isVoiceMuted) {
@@ -86,10 +158,20 @@ export const speakAssistantMessage = (message, onEnd, onStart) => {
   }
 
   try {
-    // 1. Apagar micrófono para que no se auto-escuche
+    // 1. Apagar y abortar micrófono de inmediato para que no se auto-escuche
     stopVoiceDictation();
 
-    // 2. Destrabar sintetizador si está en pausa (bug común de Chrome/Edge)
+    // 2. Registrar frase normalizada para filtrado de eco acústico
+    const normMsg = normalizeVoiceText(message);
+    if (normMsg) {
+      lastSpokenTexts.unshift(normMsg);
+      if (lastSpokenTexts.length > 5) lastSpokenTexts.pop();
+    }
+
+    const sessionId = ++speechSessionCounter;
+    isAssistantSpeaking = true;
+
+    // 3. Destrabar sintetizador si está en pausa (bug común de Chrome/Edge)
     if (window.speechSynthesis.paused) {
       window.speechSynthesis.resume();
     }
@@ -117,16 +199,39 @@ export const speakAssistantMessage = (message, onEnd, onStart) => {
 
         let hasEnded = false;
         utterance.onstart = () => {
+          if (sessionId !== speechSessionCounter) return;
+          isAssistantSpeaking = true;
           if (onStart) onStart();
         };
+
         const handleDone = () => {
           if (hasEnded) return;
           hasEnded = true;
-          if (onEnd) {
+
+          // Esperar activamente a que el hardware del sintetizador termine de emitir sonido real
+          const checkSpeakingInterval = setInterval(() => {
+            if (!window.speechSynthesis || !window.speechSynthesis.speaking) {
+              clearInterval(checkSpeakingInterval);
+              finalize();
+            }
+          }, 80);
+
+          const finalize = () => {
+            clearInterval(checkSpeakingInterval);
+            if (sessionId !== speechSessionCounter) return;
+            // Ventana de amortiguamiento acústico de 700ms (elimina reverberación en altavoces)
+            speechCooldownUntil = Date.now() + 700;
             setTimeout(() => {
-              onEnd();
-            }, 250);
-          }
+              if (sessionId !== speechSessionCounter) return;
+              isAssistantSpeaking = false;
+              if (onEnd) onEnd();
+            }, 700);
+          };
+
+          // Límite de seguridad si speaking queda congelado en true por bug de Chromium
+          setTimeout(() => {
+            finalize();
+          }, 1500);
         };
 
         utterance.onend = handleDone;
@@ -135,12 +240,18 @@ export const speakAssistantMessage = (message, onEnd, onStart) => {
           handleDone();
         };
 
-        // Resguardo temporal contra congelamiento de síntesis en Chromium
+        // Resguardo temporal generoso contra congelamiento de síntesis en Chromium
+        // Con rate=1.0, 100 caracteres toman aprox ~7s. Damos 140ms/carácter con mínimo de 6s
+        const safetyTimeoutMs = Math.max(message.length * 140, 6000);
         const safetyTimer = setTimeout(() => {
           if (!hasEnded) {
-            handleDone();
+            if (window.speechSynthesis && window.speechSynthesis.speaking) {
+              try { window.speechSynthesis.resume(); } catch {}
+            } else {
+              handleDone();
+            }
           }
-        }, Math.max(message.length * 85, 2500));
+        }, safetyTimeoutMs);
 
         let keepAliveTimer = setInterval(() => {
           if (!window.speechSynthesis.speaking) {
@@ -164,6 +275,7 @@ export const speakAssistantMessage = (message, onEnd, onStart) => {
         }
       } catch (innerErr) {
         console.warn('[SpeechSynthesis] Error al emitir:', innerErr);
+        isAssistantSpeaking = false;
         if (onEnd) onEnd();
       }
     };
@@ -181,12 +293,13 @@ export const speakAssistantMessage = (message, onEnd, onStart) => {
         window.speechSynthesis.onvoiceschanged = null;
         triggerOnce();
       };
-      setTimeout(triggerOnce, 180);
+      setTimeout(triggerOnce, 120);
     } else {
-      triggerOnce();
+      setTimeout(triggerOnce, 60);
     }
   } catch (err) {
     console.warn('[SpeechSynthesis] Error al reproducir voz:', err);
+    isAssistantSpeaking = false;
     if (onEnd) onEnd();
   }
 };
@@ -217,7 +330,7 @@ export const requestMicrophonePermission = async () => {
 
 /**
  * Inicializa y escucha comandos de voz por dictado
- * Compatible con iOS Safari (webkitSpeechRecognition) y Google Chrome (Android & Desktop)
+ * Protegido con bloqueo Half-Duplex y filtrado de eco acústico
  */
 export const startVoiceDictation = ({ onResult, onListeningChange, onError, lang = 'es-419' }) => {
   const SpeechRecognitionClass = typeof window !== 'undefined'
@@ -230,8 +343,22 @@ export const startVoiceDictation = ({ onResult, onListeningChange, onError, lang
     return null;
   }
 
+  // 1. Bloqueo Half-Duplex: Si el asistente está hablando o en periodo de enfriamiento, posponer inicio
+  if (isAssistantSpeaking || Date.now() < speechCooldownUntil || (typeof window !== 'undefined' && window.speechSynthesis?.speaking)) {
+    console.log('[SpeechRecognition] En espera de silencio del asistente para abrir micrófono...');
+    const delay = Math.max(150, speechCooldownUntil - Date.now() + 50);
+    setTimeout(() => {
+      if (!isAssistantSpeaking && Date.now() >= speechCooldownUntil && !(window.speechSynthesis?.speaking)) {
+        startVoiceDictation({ onResult, onListeningChange, onError, lang });
+      } else {
+        if (onListeningChange) onListeningChange(false);
+      }
+    }, delay);
+    return null;
+  }
+
   try {
-    // 1. Detener de manera segura cualquier reconocimiento previo
+    // 2. Detener y abortar de manera segura cualquier reconocimiento previo
     if (activeRecognition) {
       try {
         activeRecognition.onstart = null;
@@ -246,7 +373,6 @@ export const startVoiceDictation = ({ onResult, onListeningChange, onError, lang
     const recognition = new SpeechRecognitionClass();
     
     // Configurar idioma universalmente soportado en iOS y Android:
-    // Apple Safari rechaza 'es-SV', pero soporta perfectamente 'es-419' o 'es-MX'.
     recognition.lang = lang || 'es-419';
     recognition.continuous = false;
     recognition.interimResults = false;
@@ -255,14 +381,36 @@ export const startVoiceDictation = ({ onResult, onListeningChange, onError, lang
     let hasReceivedResult = false;
 
     recognition.onstart = () => {
+      // Si el asistente comenzó a hablar mientras el micrófono se iniciaba, abortar de inmediato
+      if (isAssistantSpeaking || (typeof window !== 'undefined' && window.speechSynthesis?.speaking)) {
+        console.warn('[SpeechRecognition] Abortando reconocimiento: asistente comenzó a hablar.');
+        try { recognition.abort(); } catch {}
+        if (onListeningChange) onListeningChange(false);
+        return;
+      }
       if (onListeningChange) onListeningChange(true);
     };
 
     recognition.onresult = (event) => {
+      // Descartar si el asistente está emitiendo voz o en enfriamiento
+      if (isAssistantSpeaking || Date.now() < speechCooldownUntil || (typeof window !== 'undefined' && window.speechSynthesis?.speaking)) {
+        console.warn('[SpeechRecognition] Audio descartado: Asistente emitiendo voz (prevención de retroalimentación).');
+        return;
+      }
+
       if (event.results && event.results[0] && event.results[0][0]) {
         const transcript = (event.results[0][0].transcript || '').trim();
         if (transcript) {
+          // Descartar si coincide con eco acústico del asistente
+          if (isAcousticSelfEcho(transcript)) {
+            console.warn('[SpeechRecognition] Eco acústico detectado y descartado:', transcript);
+            return;
+          }
+
           hasReceivedResult = true;
+          // Inmediatamente detener el micrófono para evitar dobles disparos
+          stopVoiceDictation();
+          if (onListeningChange) onListeningChange(false);
           if (onResult) {
             onResult(transcript);
           }
@@ -274,6 +422,11 @@ export const startVoiceDictation = ({ onResult, onListeningChange, onError, lang
       const errType = event.error || 'unknown';
       console.warn('[SpeechRecognition] Error capturado:', errType);
       if (onListeningChange) onListeningChange(false);
+
+      // Si fue abortado intencionalmente para evitar eco, no alertar al usuario
+      if (errType === 'aborted') {
+        return;
+      }
 
       let userMsg = 'No logré escucharte con claridad.';
       if (errType === 'not-allowed') {
@@ -394,12 +547,16 @@ export const classifyUserVoiceIntent = (text) => {
   if (!norm) return { type: 'UNKNOWN', raw: '' };
   const padded = ' ' + norm + ' ';
 
-  // 1. Intención negativa: "no", "espera", "todavía no", "detente", "cancelar"
-  if (/(^|\s)(no|espera|todavia no|aun no|detente|para|esperate|no todavia|no quiero|cancelar)(\s|$)/i.test(padded)) {
+  // 1. Detección previa de palabras clave de ajuste para evitar clasificar erróneamente como rechazo
+  // Ejemplo: "no llevo mascotas", "sin aire", "no cambia la tarifa a 3"
+  const hasAdjustmentKeywords = /(tarifa|precio|cuota|dolar|dolares|aire|clima|acondicionado|mascota|mascotas|perro|gato|equipaje|maleta|maletas|moto|motocicleta|carro|auto|redondo|vuelta|paquete|encomienda)/i.test(padded);
+
+  // 2. Intención negativa pura: "no", "espera", "todavía no", "detente", "cancelar", "déjalo así", "nada", "ninguno"
+  if (!hasAdjustmentKeywords && /(^|\s)(no|espera|todavia no|aun no|detente|para|esperate|no todavia|no quiero|cancelar|dejalo asi|asi dejalo|nada|ninguno)(\s|$)/i.test(padded)) {
     return { type: 'DECLINE_SEARCH', raw: text };
   }
 
-  // 2. Intención de confirmación positiva: "sí", "claro", "dale", "buscar conductor", "búscalo", etc.
+  // 3. Intención de confirmación positiva: "sí", "claro", "dale", "buscar conductor", "búscalo", etc.
   if (
     /(^|\s)(si|claro|por favor|dale|dale pues|buscar|busca|buscalo|buscale|buscame|buscar conductor|busca conductor|buscame un conductor|afirmativo|de acuerdo|va|vaya|ok|okay|bueno|perfecto|adelante|listo|ya|simon|aja|correcto|asi es|si quiero|si claro|si dale|si por favor)(\s|$)/i.test(
       padded

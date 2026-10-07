@@ -683,6 +683,7 @@ export default function ViajesApp() {
   const [configClientIdInput, setConfigClientIdInput] = useState('');
   const googleButtonContainerRef = React.useRef(null);
   const headerGoogleButtonRef = React.useRef(null);
+  const voiceAdjustmentAttemptsRef = React.useRef(0);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [regFullName, setRegFullName] = useState('');
   const [regEmail, setRegEmail] = useState('');
@@ -1474,6 +1475,7 @@ export default function ViajesApp() {
     const intent = classifyUserVoiceIntent(answer);
 
     if (intent.type === 'CONFIRM_SEARCH') {
+      voiceAdjustmentAttemptsRef.current = 0;
       setVoiceDialogueStep('IDLE');
       setIsListeningVoice(false);
       stopVoiceDictation();
@@ -1483,6 +1485,7 @@ export default function ViajesApp() {
     }
 
     if (intent.type === 'DECLINE_SEARCH') {
+      voiceAdjustmentAttemptsRef.current = 0;
       setVoiceDialogueStep('AWAITING_ADJUSTMENT');
       speakAndThenListen(
         '¿Deseas cambiar la tarifa sugerida o ajustar detalles del viaje como aire acondicionado, pasajeros o mascotas?',
@@ -1507,6 +1510,7 @@ export default function ViajesApp() {
     const intent = classifyUserVoiceIntent(answer);
 
     if (intent.type === 'CONFIRM_SEARCH') {
+      voiceAdjustmentAttemptsRef.current = 0;
       setVoiceDialogueStep('IDLE');
       setIsListeningVoice(false);
       stopVoiceDictation();
@@ -1515,7 +1519,17 @@ export default function ViajesApp() {
       return;
     }
 
+    if (intent.type === 'DECLINE_SEARCH') {
+      voiceAdjustmentAttemptsRef.current = 0;
+      setVoiceDialogueStep('IDLE');
+      setIsListeningVoice(false);
+      stopVoiceDictation();
+      speakAssistantMessage('De acuerdo. Toca Buscar Conductor cuando estés listo.');
+      return;
+    }
+
     const applyVoiceFareWithAcPolicy = (newFare) => {
+      voiceAdjustmentAttemptsRef.current = 0;
       setProposedFare(newFare);
       setHasCustomFare(true);
       const isBelowSuggested = parseFloat(newFare) < parseFloat(suggestedFareInfo?.suggestedFare);
@@ -1530,6 +1544,7 @@ export default function ViajesApp() {
     };
 
     if (intent.type === 'CHANGE_FARE') {
+      voiceAdjustmentAttemptsRef.current = 0;
       if (intent.amount && intent.amount > 0) {
         const newFare = intent.amount.toFixed(2);
         applyVoiceFareWithAcPolicy(newFare);
@@ -1553,12 +1568,14 @@ export default function ViajesApp() {
     }
 
     if (intent.type === 'STANDALONE_NUMBER') {
+      voiceAdjustmentAttemptsRef.current = 0;
       const newFare = intent.amount.toFixed(2);
       applyVoiceFareWithAcPolicy(newFare);
       return;
     }
 
     if (intent.type === 'CHANGE_PASSENGERS') {
+      voiceAdjustmentAttemptsRef.current = 0;
       const count = intent.count;
       setTripPreferences((prev) => ({
         ...prev,
@@ -1570,6 +1587,7 @@ export default function ViajesApp() {
     }
 
     if (intent.type === 'CHANGE_AC') {
+      voiceAdjustmentAttemptsRef.current = 0;
       if (serviceType === 'PACKAGE') {
         askConfirmationAfterAdjustment('El aire acondicionado no es aplicable para la entrega de paquetes.');
         return;
@@ -1606,6 +1624,7 @@ export default function ViajesApp() {
     }
 
     if (intent.type === 'CHANGE_PETS') {
+      voiceAdjustmentAttemptsRef.current = 0;
       setTripPreferences((prev) => ({
         ...prev,
         petFriendly: intent.enabled
@@ -1616,6 +1635,7 @@ export default function ViajesApp() {
     }
 
     if (intent.type === 'CHANGE_LUGGAGE') {
+      voiceAdjustmentAttemptsRef.current = 0;
       setTripPreferences((prev) => ({
         ...prev,
         extraLuggage: intent.enabled
@@ -1626,6 +1646,7 @@ export default function ViajesApp() {
     }
 
     if (intent.type === 'CHANGE_TRANSPORT') {
+      voiceAdjustmentAttemptsRef.current = 0;
       const isMoto = intent.transportType === 'MOTO';
       setTransportType(intent.transportType);
       const nextPrefs = isMoto
@@ -1658,6 +1679,7 @@ export default function ViajesApp() {
     }
 
     if (intent.type === 'CHANGE_ROUND_TRIP') {
+      voiceAdjustmentAttemptsRef.current = 0;
       const nextPrefs = { ...tripPreferences, isRoundTrip: intent.enabled };
       setTripPreferences(nextPrefs);
 
@@ -1681,6 +1703,7 @@ export default function ViajesApp() {
     }
 
     if (intent.type === 'CHANGE_SERVICE') {
+      voiceAdjustmentAttemptsRef.current = 0;
       const isPackage = intent.serviceType === 'PACKAGE';
       setServiceType(intent.serviceType);
       const nextPrefs = isPackage
@@ -1711,8 +1734,19 @@ export default function ViajesApp() {
       return;
     }
 
-    // Comando no reconocido: re-confirmar búsqueda
-    askConfirmationAfterAdjustment('Entendido.');
+    // Comando no reconocido en ajustes: prevenir bucle infinito
+    voiceAdjustmentAttemptsRef.current += 1;
+    if (voiceAdjustmentAttemptsRef.current >= 2) {
+      voiceAdjustmentAttemptsRef.current = 0;
+      setVoiceDialogueStep('IDLE');
+      setIsListeningVoice(false);
+      stopVoiceDictation();
+      speakAssistantMessage('No logré captar la indicación. Puedes ajustar las opciones en pantalla o tocar Buscar Conductor.');
+      return;
+    }
+
+    // Re-preguntar guiando al usuario sin asumir entendimiento ficticio
+    askConfirmationAfterAdjustment('No alcancé a captar la indicación.');
   };
 
   // Re-preguntar al pasajero si desea buscar conductor tras un ajuste
@@ -1723,18 +1757,27 @@ export default function ViajesApp() {
       onResult: (ans) => {
         const reIntent = classifyUserVoiceIntent(ans);
         if (reIntent.type === 'CONFIRM_SEARCH') {
+          voiceAdjustmentAttemptsRef.current = 0;
           setVoiceDialogueStep('IDLE');
           setIsListeningVoice(false);
           stopVoiceDictation();
           speakAssistantMessage('Excelente. Buscando conductor cercano.');
           handleSearchDrivers();
         } else if (reIntent.type === 'DECLINE_SEARCH') {
-          handleVoiceAnswer('no');
+          // El pasajero no desea buscar conductor en este momento: cerrar diálogo amablemente sin bucle
+          voiceAdjustmentAttemptsRef.current = 0;
+          setVoiceDialogueStep('IDLE');
+          setIsListeningVoice(false);
+          stopVoiceDictation();
+          speakAssistantMessage('De acuerdo, los cambios quedaron guardados. Toca Buscar Conductor cuando gustes iniciar tu viaje.');
         } else {
           handleAdjustmentAnswer(ans);
         }
       },
-      onError: () => setIsListeningVoice(false)
+      onError: () => {
+        setIsListeningVoice(false);
+        setVoiceDialogueStep('IDLE');
+      }
     });
   };
 
