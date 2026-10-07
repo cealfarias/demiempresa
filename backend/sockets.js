@@ -902,6 +902,31 @@ export function initializeWebSockets(httpServer) {
 
 const activeSharedPools = new Map();
 
+/**
+ * Calcula la distancia perpendicular (desvío lateral en km) de un destino P
+ * respecto a la línea directriz entre el origen O y el destino de un pool existente.
+ * Garantiza que nunca se mezclen colonias lejanas del mismo municipio (ej. Sierra Morena vs Las Margaritas).
+ */
+function calculateCrossTrackDistanceKm(originLat, originLng, destLat, destLng, pointLat, pointLng) {
+  const avgLatRad = (originLat * Math.PI) / 180;
+  const cosLat = Math.cos(avgLatRad);
+
+  const dx = (destLng - originLng) * 111 * cosLat;
+  const dy = (destLat - originLat) * 111;
+  const L = Math.sqrt(dx * dx + dy * dy);
+
+  if (L < 0.2) {
+    const px = (pointLng - destLng) * 111 * cosLat;
+    const py = (pointLat - destLat) * 111;
+    return Math.sqrt(px * px + py * py);
+  }
+
+  const px = (pointLng - originLng) * 111 * cosLat;
+  const py = (pointLat - originLat) * 111;
+
+  return Math.abs(dx * py - dy * px) / L;
+}
+
 function handleJoinSharedPool(payload, socket, io) {
   const {
     passengerId,
@@ -947,14 +972,33 @@ function handleJoinSharedPool(payload, socket, io) {
       if (p.genderFilter !== genderFilter) continue;
     }
 
+    // Radio de origen (recogida de pasajeros): <= 1.5 km
     const distToPoolOrigin = Math.sqrt(
       Math.pow((originLat - p.originLat) * 111, 2) +
       Math.pow((originLng - p.originLng) * 111 * Math.cos(originLat * Math.PI / 180), 2)
     );
-    if (distToPoolOrigin <= 1.5) {
-      targetPool = p;
-      break;
+    if (distToPoolOrigin > 1.5) continue;
+
+    // REGLA DE ORO DE DESPACHO: Desvío lateral máximo <= 1.0 km por pasajero
+    // Si el nuevo pasajero va a una colonia alejada de la trayectoria (ej. Las Margaritas cuando el pool va a Sierra Morena),
+    // equivale a otro viaje y no se debe mezclar.
+    if (p.passengers.length > 0) {
+      const refDest = p.passengers[p.passengers.length - 1];
+      const lateralDevKm = calculateCrossTrackDistanceKm(
+        p.originLat,
+        p.originLng,
+        refDest.destinationLat,
+        refDest.destinationLng,
+        destinationLat,
+        destinationLng
+      );
+      if (lateralDevKm > 1.0) {
+        continue; // Desvío superior a 1 km: se abrirá un nuevo viaje colectivo
+      }
     }
+
+    targetPool = p;
+    break;
   }
 
   if (!targetPool) {

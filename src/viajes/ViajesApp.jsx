@@ -4200,6 +4200,10 @@ export default function ViajesApp() {
                   <span>Ruta aproximada en línea recta</span>
                   <span className="font-mono text-amber-300 font-bold">~{roadDistanceKm} km</span>
                 </div>
+                <div className="pt-1.5 border-t border-slate-800/80 flex items-center justify-between text-[10px]">
+                  <span className="text-emerald-400 font-semibold">Tolerancia de desvío:</span>
+                  <span className="text-slate-300 font-mono font-bold">≤ 1.0 km por pasajero</span>
+                </div>
               </div>
 
               {/* Filtro de Seguridad / Género */}
@@ -4278,7 +4282,7 @@ export default function ViajesApp() {
                 <div className="space-y-1.5 bg-slate-950/80 rounded-2xl p-3 border border-slate-800">
                   <div className="text-[10px] text-slate-400 mb-1 flex items-center justify-between">
                     <span>Orden de despacho por cercanía:</span>
-                    <span className="text-emerald-400 font-bold">Cero esperas para el chofer</span>
+                    <span className="text-emerald-400 font-bold">Desvío máximo ≤ 1 km</span>
                   </div>
 
                   {/* Asientos / Paradas 1 a 4 */}
