@@ -2913,6 +2913,30 @@ export default function ViajesApp() {
     speakAssistantMessage('Has salido del colectivo compartido.');
   };
 
+  // Cerrar Sesión del Pasajero y Regresar a la Pantalla de Inicio
+  const handleLogoutPassenger = () => {
+    if (confirm('¿Deseas cerrar sesión en este dispositivo?')) {
+      if (isJoinedToPool) {
+        handleLeaveSharedPoolClient();
+      }
+      setUserProfile(null);
+      localStorage.removeItem('demiempresa_passenger');
+      localStorage.removeItem('rumbo_passenger_active_session');
+      localStorage.removeItem('rumbo_passenger_draft');
+      setShowBonusesAccountModal(false);
+      setRideMode('UNDECIDED');
+      setAppState('DECOY_FORM');
+      setIsJoinedToPool(false);
+      setPoolStatus(null);
+      setDestinationSearch('');
+      setSelectedCorridor(null);
+      setDraftTripId(null);
+      setAssignedTrip(null);
+      triggerSelectionFeedback();
+      speakAssistantMessage('Has cerrado sesión. Bienvenido nuevamente a Rumbo.');
+    }
+  };
+
   return (
     <div className={`min-h-screen w-full max-w-full overflow-x-hidden flex flex-col font-sans transition-colors duration-200 ${
       isLight ? 'bg-slate-100 text-slate-800' : 'bg-slate-950 text-slate-100'
@@ -4553,8 +4577,8 @@ export default function ViajesApp() {
       {/* MODAL INVITACIÓN: BENEFICIOS EXCLUSIVOS PARA USUARIO INVITADO  */}
       {/* ============================================================== */}
       {showGuestInviteModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in">
-          <div className="w-full max-w-sm bg-gradient-to-b from-slate-900 to-slate-950 border border-amber-500/40 rounded-3xl p-6 shadow-2xl text-slate-100 space-y-4 text-center animate-pop-bounce">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md animate-fade-in overflow-y-auto">
+          <div className="w-full max-w-sm bg-gradient-to-b from-slate-900 to-slate-950 border border-amber-500/40 rounded-3xl p-5 sm:p-6 shadow-2xl text-slate-100 space-y-4 text-center animate-pop-bounce max-h-[88vh] overflow-y-auto overscroll-contain my-auto">
             <div className="w-14 h-14 mx-auto rounded-2xl bg-amber-500/20 border border-amber-500/40 text-amber-400 flex items-center justify-center shadow-lg">
               <Gift className="w-7 h-7" />
             </div>
@@ -4639,8 +4663,8 @@ export default function ViajesApp() {
       {/* MODAL TRANQUILO: PERFIL DE SEGURIDAD Y BONOS (EN TRAYECTO)     */}
       {/* ============================================================== */}
       {showRegisterModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
-          <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl text-slate-100 space-y-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-sm animate-fade-in overflow-y-auto">
+          <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-6 shadow-2xl text-slate-100 space-y-4 max-h-[88vh] overflow-y-auto overscroll-contain my-auto">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 text-amber-400 font-bold">
                 <ShieldCheck className="w-5 h-5" />
@@ -5792,8 +5816,8 @@ export default function ViajesApp() {
       {/* MODAL MI CUENTA, CRÉDITOS POR BONOS Y VENCIMIENTO DE CADA DÓLAR*/}
       {/* ============================================================== */}
       {showBonusesAccountModal && userProfile && (
-        <div className="fixed inset-0 z-[75] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in">
-          <div className="w-full max-w-md bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950 border border-slate-700/80 rounded-3xl p-6 shadow-2xl text-slate-100 space-y-4 animate-pop-bounce relative overflow-hidden">
+        <div className="fixed inset-0 z-[75] flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md animate-fade-in overflow-y-auto">
+          <div className="w-full max-w-md bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950 border border-slate-700/80 rounded-3xl p-5 sm:p-6 shadow-2xl text-slate-100 space-y-4 animate-pop-bounce relative max-h-[88vh] overflow-y-auto overscroll-contain my-auto">
             {/* Header del modal */}
             <div className="flex items-center justify-between pb-3 border-b border-slate-800">
               <div className="flex items-center gap-3">
@@ -5942,13 +5966,7 @@ export default function ViajesApp() {
             <div className="pt-1 flex items-center justify-between border-t border-slate-800 text-xs">
               <button
                 type="button"
-                onClick={() => {
-                  if (confirm('¿Deseas cerrar sesión en este dispositivo?')) {
-                    setUserProfile(null);
-                    localStorage.removeItem('demiempresa_passenger');
-                    setShowBonusesAccountModal(false);
-                  }
-                }}
+                onClick={handleLogoutPassenger}
                 className="text-slate-400 hover:text-rose-400 flex items-center gap-1.5 py-1.5 px-2 rounded-lg hover:bg-slate-800/60 transition-colors cursor-pointer"
               >
                 <LogOut className="w-3.5 h-3.5" />
@@ -6593,8 +6611,8 @@ export default function ViajesApp() {
 
       {/* Modal Requisito de Usuario Verificado para Colectivo Compartido */}
       {showSharedRegisterPrompt && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in">
-          <div className="w-full max-w-sm bg-gradient-to-b from-slate-900 to-slate-950 border border-emerald-500/40 rounded-3xl p-6 shadow-2xl text-slate-100 space-y-4 text-center animate-pop-bounce">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md animate-fade-in overflow-y-auto">
+          <div className="w-full max-w-sm bg-gradient-to-b from-slate-900 to-slate-950 border border-emerald-500/40 rounded-3xl p-5 sm:p-6 shadow-2xl text-slate-100 space-y-4 text-center animate-pop-bounce max-h-[88vh] overflow-y-auto overscroll-contain my-auto">
             <div className="w-14 h-14 mx-auto rounded-2xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 flex items-center justify-center shadow-lg">
               <ShieldCheck className="w-7 h-7" />
             </div>
