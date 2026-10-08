@@ -2915,6 +2915,18 @@ export default function ViajesApp() {
 
   // Cerrar Sesión del Pasajero y Regresar a la Pantalla de Inicio
   const handleLogoutPassenger = () => {
+    // Si hay un viaje en curso o búsqueda activa, NO permitir cerrar sesión para proteger los datos
+    const isTripInProgress = Boolean(
+      (appState === 'IN_TRIP_HUB' && assignedTrip) ||
+      (appState === 'AUCTION' && tripId)
+    );
+
+    if (isTripInProgress) {
+      speakAssistantMessage('No puedes cerrar sesión mientras tienes un viaje o solicitud en ejecución.');
+      alert('⚠️ No es posible cerrar sesión con un viaje o solicitud en curso. Por tu seguridad y para mantener la conexión en tiempo real con tu conductor, debes esperar a que el viaje finalice.');
+      return;
+    }
+
     if (confirm('¿Deseas cerrar sesión en este dispositivo?')) {
       if (isJoinedToPool) {
         handleLeaveSharedPoolClient();
@@ -2928,9 +2940,7 @@ export default function ViajesApp() {
       setAppState('DECOY_FORM');
       setIsJoinedToPool(false);
       setPoolStatus(null);
-      setDestinationSearch('');
-      setSelectedCorridor(null);
-      setDraftTripId(null);
+      setTripId(null);
       setAssignedTrip(null);
       triggerSelectionFeedback();
       speakAssistantMessage('Has cerrado sesión. Bienvenido nuevamente a Rumbo.');
@@ -5964,14 +5974,21 @@ export default function ViajesApp() {
 
             {/* Footer con Cerrar Sesión */}
             <div className="pt-1 flex items-center justify-between border-t border-slate-800 text-xs">
-              <button
-                type="button"
-                onClick={handleLogoutPassenger}
-                className="text-slate-400 hover:text-rose-400 flex items-center gap-1.5 py-1.5 px-2 rounded-lg hover:bg-slate-800/60 transition-colors cursor-pointer"
-              >
-                <LogOut className="w-3.5 h-3.5" />
-                <span>Cerrar Sesión</span>
-              </button>
+              {(appState === 'IN_TRIP_HUB' && assignedTrip) || (appState === 'AUCTION' && tripId) ? (
+                <div className="flex items-center gap-1.5 text-[11px] text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-1 rounded-lg">
+                  <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
+                  <span>Viaje en curso: Cierre protegido</span>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleLogoutPassenger}
+                  className="text-slate-400 hover:text-rose-400 flex items-center gap-1.5 py-1.5 px-2 rounded-lg hover:bg-slate-800/60 transition-colors cursor-pointer"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                  <span>Cerrar Sesión</span>
+                </button>
+              )}
 
               <button
                 type="button"
