@@ -48,16 +48,69 @@ export function initializeWebSockets(httpServer) {
     /**
      * 1. Foreground Service Conductor: GPS cada 3-5s
      */
-    socket.on('driver:location_update', async ({ driverProfileId, lng, lat }) => {
+    socket.on('driver:location_update', async ({ tripId, driverProfileId, lng, lat }) => {
       try {
         if (!driverProfileId || !lng || !lat) return;
-        await updateDriverLocation(driverProfileId, lng, lat);
-        if (socket.currentTripId) {
-          io.to(`trip:${socket.currentTripId}`).emit('trip:driver_location', {
+        const numLat = parseFloat(lat);
+        const numLng = parseFloat(lng);
+        if (isNaN(numLat) || isNaN(numLng)) return;
+
+        await updateDriverLocation(driverProfileId, numLng, numLat);
+
+        const targetTripId = tripId || socket.currentTripId;
+        if (targetTripId) {
+          socket.currentTripId = targetTripId;
+
+          // Recuperar datos de viaje para calcular distancia precisa y ETA
+          let tripInfo = null;
+          try {
+            const tripRes = await pool.query(
+              'SELECT id, passenger_id, origin_lat, origin_lng, destination_lat, destination_lng, status FROM viajes_trips WHERE id::text = $1',
+              [targetTripId]
+            );
+            tripInfo = tripRes.rows[0];
+          } catch (e) {
+            // Silencioso si falla la consulta
+          }
+
+          let distanceKm = null;
+          let etaMinutes = 3;
+
+          if (tripInfo) {
+            const isEnRoute = tripInfo.status === 'ACCEPTED' || tripInfo.status === 'DRIVER_EN_ROUTE';
+            const targetLat = isEnRoute ? parseFloat(tripInfo.origin_lat) : parseFloat(tripInfo.destination_lat);
+            const targetLng = isEnRoute ? parseFloat(tripInfo.origin_lng) : parseFloat(tripInfo.destination_lng);
+
+            if (!isNaN(targetLat) && !isNaN(targetLng)) {
+              // Cálculo Haversine de distancia geodésica
+              const R = 6371;
+              const dLat = (targetLat - numLat) * Math.PI / 180;
+              const dLon = (targetLng - numLng) * Math.PI / 180;
+              const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                        Math.cos(numLat * Math.PI / 180) * Math.cos(targetLat * Math.PI / 180) *
+                        Math.sin(dLon / 2) * Math.sin(dLon / 2);
+              const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+              const straightDist = R * c;
+              distanceKm = +(straightDist * 1.35).toFixed(1); // Factor de ruta urbana real
+              etaMinutes = Math.max(1, Math.round((distanceKm / 26) * 60)); // 26 km/h promedio urbano
+            }
+          }
+
+          const locationPayload = {
+            tripId: targetTripId,
             driverProfileId,
-            lng,
-            lat
-          });
+            lat: numLat,
+            lng: numLng,
+            distanceKm,
+            etaMinutes,
+            status: tripInfo?.status || 'DRIVER_EN_ROUTE'
+          };
+
+          io.to(`trip:${targetTripId}`).emit('trip:driver_location', locationPayload);
+          if (tripInfo?.passenger_id) {
+            io.to(`passenger:${tripInfo.passenger_id}`).emit('trip:driver_location', locationPayload);
+          }
+          io.to('passengers_channel').emit('trip:driver_location', locationPayload);
         }
       } catch (err) {
         console.error('Error en location_update:', err.message);
@@ -456,7 +509,7 @@ export function initializeWebSockets(httpServer) {
           phone: driver?.phone ? String(driver.phone) : ''
         };
 
-        io.to(`trip:${tripId}`).emit('trip:confirmed', {
+        const confirmedPayload = {
           tripId,
           agreedFare: effectiveFare.toFixed(2),
           cashToCollect: cashToCollect.toFixed(2),
@@ -468,8 +521,15 @@ export function initializeWebSockets(httpServer) {
           vehicleColor: driverObj.vehicleColor,
           photoUrl: driverObj.photoUrl,
           driverPhone: driverObj.phone,
-          destinationMunicipality: trip?.destination_municipality || 'San Salvador'
-        });
+          destinationMunicipality: trip?.destination_municipality || 'San Salvador',
+          passengerId: trip?.passenger_id
+        };
+
+        io.to(`trip:${tripId}`).emit('trip:confirmed', confirmedPayload);
+        if (trip?.passenger_id) {
+          io.to(`passenger:${trip.passenger_id}`).emit('trip:confirmed', confirmedPayload);
+        }
+        io.to('passengers_channel').emit('trip:confirmed', confirmedPayload);
 
         socket.to(`trip:${tripId}`).emit('offer:rejected_other_won', { tripId });
         io.to('drivers_channel').emit('offer:rejected_other_won', { tripId });
@@ -588,7 +648,7 @@ export function initializeWebSockets(httpServer) {
           phone: driver?.phone ? String(driver.phone) : ''
         };
 
-        io.to(`trip:${tripId}`).emit('trip:confirmed', {
+        const confirmedPayload = {
           tripId,
           agreedFare,
           cashToCollect: cashToCollect.toFixed(2),
@@ -600,8 +660,15 @@ export function initializeWebSockets(httpServer) {
           vehicleColor: driverObj.vehicleColor,
           photoUrl: driverObj.photoUrl,
           driverPhone: driverObj.phone,
-          destinationMunicipality: trip.destination_municipality
-        });
+          destinationMunicipality: trip.destination_municipality,
+          passengerId: trip?.passenger_id
+        };
+
+        io.to(`trip:${tripId}`).emit('trip:confirmed', confirmedPayload);
+        if (trip?.passenger_id) {
+          io.to(`passenger:${trip.passenger_id}`).emit('trip:confirmed', confirmedPayload);
+        }
+        io.to('passengers_channel').emit('trip:confirmed', confirmedPayload);
 
         socket.to(`trip:${tripId}`).emit('offer:rejected_other_won', { tripId });
         io.to('drivers_channel').emit('offer:rejected_other_won', { tripId });
@@ -804,7 +871,27 @@ export function initializeWebSockets(httpServer) {
           WHERE t.id::text = $1
         `, [tripId]);
 
-        const trip = tripRes.rows[0];
+        let trip = tripRes.rows[0];
+        if (!trip && role === 'PASSENGER' && passengerId) {
+          const fallbackRes = await pool.query(`
+            SELECT t.*, 
+                   dp.vehicle_plate, dp.vehicle_brand, dp.vehicle_model, dp.vehicle_color, dp.photo_url as driver_photo,
+                   du.full_name as driver_name, du.phone as driver_phone,
+                   pu.full_name as passenger_name, pu.phone as passenger_phone
+            FROM viajes_trips t
+            LEFT JOIN viajes_driver_profiles dp ON t.driver_id = dp.id
+            LEFT JOIN viajes_users du ON dp.user_id = du.id
+            LEFT JOIN viajes_users pu ON t.passenger_id = pu.id
+            WHERE t.passenger_id::text = $1 AND t.status IN ('REQUESTED', 'ACCEPTED', 'IN_TRANSIT')
+            ORDER BY t.created_at DESC LIMIT 1
+          `, [passengerId]);
+          trip = fallbackRes.rows[0];
+          if (trip) {
+            tripId = trip.id;
+            socket.join(`trip:${trip.id}`);
+            socket.currentTripId = trip.id;
+          }
+        }
         if (!trip) {
           if (callback) callback({ success: false, error: 'Viaje no encontrado' });
           return;
@@ -904,10 +991,17 @@ export function initializeWebSockets(httpServer) {
           }
         }
 
-        io.to(`trip:${tripId}`).emit('trip:status_changed', {
+        const statusPayload = {
           tripId,
-          status: normalizedStatus
-        });
+          status: normalizedStatus,
+          passengerId: updatedTrip?.passenger_id
+        };
+
+        io.to(`trip:${tripId}`).emit('trip:status_changed', statusPayload);
+        if (updatedTrip?.passenger_id) {
+          io.to(`passenger:${updatedTrip.passenger_id}`).emit('trip:status_changed', statusPayload);
+        }
+        io.to('passengers_channel').emit('trip:status_changed', statusPayload);
 
         if (callback) callback({ success: true, trip: updatedTrip });
       } catch (err) {

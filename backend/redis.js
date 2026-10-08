@@ -74,11 +74,6 @@ class InMemoryRedisMock {
     const driverId = args[2];
     const tripId = args[3];
 
-    const driverActive = await this.get(driverLockKey);
-    if (driverActive) {
-      return [0, 'DRIVER_ALREADY_ENGAGED'];
-    }
-
     const currentLock = await this.get(tripLockKey);
     if (currentLock && currentLock !== 'AVAILABLE') {
       return [0, 'TRIP_ALREADY_TAKEN'];
@@ -166,10 +161,6 @@ local tripLockKey = KEYS[1]
 local driverLockKey = KEYS[2]
 local driverId = ARGV[1]
 local tripId = ARGV[2]
-
-if redis.call('EXISTS', driverLockKey) == 1 then
-    return {0, "DRIVER_ALREADY_ENGAGED"}
-end
 
 local tripState = redis.call('GET', tripLockKey)
 if tripState and tripState ~= "AVAILABLE" then

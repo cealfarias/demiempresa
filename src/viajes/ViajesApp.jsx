@@ -963,6 +963,8 @@ export default function ViajesApp() {
   const [tripStatus, setTripStatus] = useState(() => initialActiveTripSession?.tripStatus || 'DRIVER_EN_ROUTE');
   const [creditDiscountApplied, setCreditDiscountApplied] = useState(false);
   const [driverEtaMinutes, setDriverEtaMinutes] = useState(4);
+  const [driverDistanceKm, setDriverDistanceKm] = useState(null);
+  const [driverLiveLocation, setDriverLiveLocation] = useState(null);
 
   // Estados de Cancelación por Mutuo Acuerdo (Carrera en Ejecución)
   const [showMutualCancelModal, setShowMutualCancelModal] = useState(false);
@@ -1116,6 +1118,9 @@ export default function ViajesApp() {
 
     // Escuchar confirmación de viaje asignado
     socket.on('trip:confirmed', (data) => {
+      if (data?.tripId) {
+        setTripId(data.tripId);
+      }
       const driverObj = data.driver || {
         id: data.driverId,
         name: data.driverName || 'Conductor Autorizado',
@@ -1130,6 +1135,7 @@ export default function ViajesApp() {
       setAssignedTrip((prev) => ({
         ...prev,
         ...data,
+        tripId: data.tripId || prev?.tripId || tripId,
         driver: driverObj,
         cashToPay: data.isSharedPool
           ? (data.stops?.find(s => s.passengerId === userProfile?.id)?.finalFare || (parseFloat(proposedFare || '5.00') * 0.70).toFixed(2))
@@ -1137,8 +1143,22 @@ export default function ViajesApp() {
       }));
       setAppState('IN_TRIP_HUB');
       setTripStatus('DRIVER_EN_ROUTE');
+      setDriverEtaMinutes(4);
       triggerSelectionFeedback();
-      speakAssistantMessage('Conductor asignado. Se dirige hacia el punto de recogida.');
+      speakAssistantMessage('¡Conductor asignado! Se dirige hacia tu punto de recogida.');
+    });
+
+    // Escuchar posición GPS y tiempo de llegada en vivo del conductor
+    socket.on('trip:driver_location', (data) => {
+      if (data?.etaMinutes !== undefined) {
+        setDriverEtaMinutes(data.etaMinutes);
+      }
+      if (data?.distanceKm !== undefined) {
+        setDriverDistanceKm(data.distanceKm);
+      }
+      if (data?.lat && data?.lng) {
+        setDriverLiveLocation({ lat: data.lat, lng: data.lng });
+      }
     });
 
     // Escuchar estado en vivo del colectivo compartido
@@ -1223,6 +1243,7 @@ export default function ViajesApp() {
     return () => {
       socket.off('passenger:offer_received');
       socket.off('trip:confirmed');
+      socket.off('trip:driver_location');
       socket.off('pool:status');
       socket.off('pool:dispatched');
       socket.off('trip:canceled');
@@ -2379,6 +2400,11 @@ export default function ViajesApp() {
       roundTripWaitMinutes: parseInt(tripPreferences.roundTripWaitMinutes) || 0,
       packageDetails,
       paymentTiming
+    }, (res) => {
+      if (res?.success && res.trip?.id) {
+        setTripId(res.trip.id);
+        socket.emit('trip:reconnect', { tripId: res.trip.id, role: 'PASSENGER', passengerId: userProfile?.id || null });
+      }
     });
   };
 
@@ -6446,9 +6472,17 @@ export default function ViajesApp() {
               <div className="flex items-center gap-2">
                 <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping"></span>
                 <span className="text-xs font-bold uppercase tracking-wider text-emerald-400">
-                  {tripStatus === 'DRIVER_EN_ROUTE' && `Conductor en camino • ETA: ~${driverEtaMinutes} min`}
-                  {tripStatus === 'DRIVER_ARRIVED' && '¡El conductor ha llegado al punto!'}
-                  {tripStatus === 'IN_TRANSIT' && 'En trayecto hacia el destino'}
+                  {tripStatus === 'DRIVER_EN_ROUTE' && (
+                    <>
+                      Conductor en camino • {driverDistanceKm ? `A ${driverDistanceKm} km • ` : ''}ETA: ~{driverEtaMinutes} min
+                    </>
+                  )}
+                  {tripStatus === 'DRIVER_ARRIVED' && '¡El conductor ha llegado al punto de recogida!'}
+                  {tripStatus === 'IN_TRANSIT' && (
+                    <>
+                      En trayecto al destino • {driverDistanceKm ? `A ${driverDistanceKm} km • ` : ''}ETA: ~{driverEtaMinutes} min
+                    </>
+                  )}
                   {tripStatus === 'COMPLETED' && 'Viaje Finalizado'}
                 </span>
               </div>

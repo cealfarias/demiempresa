@@ -765,6 +765,7 @@ function DriverAppContent() {
               lng: pos.coords.longitude
             };
             socket.emit('driver:location_update', {
+              tripId: activeTrip?.id || null,
               driverProfileId,
               lng: currentCoords.lng,
               lat: currentCoords.lat
@@ -777,6 +778,7 @@ function DriverAppContent() {
             mockLng += (Math.random() - 0.5) * 0.0005;
             mockLat += (Math.random() - 0.5) * 0.0005;
             socket.emit('driver:location_update', {
+              tripId: activeTrip?.id || null,
               driverProfileId,
               lng: mockLng,
               lat: mockLat
@@ -790,7 +792,7 @@ function DriverAppContent() {
     }, 4000);
 
     return () => clearInterval(gpsInterval);
-  }, [driverOnline, driverProfileId, gasStations]);
+  }, [driverOnline, driverProfileId, gasStations, activeTrip?.id]);
 
   // Conductor responde a solicitud (acepta tarifa o contraoferta)
   const handleAcceptFare = (fare) => {
