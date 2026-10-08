@@ -246,6 +246,25 @@ export function calculateCorridor(origCoords, destCoords) {
   };
 }
 
+// Catálogo Oficial de Avatares Predefinidos de Pasajeros Rumbo (Livianos, Amigables y Privados)
+export const PASSENGER_AVATARS = [
+  { id: 'w1', emoji: '👩‍💼', label: 'Ejecutiva', colors: ['#8B5CF6', '#6D28D9'] },
+  { id: 'm1', emoji: '👨‍💼', label: 'Ejecutivo', colors: ['#3B82F6', '#1D4ED8'] },
+  { id: 'w2', emoji: '👩', label: 'Urbana', colors: ['#EC4899', '#BE185D'] },
+  { id: 'm2', emoji: '👨', label: 'Urbano', colors: ['#10B981', '#047857'] },
+  { id: 'w3', emoji: '👧', label: 'Joven', colors: ['#F59E0B', '#B45309'] },
+  { id: 'm3', emoji: '👦', label: 'Joven', colors: ['#06B6D4', '#0E7490'] },
+  { id: 'stu', emoji: '🧑‍🎓', label: 'Estudiante', colors: ['#6366F1', '#4338CA'] },
+  { id: 'hjb', emoji: '🧕', label: 'Moderna', colors: ['#14B8A6', '#0F766E'] },
+  { id: 'trv', emoji: '🕶️', label: 'Viajero', colors: ['#64748B', '#334155'] },
+  { id: 'str', emoji: '⭐', label: 'Rumbo', colors: ['#EAB308', '#CA8A04'] }
+];
+
+export const createAvatarSvgDataUri = (emoji, [c1, c2]) => {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="${c1}"/><stop offset="100%" stop-color="${c2}"/></linearGradient></defs><circle cx="50" cy="50" r="50" fill="url(#g)"/><text x="50" y="65" font-size="52" text-anchor="middle" dominant-baseline="middle" font-family="system-ui, -apple-system, sans-serif">${emoji}</text></svg>`;
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+};
+
 export default function ViajesApp() {
   // 1. Leer borrador guardado y sesión de viaje activa para resistir recargas y F5 sin perder datos
   const initialDraft = (() => {
@@ -831,6 +850,8 @@ export default function ViajesApp() {
   const [registering, setRegistering] = useState(false);
   const [googleDuiStep, setGoogleDuiStep] = useState(false);
   const [googleTempUser, setGoogleTempUser] = useState(null);
+  const [selectedAvatarUrl, setSelectedAvatarUrl] = useState(null);
+  const [showAccountAvatarPicker, setShowAccountAvatarPicker] = useState(false);
 
   // Estados de Cumplimiento Legal y Términos de Referencia
   const [docType, setDocType] = useState('DUI'); // 'DUI' | 'PASSPORT'
@@ -2557,13 +2578,14 @@ export default function ViajesApp() {
         }
       });
 
+      const effectivePhoto = googleTempUser?.photoUrl || selectedAvatarUrl || null;
       const profile = {
         id: googleTempUser?.id || `usr-${Date.now()}`,
         fullName: regFullName,
         email: emailToSave,
         dui: regDui,
         phone: regPhone || '',
-        photoUrl: googleTempUser?.photoUrl || null,
+        photoUrl: effectivePhoto,
         provider: googleTempUser ? 'google' : 'manual',
         isVerified: true,
         sessionToken: regRes?.sessionToken || regRes?.user?.sessionToken || null
@@ -2583,13 +2605,14 @@ export default function ViajesApp() {
       handleCompleteRegistrationWithBonus(profile, hostName);
     } catch (err) {
       console.warn('Fallback local al registrar:', err.message);
+      const effectivePhoto = googleTempUser?.photoUrl || selectedAvatarUrl || null;
       const fallbackProfile = {
         id: googleTempUser?.id || `usr-${Date.now()}`,
         fullName: regFullName,
         email: emailToSave,
         dui: regDui,
         phone: regPhone || '',
-        photoUrl: googleTempUser?.photoUrl || null,
+        photoUrl: effectivePhoto,
         provider: googleTempUser ? 'google' : 'manual',
         isVerified: true
       };
@@ -2945,6 +2968,17 @@ export default function ViajesApp() {
       triggerSelectionFeedback();
       speakAssistantMessage('Has cerrado sesión. Bienvenido nuevamente a Rumbo.');
     }
+  };
+
+  // Actualizar avatar del pasajero directamente desde Mi Cuenta
+  const handleSelectUserProfileAvatar = (avatarDataUri) => {
+    if (!userProfile) return;
+    const updated = { ...userProfile, photoUrl: avatarDataUri };
+    setUserProfile(updated);
+    try {
+      localStorage.setItem('demiempresa_passenger', JSON.stringify(updated));
+    } catch {}
+    triggerSelectionFeedback();
   };
 
   return (
@@ -4962,6 +4996,52 @@ export default function ViajesApp() {
                 </div>
 
                 <form onSubmit={handleSaveProfileAndAccept} className="space-y-3.5">
+                  {/* Selector de Avatar Amigable y Privado (100% Opcional) */}
+                  <div className="p-3 bg-slate-950/70 border border-slate-800 rounded-2xl space-y-2">
+                    <div className="flex items-center justify-between text-xs font-semibold text-slate-300">
+                      <span className="flex items-center gap-1.5">
+                        <span>👤</span>
+                        <span>Elige tu avatar <span className="text-slate-400 font-normal text-[11px]">(Opcional)</span></span>
+                      </span>
+                      {selectedAvatarUrl && (
+                        <button
+                          type="button"
+                          onClick={() => setSelectedAvatarUrl(null)}
+                          className="text-[10px] text-amber-400 hover:underline cursor-pointer"
+                        >
+                          Usar inicial
+                        </button>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 overflow-x-auto py-1 px-0.5 no-scrollbar">
+                      {PASSENGER_AVATARS.map((av) => {
+                        const uri = createAvatarSvgDataUri(av.emoji, av.colors);
+                        const isSelected = selectedAvatarUrl === uri;
+                        return (
+                          <button
+                            key={av.id}
+                            type="button"
+                            onClick={() => setSelectedAvatarUrl(isSelected ? null : uri)}
+                            title={av.label}
+                            className={`w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center text-lg transition-all cursor-pointer shadow-md relative ${
+                              isSelected
+                                ? 'ring-2 ring-amber-400 ring-offset-2 ring-offset-slate-900 scale-110 shadow-amber-500/30'
+                                : 'hover:scale-105 opacity-80 hover:opacity-100'
+                            }`}
+                            style={{ background: `linear-gradient(135deg, ${av.colors[0]}, ${av.colors[1]})` }}
+                          >
+                            <span>{av.emoji}</span>
+                            {isSelected && (
+                              <span className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-amber-400 text-slate-950 rounded-full flex items-center justify-center text-[9px] font-black shadow">
+                                ✓
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
                   <div>
                     <label className="block text-xs font-semibold text-slate-400 mb-1">
                       Nombre Completo
@@ -5831,17 +5911,31 @@ export default function ViajesApp() {
             {/* Header del modal */}
             <div className="flex items-center justify-between pb-3 border-b border-slate-800">
               <div className="flex items-center gap-3">
-                {userProfile.photoUrl ? (
-                  <img
-                    src={userProfile.photoUrl}
-                    alt={userProfile.fullName || 'Usuario'}
-                    className="w-11 h-11 rounded-full object-cover border-2 border-amber-400 shadow-md"
-                  />
-                ) : (
-                  <div className="w-11 h-11 rounded-full bg-gradient-to-tr from-amber-500 to-yellow-400 text-slate-950 font-black text-lg flex items-center justify-center shadow-md">
-                    {userProfile.fullName ? userProfile.fullName[0].toUpperCase() : 'G'}
-                  </div>
-                )}
+                <div className="relative group">
+                  {userProfile.photoUrl ? (
+                    <img
+                      src={userProfile.photoUrl}
+                      alt={userProfile.fullName || 'Usuario'}
+                      onClick={() => setShowAccountAvatarPicker(!showAccountAvatarPicker)}
+                      className="w-12 h-12 rounded-full object-cover border-2 border-amber-400 shadow-md cursor-pointer hover:opacity-90"
+                    />
+                  ) : (
+                    <div
+                      onClick={() => setShowAccountAvatarPicker(!showAccountAvatarPicker)}
+                      className="w-12 h-12 rounded-full bg-gradient-to-tr from-amber-500 to-yellow-400 text-slate-950 font-black text-lg flex items-center justify-center shadow-md cursor-pointer hover:opacity-90"
+                    >
+                      {userProfile.fullName ? userProfile.fullName[0].toUpperCase() : 'G'}
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setShowAccountAvatarPicker(!showAccountAvatarPicker)}
+                    title="Cambiar avatar"
+                    className="absolute -bottom-1 -right-1 w-5 h-5 bg-slate-800 border border-slate-700 text-amber-400 rounded-full flex items-center justify-center text-[10px] cursor-pointer hover:bg-slate-700 shadow"
+                  >
+                    ✏️
+                  </button>
+                </div>
                 <div>
                   <div className="font-bold text-white text-base flex items-center gap-1.5">
                     <span>{userProfile.fullName || 'Pasajero Rumbo'}</span>
@@ -5868,6 +5962,58 @@ export default function ViajesApp() {
                 ✕
               </button>
             </div>
+
+            {/* Selector desplegable de avatar en Mi Cuenta */}
+            {showAccountAvatarPicker && (
+              <div className="p-3 bg-slate-950 border border-slate-800 rounded-2xl space-y-2 animate-fade-in">
+                <div className="flex items-center justify-between text-xs font-semibold text-slate-300">
+                  <span className="flex items-center gap-1.5">
+                    <span>✨</span>
+                    <span>Elige tu avatar de pasajero:</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleSelectUserProfileAvatar(null);
+                      setShowAccountAvatarPicker(false);
+                    }}
+                    className="text-[10px] text-amber-400 hover:underline cursor-pointer"
+                  >
+                    Restaurar inicial
+                  </button>
+                </div>
+                <div className="flex items-center gap-2 overflow-x-auto py-1 px-0.5 no-scrollbar">
+                  {PASSENGER_AVATARS.map((av) => {
+                    const uri = createAvatarSvgDataUri(av.emoji, av.colors);
+                    const isSelected = userProfile.photoUrl === uri;
+                    return (
+                      <button
+                        key={av.id}
+                        type="button"
+                        onClick={() => {
+                          handleSelectUserProfileAvatar(uri);
+                          setShowAccountAvatarPicker(false);
+                        }}
+                        title={av.label}
+                        className={`w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center text-lg transition-all cursor-pointer shadow-md relative ${
+                          isSelected
+                            ? 'ring-2 ring-amber-400 ring-offset-2 ring-offset-slate-900 scale-110 shadow-amber-500/30'
+                            : 'hover:scale-105 opacity-80 hover:opacity-100'
+                        }`}
+                        style={{ background: `linear-gradient(135deg, ${av.colors[0]}, ${av.colors[1]})` }}
+                      >
+                        <span>{av.emoji}</span>
+                        {isSelected && (
+                          <span className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-amber-400 text-slate-950 rounded-full flex items-center justify-center text-[9px] font-black shadow">
+                            ✓
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* Saldo de Crédito Total */}
             <div className="bg-gradient-to-r from-amber-500/15 via-yellow-500/10 to-amber-500/15 border-2 border-amber-400/40 rounded-2xl p-4 text-center space-y-1 shadow-inner relative overflow-hidden">
