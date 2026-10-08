@@ -441,7 +441,7 @@ export default function DriverAccountStatementModal({
                   </div>
 
                   <div className="pt-1 text-[11px] font-sans text-slate-400">
-                    📌 <strong>Concepto a colocar en tu app bancaria:</strong> DUI: <span className="text-white font-mono font-bold">{driverProfile?.dui || 'Tu DUI'}</span>
+                    📌 <strong>Concepto a colocar en tu app bancaria:</strong> Placa: <span className="text-white font-mono font-bold">{driverProfile?.vehiclePlate || 'Tu Placa'}</span>
                   </div>
                 </div>
 
@@ -459,7 +459,7 @@ export default function DriverAccountStatementModal({
 
                 {/* Enlace directo a WhatsApp para reportar comprobante */}
                 <a
-                  href={`https://wa.me/50369893101?text=${encodeURIComponent(`Hola Rumbo, he realizado mi pago de cuota semanal por Transfer365 Móvil.\n\n• Conductor: ${driverProfile?.fullName || 'Conductor'}\n• DUI: ${driverProfile?.dui || 'No especificado'}\n• Placa: ${driverProfile?.vehiclePlate || 'No especificada'}\n• Monto: $${remainingWeeklyCash.toFixed(2)} USD\n\nAdjunto captura del comprobante.`)}`}
+                  href={`https://wa.me/50369893101?text=${encodeURIComponent(`Hola Rumbo, he realizado mi pago de cuota semanal por Transfer365 Móvil.\n\n• Conductor: ${driverProfile?.fullName || 'Conductor'}\n• Placa: ${driverProfile?.vehiclePlate || 'No especificada'}\n• Monto: $${remainingWeeklyCash.toFixed(2)} USD\n\nAdjunto captura del comprobante.`)}`}
                   target="_blank"
                   rel="noreferrer"
                   className="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 font-bold text-xs rounded-xl border border-slate-800 flex items-center justify-center gap-2 cursor-pointer transition-colors"
@@ -488,7 +488,7 @@ export default function DriverAccountStatementModal({
                 </div>
 
                 <a
-                  href={`https://pagos.cubopago.com/demiempresa-rumbo?amount=${remainingWeeklyCash.toFixed(2)}&ref=${encodeURIComponent(driverProfile?.dui || 'conductor')}`}
+                  href={`https://pagos.cubopago.com/demiempresa-rumbo?amount=${remainingWeeklyCash.toFixed(2)}&ref=${encodeURIComponent(driverProfile?.vehiclePlate ? `PLACA-${driverProfile.vehiclePlate}` : `CHOFER-${driverProfile?.id || 'RUMBO'}`)}`}
                   target="_blank"
                   rel="noreferrer"
                   className="w-full py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-black text-xs rounded-xl shadow-lg flex items-center justify-center gap-2 cursor-pointer transition-all"

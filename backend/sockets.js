@@ -614,9 +614,9 @@ export function initializeWebSockets(httpServer) {
     });
 
     /**
-     * 4.1 Cancelación de Viaje (Solo permitido en fase de Búsqueda sin Conductor Asignado)
+     * 4.1 Cancelación de Viaje (Permitido en búsqueda o si la carrera está huérfana/stale > 2h o forzada)
      */
-    socket.on('trip:cancel', async ({ tripId }, callback) => {
+    socket.on('trip:cancel', async ({ tripId, force }, callback) => {
       try {
         if (!tripId) {
           if (callback) callback({ success: false, error: 'tripId requerido' });
@@ -624,14 +624,22 @@ export function initializeWebSockets(httpServer) {
         }
 
         const tripRes = await pool.query(
-          "SELECT id, status, driver_id FROM viajes_trips WHERE id::text = $1",
+          "SELECT id, status, driver_id, created_at FROM viajes_trips WHERE id::text = $1",
           [tripId]
         );
         const trip = tripRes.rows[0];
+        if (!trip) {
+          if (callback) callback({ success: true });
+          return;
+        }
 
-        // Regla Implacable: Si ya hay un conductor asignado o el viaje está en ejecución, NO se puede cancelar unilateralmente
-        if (trip && trip.driver_id && trip.status !== 'REQUESTED' && trip.status !== 'CANCELLED' && trip.status !== 'COMPLETED') {
-          console.warn(`⚠️ [trip:cancel] Intento de cancelación unilateral en carrera activa #${tripId}. Denegado.`);
+        const tripAgeHours = (Date.now() - new Date(trip.created_at).getTime()) / (1000 * 60 * 60);
+        const isStale = tripAgeHours > 2;
+
+        // Regla: Si ya hay un conductor asignado o el viaje está en ejecución reciente, requiere mutuo acuerdo
+        // A MENOS que sea forzado explícitamente o tenga más de 2 horas inactivo
+        if (!force && !isStale && trip.driver_id && trip.status !== 'REQUESTED' && trip.status !== 'CANCELLED' && trip.status !== 'COMPLETED') {
+          console.warn(`⚠️ [trip:cancel] Intento de cancelación unilateral en carrera activa reciente #${tripId}. Denegado.`);
           if (callback) {
             callback({
               success: false,
@@ -642,14 +650,44 @@ export function initializeWebSockets(httpServer) {
           return;
         }
 
-        // Si aún está en subasta/búsqueda (REQUESTED) sin chofer asignado, se cancela la búsqueda
+        // Cancelar el viaje en la base de datos
         await pool.query("UPDATE viajes_trips SET status = 'CANCELLED' WHERE id::text = $1", [tripId]).catch(() => {});
-        io.to(`trip:${tripId}`).emit('trip:canceled', { tripId });
+        if (trip.driver_id) {
+          await releaseDriverLock(trip.driver_id, tripId);
+        }
+        io.to(`trip:${tripId}`).emit('trip:canceled', { tripId, reason: force || isStale ? 'Cancelación por inactividad prolongada' : 'Cancelado por el usuario' });
         io.to('drivers_channel').emit('trip:canceled', { tripId });
-        console.log(`🛑 [trip:cancel] Solicitud de búsqueda #${tripId} cancelada limpiamente antes de asignar chofer.`);
+        console.log(`🛑 [trip:cancel] Viaje #${tripId} cancelado exitosamente.`);
         if (callback) callback({ success: true });
       } catch (err) {
         console.error('Error en trip:cancel:', err);
+        if (callback) callback({ success: false, error: err.message });
+      }
+    });
+
+    /**
+     * 4.1.0 Cancelación Forzada de Viaje Huérfano / Atascado (Escudo de Rescate)
+     */
+    socket.on('trip:cancel_orphan', async ({ tripId }, callback) => {
+      try {
+        if (!tripId) {
+          if (callback) callback({ success: false, error: 'tripId requerido' });
+          return;
+        }
+        console.log(`🧹 [trip:cancel_orphan] Usuario fuerza liberación de viaje huérfano #${tripId}`);
+        const tripRes = await pool.query("SELECT id, driver_id FROM viajes_trips WHERE id::text = $1", [tripId]);
+        const trip = tripRes.rows[0];
+        if (trip) {
+          await pool.query("UPDATE viajes_trips SET status = 'CANCELLED' WHERE id::text = $1", [tripId]).catch(() => {});
+          if (trip.driver_id) {
+            await releaseDriverLock(trip.driver_id, tripId);
+          }
+          io.to(`trip:${tripId}`).emit('trip:canceled', { tripId, reason: 'Viaje huérfano cancelado por usuario' });
+          io.to('drivers_channel').emit('trip:canceled', { tripId });
+        }
+        if (callback) callback({ success: true });
+      } catch (err) {
+        console.error('Error en trip:cancel_orphan:', err);
         if (callback) callback({ success: false, error: err.message });
       }
     });
@@ -775,6 +813,19 @@ export function initializeWebSockets(httpServer) {
         // Si el viaje ya finalizó o fue cancelado
         if (trip.status === 'COMPLETED' || trip.status === 'CANCELLED') {
           if (callback) callback({ success: true, isFinished: true, status: trip.status });
+          return;
+        }
+
+        // Blindaje contra viajes huérfanos / zombies antiguos (> 4 horas sin finalizar)
+        const tripCreatedAt = new Date(trip.created_at || Date.now()).getTime();
+        const tripAgeHours = (Date.now() - tripCreatedAt) / (1000 * 60 * 60);
+        if (tripAgeHours > 4) {
+          console.log(`🧹 [trip:reconnect] Viaje #${tripId} tiene ${tripAgeHours.toFixed(1)} horas sin finalizar. Marcando como CANCELLED.`);
+          await pool.query("UPDATE viajes_trips SET status = 'CANCELLED' WHERE id::text = $1", [tripId]).catch(() => {});
+          if (trip.driver_id) {
+            await releaseDriverLock(trip.driver_id, tripId);
+          }
+          if (callback) callback({ success: true, isFinished: true, status: 'CANCELLED', reason: 'Viaje expirado automáticamente por inactividad prolongada' });
           return;
         }
 

@@ -178,9 +178,23 @@ app.post('/api/users/register', async (req, res) => {
         }
       }
 
+      // Recuperar o generar identidad de billetera oficial (con código RMB anónimo)
+      let existingWallet = null;
+      try {
+        const wRes = await pool.query('SELECT address, referral_code FROM viajes_wallet_identities WHERE user_id = $1', [user.id]);
+        if (wRes.rows.length > 0) {
+          existingWallet = wRes.rows[0];
+        } else {
+          existingWallet = await LedgerService.getOrCreateWalletIdentity(user.id, pool, user.role || 'PASSENGER');
+        }
+      } catch (wErr) {
+        console.warn('⚠️ Error recuperando wallet de usuario existente:', wErr.message);
+      }
+
       return res.json({
         success: true,
         user,
+        wallet: existingWallet ? { address: existingWallet.address, referralCode: existingWallet.referral_code } : null,
         isExistingUser: true,
         sessionToken: passengerSessionId,
         referrer: referrerInfo,
@@ -3031,8 +3045,51 @@ setInterval(async () => {
   }
 }, 1000 * 60 * 60);
 
+// 8. TAREA AUTOMÁTICA DE LIMPIEZA DE VIAJES HUÉRFANOS / ZOMBIES (> 4 HORAS)
+export async function cleanupStaleTrips() {
+  try {
+    const res = await pool.query(`
+      UPDATE viajes_trips 
+      SET status = 'CANCELLED' 
+      WHERE status NOT IN ('COMPLETED', 'CANCELLED') 
+        AND created_at < NOW() - INTERVAL '4 hours'
+      RETURNING id, driver_id;
+    `);
+    if (res.rows && res.rows.length > 0) {
+      console.log(`🧹 [CLEANUP] ${res.rows.length} viajes huérfanos/antiguos (> 4h) marcados automáticamente como CANCELLED.`);
+      for (const row of res.rows) {
+        if (row.driver_id) {
+          await pool.query(`
+            UPDATE viajes_driver_profiles 
+            SET active_trip_id = NULL, status = 'ONLINE' 
+            WHERE id = $1 AND active_trip_id = $2
+          `, [row.driver_id, row.id]).catch(() => {});
+        }
+      }
+    }
+    return res.rows ? res.rows.length : 0;
+  } catch (err) {
+    console.warn('⚠️ Error en limpieza de viajes antiguos:', err.message);
+    return 0;
+  }
+}
+
+// Ejecutar limpieza periódica cada 10 minutos
+setInterval(cleanupStaleTrips, 1000 * 60 * 10);
+
+// Endpoint administrativo y de rescate para forzar limpieza de viajes huérfanos
+app.post('/api/trips/cleanup-stale', async (req, res) => {
+  try {
+    const cleaned = await cleanupStaleTrips();
+    res.json({ success: true, cleanedTrips: cleaned });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 server.listen(PORT, async () => {
   console.log(`🚀 Servidor demiempresa.online corriendo en http://localhost:${PORT}`);
   console.log(`📡 Tablas aisladas con prefijo: viajes_*`);
   await initializeDatabase();
+  await cleanupStaleTrips();
 });

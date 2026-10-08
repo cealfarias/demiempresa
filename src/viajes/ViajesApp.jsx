@@ -279,8 +279,21 @@ export default function ViajesApp() {
   const initialActiveTripSession = (() => {
     try {
       if (typeof window === 'undefined') return null;
-      return JSON.parse(localStorage.getItem('rumbo_passenger_active_session') || 'null');
+      const raw = localStorage.getItem('rumbo_passenger_active_session');
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      // Blindaje de auto-expiración contra pestañas congeladas:
+      // Si la sesión no tiene savedAt (versión anterior huérfana de 3 días) o tiene > 4 horas, se purga de raíz
+      const sessionAgeMs = parsed.savedAt ? (Date.now() - parsed.savedAt) : Infinity;
+      const MAX_TRIP_SESSION_AGE_MS = 4 * 60 * 60 * 1000; // 4 horas máximo
+      if (!parsed.savedAt || sessionAgeMs > MAX_TRIP_SESSION_AGE_MS) {
+        console.warn('🧹 Purgando sesión huérfana de viaje caducada (> 4h o sin timestamp):', parsed);
+        localStorage.removeItem('rumbo_passenger_active_session');
+        return null;
+      }
+      return parsed;
     } catch {
+      localStorage.removeItem('rumbo_passenger_active_session');
       return null;
     }
   })();
@@ -978,6 +991,7 @@ export default function ViajesApp() {
     if (appState === 'AUCTION' || appState === 'IN_TRIP_HUB') {
       try {
         const activeSession = {
+          savedAt: Date.now(),
           appState,
           tripId,
           origin,
@@ -1022,7 +1036,11 @@ export default function ViajesApp() {
       console.log('🔄 Reconectando sesión de viaje del pasajero tras recarga:', savedSession.tripId);
       socket.emit('trip:reconnect', { tripId: savedSession.tripId, role: 'PASSENGER' }, (res) => {
         if (!res || !res.success) {
-          console.warn('No se pudo reconectar viaje en el servidor:', res?.error);
+          console.warn('No se pudo reconectar viaje en el servidor (viaje no encontrado o inválido):', res?.error);
+          localStorage.removeItem('rumbo_passenger_active_session');
+          setAppState('DECOY_FORM');
+          setAssignedTrip(null);
+          setTripId(null);
           return;
         }
         if (res.isFinished) {
@@ -2579,13 +2597,15 @@ export default function ViajesApp() {
       });
 
       const effectivePhoto = googleTempUser?.photoUrl || selectedAvatarUrl || null;
+      const safeReferralCode = regRes?.wallet?.referralCode || regRes?.user?.referralCode || (regRes?.user?.id ? `RMB${String(regRes.user.id).replace(/\D/g, '').slice(-6)}` : null);
       const profile = {
-        id: googleTempUser?.id || `usr-${Date.now()}`,
+        id: regRes?.user?.id || googleTempUser?.id || `usr-${Date.now()}`,
         fullName: regFullName,
         email: emailToSave,
         dui: regDui,
         phone: regPhone || '',
         photoUrl: effectivePhoto,
+        referralCode: safeReferralCode,
         provider: googleTempUser ? 'google' : 'manual',
         isVerified: true,
         sessionToken: regRes?.sessionToken || regRes?.user?.sessionToken || null
@@ -2779,7 +2799,7 @@ export default function ViajesApp() {
   // Enviar invitación de referido por WhatsApp
   const handleSendWhatsAppReferral = () => {
     const cleanPhone = (refContactPhone || '').replace(/\D/g, '');
-    const myCode = userProfile?.referralCode || userProfile?.dui || userProfile?.id || '';
+    const myCode = userProfile?.referralCode || (userProfile?.id ? `RMB${String(userProfile.id).replace(/\D/g, '').slice(-6)}` : '');
     const { text } = getSharePayload('passenger', myCode);
     const waUrl = cleanPhone && cleanPhone.length >= 8
       ? `https://wa.me/503${cleanPhone}?text=${encodeURIComponent(text)}`
@@ -2891,8 +2911,9 @@ export default function ViajesApp() {
     const normalFareNum = parseFloat(proposedFare || '5.00');
 
     setIsJoinedToPool(true);
+    const safePassengerId = userProfile.id || (userProfile.email ? userProfile.email : `usr-${Date.now()}`);
     socket.emit('pool:join', {
-      passengerId: userProfile.id || userProfile.dui || `user-${Date.now()}`,
+      passengerId: safePassengerId,
       passengerName: userProfile.fullName || 'Pasajero',
       phone: userProfile.phone || '',
       genderFilter: sharedPoolGenderFilter,
@@ -2926,14 +2947,32 @@ export default function ViajesApp() {
   // Salir del Colectivo Compartido
   const handleLeaveSharedPoolClient = () => {
     if (poolStatus?.poolId) {
+      const safePassengerId = userProfile?.id || (userProfile?.email ? userProfile.email : `usr-${Date.now()}`);
       socket.emit('pool:leave', {
         poolId: poolStatus.poolId,
-        passengerId: userProfile?.id || userProfile?.dui
+        passengerId: safePassengerId
       });
     }
     setIsJoinedToPool(false);
     setPoolStatus(null);
     speakAssistantMessage('Has salido del colectivo compartido.');
+  };
+
+  // Forzar restablecimiento de pantalla si un viaje quedó congelado o huérfano
+  const handleForceResetStuckTrip = () => {
+    if (confirm('¿Deseas restablecer la pantalla y cancelar esta carrera? Usa esta opción si la pantalla quedó congelada o el conductor no responde.')) {
+      if (tripId) {
+        socket.emit('trip:cancel_orphan', { tripId });
+      }
+      localStorage.removeItem('rumbo_passenger_active_session');
+      setAppState('DECOY_FORM');
+      setTripId(null);
+      setAssignedTrip(null);
+      setTripStatus('DRIVER_EN_ROUTE');
+      setShowMutualCancelModal(false);
+      setWaitingCancelPeerResponse(false);
+      speakAssistantMessage('Pantalla restablecida con éxito. Puedes solicitar un nuevo viaje.');
+    }
   };
 
   // Cerrar Sesión del Pasajero y Regresar a la Pantalla de Inicio
@@ -4356,7 +4395,7 @@ export default function ViajesApp() {
                   {/* Asientos / Paradas 1 a 4 */}
                   {[1, 2, 3, 4].map((seatNum) => {
                     const assignedStop = poolStatus?.stops?.find(s => s.seatNumber === seatNum);
-                    const isMe = assignedStop && (assignedStop.passengerId === (userProfile?.id || userProfile?.dui));
+                    const isMe = assignedStop && (assignedStop.passengerId === (userProfile?.id || userProfile?.email));
                     const isOccupied = Boolean(assignedStop || (seatNum === 1 && isJoinedToPool));
                     const stopDest = assignedStop?.destinationAddress || (seatNum === 1 && isJoinedToPool ? destination || 'Tu destino' : null);
                     const stopDist = assignedStop?.distanceKm || (seatNum === 1 && isJoinedToPool ? roadDistanceKm : null);
@@ -5475,7 +5514,7 @@ export default function ViajesApp() {
                     type="button"
                     onClick={() => {
                       setShowCelebrationModal(false);
-                      const myCode = userProfile?.referralCode || userProfile?.dui || userProfile?.id || '';
+                      const myCode = userProfile?.referralCode || (userProfile?.id ? `RMB${String(userProfile.id).replace(/\D/g, '').slice(-6)}` : '');
                       const { text } = getSharePayload('passenger', myCode);
                       window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
                     }}
@@ -5808,7 +5847,7 @@ export default function ViajesApp() {
                       <span>Mensaje oficial con Bonos y Logo:</span>
                     </span>
                     <span className="text-[10px] text-amber-300 font-mono">
-                      ref={userProfile?.referralCode || userProfile?.dui || 'tu-codigo'}
+                      ref={userProfile?.referralCode || (userProfile?.id ? `RMB${String(userProfile.id).replace(/\D/g, '').slice(-6)}` : 'RUMBO')}
                     </span>
                   </div>
                   <p className="italic text-[11px] text-emerald-100/90 bg-black/40 p-2.5 rounded-lg leading-relaxed">
@@ -5949,7 +5988,7 @@ export default function ViajesApp() {
                   {userProfile.dui && (
                     <div className="text-[11px] text-emerald-400 flex items-center gap-1 mt-0.5 font-mono">
                       <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-                      <span>DUI: {userProfile.dui}</span>
+                      <span>DUI: {userProfile.dui.replace(/^(\d{4})\d{4}(-\d)$/, '$1****$2')}</span>
                     </div>
                   )}
                 </div>
@@ -6239,14 +6278,18 @@ export default function ViajesApp() {
               <div>
                 <span className="text-[10px] uppercase font-bold text-slate-400 block">💎 Tu forma de pago:</span>
                 <strong className="text-rose-300 font-bold">
-                  {assignedTrip.cashBill === 'EXACT' ? 'Efectivo exacto' : `Billete de $${parseFloat(assignedTrip.cashBill).toFixed(2)}`}
+                  {assignedTrip.cashBill === 'EXACT'
+                    ? 'Efectivo exacto'
+                    : (!isNaN(parseFloat(assignedTrip.cashBill)) && parseFloat(assignedTrip.cashBill) > 0)
+                      ? `Billete de $${parseFloat(assignedTrip.cashBill).toFixed(2)}`
+                      : 'Efectivo'}
                 </strong>
               </div>
               <div className="text-right">
-                {assignedTrip.cashBill !== 'EXACT' ? (
+                {assignedTrip.cashBill !== 'EXACT' && !isNaN(parseFloat(assignedTrip.changeNeeded)) && parseFloat(assignedTrip.changeNeeded) >= 0 ? (
                   <>
                     <span className="text-[10px] uppercase font-bold text-slate-400 block">👉 Chofer te entregará:</span>
-                    <strong className="text-amber-300 font-black text-sm">${assignedTrip.changeNeeded} de vuelto</strong>
+                    <strong className="text-amber-300 font-black text-sm">${parseFloat(assignedTrip.changeNeeded).toFixed(2)} de vuelto</strong>
                   </>
                 ) : (
                   <span className="text-emerald-400 font-medium">Pago exacto (sin vuelto)</span>
@@ -6281,15 +6324,23 @@ export default function ViajesApp() {
               </div>
             )}
 
-            {/* Protocolo de Mutuo Acuerdo (Solo si la carrera aún está en ejecución) */}
+            {/* Protocolo de Mutuo Acuerdo y Botón de Rescate de Viaje Huérfano */}
             {tripStatus !== 'COMPLETED' && (
-              <div className="pt-1 text-center">
+              <div className="pt-2 flex flex-col items-center gap-2">
                 <button
                   type="button"
                   onClick={() => setShowMutualCancelModal(true)}
-                  className="text-[11px] text-slate-500 hover:text-rose-400 underline transition-colors cursor-pointer"
+                  className="text-[11px] text-slate-400 hover:text-rose-400 underline transition-colors cursor-pointer"
                 >
                   ¿Inconveniente? Solicitar Cancelación por Mutuo Acuerdo
+                </button>
+                <button
+                  type="button"
+                  onClick={handleForceResetStuckTrip}
+                  className="text-[10px] text-rose-400 hover:text-rose-300 transition-colors cursor-pointer flex items-center gap-1.5 bg-rose-500/10 hover:bg-rose-500/20 px-3 py-1.5 rounded-xl border border-rose-500/30 shadow-sm mt-0.5"
+                >
+                  <AlertTriangle className="w-3.5 h-3.5 text-rose-400" />
+                  <span>¿Viaje congelado o chofer no responde? Salir y restablecer pantalla</span>
                 </button>
               </div>
             )}
@@ -6650,10 +6701,31 @@ export default function ViajesApp() {
             </div>
 
             {waitingCancelPeerResponse ? (
-              <div className="p-4 bg-slate-950 border border-amber-500/30 rounded-2xl text-center space-y-2">
+              <div className="p-4 bg-slate-950 border border-amber-500/30 rounded-2xl text-center space-y-3">
                 <div className="w-6 h-6 border-2 border-amber-400 border-t-transparent rounded-full animate-spin mx-auto"></div>
                 <div className="text-xs font-bold text-amber-300">Solicitud enviada al conductor</div>
                 <p className="text-[11px] text-slate-400">Esperando que el conductor acepte o rechace desde su teléfono...</p>
+
+                <div className="pt-2 border-t border-slate-800 space-y-2">
+                  <p className="text-[10px] text-slate-400">¿El conductor no responde o no está disponible?</p>
+                  <button
+                    type="button"
+                    onClick={handleForceResetStuckTrip}
+                    className="w-full py-2 bg-rose-600/30 hover:bg-rose-600/50 border border-rose-500/50 text-rose-300 font-bold text-xs rounded-xl transition-colors cursor-pointer"
+                  >
+                    Forzar cancelación de viaje inactivo
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowMutualCancelModal(false);
+                      setWaitingCancelPeerResponse(false);
+                    }}
+                    className="w-full py-1.5 text-slate-400 hover:text-white text-[11px] cursor-pointer"
+                  >
+                    Volver a la carrera
+                  </button>
+                </div>
               </div>
             ) : (
               <div className="space-y-3">
