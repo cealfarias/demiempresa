@@ -577,38 +577,58 @@ export default function ViajesApp() {
     }
   }, [roadDistanceKm, trafficInfo.delayMinutes, tripPreferences, transportType]);
 
-  // El billete marcado en la zona de cambio siempre debe ser estrictamente mayor a la oferta
+  // El billete marcado en la zona de cambio siempre debe ser estrictamente mayor a la oferta en efectivo
   useEffect(() => {
     const fareVal = parseFloat(proposedFare) || 0;
+    const effectiveCashFare = applyBonus ? Math.max(1.00, fareVal - 1.00) : fareVal;
     if (cashBill === 'EXACT') return;
 
     const currentVal = cashBill === '50+' ? 50 : (parseFloat(cashBill) || 0);
-    if (cashBill !== '50+' && currentVal <= fareVal) {
-      if (fareVal < 10) {
+    if (cashBill !== '50+' && currentVal <= effectiveCashFare) {
+      if (effectiveCashFare < 10) {
         setCashBill('10');
-      } else if (fareVal < 20) {
+      } else if (effectiveCashFare < 20) {
         setCashBill('20');
       } else {
         setCashBill('50+');
       }
     }
-  }, [proposedFare, cashBill]);
+  }, [proposedFare, applyBonus, cashBill]);
 
   const calculateChange = (fare = proposedFare) => {
     if (cashBill === 'EXACT') return '0.00';
+    const fareVal = parseFloat(fare) || 0;
+    const effectiveCashFare = applyBonus
+      ? Math.max(1.00, fareVal - 1.00)
+      : fareVal;
     if (cashBill === '50+') {
-      const fareVal = parseFloat(fare) || 0;
-      return Math.max(0, 50 - fareVal).toFixed(2);
+      return Math.max(0, 50 - effectiveCashFare).toFixed(2);
     }
     const billVal = parseFloat(cashBill);
-    const fareVal = parseFloat(fare) || 0;
-    return Math.max(0, billVal - fareVal).toFixed(2);
+    return Math.max(0, billVal - effectiveCashFare).toFixed(2);
+  };
+
+  // Frase guiada del cambio en voz: refleja fielmente el descuento por bonos
+  const getChangeVoiceText = (currentFare = proposedFare, isBonusActive = applyBonus) => {
+    const fareNum = parseFloat(currentFare) || 2.50;
+    const effectiveCash = isBonusActive ? Math.max(1.00, fareNum - 1.00) : fareNum;
+    if (cashBill === 'EXACT') {
+      return isBonusActive
+        ? `Pagas con tarifa exacta de ${effectiveCash.toFixed(2)} dólares en efectivo con tu bono aplicado.`
+        : `Pagas con tarifa exacta de ${fareNum.toFixed(2)} dólares, no requieres cambio.`;
+    }
+    const billNum = cashBill === '50+' ? 50 : (parseFloat(cashBill) || 10);
+    const changeAmt = Math.max(0, billNum - effectiveCash).toFixed(2);
+    if (isBonusActive) {
+      return `Al pagar con billete de ${billNum} dólares, el conductor te llevará ${changeAmt} dólares de cambio, es decir, un dólar más de vuelto por tu bono.`;
+    }
+    return `Al pagar con billete de ${billNum} dólares, el conductor te llevará ${changeAmt} dólares de cambio.`;
   };
 
   // Lista de precios sugeridos ordenados hacia arriba (iniciando por la mínima recomendada)
   const quickFareOptions = (() => {
-    const minVal = parseFloat(suggestedFareInfo?.minimumRecommended) || 2.50;
-    const sugVal = parseFloat(suggestedFareInfo?.suggestedFare) || 3.00;
+    const minVal = parseFloat(suggestedFareInfo?.minimumRecommended) || (isMotoMode ? 1.50 : 2.50);
+    const sugVal = parseFloat(suggestedFareInfo?.suggestedFare) || (isMotoMode ? 2.00 : 3.00);
     const opts = [minVal];
     if (sugVal > minVal) {
       opts.push(sugVal);
@@ -721,12 +741,23 @@ export default function ViajesApp() {
     triggerSelectionFeedback();
     setCashBill(billId);
 
+    const baseFare = parseFloat(proposedFare) || 2.50;
+    const effectiveCash = applyBonus ? Math.max(1.00, baseFare - 1.00) : baseFare;
+
     if (billId === 'EXACT') {
-      speakAssistantMessage('Has seleccionado pago con tarifa exacta, no requieres cambio.');
-    } else if (billId === '50+') {
-      speakAssistantMessage('Se ha solicitado cambio para billete de 50 dólares o más.');
+      if (applyBonus) {
+        speakAssistantMessage(`Has seleccionado pago con tarifa exacta. Con tu bono de un dólar aplicado, tu tarifa es de ${effectiveCash.toFixed(2)} dólares en efectivo y no requieres cambio.`);
+      } else {
+        speakAssistantMessage(`Has seleccionado pago con tarifa exacta de ${baseFare.toFixed(2)} dólares, no requieres cambio.`);
+      }
     } else {
-      speakAssistantMessage(`Se ha solicitado cambio para billete de ${billId} dólares.`);
+      const billNum = billId === '50+' ? 50 : parseFloat(billId);
+      const changeAmt = Math.max(0, billNum - effectiveCash).toFixed(2);
+      if (applyBonus) {
+        speakAssistantMessage(`Se ha solicitado cambio para billete de ${billNum} dólares. Con tu bono de un dólar aplicado, tu tarifa en efectivo es de ${effectiveCash.toFixed(2)} dólares y el conductor te llevará ${changeAmt} dólares de cambio, es decir, un dólar más de vuelto.`);
+      } else {
+        speakAssistantMessage(`Se ha solicitado cambio para billete de ${billNum} dólares. El conductor te llevará ${changeAmt} dólares de cambio.`);
+      }
     }
   };
 
@@ -758,10 +789,21 @@ export default function ViajesApp() {
     setProposedFare(newFare);
     setHasCustomFare(false);
 
+    const changeText = getChangeVoiceText(newFare, applyBonus);
     if (nextState) {
-      speakAssistantMessage(`Se ha establecido el aire acondicionado. La nueva tarifa es de ${newFare} dólares.`);
+      if (applyBonus) {
+        const discounted = Math.max(1.00, parseFloat(newFare) - 1.00).toFixed(2);
+        speakAssistantMessage(`Se ha establecido el aire acondicionado. La nueva tarifa es de ${newFare} dólares. Aplicando tu bono te queda en ${discounted} dólares en efectivo. ${changeText}`);
+      } else {
+        speakAssistantMessage(`Se ha establecido el aire acondicionado. La nueva tarifa es de ${newFare} dólares. ${changeText}`);
+      }
     } else {
-      speakAssistantMessage(`Se ha desactivado el aire acondicionado. La nueva tarifa es de ${newFare} dólares.`);
+      if (applyBonus) {
+        const discounted = Math.max(1.00, parseFloat(newFare) - 1.00).toFixed(2);
+        speakAssistantMessage(`Se ha desactivado el aire acondicionado. La nueva tarifa es de ${newFare} dólares. Aplicando tu bono te queda en ${discounted} dólares en efectivo. ${changeText}`);
+      } else {
+        speakAssistantMessage(`Se ha desactivado el aire acondicionado. La nueva tarifa es de ${newFare} dólares. ${changeText}`);
+      }
     }
   };
 
@@ -785,17 +827,20 @@ export default function ViajesApp() {
     const newFare = recalculated?.suggestedFare || '2.50';
     setProposedFare(newFare);
     setHasCustomFare(false);
-    speakAssistantMessage(`Se ha establecido el aire acondicionado. La nueva tarifa es de ${newFare} dólares.`);
+
+    const changeText = getChangeVoiceText(newFare, applyBonus);
+    if (applyBonus) {
+      const discounted = Math.max(1.00, parseFloat(newFare) - 1.00).toFixed(2);
+      speakAssistantMessage(`Se ha establecido el aire acondicionado. La nueva tarifa es de ${newFare} dólares. Con tu bono aplicado te queda en ${discounted} dólares en efectivo. ${changeText}`);
+    } else {
+      speakAssistantMessage(`Se ha establecido el aire acondicionado. La nueva tarifa es de ${newFare} dólares. ${changeText}`);
+    }
   };
 
   const handleFareInputChange = (val) => {
     setProposedFare(val);
     setHasCustomFare(true);
-    const numVal = parseFloat(val);
-    const sugVal = parseFloat(suggestedFareInfo?.suggestedFare);
-    if (numVal && sugVal && numVal < sugVal && tripPreferences.airConditioning) {
-      setTripPreferences((prev) => ({ ...prev, airConditioning: false }));
-    }
+    // Preservar siempre la elección del usuario sobre el aire acondicionado sin desactivarlo silenciosamente
   };
 
   const handleSelectQuickFare = (amt, isMin = false) => {
@@ -804,20 +849,31 @@ export default function ViajesApp() {
     }
     setProposedFare(amt);
     setHasCustomFare(true);
-    const numVal = parseFloat(amt);
-    const sugVal = parseFloat(suggestedFareInfo?.suggestedFare);
-    if (numVal && sugVal && numVal < sugVal && tripPreferences.airConditioning) {
-      setTripPreferences((prev) => ({ ...prev, airConditioning: false }));
-    }
+    // Preservar siempre la elección del usuario sobre el aire acondicionado sin desactivarlo silenciosamente
+
+    const numAmt = parseFloat(amt) || (isMotoMode ? 1.50 : 2.50);
+    const discountedFare = Math.max(1.00, numAmt - 1.00).toFixed(2);
+    const isGuest = !userProfile || userProfile.isGuest || !userProfile.id;
 
     if (isMin) {
-      const numAmt = parseFloat(amt) || 2.50;
-      const discountedFare = Math.max(1.00, numAmt - 1.00).toFixed(2);
-      const isGuest = !userProfile || userProfile.isGuest || !userProfile.id;
-      if (isGuest) {
-        speakAssistantMessage(`Has establecido la tarifa mínima. Aplicando los bonos, la nueva tarifa te queda en ${discountedFare} dólares. Inscríbete para tener más beneficios.`);
+      if (applyBonus) {
+        const changeText = getChangeVoiceText(amt, true);
+        if (isGuest) {
+          speakAssistantMessage(`Has establecido la tarifa mínima de ${numAmt.toFixed(2)} dólares. Aplicando los bonos, tu tarifa en efectivo te queda en ${discountedFare} dólares. ${changeText} Inscríbete para tener más beneficios.`);
+        } else {
+          speakAssistantMessage(`Has establecido la tarifa mínima de ${numAmt.toFixed(2)} dólares. Aplicando los bonos, tu tarifa en efectivo te queda en ${discountedFare} dólares. ${changeText}`);
+        }
       } else {
-        speakAssistantMessage(`Has establecido la tarifa mínima. Aplicando los bonos, la nueva tarifa te queda en ${discountedFare} dólares.`);
+        const changeText = getChangeVoiceText(amt, false);
+        speakAssistantMessage(`Has establecido la tarifa mínima de ${numAmt.toFixed(2)} dólares. ${changeText}`);
+      }
+    } else {
+      if (applyBonus) {
+        const changeText = getChangeVoiceText(amt, true);
+        speakAssistantMessage(`Has establecido una tarifa de ${numAmt.toFixed(2)} dólares. Aplicando los bonos, tu tarifa en efectivo es de ${discountedFare} dólares. ${changeText}`);
+      } else {
+        const changeText = getChangeVoiceText(amt, false);
+        speakAssistantMessage(`Has establecido una tarifa de ${numAmt.toFixed(2)} dólares. ${changeText}`);
       }
     }
   };
@@ -830,15 +886,13 @@ export default function ViajesApp() {
     setProposedFare(sugFare);
     setHasCustomFare(false);
 
-    if (!tripPreferences.airConditioning) {
-      const numAmt = parseFloat(sugFare) || 2.50;
+    const numAmt = parseFloat(sugFare) || 2.50;
+    const changeText = getChangeVoiceText(sugFare, applyBonus);
+    if (applyBonus) {
       const discountedFare = Math.max(1.00, numAmt - 1.00).toFixed(2);
-      const isGuest = !userProfile || userProfile.isGuest || !userProfile.id;
-      if (isGuest) {
-        speakAssistantMessage(`Has establecido la tarifa mínima. Aplicando los bonos, la nueva tarifa te queda en ${discountedFare} dólares. Inscríbete para tener más beneficios.`);
-      } else {
-        speakAssistantMessage(`Has establecido la tarifa mínima. Aplicando los bonos, la nueva tarifa te queda en ${discountedFare} dólares.`);
-      }
+      speakAssistantMessage(`Has establecido la tarifa sugerida de ${numAmt.toFixed(2)} dólares. Con tu bono de un dólar aplicado, tu tarifa en efectivo te queda en ${discountedFare} dólares. ${changeText}`);
+    } else {
+      speakAssistantMessage(`Has establecido la tarifa sugerida de ${numAmt.toFixed(2)} dólares. ${changeText}`);
     }
   };
 
@@ -4144,16 +4198,16 @@ export default function ViajesApp() {
                     <span>Tu Oferta en Efectivo (USD)</span>
                   </label>
 
-                  {/* Chip de Tarifa Sugerida / Mínima Calculada en Vivo */}
+                  {/* Chip de Tarifa Sugerida Calculada en Vivo */}
                   <div className="flex items-center gap-1.5">
                     <span className="text-[11px] text-slate-400">
-                      {tripPreferences.airConditioning ? 'Sugerida (con A/C):' : 'Mínima (sin A/C):'}
+                      {tripPreferences.airConditioning ? 'Sugerida (con A/C):' : 'Sugerida (sin A/C):'}
                     </span>
                     <button
                       type="button"
                       onClick={handleUseSuggestedFare}
                       className="px-2 py-0.5 rounded-lg bg-lime-500/15 border border-lime-500/40 text-lime-300 font-extrabold text-xs flex items-center gap-1 hover:bg-lime-500/25 transition-all cursor-pointer shadow-sm group"
-                      title={tripPreferences.airConditioning ? "Tarifa calculada con aire acondicionado" : "Tarifa base mínima sin aire acondicionado"}
+                      title={tripPreferences.airConditioning ? "Tarifa calculada con aire acondicionado" : "Tarifa base recomendada sin aire acondicionado"}
                     >
                       <span className="font-mono">${suggestedFareInfo.suggestedFare}</span>
                       <span className="text-[9px] uppercase tracking-wider bg-lime-500 text-slate-950 px-1 py-0.5 rounded font-black group-hover:scale-105 transition-transform">
@@ -4190,7 +4244,8 @@ export default function ViajesApp() {
                       }`}
                     >
                       ${amt}
-                      {idx === 0 && <span className="block text-[9px] font-sans opacity-70">mínimo</span>}
+                      {idx === 0 && <span className="block text-[9px] font-sans opacity-70">mínima</span>}
+                      {idx === 1 && <span className="block text-[9px] font-sans opacity-70">sugerida</span>}
                     </button>
                   ))}
                 </div>
@@ -4204,12 +4259,12 @@ export default function ViajesApp() {
                       setApplyBonus(nextState);
                       const baseNum = parseFloat(proposedFare || '2.50');
                       const newCashFare = Math.max(1.00, baseNum - 1.00).toFixed(2);
+                      const changeText = getChangeVoiceText(proposedFare, nextState);
+                      triggerSelectionFeedback();
                       if (nextState) {
-                        triggerSelectionFeedback();
-                        speakAssistantMessage(`Bono de un dólar aplicado con éxito. Tu nueva tarifa a pagar en efectivo te queda en ${newCashFare} dólares.`);
+                        speakAssistantMessage(`Bono de un dólar aplicado con éxito. Tu nueva tarifa a pagar en efectivo te queda en ${newCashFare} dólares. ${changeText}`);
                       } else {
-                        triggerSelectionFeedback();
-                        speakAssistantMessage(`Bono deseleccionado. Tu tarifa a pagar es de ${baseNum.toFixed(2)} dólares.`);
+                        speakAssistantMessage(`Bono deseleccionado. Tu tarifa a pagar es de ${baseNum.toFixed(2)} dólares en efectivo. ${changeText}`);
                       }
                     }}
                     className={`w-full p-2.5 rounded-2xl border transition-all flex items-center justify-between gap-2 shadow-sm cursor-pointer ${
@@ -4240,7 +4295,7 @@ export default function ViajesApp() {
                         <div className="text-[10px] text-slate-400">
                           {applyBonus ? (
                             <span className="text-emerald-300 font-semibold">
-                              ¡Bono activo! Tu tarifa final a pagar en efectivo es de <strong className="text-white font-mono">${Math.max(1.00, parseFloat(proposedFare || '2.50') - 1.00).toFixed(2)} USD</strong>
+                              ¡Bono activo! Pagas en efectivo <strong className="text-white font-mono">${Math.max(1.00, parseFloat(proposedFare || '2.50') - 1.00).toFixed(2)} USD</strong> y conductor lleva +$1.00 más de cambio
                             </span>
                           ) : (
                             <span>Descuenta $1.00 de tu saldo de bonos en este viaje</span>
@@ -4261,13 +4316,13 @@ export default function ViajesApp() {
                   </button>
                 </div>
 
-                {/* Política Estricta de A/C: Si la tarifa actual es menor a la sugerida */}
-                {parseFloat(proposedFare) < parseFloat(suggestedFareInfo?.suggestedFare) && (
+                {/* Política Estricta de A/C: Solo se muestra si el vehículo permite A/C y el usuario no lo ha activado */}
+                {!isMotoMode && serviceType !== 'PACKAGE' && !tripPreferences.airConditioning && (
                   <div className="mt-2.5 p-2.5 rounded-xl bg-cyan-950/20 border border-cyan-500/30 flex items-center justify-between gap-2 text-[11px] text-cyan-300 animate-fade-in">
                     <div className="flex items-center gap-2">
                       <Wind className="w-4 h-4 text-cyan-400/70 flex-shrink-0" />
                       <span className="leading-tight text-[11px]">
-                        A/C no aplica con tarifa menor a la sugerida (${suggestedFareInfo.suggestedFare}).
+                        Tarifa base sin climatización. Puedes activar aire acondicionado por solo ${suggestedFareInfo.suggestedFare}.
                       </span>
                     </div>
                     <button
@@ -4275,7 +4330,7 @@ export default function ViajesApp() {
                       onClick={handleEnableAcWithSuggestedFare}
                       className="px-2.5 py-1 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black text-[10px] whitespace-nowrap cursor-pointer transition-all shadow-sm"
                     >
-                      Activar con A/C (${suggestedFareInfo.suggestedFare})
+                      Activar A/C (${suggestedFareInfo.suggestedFare})
                     </button>
                   </div>
                 )}
@@ -4304,7 +4359,8 @@ export default function ViajesApp() {
                     { id: '50+', label: '$50+', val: 50 }
                   ].map((bill) => {
                     const fareNum = parseFloat(proposedFare) || 0;
-                    const isDisabled = bill.val > 0 && bill.id !== '50+' ? bill.val <= fareNum : (bill.id === '50+' ? fareNum >= 100 : false);
+                    const effectiveCashToPay = applyBonus ? Math.max(1.00, fareNum - 1.00) : fareNum;
+                    const isDisabled = bill.val > 0 && bill.id !== '50+' ? bill.val <= effectiveCashToPay : (bill.id === '50+' ? effectiveCashToPay >= 100 : false);
                     return (
                       <button
                         key={bill.id}
@@ -4322,7 +4378,7 @@ export default function ViajesApp() {
                             ? 'bg-rose-500 text-white shadow-md shadow-rose-500/30 font-black cursor-pointer'
                             : 'bg-slate-800 text-slate-300 hover:text-white border border-slate-700 cursor-pointer'
                         }`}
-                        title={isDisabled ? `El billete debe ser mayor a la oferta ($${fareNum.toFixed(2)})` : ''}
+                        title={isDisabled ? `El billete debe ser mayor a lo que pagarás en efectivo ($${effectiveCashToPay.toFixed(2)})` : ''}
                       >
                         {bill.label}
                       </button>
@@ -4334,24 +4390,41 @@ export default function ViajesApp() {
                 <div className="p-2 rounded-xl bg-slate-950/80 border border-slate-800 text-[11px] flex items-center justify-between text-slate-300">
                   {cashBill === 'EXACT' ? (
                     <span className="text-emerald-400 font-medium">
-                      ✅ Pagarás la tarifa exacta en efectivo (no requieres cambio).
+                      ✅ {applyBonus
+                        ? `Pagarás exactamente $${Math.max(1.00, parseFloat(proposedFare || '2.50') - 1.00).toFixed(2)} en efectivo con tu bono aplicado (no requieres cambio).`
+                        : `Pagarás la tarifa exacta en efectivo (no requieres cambio).`}
                     </span>
                   ) : cashBill === '50+' ? (
                     <>
                       <span>
                         Pagas con: <strong className="text-white">Billete grande ($50 / $100)</strong>
+                        {applyBonus && (
+                          <span className="ml-1 text-[10px] text-emerald-400 font-bold">
+                            (Pagas en efectivo: ${Math.max(1.00, parseFloat(proposedFare || '2.50') - 1.00).toFixed(2)})
+                          </span>
+                        )}
                       </span>
                       <span className="font-bold text-amber-300">
-                        👉 Chofer llevará cambio para billete grande
+                        👉 Chofer llevará cambio para billete grande {applyBonus && '(+$1.00 por tu bono)'}
                       </span>
                     </>
                   ) : (
                     <>
                       <span>
                         Pagas con: <strong className="text-white">${parseFloat(cashBill).toFixed(2)}</strong>
+                        {applyBonus && (
+                          <span className="ml-1 text-[10px] text-emerald-400 font-bold">
+                            (Pagas en efectivo: ${Math.max(1.00, parseFloat(proposedFare || '2.50') - 1.00).toFixed(2)})
+                          </span>
+                        )}
                       </span>
                       <span className="font-bold text-amber-300">
                         👉 Chofer llevará <strong>${calculateChange()}</strong> de vuelto
+                        {applyBonus && (
+                          <span className="ml-1 text-[10px] text-emerald-300 font-medium">
+                            (+$1.00 por ahorro de bono)
+                          </span>
+                        )}
                       </span>
                     </>
                   )}
