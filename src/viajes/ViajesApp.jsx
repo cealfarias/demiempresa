@@ -608,19 +608,19 @@ export default function ViajesApp() {
     return Math.max(0, billVal - effectiveCashFare).toFixed(2);
   };
 
-  // Frase guiada del cambio en voz: refleja fielmente el descuento por bonos
+  // Frase guiada del cambio en voz: refleja fielmente el descuento por bonos con énfasis en la promesa de Rumbo
   const getChangeVoiceText = (currentFare = proposedFare, isBonusActive = applyBonus) => {
     const fareNum = parseFloat(currentFare) || 2.50;
     const effectiveCash = isBonusActive ? Math.max(1.00, fareNum - 1.00) : fareNum;
     if (cashBill === 'EXACT') {
       return isBonusActive
-        ? `Pagas con tarifa exacta de ${effectiveCash.toFixed(2)} dólares en efectivo con tu bono aplicado.`
+        ? `¡Lo prometido es deuda! Y el conductor te dará tu bono de bienvenida o referido, pagando únicamente ${effectiveCash.toFixed(2)} dólares exactos en efectivo.`
         : `Pagas con tarifa exacta de ${fareNum.toFixed(2)} dólares, no requieres cambio.`;
     }
     const billNum = cashBill === '50+' ? 50 : (parseFloat(cashBill) || 10);
     const changeAmt = Math.max(0, billNum - effectiveCash).toFixed(2);
     if (isBonusActive) {
-      return `Al pagar con billete de ${billNum} dólares, el conductor te llevará ${changeAmt} dólares de cambio, es decir, un dólar más de vuelto por tu bono.`;
+      return `¡Lo prometido es deuda! Y el conductor te dará tu bono de bienvenida o referido, llevándote ${changeAmt} dólares de cambio para tu billete de ${billNum} dólares, es decir, un dólar más de vuelto para ti.`;
     }
     return `Al pagar con billete de ${billNum} dólares, el conductor te llevará ${changeAmt} dólares de cambio.`;
   };
@@ -746,7 +746,7 @@ export default function ViajesApp() {
 
     if (billId === 'EXACT') {
       if (applyBonus) {
-        speakAssistantMessage(`Has seleccionado pago con tarifa exacta. Con tu bono de un dólar aplicado, tu tarifa es de ${effectiveCash.toFixed(2)} dólares en efectivo y no requieres cambio.`);
+        speakAssistantMessage(`Has seleccionado pago con tarifa exacta. ¡Lo prometido es deuda! Y el conductor te dará tu bono de bienvenida o referido, pagando únicamente ${effectiveCash.toFixed(2)} dólares en efectivo.`);
       } else {
         speakAssistantMessage(`Has seleccionado pago con tarifa exacta de ${baseFare.toFixed(2)} dólares, no requieres cambio.`);
       }
@@ -754,7 +754,7 @@ export default function ViajesApp() {
       const billNum = billId === '50+' ? 50 : parseFloat(billId);
       const changeAmt = Math.max(0, billNum - effectiveCash).toFixed(2);
       if (applyBonus) {
-        speakAssistantMessage(`Se ha solicitado cambio para billete de ${billNum} dólares. Con tu bono de un dólar aplicado, tu tarifa en efectivo es de ${effectiveCash.toFixed(2)} dólares y el conductor te llevará ${changeAmt} dólares de cambio, es decir, un dólar más de vuelto.`);
+        speakAssistantMessage(`Se ha solicitado cambio para billete de ${billNum} dólares. ¡Lo prometido es deuda! Y el conductor te dará tu bono de bienvenida o referido, llevándote ${changeAmt} dólares de cambio, es decir, un dólar más de vuelto para ti.`);
       } else {
         speakAssistantMessage(`Se ha solicitado cambio para billete de ${billNum} dólares. El conductor te llevará ${changeAmt} dólares de cambio.`);
       }
@@ -4262,7 +4262,7 @@ export default function ViajesApp() {
                       const changeText = getChangeVoiceText(proposedFare, nextState);
                       triggerSelectionFeedback();
                       if (nextState) {
-                        speakAssistantMessage(`Bono de un dólar aplicado con éxito. Tu nueva tarifa a pagar en efectivo te queda en ${newCashFare} dólares. ${changeText}`);
+                        speakAssistantMessage(`¡Lo prometido es deuda! Y el conductor te dará tu bono de bienvenida o referido. Tu nueva tarifa a pagar en efectivo te queda en ${newCashFare} dólares. ${changeText}`);
                       } else {
                         speakAssistantMessage(`Bono deseleccionado. Tu tarifa a pagar es de ${baseNum.toFixed(2)} dólares en efectivo. ${changeText}`);
                       }
@@ -4295,10 +4295,10 @@ export default function ViajesApp() {
                         <div className="text-[10px] text-slate-400">
                           {applyBonus ? (
                             <span className="text-emerald-300 font-semibold">
-                              ¡Bono activo! Pagas en efectivo <strong className="text-white font-mono">${Math.max(1.00, parseFloat(proposedFare || '2.50') - 1.00).toFixed(2)} USD</strong> y conductor lleva +$1.00 más de cambio
+                              ¡Lo prometido es deuda! El conductor te dará tu bono de bienvenida/referido: pagas en efectivo <strong className="text-white font-mono">${Math.max(1.00, parseFloat(proposedFare || '2.50') - 1.00).toFixed(2)} USD</strong> y llevará +$1.00 más de cambio.
                             </span>
                           ) : (
-                            <span>Descuenta $1.00 de tu saldo de bonos en este viaje</span>
+                            <span>🎁 ¡Lo prometido es deuda! Aplica tu bono de bienvenida o referido de $1.00 USD</span>
                           )}
                         </div>
                       </div>
@@ -4422,7 +4422,7 @@ export default function ViajesApp() {
                         👉 Chofer llevará <strong>${calculateChange()}</strong> de vuelto
                         {applyBonus && (
                           <span className="ml-1 text-[10px] text-emerald-300 font-medium">
-                            (+$1.00 por ahorro de bono)
+                            (🎁 ¡Lo prometido es deuda! Chofer te dará tu bono en vuelto)
                           </span>
                         )}
                       </span>
