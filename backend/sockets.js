@@ -154,7 +154,11 @@ export function initializeWebSockets(httpServer) {
         }
 
         let creditApplied = 0.00;
-        if (isUUID(passengerId)) {
+        if (tripData.creditApplied !== undefined && parseFloat(tripData.creditApplied) > 0) {
+          creditApplied = parseFloat(tripData.creditApplied);
+        } else if (tripData.hasBonusDiscount) {
+          creditApplied = 1.00;
+        } else if (isUUID(passengerId)) {
           try {
             const credit = await ReferralService.getAvailableCredit(passengerId);
             creditApplied = credit ? 1.00 : 0.00;

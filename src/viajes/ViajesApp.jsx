@@ -351,6 +351,7 @@ export default function ViajesApp() {
   const [destinationMunicipality, setDestinationMunicipality] = useState(() => initialActiveTripSession?.destinationMunicipality || initialDraft.destinationMunicipality || 'San Salvador');
   const [proposedFare, setProposedFare] = useState(() => initialActiveTripSession?.proposedFare || initialDraft.proposedFare || '2.50');
   const [hasCustomFare, setHasCustomFare] = useState(false);
+  const [applyBonus, setApplyBonus] = useState(() => initialActiveTripSession?.applyBonus ?? initialDraft?.applyBonus ?? false);
   const [packageDetails, setPackageDetails] = useState('');
   const [paymentTiming, setPaymentTiming] = useState('AT_ORIGIN');
   const [isGettingGps, setIsGettingGps] = useState(false);
@@ -774,11 +775,13 @@ export default function ViajesApp() {
     }
 
     if (isMin) {
+      const numAmt = parseFloat(amt) || 2.50;
+      const discountedFare = Math.max(1.00, numAmt - 1.00).toFixed(2);
       const isGuest = !userProfile || userProfile.isGuest || !userProfile.id;
       if (isGuest) {
-        speakAssistantMessage('Has establecido la tarifa mínima. Inscríbete para tener más beneficios.');
+        speakAssistantMessage(`Has establecido la tarifa mínima. Aplicando los bonos, la nueva tarifa te queda en ${discountedFare} dólares. Inscríbete para tener más beneficios.`);
       } else {
-        speakAssistantMessage('Has establecido la tarifa mínima.');
+        speakAssistantMessage(`Has establecido la tarifa mínima. Aplicando los bonos, la nueva tarifa te queda en ${discountedFare} dólares.`);
       }
     }
   };
@@ -792,11 +795,13 @@ export default function ViajesApp() {
     setHasCustomFare(false);
 
     if (!tripPreferences.airConditioning) {
+      const numAmt = parseFloat(sugFare) || 2.50;
+      const discountedFare = Math.max(1.00, numAmt - 1.00).toFixed(2);
       const isGuest = !userProfile || userProfile.isGuest || !userProfile.id;
       if (isGuest) {
-        speakAssistantMessage('Has establecido la tarifa mínima. Inscríbete para tener más beneficios.');
+        speakAssistantMessage(`Has establecido la tarifa mínima. Aplicando los bonos, la nueva tarifa te queda en ${discountedFare} dólares. Inscríbete para tener más beneficios.`);
       } else {
-        speakAssistantMessage('Has establecido la tarifa mínima.');
+        speakAssistantMessage(`Has establecido la tarifa mínima. Aplicando los bonos, la nueva tarifa te queda en ${discountedFare} dólares.`);
       }
     }
   };
@@ -961,7 +966,7 @@ export default function ViajesApp() {
   // Viaje Asignado / Hub Comercial
   const [assignedTrip, setAssignedTrip] = useState(() => initialActiveTripSession?.assignedTrip || null);
   const [tripStatus, setTripStatus] = useState(() => initialActiveTripSession?.tripStatus || 'DRIVER_EN_ROUTE');
-  const [creditDiscountApplied, setCreditDiscountApplied] = useState(false);
+  const [creditDiscountApplied, setCreditDiscountApplied] = useState(() => initialActiveTripSession?.creditDiscountApplied || initialActiveTripSession?.applyBonus || false);
   const [driverEtaMinutes, setDriverEtaMinutes] = useState(4);
   const [driverDistanceKm, setDriverDistanceKm] = useState(null);
   const [driverLiveLocation, setDriverLiveLocation] = useState(null);
@@ -984,6 +989,7 @@ export default function ViajesApp() {
           destinationCoords,
           destinationMunicipality,
           proposedFare,
+          applyBonus,
           serviceType,
           transportType,
           cashBill
@@ -993,7 +999,7 @@ export default function ViajesApp() {
         console.warn('Error guardando borrador del pasajero:', err);
       }
     }
-  }, [appState, origin, originCoords, destination, destinationCoords, destinationMunicipality, proposedFare, serviceType, transportType, cashBill]);
+  }, [appState, origin, originCoords, destination, destinationCoords, destinationMunicipality, proposedFare, applyBonus, serviceType, transportType, cashBill]);
 
   // Persistir estado activo del viaje para resistir F5 / recargas accidentales
   useEffect(() => {
@@ -1009,6 +1015,8 @@ export default function ViajesApp() {
           destinationCoords,
           destinationMunicipality,
           proposedFare,
+          applyBonus,
+          creditDiscountApplied,
           serviceType,
           transportType,
           rideMode,
@@ -1023,7 +1031,7 @@ export default function ViajesApp() {
     } else if (appState === 'DECOY_FORM') {
       localStorage.removeItem('rumbo_passenger_active_session');
     }
-  }, [appState, rideMode, tripId, origin, originCoords, destination, destinationCoords, destinationMunicipality, proposedFare, serviceType, transportType, cashBill, assignedTrip, tripStatus]);
+  }, [appState, rideMode, tripId, origin, originCoords, destination, destinationCoords, destinationMunicipality, proposedFare, applyBonus, creditDiscountApplied, serviceType, transportType, cashBill, assignedTrip, tripStatus]);
 
   // Prevenir recargas accidentales si hay un viaje o búsqueda en curso
   useEffect(() => {
@@ -1143,6 +1151,7 @@ export default function ViajesApp() {
       }));
       setAppState('IN_TRIP_HUB');
       setTripStatus('DRIVER_EN_ROUTE');
+      setCreditDiscountApplied(applyBonus || Boolean(parseFloat(data.creditApplied || '0') > 0));
       setDriverEtaMinutes(4);
       triggerSelectionFeedback();
       speakAssistantMessage('¡Conductor asignado! Se dirige hacia tu punto de recogida.');
@@ -2399,7 +2408,9 @@ export default function ViajesApp() {
       isRoundTrip: Boolean(tripPreferences.isRoundTrip),
       roundTripWaitMinutes: parseInt(tripPreferences.roundTripWaitMinutes) || 0,
       packageDetails,
-      paymentTiming
+      paymentTiming,
+      creditApplied: applyBonus ? 1.00 : 0.00,
+      hasBonusDiscount: applyBonus
     }, (res) => {
       if (res?.success && res.trip?.id) {
         setTripId(res.trip.id);
@@ -2451,7 +2462,7 @@ export default function ViajesApp() {
   // Confirmar Asignación Atómica
   const confirmOfferAssignment = (offer) => {
     const fare = parseFloat(offer.proposedFare);
-    const hasCredit = true; // Crédito de $1.00 USD
+    const hasCredit = applyBonus || creditDiscountApplied;
     const discount = hasCredit ? 1.00 : 0.00;
     const cashToPay = Math.max(0.00, fare - discount);
 
@@ -4105,6 +4116,72 @@ export default function ViajesApp() {
                       {idx === 0 && <span className="block text-[9px] font-sans opacity-70">mínimo</span>}
                     </button>
                   ))}
+                </div>
+
+                {/* BOTÓN DE OPCIÓN: APLICAR BONOS ($1.00 USD) */}
+                <div className="mt-2.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const nextState = !applyBonus;
+                      setApplyBonus(nextState);
+                      const baseNum = parseFloat(proposedFare || '2.50');
+                      const newCashFare = Math.max(1.00, baseNum - 1.00).toFixed(2);
+                      if (nextState) {
+                        triggerSelectionFeedback();
+                        speakAssistantMessage(`Bono de un dólar aplicado con éxito. Tu nueva tarifa a pagar en efectivo te queda en ${newCashFare} dólares.`);
+                      } else {
+                        triggerSelectionFeedback();
+                        speakAssistantMessage(`Bono deseleccionado. Tu tarifa a pagar es de ${baseNum.toFixed(2)} dólares.`);
+                      }
+                    }}
+                    className={`w-full p-2.5 rounded-2xl border transition-all flex items-center justify-between gap-2 shadow-sm cursor-pointer ${
+                      applyBonus
+                        ? 'bg-gradient-to-r from-emerald-950/70 via-slate-900 to-emerald-950/40 border-emerald-500/70 shadow-emerald-500/20 ring-1 ring-emerald-500/50'
+                        : 'bg-slate-900/90 border-slate-800 hover:border-slate-700 text-slate-300'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5 text-left">
+                      <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-sm shadow transition-colors ${
+                        applyBonus
+                          ? 'bg-emerald-500 text-slate-950 font-black'
+                          : 'bg-slate-800 text-amber-400 border border-slate-700'
+                      }`}>
+                        🎁
+                      </div>
+                      <div>
+                        <div className="text-xs font-black flex items-center gap-1.5 text-white">
+                          <span>Aplicar Bonos</span>
+                          <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full font-bold ${
+                            applyBonus
+                              ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                              : 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
+                          }`}>
+                            -$1.00 USD
+                          </span>
+                        </div>
+                        <div className="text-[10px] text-slate-400">
+                          {applyBonus ? (
+                            <span className="text-emerald-300 font-semibold">
+                              ¡Bono activo! Tu tarifa final a pagar en efectivo es de <strong className="text-white font-mono">${Math.max(1.00, parseFloat(proposedFare || '2.50') - 1.00).toFixed(2)} USD</strong>
+                            </span>
+                          ) : (
+                            <span>Descuenta $1.00 de tu saldo de bonos en este viaje</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className={`text-[10px] font-bold px-2 py-1 rounded-lg transition-all ${
+                        applyBonus
+                          ? 'bg-emerald-500 text-slate-950 font-black shadow'
+                          : 'bg-slate-800 text-slate-400 border border-slate-700'
+                      }`}>
+                        {applyBonus ? '✓ APLICADO' : 'APLICAR'}
+                      </span>
+                    </div>
+                  </button>
                 </div>
 
                 {/* Política Estricta de A/C: Si la tarifa actual es menor a la sugerida */}
