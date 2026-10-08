@@ -41,6 +41,25 @@ export async function registerUserApi({ fullName, phone, dui, role = 'PASSENGER'
 }
 
 /**
+ * 1.1 Inicio de Sesión de Pasajero Registrado (por DUI o Teléfono)
+ */
+export async function loginUserApi({ identifier }) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/users/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ identifier })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Error al iniciar sesión');
+    return data;
+  } catch (err) {
+    console.error('API Error loginUser:', err);
+    throw err;
+  }
+}
+
+/**
  * 2. Consulta de Créditos y Referidos (7+7 Días)
  */
 export async function fetchUserCreditsApi(userId) {

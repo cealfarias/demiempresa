@@ -263,6 +263,69 @@ app.post('/api/users/register', async (req, res) => {
   }
 });
 
+// Endpoint oficial de Inicio de Sesión de Pasajero (DUI o Teléfono)
+app.post('/api/users/login', async (req, res) => {
+  const { identifier } = req.body;
+  if (!identifier || !identifier.trim()) {
+    return res.status(400).json({ error: 'Ingresa tu número de DUI o teléfono registrado' });
+  }
+
+  const clean = identifier.trim();
+  const digitsOnly = clean.replace(/\D/g, '');
+
+  try {
+    const userRes = await pool.query(`
+      SELECT id, full_name, phone, dui, role, created_at 
+      FROM viajes_users 
+      WHERE dui = $1 
+         OR (phone = $1 AND $1 <> '')
+         OR (phone = $2 AND $2 <> '')
+         OR REPLACE(REPLACE(dui, '-', ''), ' ', '') = $2
+      LIMIT 1
+    `, [clean, digitsOnly]);
+
+    if (userRes.rows.length === 0) {
+      return res.status(404).json({ error: 'No encontramos ninguna cuenta con ese DUI o teléfono. Por favor regístrate como nuevo usuario.' });
+    }
+
+    const user = userRes.rows[0];
+
+    // Regla de Dispositivo Único Implacable
+    const passengerSessionId = `psess_${user.dui}_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+    activePassengerSessions.set(user.dui, { sessionId: passengerSessionId, loggedAt: new Date().toISOString() });
+    if (user.phone) {
+      activePassengerSessions.set(user.phone, { sessionId: passengerSessionId, loggedAt: new Date().toISOString() });
+    }
+    io.emit('passenger_session_revoked', { dui: user.dui, phone: user.phone, activeSessionId: passengerSessionId });
+
+    user.sessionToken = passengerSessionId;
+
+    // Recuperar wallet oficial
+    let existingWallet = null;
+    try {
+      const wRes = await pool.query('SELECT address, referral_code FROM viajes_wallet_identities WHERE user_id = $1', [user.id]);
+      if (wRes.rows.length > 0) {
+        existingWallet = wRes.rows[0];
+      } else {
+        existingWallet = await LedgerService.getOrCreateWalletIdentity(user.id, pool, user.role || 'PASSENGER');
+      }
+    } catch (wErr) {
+      console.warn('⚠️ Error recuperando wallet en login:', wErr.message);
+    }
+
+    return res.json({
+      success: true,
+      user,
+      wallet: existingWallet ? { address: existingWallet.address, referralCode: existingWallet.referral_code } : null,
+      sessionToken: passengerSessionId,
+      message: `¡Bienvenido de vuelta, ${user.full_name}!`
+    });
+  } catch (err) {
+    console.error('Error en /api/users/login:', err);
+    res.status(500).json({ error: 'Error del servidor al iniciar sesión' });
+  }
+});
+
 // 3. PROGRAMA DE REFERIDOS & CRÉDITOS
 app.get('/api/referrals/user/:userId', async (req, res) => {
   try {

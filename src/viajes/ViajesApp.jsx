@@ -46,7 +46,9 @@ import {
   Search,
   Check,
   Compass,
-  Star
+  Star,
+  LogIn,
+  UserPlus
 } from 'lucide-react';
 import RumboLogo from './RumboLogo';
 import AdModal from './AdModal';
@@ -87,6 +89,7 @@ import { calculateRoadDistance, calculateSuggestedFare, PASSENGER_WEIGHT_PROFILE
 import {
   socket,
   registerUserApi,
+  loginUserApi,
   fetchUserCreditsApi,
   fetchAdFeedApi,
   checkContactRegisteredApi,
@@ -821,6 +824,10 @@ export default function ViajesApp() {
     }
   });
   const [showRegisterModal, setShowRegisterModal] = useState(false);
+  const [authModalTab, setAuthModalTab] = useState('REGISTER'); // 'REGISTER' | 'LOGIN'
+  const [loginIdentifier, setLoginIdentifier] = useState('');
+  const [loginLoading, setLoginLoading] = useState(false);
+  const [loginError, setLoginError] = useState('');
   const [showGuestInviteModal, setShowGuestInviteModal] = useState(false);
   const [showPassengerRevokedModal, setShowPassengerRevokedModal] = useState(false);
   const [googleClientId, setGoogleClientId] = useState(
@@ -2642,6 +2649,45 @@ export default function ViajesApp() {
     }
   };
 
+  // Iniciar Sesión de Pasajero Registrado (por DUI o Teléfono)
+  const handleLoginPassenger = async (e) => {
+    if (e) e.preventDefault();
+    if (!loginIdentifier || !loginIdentifier.trim()) {
+      setLoginError('Por favor ingresa tu DUI o número de teléfono registrado.');
+      return;
+    }
+    setLoginLoading(true);
+    setLoginError('');
+
+    try {
+      const res = await loginUserApi({ identifier: loginIdentifier.trim() });
+      if (res?.success && res.user) {
+        const profile = {
+          id: res.user.id,
+          fullName: res.user.full_name,
+          email: res.user.email || `${res.user.dui.replace(/\D/g, '')}@demiempresa.online`,
+          dui: res.user.dui,
+          phone: res.user.phone || '',
+          photoUrl: res.user.photo_url || null,
+          referralCode: res.wallet?.referralCode || null,
+          provider: 'login',
+          isVerified: true,
+          sessionToken: res.sessionToken || res.user.sessionToken || null
+        };
+        setUserProfile(profile);
+        localStorage.setItem('demiempresa_passenger', JSON.stringify(profile));
+        setShowRegisterModal(false);
+        setLoginIdentifier('');
+        triggerSelectionFeedback();
+        speakAssistantMessage(`¡Bienvenido de vuelta, ${res.user.full_name}!`);
+      }
+    } catch (err) {
+      setLoginError(err.message || 'No encontramos ninguna cuenta con ese DUI o teléfono. Verifica o regístrate.');
+    } finally {
+      setLoginLoading(false);
+    }
+  };
+
   // Manejar Autenticación con Google (Obtener Nombre, Email y solicitar DUI)
   const handleSelectGoogleAccount = (account) => {
     setGoogleLoading(true);
@@ -2717,7 +2763,7 @@ export default function ViajesApp() {
               type: 'standard',
               theme: 'outline',
               size: 'large',
-              text: 'continue_with',
+              text: authModalTab === 'LOGIN' ? 'signin_with' : 'continue_with',
               shape: 'pill',
               logo_alignment: 'left',
               width: 320
@@ -2745,7 +2791,7 @@ export default function ViajesApp() {
       }, 300);
       return () => clearInterval(timer);
     }
-  }, [showRegisterModal, googleDuiStep, googleClientId, userProfile, isLight]);
+  }, [showRegisterModal, googleDuiStep, googleClientId, userProfile, isLight, authModalTab]);
 
   // Abrir Google Identity Services real / Ventana emergente oficial de Google
   const handleGoogleSignInClick = () => {
@@ -3135,9 +3181,9 @@ export default function ViajesApp() {
             <span role="img" aria-label="mono tapándose la boca">🙊</span>
           </button>
 
-          {/* BOTÓN ENCABEZADO SUPERIOR DERECHO: INGRESO OFICIAL CON GOOGLE O SALDO DE BONOS */}
+          {/* BOTÓN ENCABEZADO SUPERIOR DERECHO: INGRESO OFICIAL CON GOOGLE O INICIAR SESIÓN */}
           {!userProfile ? (
-            <div className="flex items-center flex-shrink-0">
+            <div className="flex items-center gap-1.5 flex-shrink-0">
               <div
                 ref={headerGoogleButtonRef}
                 className="min-h-[36px] flex items-center justify-end rounded-full overflow-hidden shadow-sm flex-shrink-0"
@@ -3166,6 +3212,21 @@ export default function ViajesApp() {
                   </div>
                 </button>
               )}
+
+              {/* Botón directo para Iniciar Sesión con DUI o Teléfono */}
+              <button
+                type="button"
+                onClick={() => {
+                  setAuthModalTab('LOGIN');
+                  setShowRegisterModal(true);
+                }}
+                title="Iniciar sesión con tu cuenta registrada"
+                className="px-2.5 sm:px-3 py-1.5 bg-slate-800/90 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-full flex items-center gap-1.5 shadow-sm transition-all cursor-pointer text-xs font-bold active:scale-95 flex-shrink-0"
+              >
+                <LogIn className="w-3.5 h-3.5 text-emerald-400" />
+                <span className="hidden xs:inline">Iniciar Sesión</span>
+                <span className="xs:hidden">Entrar</span>
+              </button>
             </div>
           ) : (
             <button
@@ -4751,8 +4812,14 @@ export default function ViajesApp() {
           <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-6 shadow-2xl text-slate-100 space-y-4 max-h-[88vh] overflow-y-auto overscroll-contain my-auto">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 text-amber-400 font-bold">
-                <ShieldCheck className="w-5 h-5" />
-                <h3 className="text-lg font-bold text-white">Perfil de Seguridad y Bonos</h3>
+                {authModalTab === 'LOGIN' ? (
+                  <LogIn className="w-5 h-5 text-amber-400" />
+                ) : (
+                  <ShieldCheck className="w-5 h-5 text-amber-400" />
+                )}
+                <h3 className="text-lg font-bold text-white">
+                  {authModalTab === 'LOGIN' ? 'Iniciar Sesión en Rumbo' : 'Perfil de Seguridad y Bonos'}
+                </h3>
               </div>
               <button
                 type="button"
@@ -4765,6 +4832,42 @@ export default function ViajesApp() {
                 ✕
               </button>
             </div>
+
+            {/* Pestañas: Crear Cuenta / Iniciar Sesión */}
+            {!googleDuiStep && (
+              <div className="grid grid-cols-2 p-1 bg-slate-950/90 rounded-2xl border border-slate-800 text-xs font-bold shadow-inner">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAuthModalTab('REGISTER');
+                    setLoginError('');
+                  }}
+                  className={`py-2.5 rounded-xl flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                    authModalTab === 'REGISTER'
+                      ? 'bg-amber-500 text-slate-950 shadow-md font-black'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <UserPlus className="w-4 h-4" />
+                  <span>Crear Cuenta</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAuthModalTab('LOGIN');
+                    setLoginError('');
+                  }}
+                  className={`py-2.5 rounded-xl flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                    authModalTab === 'LOGIN'
+                      ? 'bg-amber-500 text-slate-950 shadow-md font-black'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <LogIn className="w-4 h-4" />
+                  <span>Iniciar Sesión</span>
+                </button>
+              </div>
+            )}
 
             {/* Garantía de Privacidad y Cero Privilegios Abusivos */}
             <div className="p-3 rounded-2xl bg-slate-950/80 border border-slate-800 text-xs text-slate-300 flex items-start gap-2.5">
@@ -4980,6 +5083,118 @@ export default function ViajesApp() {
                           <span>¡Completar y Ganar $1.00!</span>
                         </>
                       )}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            ) : authModalTab === 'LOGIN' ? (
+              /* VISTA DE INICIO DE SESIÓN */
+              <div className="space-y-4">
+                <p className="text-xs text-slate-400">
+                  Accede con tu cuenta de Google o ingresa con tu DUI o teléfono registrado en Rumbo.
+                </p>
+
+                {/* BOTÓN OFICIAL DE GOOGLE PARA INICIAR SESIÓN */}
+                <div className="space-y-2 pt-1">
+                  <div ref={googleButtonContainerRef} className="flex justify-center w-full min-h-[44px]" />
+
+                  {!window.google?.accounts?.id && (
+                    <button
+                      type="button"
+                      onClick={handleGoogleSignInClick}
+                      className="w-full py-3 px-4 bg-white hover:bg-slate-100 text-slate-800 font-bold text-sm rounded-2xl shadow-lg flex items-center justify-center gap-3 transition-all cursor-pointer border border-slate-200 group"
+                    >
+                      <svg className="w-5 h-5 flex-shrink-0 transition-transform group-hover:scale-110" viewBox="0 0 24 24">
+                        <path fill="#EA4335" d="M12 5c1.6 0 3 .6 4.1 1.6l3.1-3.1C17.3 1.7 14.8 1 12 1 7.4 1 3.5 3.6 1.6 7.4l3.7 2.9C6.2 7.4 8.9 5 12 5z" />
+                        <path fill="#4285F4" d="M23.5 12.3c0-.8-.1-1.6-.2-2.3H12v4.6h6.5c-.3 1.5-1.1 2.8-2.4 3.7l3.7 2.9c2.2-2 3.7-5 3.7-8.9z" />
+                        <path fill="#FBBC05" d="M5.3 14.7c-.2-.7-.4-1.5-.4-2.3s.2-1.6.4-2.3L1.6 7.2C.6 9.2 0 11.5 0 14s.6 4.8 1.6 6.8l3.7-2.9 shadow-none" />
+                        <path fill="#34A853" d="M12 23c3.2 0 6-1.1 8-3l-3.7-2.9c-1.1.7-2.5 1.2-4.3 1.2-3.1 0-5.8-2.4-6.7-5.3L1.6 16c1.9 3.8 5.8 7 10.4 7z" />
+                      </svg>
+                      <span>Iniciar Sesión con Google</span>
+                    </button>
+                  )}
+
+                  <div className="flex items-center justify-center gap-1.5 text-[10px] text-emerald-400 font-medium">
+                    <ShieldCheck className="w-3.5 h-3.5 flex-shrink-0" />
+                    <span>Conexión oficial protegida por Google Identity Services</span>
+                  </div>
+                </div>
+
+                {/* Separador */}
+                <div className="relative flex items-center justify-center my-2">
+                  <div className="border-t border-slate-800 w-full"></div>
+                  <span className="bg-slate-900 px-3 text-[10px] text-slate-500 uppercase font-bold tracking-wider">o con tu documento o teléfono</span>
+                  <div className="border-t border-slate-800 w-full"></div>
+                </div>
+
+                {/* Formulario de Login */}
+                <form onSubmit={handleLoginPassenger} className="space-y-3.5">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">
+                      DUI o Teléfono Registrado
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={loginIdentifier}
+                      onChange={(e) => {
+                        setLoginIdentifier(e.target.value);
+                        if (loginError) setLoginError('');
+                      }}
+                      placeholder="ej. 01234567-8 o 7000-0000"
+                      className="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-sm text-white focus:outline-none focus:border-amber-400 font-mono tracking-wide"
+                    />
+                    <p className="text-[10px] text-slate-400 mt-1">
+                      Ingresa el DUI o número de teléfono con el que te diste de alta.
+                    </p>
+                  </div>
+
+                  {loginError && (
+                    <div className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-xs text-rose-300 flex items-start gap-2">
+                      <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                      <span>{loginError}</span>
+                    </div>
+                  )}
+
+                  <div className="pt-2 flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowRegisterModal(false)}
+                      className="w-1/3 py-2.5 rounded-xl bg-slate-800 text-slate-300 text-xs font-bold hover:bg-slate-700 cursor-pointer"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={loginLoading}
+                      className="w-2/3 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-sm flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-amber-500/20"
+                    >
+                      {loginLoading ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          <span>Verificando...</span>
+                        </>
+                      ) : (
+                        <>
+                          <LogIn className="w-4 h-4" />
+                          <span>Entrar a mi Cuenta</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+
+                  {/* Switch a registro */}
+                  <div className="text-center pt-2 border-t border-slate-800 text-xs text-slate-400">
+                    ¿Aún no tienes cuenta registrada?{' '}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAuthModalTab('REGISTER');
+                        setLoginError('');
+                      }}
+                      className="text-amber-400 font-bold hover:underline cursor-pointer"
+                    >
+                      Crear cuenta y ganar $1.00
                     </button>
                   </div>
                 </form>
@@ -5274,6 +5489,21 @@ export default function ViajesApp() {
                       ) : (
                         <span>Guardar y Ganar $1.00</span>
                       )}
+                    </button>
+                  </div>
+
+                  {/* Switch a inicio de sesión */}
+                  <div className="text-center pt-2 border-t border-slate-800 text-xs text-slate-400">
+                    ¿Ya tienes una cuenta registrada en Rumbo?{' '}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAuthModalTab('LOGIN');
+                        setLoginError('');
+                      }}
+                      className="text-amber-400 font-bold hover:underline cursor-pointer"
+                    >
+                      Iniciar Sesión aquí
                     </button>
                   </div>
                 </form>
@@ -6886,12 +7116,26 @@ export default function ViajesApp() {
                 type="button"
                 onClick={() => {
                   setShowSharedRegisterPrompt(false);
+                  setAuthModalTab('REGISTER');
                   setShowRegisterModal(true);
                 }}
                 className="w-full py-3.5 px-4 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black text-sm rounded-2xl shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-95"
               >
                 <Sparkles className="w-4 h-4" />
                 <span>Registrarme con Google y DUI</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setShowSharedRegisterPrompt(false);
+                  setAuthModalTab('LOGIN');
+                  setShowRegisterModal(true);
+                }}
+                className="w-full py-2.5 px-4 bg-slate-800 hover:bg-slate-700 text-amber-400 font-bold text-xs rounded-xl flex items-center justify-center gap-2 cursor-pointer transition-all border border-slate-700"
+              >
+                <LogIn className="w-3.5 h-3.5" />
+                <span>Ya tengo cuenta • Iniciar Sesión</span>
               </button>
 
               <button
