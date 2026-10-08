@@ -32,7 +32,8 @@ import {
   LogOut,
   X,
   CheckCircle2,
-  Smartphone
+  Smartphone,
+  Gift
 } from 'lucide-react';
 import RumboLogo from './RumboLogo';
 import GasModal from './GasModal';
