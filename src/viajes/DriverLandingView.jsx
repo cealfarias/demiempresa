@@ -44,6 +44,7 @@ import RumboLogo from './RumboLogo';
 import DriverAvatarNarrator from './DriverAvatarNarrator';
 import SupportTicketModal from './SupportTicketModal';
 import TermsAndConditionsModal from '../components/TermsAndConditionsModal';
+import DriverInstallAppModal from './DriverInstallAppModal';
 import {
   requestPhoneOtpApi,
   loginDriverWithPhoneApi,
@@ -56,6 +57,7 @@ export default function DriverLandingView({ onStartRegistration, onCheckStatus, 
   const [showSupportModal, setShowSupportModal] = useState(false);
   const [showTermsModal, setShowTermsModal] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
+  const [showInstallAppModal, setShowInstallAppModal] = useState(false);
   // Estados del flujo: 'PHONE' | 'NOT_REGISTERED' | 'PENDING_APPROVAL' | 'PASS_ISSUED'
   const [loginStep, setLoginStep] = useState('PHONE');
   const [phoneInput, setPhoneInput] = useState('');
@@ -437,6 +439,15 @@ export default function DriverLandingView({ onStartRegistration, onCheckStatus, 
 
         <div className="flex items-center gap-2">
           <button
+            type="button"
+            onClick={() => setShowInstallAppModal(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 transition-colors cursor-pointer shadow-sm"
+            title="Instalar Rumbo Conductor en tu Celular"
+          >
+            <Smartphone className="w-3.5 h-3.5 text-emerald-400" />
+            <span className="hidden xs:inline">Instalar App</span>
+          </button>
+          <button
             onClick={() => setShowSupportModal(true)}
             className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-amber-300 hover:text-white hover:bg-slate-850 border border-amber-500/30 transition-colors cursor-pointer"
           >
@@ -501,6 +512,14 @@ export default function DriverLandingView({ onStartRegistration, onCheckStatus, 
           >
             <LogIn className="w-4 h-4 text-amber-400" />
             <span>Ya estoy Inscrito • Entrar a mi Consola</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowInstallAppModal(true)}
+            className="w-full sm:w-auto px-5 py-4 rounded-2xl bg-emerald-950/40 hover:bg-emerald-900/40 border border-emerald-500/40 text-emerald-300 font-bold text-sm flex items-center justify-center gap-2 transition-all cursor-pointer shadow-lg"
+          >
+            <Smartphone className="w-4 h-4 text-emerald-400" />
+            <span>Instalar App en tu Celular</span>
           </button>
         </div>
 
@@ -1525,6 +1544,12 @@ export default function DriverLandingView({ onStartRegistration, onCheckStatus, 
           </div>
         </div>
       )}
+
+      {/* Modal de Instalación PWA en Celular */}
+      <DriverInstallAppModal
+        isOpen={showInstallAppModal}
+        onClose={() => setShowInstallAppModal(false)}
+      />
 
     </div>
   );

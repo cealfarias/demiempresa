@@ -464,6 +464,10 @@ app.post('/api/drivers/register', async (req, res) => {
     const cleanPlate = vehiclePlate.trim().toUpperCase();
     const cleanLicense = licenseNumber.trim().toUpperCase();
     const passwordHash = req.body.password ? hashPassword(req.body.password) : null;
+    const hasCourtesy = typeof req.body.hasCourtesyPass === 'boolean'
+      ? req.body.hasCourtesyPass
+      : (!policeRecordUrl || !criminalRecordUrl);
+    const courtesyEndsAt = req.body.courtesyPassEndsAt || (hasCourtesy ? new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString() : null);
 
     // 1. Verificar si la placa ya pertenece a otro conductor
     const plateCheck = await pool.query(
@@ -524,10 +528,12 @@ app.post('/api/drivers/register', async (req, res) => {
           emergency_contact_name = $19,
           emergency_contact_phone = $20,
           password_hash = COALESCE($21, password_hash),
+          has_courtesy_pass = $22,
+          courtesy_pass_ends_at = $23,
           approval_status = 'PENDING',
           rejection_reason = NULL,
           updated_at = NOW()
-        WHERE user_id = $22
+        WHERE user_id = $24
         RETURNING *;
       `, [
         cleanPlate, vehicleBrand || 'Toyota', vehicleModel || 'Corolla', vehicleColor || 'Gris Plata',
@@ -537,6 +543,7 @@ app.post('/api/drivers/register', async (req, res) => {
         vehiclePhotoFront || null, vehiclePhotoInside || null,
         emergencyContactName || null, emergencyContactPhone || null,
         passwordHash,
+        hasCourtesy, courtesyEndsAt,
         user.id
       ]);
       profile = updateRes.rows[0];
@@ -550,6 +557,7 @@ app.post('/api/drivers/register', async (req, res) => {
           vehicle_photo_front, vehicle_photo_inside,
           emergency_contact_name, emergency_contact_phone,
           password_hash,
+          has_courtesy_pass, courtesy_pass_ends_at,
           approval_status, is_active, is_online
         ) VALUES (
           $1, $2, $3, $4, $5, $6,
@@ -559,6 +567,7 @@ app.post('/api/drivers/register', async (req, res) => {
           $18, $19,
           $20, $21,
           $22,
+          $23, $24,
           'PENDING', FALSE, FALSE
         ) RETURNING *;
       `, [
@@ -568,7 +577,8 @@ app.post('/api/drivers/register', async (req, res) => {
         circulationCardUrl || null, policeRecordUrl || null, criminalRecordUrl || null,
         vehiclePhotoFront || null, vehiclePhotoInside || null,
         emergencyContactName || null, emergencyContactPhone || null,
-        passwordHash
+        passwordHash,
+        hasCourtesy, courtesyEndsAt
       ]);
       profile = insertRes.rows[0];
     }
@@ -587,7 +597,11 @@ app.post('/api/drivers/register', async (req, res) => {
         vehicleModel: profile.vehicle_model,
         vehicleYear: profile.vehicle_year,
         vehicleColor: profile.vehicle_color,
-        approvalStatus: profile.approval_status
+        approvalStatus: profile.approval_status,
+        hasCourtesyPass: profile.has_courtesy_pass,
+        courtesyPassEndsAt: profile.courtesy_pass_ends_at,
+        policeRecordUrl: profile.police_record_url,
+        criminalRecordUrl: profile.criminal_record_url
       }
     });
   } catch (err) {
@@ -629,9 +643,12 @@ app.get('/api/drivers/:id/status', async (req, res) => {
       rejectionReason: row.rejection_reason,
       isActive: row.is_active,
       isOnline: row.is_online,
+      hasCourtesyPass: Boolean(row.has_courtesy_pass),
+      courtesyPassEndsAt: row.courtesy_pass_ends_at,
+      policeRecordUrl: row.police_record_url,
+      criminalRecordUrl: row.criminal_record_url,
       currentWeekBonuses: row.current_week_bonuses_count || 0,
       createdAt: row.created_at,
-      updatedAt: row.updated_at
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -649,6 +666,7 @@ async function findDriverRecordByPhone(cleanPhone) {
         dp.license_number, dp.approval_status, dp.approved_at, dp.approved_by,
         dp.photo_url, dp.is_active, dp.is_online, dp.trial_ends_at,
         dp.rejection_reason, dp.current_week_bonuses_count,
+        dp.has_courtesy_pass, dp.courtesy_pass_ends_at, dp.police_record_url, dp.criminal_record_url,
         COALESCE(dp.password_hash, u.password_hash) AS password_hash
       FROM viajes_driver_profiles dp
       JOIN viajes_users u ON dp.user_id = u.id
@@ -677,6 +695,10 @@ async function findDriverRecordByPhone(cleanPhone) {
         isActive: row.is_active !== false,
         isOnline: Boolean(row.is_online),
         trialEndsAt: row.trial_ends_at || new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+        hasCourtesyPass: Boolean(row.has_courtesy_pass),
+        courtesyPassEndsAt: row.courtesy_pass_ends_at,
+        policeRecordUrl: row.police_record_url,
+        criminalRecordUrl: row.criminal_record_url,
         rejectionReason: row.rejection_reason || null,
         weeklyBonuses: row.current_week_bonuses_count || 0,
         passwordHash: row.password_hash || null
@@ -1792,6 +1814,8 @@ async function initializeDatabase() {
         ALTER TABLE viajes_driver_profiles ADD COLUMN IF NOT EXISTS emergency_contact_phone VARCHAR(20);
         ALTER TABLE viajes_driver_profiles ADD COLUMN IF NOT EXISTS rejection_reason TEXT;
         ALTER TABLE viajes_driver_profiles ADD COLUMN IF NOT EXISTS password_hash TEXT;
+        ALTER TABLE viajes_driver_profiles ADD COLUMN IF NOT EXISTS has_courtesy_pass BOOLEAN DEFAULT FALSE;
+        ALTER TABLE viajes_driver_profiles ADD COLUMN IF NOT EXISTS courtesy_pass_ends_at TIMESTAMP WITH TIME ZONE;
         ALTER TABLE viajes_driver_profiles ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
         ALTER TABLE viajes_users ADD COLUMN IF NOT EXISTS password_hash TEXT;
       EXCEPTION WHEN others THEN null; END $$;

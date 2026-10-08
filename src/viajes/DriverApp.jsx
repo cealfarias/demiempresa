@@ -31,11 +31,13 @@ import {
   Inbox,
   LogOut,
   X,
-  CheckCircle2
+  CheckCircle2,
+  Smartphone
 } from 'lucide-react';
 import RumboLogo from './RumboLogo';
 import GasModal from './GasModal';
 import DriverRegistrationModal from './DriverRegistrationModal';
+import DriverInstallAppModal from './DriverInstallAppModal';
 import DriverLandingView from './DriverLandingView';
 import DriverEarningsView from './DriverEarningsView';
 import DriverTripRequestsFeed from './DriverTripRequestsFeed';
@@ -134,6 +136,7 @@ function DriverAppContent() {
   const [showRegistrationModal, setShowRegistrationModal] = useState(false);
   const [showAccountStatementModal, setShowAccountStatementModal] = useState(false);
   const [showInboxModal, setShowInboxModal] = useState(false);
+  const [showInstallAppModal, setShowInstallAppModal] = useState(false);
   const [inboxInitialCategory, setInboxInitialCategory] = useState(null);
   const [inboxPrefillAmount, setInboxPrefillAmount] = useState(10.00);
   const [driverProfileId, setDriverProfileId] = useState(() => {
@@ -154,6 +157,18 @@ function DriverAppContent() {
   const isApproved = driverProfile && driverProfile.approvalStatus === 'APPROVED';
   const isPending = driverProfile?.approvalStatus === 'PENDING';
   const isRejected = driverProfile?.approvalStatus === 'REJECTED';
+  const isCourtesyExpired = Boolean(
+    driverProfile?.hasCourtesyPass &&
+    driverProfile?.courtesyPassEndsAt &&
+    new Date() > new Date(driverProfile.courtesyPassEndsAt) &&
+    (!driverProfile.policeRecordUrl || !driverProfile.criminalRecordUrl)
+  );
+  const isCourtesyActive = Boolean(
+    driverProfile?.hasCourtesyPass &&
+    driverProfile?.courtesyPassEndsAt &&
+    new Date() <= new Date(driverProfile.courtesyPassEndsAt) &&
+    (!driverProfile.policeRecordUrl || !driverProfile.criminalRecordUrl)
+  );
 
   const [driverOnline, setDriverOnline] = useState(() => {
     try {
@@ -411,7 +426,13 @@ function DriverAppContent() {
           if (updated && !updated.error) {
             setDriverProfile(updated);
             localStorage.setItem('rumbo_driver_profile', JSON.stringify(updated));
-            if (updated.approvalStatus !== 'APPROVED') {
+            const expired = Boolean(
+              updated.hasCourtesyPass &&
+              updated.courtesyPassEndsAt &&
+              new Date() > new Date(updated.courtesyPassEndsAt) &&
+              (!updated.policeRecordUrl || !updated.criminalRecordUrl)
+            );
+            if (updated.approvalStatus !== 'APPROVED' || expired) {
               setDriverOnline(false);
             }
           }
@@ -420,9 +441,14 @@ function DriverAppContent() {
     }
   }, []);
 
-  // Controlar conexión en línea con validación de aprobación administrativa
+  // Controlar conexión en línea con validación de aprobación administrativa y pase de cortesía
   const handleToggleOnline = () => {
     if (isRejected) {
+      setShowRegistrationModal(true);
+      return;
+    }
+    if (isCourtesyExpired) {
+      alert('⚠️ Tu Pase de Cortesía de 14 días para presentar la Solvencia de la PNC y Antecedentes Penales ha vencido. Debes actualizar tus documentos en tu expediente para poder ponerte en línea y recibir solicitudes de viaje.');
       setShowRegistrationModal(true);
       return;
     }
@@ -959,6 +985,17 @@ function DriverAppContent() {
 
             {/* Botones Rápidos: Registro/Expediente, Radar Gasolina, Auto y Switch En Línea */}
             <div className="flex items-center gap-2">
+              {/* Botón de Instalar App en Celular (PWA) */}
+              <button
+                type="button"
+                onClick={() => setShowInstallAppModal(true)}
+                className="p-1.5 sm:px-2.5 sm:py-1.5 rounded-xl text-xs font-bold bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 transition-colors cursor-pointer flex items-center gap-1.5 shadow-sm"
+                title="Instalar Rumbo Conductor en tu Celular"
+              >
+                <Smartphone className="w-3.5 h-3.5 text-emerald-400" />
+                <span className="hidden md:inline">Instalar App</span>
+              </button>
+
               {/* Botón de Expediente Digital / Registro Oficial */}
               <button
                 onClick={() => setShowRegistrationModal(true)}
@@ -1115,6 +1152,46 @@ function DriverAppContent() {
                 className="px-2.5 py-1 rounded-lg bg-rose-500 text-white font-black text-[11px] shrink-0 hover:bg-rose-600 transition-colors"
               >
                 Corregir Ahora
+              </button>
+            </div>
+          )}
+
+          {/* BANNER DE PASE DE CORTESÍA VENCIDO (BLOQUEO DE RADAR) */}
+          {isCourtesyExpired && (
+            <div className="bg-rose-500/20 border-b border-rose-500/40 px-4 py-2.5 text-xs text-rose-200 flex items-center justify-between gap-2 shadow-inner">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+                <span>
+                  <strong>Pase de Cortesía Vencido:</strong> No puedes activar el radar. Sube tu Solvencia de la PNC y Antecedentes Penales para aceptar solicitudes de viaje.
+                </span>
+              </div>
+              <button
+                onClick={() => setShowRegistrationModal(true)}
+                className="px-2.5 py-1 rounded-lg bg-rose-500 text-white font-black text-[11px] shrink-0 hover:bg-rose-600 transition-colors cursor-pointer"
+              >
+                Actualizar Documentos
+              </button>
+            </div>
+          )}
+
+          {/* BANNER DE PASE DE CORTESÍA ACTIVO (RECORDATORIO DE 14 DÍAS) */}
+          {!isCourtesyExpired && isCourtesyActive && (
+            <div className="bg-amber-500/15 border-b border-amber-500/30 px-4 py-2 text-xs text-amber-200 flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <Clock className="w-4 h-4 text-amber-400 shrink-0" />
+                <span>
+                  <strong>Pase de Cortesía Activo:</strong> Tienes hasta el{' '}
+                  <strong className="text-white">
+                    {new Date(driverProfile.courtesyPassEndsAt).toLocaleDateString()}
+                  </strong>{' '}
+                  para tramitar y subir tu Solvencia PNC y Antecedentes Penales.
+                </span>
+              </div>
+              <button
+                onClick={() => setShowRegistrationModal(true)}
+                className="px-2.5 py-1 rounded-lg bg-amber-500/20 border border-amber-500/40 text-amber-300 font-bold text-[11px] shrink-0 hover:bg-amber-500/30 transition-colors cursor-pointer"
+              >
+                Subir Documentos
               </button>
             </div>
           )}
@@ -2375,6 +2452,12 @@ function DriverAppContent() {
           </div>
         </div>
       )}
+
+      {/* Modal para Instalar App Rumbo Conductor */}
+      <DriverInstallAppModal
+        isOpen={showInstallAppModal}
+        onClose={() => setShowInstallAppModal(false)}
+      />
 
     </div>
   );

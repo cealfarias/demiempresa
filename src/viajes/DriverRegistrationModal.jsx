@@ -177,6 +177,7 @@ export default function DriverRegistrationModal({ isOpen, onClose, onDriverRegis
   const [termsTab, setTermsTab] = useState('ALL');
 
   const [showRegPassword, setShowRegPassword] = useState(false);
+  const [showCourtesyPassModal, setShowCourtesyPassModal] = useState(false);
 
   // Form State
   const [form, setForm] = useState({
@@ -364,6 +365,15 @@ export default function DriverRegistrationModal({ isOpen, onClose, onDriverRegis
     return null;
   };
 
+  const validateStep3 = () => {
+    if (!form.duiFrontUrl) return 'Debes subir la foto del frente de tu DUI (documento obligatorio desde el día 1).';
+    if (!form.duiBackUrl) return 'Debes subir la foto del reverso de tu DUI (documento obligatorio desde el día 1).';
+    if (!form.licenseFrontUrl) return 'Debes subir la foto de tu Licencia de Conducir (documento obligatorio desde el día 1).';
+    if (!form.circulationCardUrl) return 'Debes subir la foto de tu Tarjeta de Circulación SERTRACEN (documento obligatorio desde el día 1).';
+    if (!form.vehiclePhotoFront) return 'Debes subir la foto frontal de tu Vehículo con placa visible (documento obligatorio desde el día 1).';
+    return null;
+  };
+
   const handleNext = () => {
     setErrorMsg(null);
     if (step === 1) {
@@ -381,6 +391,16 @@ export default function DriverRegistrationModal({ isOpen, onClose, onDriverRegis
       }
       setStep(3);
     } else if (step === 3) {
+      const err = validateStep3();
+      if (err) {
+        setErrorMsg(err);
+        return;
+      }
+      // Si faltan Solvencia PNC o Antecedentes Penales, presentar el Pase de Cortesía de 2 Semanas
+      if (!form.policeRecordUrl || !form.criminalRecordUrl) {
+        setShowCourtesyPassModal(true);
+        return;
+      }
       setStep(4);
     }
   };
@@ -398,6 +418,11 @@ export default function DriverRegistrationModal({ isOpen, onClose, onDriverRegis
 
     setLoading(true);
     try {
+      const hasCourtesy = !form.policeRecordUrl || !form.criminalRecordUrl;
+      const courtesyPassEndsAt = hasCourtesy
+        ? new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString()
+        : null;
+
       const payload = {
         fullName: form.fullName.trim(),
         phone: form.phone.trim(),
@@ -422,7 +447,9 @@ export default function DriverRegistrationModal({ isOpen, onClose, onDriverRegis
         policeRecordUrl: form.policeRecordUrl || '',
         criminalRecordUrl: form.criminalRecordUrl || '',
         vehiclePhotoFront: form.vehiclePhotoFront || '',
-        vehiclePhotoInside: form.vehiclePhotoInside || ''
+        vehiclePhotoInside: form.vehiclePhotoInside || '',
+        hasCourtesyPass: hasCourtesy,
+        courtesyPassEndsAt: courtesyPassEndsAt
       };
 
       const res = await registerDriverApi(payload);
@@ -558,6 +585,28 @@ export default function DriverRegistrationModal({ isOpen, onClose, onDriverRegis
                 </span>
               </div>
             </div>
+
+            {/* Aviso de Pase de Cortesía de 14 Días (Si faltaron antecedentes o solvencia) */}
+            {successData.hasCourtesyPass && (
+              <div className="p-4 rounded-2xl bg-gradient-to-r from-amber-500/15 via-orange-500/10 to-amber-500/15 border border-amber-500/40 text-left space-y-2 shadow-lg">
+                <div className="flex items-center gap-2 text-amber-300 font-black text-xs uppercase tracking-wider">
+                  <Clock className="w-4 h-4 text-amber-400" />
+                  <span>Pase de Cortesía Activo • 14 Días de Plazo</span>
+                </div>
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  No detectamos tu <strong className="text-amber-400">Solvencia de la PNC</strong> y/o <strong className="text-amber-400">Antecedentes Penales</strong>. Te hemos activado un pase de cortesía de dos semanas (14 días) para tramitarlos y actualizarlos.
+                </p>
+                <div className="bg-slate-950/70 p-2.5 rounded-xl border border-amber-500/20 text-[11px] text-amber-200/90 flex items-center justify-between">
+                  <span>Vencimiento del Pase:</span>
+                  <span className="font-mono font-bold text-white bg-amber-500/20 px-2 py-0.5 rounded border border-amber-500/30">
+                    {new Date(successData.courtesyPassEndsAt || Date.now() + 14 * 24 * 60 * 60 * 1000).toLocaleDateString()}
+                  </span>
+                </div>
+                <p className="text-[11px] text-rose-300">
+                  ⚠️ Al vencer este pase, el radar no te permitirá aceptar solicitudes de viaje hasta que tu expediente esté 100% completo.
+                </p>
+              </div>
+            )}
 
             {/* Mensaje de Activación */}
             <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/25 text-left flex items-start gap-3">
@@ -1417,7 +1466,10 @@ export default function DriverRegistrationModal({ isOpen, onClose, onDriverRegis
                   {/* Solvencia PNC */}
                   <div className="p-3 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-2">
                     <div className="flex items-center justify-between">
-                      <span className="font-bold text-slate-200">Solvencia PNC (Vigente &lt; 90 días)</span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-bold text-slate-200">Solvencia PNC (Vigente &lt; 90 días)</span>
+                        <span className="text-[9px] bg-amber-500/20 text-amber-300 border border-amber-500/30 px-1.5 py-0.5 rounded-full font-bold">Pase 14 días</span>
+                      </div>
                       {form.policeRecordUrl && (
                         <div className="flex items-center gap-1.5">
                           <button
@@ -1455,10 +1507,57 @@ export default function DriverRegistrationModal({ isOpen, onClose, onDriverRegis
                     </div>
                   </div>
 
+                  {/* Antecedentes Penales */}
+                  <div className="p-3 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-bold text-slate-200">Antecedentes Penales (DGCP)</span>
+                        <span className="text-[9px] bg-amber-500/20 text-amber-300 border border-amber-500/30 px-1.5 py-0.5 rounded-full font-bold">Pase 14 días</span>
+                      </div>
+                      {form.criminalRecordUrl && (
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => handleRotateDocument('criminalRecordUrl', 'CRIMINAL')}
+                            title="Rotar foto 90°"
+                            className="p-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-400 cursor-pointer flex items-center gap-1 text-[10px]"
+                          >
+                            <RotateCw className="w-3.5 h-3.5" />
+                            <span>Rotar 90°</span>
+                          </button>
+                          <Check className="w-4 h-4 text-emerald-400" />
+                        </div>
+                      )}
+                    </div>
+                    {form.criminalRecordUrl && (
+                      <div className="relative rounded-xl overflow-hidden border border-slate-700 max-h-24 bg-black flex items-center justify-center">
+                        <img src={form.criminalRecordUrl} alt="Antecedentes Penales" className="max-h-24 object-contain" />
+                      </div>
+                    )}
+                    {docValidations.criminalRecordUrl?.valid && (
+                      <p className="text-[10px] text-emerald-400 font-medium">✓ Antecedentes Penales Verificados</p>
+                    )}
+                    <div className="grid grid-cols-2 gap-2 pt-1">
+                      <label className="cursor-pointer bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 rounded-xl py-2 px-2 flex items-center justify-center gap-1.5 text-[11px] text-amber-300 font-bold transition-colors">
+                        <Camera className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                        <span>Cámara</span>
+                        <input type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => handleFileUpload('criminalRecordUrl', e, 'CRIMINAL')} />
+                      </label>
+                      <label className="cursor-pointer bg-slate-950 hover:bg-slate-800 border border-slate-700 rounded-xl py-2 px-2 flex items-center justify-center gap-1.5 text-[11px] text-slate-300 font-medium transition-colors">
+                        <Upload className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                        <span>Galería</span>
+                        <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileUpload('criminalRecordUrl', e, 'CRIMINAL')} />
+                      </label>
+                    </div>
+                  </div>
+
                   {/* Foto Frontal del Vehículo con Placa */}
                   <div className="p-3 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-2">
                     <div className="flex items-center justify-between">
-                      <span className="font-bold text-slate-200">Foto Vehículo (Placa visible)</span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-bold text-slate-200">Foto Vehículo (Placa visible)</span>
+                        <span className="text-[9px] bg-rose-500/20 text-rose-300 border border-rose-500/30 px-1.5 py-0.5 rounded-full font-bold">Obligatorio día 1</span>
+                      </div>
                       {form.vehiclePhotoFront && (
                         <div className="flex items-center gap-1.5">
                           <button
@@ -1702,6 +1801,62 @@ export default function DriverRegistrationModal({ isOpen, onClose, onDriverRegis
         onClose={() => setShowTermsModal(false)}
         initialTab={termsTab}
       />
+
+      {/* Modal Interactivo de Pase de Cortesía de 2 Semanas (14 Días) */}
+      {showCourtesyPassModal && (
+        <div className="fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[#0f172a] border border-amber-500/40 rounded-3xl max-w-lg w-full p-6 text-slate-100 shadow-2xl relative space-y-4 animate-in zoom-in-95">
+            <div className="w-14 h-14 rounded-2xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 mx-auto">
+              <Clock className="w-8 h-8" />
+            </div>
+
+            <div className="text-center space-y-2">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-black uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                <ShieldCheck className="w-3.5 h-3.5" />
+                <span>Pase de Cortesía • 2 Semanas (14 Días)</span>
+              </span>
+
+              <h3 className="text-lg sm:text-xl font-black text-white">
+                Documentos de Seguridad Pendientes
+              </h3>
+
+              <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
+                No hemos detectado tu <strong className="text-amber-400">Solvencia de la PNC</strong> {!form.policeRecordUrl && !form.criminalRecordUrl ? 'ni tus' : ''} <strong className="text-amber-400">{!form.criminalRecordUrl ? 'Antecedentes Penales' : ''}</strong>.
+              </p>
+
+              <div className="text-xs text-slate-300 leading-relaxed bg-slate-900/90 p-3.5 rounded-2xl border border-amber-500/20 text-left space-y-1.5">
+                <p>
+                  Te otorgamos un <strong className="text-emerald-400">pase de cortesía de dos semanas (14 días)</strong> para poderlos tramitar y actualizar en tu expediente.
+                </p>
+                <p className="text-[11px] text-rose-300 font-semibold">
+                  ⚠️ Al vencer este pase, no podrás optar por aceptar solicitudes de viaje hasta haberlos presentado.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-col sm:flex-row gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowCourtesyPassModal(false);
+                  setStep(4);
+                }}
+                className="flex-1 py-3 px-4 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:brightness-110 text-slate-950 font-black text-xs transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <span>Aceptar Pase y Continuar</span>
+                <ChevronRight className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowCourtesyPassModal(false)}
+                className="py-3 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs transition-colors border border-slate-700 cursor-pointer text-center"
+              >
+                Subir Documentos Ahora
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
