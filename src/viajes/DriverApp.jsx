@@ -33,8 +33,11 @@ import {
   X,
   CheckCircle2,
   Smartphone,
-  Gift
+  Gift,
+  Bell,
+  BellRing
 } from 'lucide-react';
+import { isPushSupported, getPushPermissionState, subscribeUserToPush, testPushNotification } from './pushManager';
 import RumboLogo from './RumboLogo';
 import GasModal from './GasModal';
 import DriverRegistrationModal from './DriverRegistrationModal';
@@ -184,6 +187,38 @@ function DriverAppContent() {
       localStorage.setItem('rumbo_driver_online', String(driverOnline));
     } catch {}
   }, [driverOnline]);
+
+  // Notificaciones Push Web para Chofer
+  const [pushPermission, setPushPermission] = useState(() => getPushPermissionState());
+  const [isSubscribingPush, setIsSubscribingPush] = useState(false);
+
+  const handleTogglePushNotifications = async () => {
+    if (!isPushSupported()) {
+      alert('Tu navegador no soporta notificaciones push. Te sugerimos usar Google Chrome en Android.');
+      return;
+    }
+    if (pushPermission === 'denied') {
+      alert('Las notificaciones están bloqueadas en los permisos de tu navegador. Puedes desbloquearlas tocando el candado en la barra de direcciones.');
+      return;
+    }
+    setIsSubscribingPush(true);
+    try {
+      const res = await subscribeUserToPush({
+        userId: driverProfileId,
+        userType: 'DRIVER'
+      });
+      if (res.success) {
+        setPushPermission('granted');
+        await testPushNotification({ userId: driverProfileId, userType: 'DRIVER' });
+      } else if (res.reason === 'DENIED') {
+        setPushPermission('denied');
+      }
+    } catch (err) {
+      console.warn('Error suscribiendo conductor a push:', err);
+    } finally {
+      setIsSubscribingPush(false);
+    }
+  };
   const [activeBottomTab, setActiveBottomTab] = useState('REQUESTS'); // 'REQUESTS' | 'EARNINGS' | 'PRIORITY'
   const [weeklyBonuses, setWeeklyBonuses] = useState(0);
   const [isApplyingBonuses, setIsApplyingBonuses] = useState(false);
@@ -453,7 +488,16 @@ function DriverAppContent() {
       setShowRegistrationModal(true);
       return;
     }
-    setDriverOnline(!driverOnline);
+    const nextOnline = !driverOnline;
+    setDriverOnline(nextOnline);
+    if (nextOnline && isPushSupported() && Notification.permission !== 'denied') {
+      subscribeUserToPush({
+        userId: driverProfileId,
+        userType: 'DRIVER'
+      }).then((r) => {
+        if (r.success) setPushPermission('granted');
+      }).catch(() => {});
+    }
   };
 
   // Cargar gasolineras del backend
@@ -1078,6 +1122,29 @@ function DriverAppContent() {
               >
                 <Settings className="w-4 h-4 text-slate-400" />
                 <span className="hidden lg:inline">{vehicleYear} • {kmPerGallon} km/gal</span>
+              </button>
+
+              {/* Botón de Notificaciones Push Web para Chofer */}
+              <button
+                type="button"
+                onClick={handleTogglePushNotifications}
+                disabled={isSubscribingPush}
+                title={
+                  pushPermission === 'granted'
+                    ? 'Notificaciones push activadas: tu teléfono vibrará con nuevas solicitudes aunque salgas de la app'
+                    : 'Activar notificaciones para vibrar con nuevas solicitudes cuando tu pantalla esté bloqueada'
+                }
+                className={`p-2 rounded-xl border flex items-center justify-center cursor-pointer transition-colors ${
+                  pushPermission === 'granted'
+                    ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-400'
+                    : 'bg-slate-800 border-slate-700 text-amber-400 hover:bg-slate-700'
+                }`}
+              >
+                {pushPermission === 'granted' ? (
+                  <BellRing className="w-4 h-4 text-emerald-400" />
+                ) : (
+                  <Bell className="w-4 h-4 text-amber-400" />
+                )}
               </button>
 
               <button

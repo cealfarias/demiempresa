@@ -9,6 +9,7 @@ import {
 } from './redis.js';
 import { pool } from './db.js';
 import { ReferralService } from './services/referralService.js';
+import { PushService } from './services/pushService.js';
 
 export function initializeWebSockets(httpServer) {
   const io = new Server(httpServer, {
@@ -241,6 +242,13 @@ export function initializeWebSockets(httpServer) {
           io.to(targetSocketId).emit('trip:new_request', tripPayload);
         }
 
+        // 3. Notificación Push Web en segundo plano a conductores registrados
+        PushService.sendNotificationToDrivers({
+          title: '🚗 Nueva Solicitud de Viaje',
+          body: `Viaje hacia ${tripPayload.destinationMunicipality || tripPayload.destination || 'destino'} por $${tripPayload.proposedFare} USD. Toca para ver la ruta.`,
+          url: '/conductor'
+        }).catch(() => {});
+
         console.log(`📡 [trip:request] Solicitud #${newTrip.id} enviada exitosamente a conductores.`);
 
         if (callback) callback({ success: true, trip: newTrip, creditApplied });
@@ -407,6 +415,20 @@ export function initializeWebSockets(httpServer) {
           }
 
           io.to('drivers_channel').emit('offer:rejected_other_won', { tripId: rawPoolId });
+
+          // Notificación Push a los 4 pasajeros del colectivo con los datos del conductor asignado
+          try {
+            const poolPassengerIds = poolData.passengers.map(p => String(p.passengerId));
+            PushService.sendNotificationToPoolPassengers(poolPassengerIds, {
+              title: '🚗 ¡Conductor Asignado a tu Colectivo!',
+              body: `${driverObj.name} viene por el grupo en ${driverObj.vehicleModel} (${driverObj.vehiclePlate}).`,
+              url: '/viajes',
+              vibrate: [300, 150, 300]
+            }).catch(() => {});
+          } catch (e) {
+            console.warn('Error push colectivo driver assigned:', e);
+          }
+
           if (callback) callback({ success: true, tripId: rawPoolId });
           return;
         }
@@ -537,6 +559,16 @@ export function initializeWebSockets(httpServer) {
 
         socket.to(`trip:${tripId}`).emit('offer:rejected_other_won', { tripId });
         io.to('drivers_channel').emit('offer:rejected_other_won', { tripId });
+
+        // Notificación Push al pasajero con los datos del conductor en camino
+        if (trip?.passenger_id) {
+          PushService.sendNotificationToUser(trip.passenger_id, {
+            title: '🚗 ¡Conductor en Camino!',
+            body: `${driverObj.name} aceptó tu viaje en ${driverObj.vehicleModel} (${driverObj.vehiclePlate}). Va en camino a recogerte.`,
+            url: '/viajes',
+            vibrate: [250, 100, 250]
+          }).catch(() => {});
+        }
 
         if (callback) callback({ success: true, tripId });
       } catch (err) {
@@ -676,6 +708,26 @@ export function initializeWebSockets(httpServer) {
 
         socket.to(`trip:${tripId}`).emit('offer:rejected_other_won', { tripId });
         io.to('drivers_channel').emit('offer:rejected_other_won', { tripId });
+
+        // Notificación Push al conductor ganador
+        if (actualDriverId) {
+          PushService.sendNotificationToUser(actualDriverId, {
+            title: '🎉 ¡Oferta Aceptada!',
+            body: `El pasajero confirmó tu oferta por $${agreedFare} USD. Dirígete a recogerlo.`,
+            url: '/conductor',
+            vibrate: [300, 100, 300]
+          }).catch(() => {});
+        }
+
+        // Notificación Push al pasajero
+        if (trip?.passenger_id) {
+          PushService.sendNotificationToUser(trip.passenger_id, {
+            title: '🚗 ¡Conductor en Camino!',
+            body: `Tu conductor ${driverObj.name} viene por ti en ${driverObj.vehicleModel} (${driverObj.vehiclePlate}).`,
+            url: '/viajes',
+            vibrate: [250, 100, 250]
+          }).catch(() => {});
+        }
 
         if (callback) callback({ success: true, tripId });
       } catch (err) {
@@ -1007,6 +1059,30 @@ export function initializeWebSockets(httpServer) {
         }
         io.to('passengers_channel').emit('trip:status_changed', statusPayload);
 
+        // Notificaciones Push según el estado operativo
+        if (updatedTrip?.passenger_id) {
+          if (normalizedStatus === 'ARRIVED') {
+            PushService.sendNotificationToUser(updatedTrip.passenger_id, {
+              title: '📍 ¡Tu conductor ya está afuera!',
+              body: 'El vehículo ha llegado al punto de recogida. Por favor dirígete a abordarlo.',
+              url: '/viajes',
+              vibrate: [300, 100, 300, 100, 300]
+            }).catch(() => {});
+          } else if (normalizedStatus === 'IN_TRANSIT') {
+            PushService.sendNotificationToUser(updatedTrip.passenger_id, {
+              title: '🚕 ¡Viaje en Curso!',
+              body: `En camino hacia ${updatedTrip.destination_address || 'tu destino'}. ¡Buen viaje!`,
+              url: '/viajes'
+            }).catch(() => {});
+          } else if (normalizedStatus === 'COMPLETED') {
+            PushService.sendNotificationToUser(updatedTrip.passenger_id, {
+              title: '🏁 ¡Has llegado a tu destino!',
+              body: 'Viaje finalizado con éxito. ¡Gracias por preferir Rumbo!',
+              url: '/viajes'
+            }).catch(() => {});
+          }
+        }
+
         if (callback) callback({ success: true, trip: updatedTrip });
       } catch (err) {
         console.error('Error en trip:update_status:', err);
@@ -1235,6 +1311,23 @@ function handleJoinSharedPool(payload, socket, io) {
 
   io.to(`pool:${targetPool.id}`).emit('pool:status', poolStatusPayload);
 
+  // Notificación Push a los pasajeros que ya estaban esperando cuando se une un nuevo compañero
+  const currentCount = targetPool.passengers.length;
+  const otherPassengerIds = targetPool.passengers
+    .filter(p => String(p.passengerId) !== String(passengerId))
+    .map(p => String(p.passengerId));
+
+  if (!isComplete && otherPassengerIds.length > 0) {
+    const seatMsg = currentCount === 3
+      ? `🔥 ¡Casi listos! Ya van 3 de 4 asientos hacia ${targetPool.corridorName}. Falta solo 1 persona para arrancar.`
+      : `👥 ¡Un pasajero más se unió a tu ruta! Ya van ${currentCount} de 4 asientos ocupados.`;
+    PushService.sendNotificationToPoolPassengers(otherPassengerIds, {
+      title: 'Rumbo Colectivo 👥',
+      body: seatMsg,
+      url: '/viajes'
+    }).catch(() => {});
+  }
+
   // Si se completaron los 4 pasajeros, DESPACHO INMEDIATO AL CANAL DE CONDUCTORES
   if (isComplete) {
     const totalDriverFare = targetPool.passengers.reduce((sum, p) => sum + parseFloat(p.finalFare), 0).toFixed(2);
@@ -1267,6 +1360,23 @@ function handleJoinSharedPool(payload, socket, io) {
       totalFare: totalDriverFare,
       message: '¡4 cupos completos! Buscando conductor cercano.'
     });
+
+    // Notificación Push a los 4 pasajeros del colectivo
+    const allPassengerIds = targetPool.passengers.map(p => String(p.passengerId));
+    PushService.sendNotificationToPoolPassengers(allPassengerIds, {
+      title: '🎉 ¡Colectivo Completo (4/4)!',
+      body: `Cupos llenos en ${targetPool.corridorName}. Despachando conductor de inmediato. Prepárate en tu punto de recogida.`,
+      url: '/viajes',
+      vibrate: [300, 150, 300, 150, 300]
+    }).catch(() => {});
+
+    // Notificación Push a los conductores disponibles
+    PushService.sendNotificationToDrivers({
+      title: '💰 ¡Colectivo Completo (4 Pasajeros)!',
+      body: `Colectivo en ${targetPool.corridorName} listo para despacho. Ganancia total: $${totalDriverFare} USD.`,
+      url: '/conductor',
+      vibrate: [250, 100, 250]
+    }).catch(() => {});
   }
 
   return { success: true, poolId: targetPool.id, stops: stopsForPassengers, seatsFilled: targetPool.passengers.length };

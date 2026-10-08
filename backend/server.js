@@ -8,6 +8,7 @@ import { initializeWebSockets } from './sockets.js';
 import { ReferralService } from './services/referralService.js';
 import { AdService, AD_PRICING_PLANS } from './services/adService.js';
 import { LedgerService } from './services/ledgerService.js';
+import { PushService, VAPID_PUBLIC_KEY } from './services/pushService.js';
 
 dotenv.config();
 
@@ -1871,6 +1872,9 @@ async function initializeDatabase() {
       );
     `).catch(() => {});
 
+    // 0.2 Asegurar tabla de suscripciones Push para Pasajeros y Conductores
+    await PushService.initPushTable().catch(() => {});
+
     // 1. Asegurar columnas de cumplimiento y expediente de conductores de inmediato
     await pool.query(`
       DO $$ BEGIN
@@ -3145,6 +3149,55 @@ app.post('/api/trips/cleanup-stale', async (req, res) => {
   try {
     const cleaned = await cleanupStaleTrips();
     res.json({ success: true, cleanedTrips: cleaned });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ==========================================
+// NOTIFICACIONES PUSH WEB (PWA / VAPID OFICIAL)
+// ==========================================
+app.get('/api/push/public-key', (req, res) => {
+  res.json({ success: true, publicKey: VAPID_PUBLIC_KEY });
+});
+
+app.post('/api/push/subscribe', async (req, res) => {
+  try {
+    const { subscription, userId, userType } = req.body;
+    if (!subscription || !subscription.endpoint) {
+      return res.status(400).json({ success: false, error: 'Objeto de suscripción Web Push inválido' });
+    }
+    const saved = await PushService.saveSubscription({
+      userId,
+      userType: userType || 'PASSENGER',
+      subscription,
+      userAgent: req.headers['user-agent'] || ''
+    });
+    res.json({ success: true, message: 'Dispositivo registrado para notificaciones push', subscription: saved });
+  } catch (err) {
+    console.warn('⚠️ Error guardando suscripción push:', err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/push/test', async (req, res) => {
+  try {
+    const { userId, userType, title, body } = req.body;
+    let count = 0;
+    if (userId) {
+      count = await PushService.sendNotificationToUser(userId, {
+        title: title || 'Rumbo a mi Destino 🔔',
+        body: body || '¡Tus notificaciones en segundo plano están activas y listas!',
+        url: userType === 'DRIVER' ? '/conductor' : '/viajes'
+      });
+    } else if (userType === 'DRIVER') {
+      count = await PushService.sendNotificationToDrivers({
+        title: title || 'Rumbo Conductor 🚗',
+        body: body || 'Prueba de notificación para conductores en ruta.',
+        url: '/conductor'
+      });
+    }
+    res.json({ success: true, deliveredCount: count });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }

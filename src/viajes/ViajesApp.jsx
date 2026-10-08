@@ -48,8 +48,11 @@ import {
   Compass,
   Star,
   LogIn,
-  UserPlus
+  UserPlus,
+  Bell,
+  BellRing
 } from 'lucide-react';
+import { isPushSupported, getPushPermissionState, subscribeUserToPush, testPushNotification } from './pushManager';
 import RumboLogo from './RumboLogo';
 import AdModal from './AdModal';
 import RumboInboxModal from './RumboInboxModal';
@@ -335,6 +338,39 @@ export default function ViajesApp() {
     const nextMuted = !isVoiceMuted;
     setIsVoiceMuted(nextMuted);
     setVoiceMuted(nextMuted);
+  };
+
+  // Control de Notificaciones Push Web en segundo plano
+  const [pushPermission, setPushPermission] = useState(() => getPushPermissionState());
+  const [isSubscribingPush, setIsSubscribingPush] = useState(false);
+
+  const handleTogglePushNotifications = async () => {
+    if (!isPushSupported()) {
+      alert('Tu navegador no soporta notificaciones push. Te sugerimos usar Google Chrome en Android o Safari añadiendo la app a la pantalla de inicio en iOS.');
+      return;
+    }
+    if (pushPermission === 'denied') {
+      alert('Las notificaciones están bloqueadas en los permisos de tu navegador. Puedes habilitarlas tocando el icono de candado o configuración en la barra de direcciones.');
+      return;
+    }
+    setIsSubscribingPush(true);
+    try {
+      const res = await subscribeUserToPush({
+        userId: userProfile?.id,
+        userType: 'PASSENGER'
+      });
+      if (res.success) {
+        setPushPermission('granted');
+        speakAssistantMessage('Notificaciones activadas. Te avisaremos cuando tu conductor llegue o se complete tu colectivo.');
+        await testPushNotification({ userId: userProfile?.id, userType: 'PASSENGER' });
+      } else if (res.reason === 'DENIED') {
+        setPushPermission('denied');
+      }
+    } catch (err) {
+      console.warn('Error activando notificaciones push:', err);
+    } finally {
+      setIsSubscribingPush(false);
+    }
   };
 
   // Inicializar Telemetría Automática de Sesión y Permanencia (Pasajeros)
@@ -2996,6 +3032,17 @@ export default function ViajesApp() {
 
     setIsJoinedToPool(true);
     const safePassengerId = userProfile.id || (userProfile.email ? userProfile.email : `usr-${Date.now()}`);
+
+    // Activar o asegurar suscripción Push para alertas de cupos y despacho en segundo plano
+    if (isPushSupported() && Notification.permission !== 'denied') {
+      subscribeUserToPush({
+        userId: safePassengerId,
+        userType: 'PASSENGER'
+      }).then((subRes) => {
+        if (subRes.success) setPushPermission('granted');
+      }).catch(() => {});
+    }
+
     socket.emit('pool:join', {
       passengerId: safePassengerId,
       passengerName: userProfile.fullName || 'Pasajero',
@@ -3216,6 +3263,36 @@ export default function ViajesApp() {
             }`}
           >
             <span role="img" aria-label="mono tapándose la boca">🙊</span>
+          </button>
+
+          {/* Botón de Notificaciones Push Web (PWA en segundo plano) */}
+          <button
+            type="button"
+            onClick={handleTogglePushNotifications}
+            disabled={isSubscribingPush}
+            title={
+              pushPermission === 'granted'
+                ? 'Notificaciones push activadas (Te avisaremos cuando tu chofer llegue o se llene tu colectivo)'
+                : 'Activar notificaciones para saber cuando tu chofer llegue o se complete tu colectivo'
+            }
+            aria-label="Notificaciones Push"
+            className={`w-8 h-8 sm:w-9 sm:h-9 rounded-full border flex items-center justify-center transition-all cursor-pointer flex-shrink-0 text-sm select-none relative ${
+              pushPermission === 'granted'
+                ? 'bg-emerald-500/20 border-emerald-500/60 text-emerald-400 shadow-sm'
+                : isLight
+                ? 'bg-amber-50 border-amber-200 text-amber-700 hover:bg-amber-100'
+                : 'bg-slate-800/90 border-slate-700 text-slate-300 hover:bg-slate-700'
+            }`}
+          >
+            {pushPermission === 'granted' ? (
+              <BellRing className="w-4 h-4 text-emerald-400 animate-pulse" />
+            ) : (
+              <>
+                <Bell className="w-4 h-4" />
+                <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-amber-400 animate-ping" />
+                <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-amber-500" />
+              </>
+            )}
           </button>
 
           {/* BOTÓN ENCABEZADO SUPERIOR DERECHO: INGRESO OFICIAL CON GOOGLE O INICIAR SESIÓN */}
@@ -4653,6 +4730,28 @@ export default function ViajesApp() {
                         {poolStatus?.seatsFilled || 1}/4
                       </span>
                     </div>
+
+                    {/* Alerta de Notificaciones en Segundo Plano para Colectivo */}
+                    <div className="p-3 bg-slate-900 border border-slate-700/80 rounded-2xl flex items-center justify-between text-xs gap-2">
+                      <div className="flex items-center gap-2">
+                        <Bell className={`w-4 h-4 shrink-0 ${pushPermission === 'granted' ? 'text-emerald-400' : 'text-amber-400'}`} />
+                        <span className="text-slate-300">
+                          {pushPermission === 'granted'
+                            ? 'Notificaciones activadas: Te avisaremos con sonido cuando se completen los 4 cupos aunque bloquees el celular.'
+                            : 'Recibe aviso con vibración al llenarse los 4 cupos aunque apagues la pantalla.'}
+                        </span>
+                      </div>
+                      {pushPermission !== 'granted' && (
+                        <button
+                          type="button"
+                          onClick={handleTogglePushNotifications}
+                          className="px-2.5 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-lg shrink-0 text-[11px] cursor-pointer"
+                        >
+                          Activar
+                        </button>
+                      )}
+                    </div>
+
                     <button
                       type="button"
                       onClick={handleLeaveSharedPoolClient}

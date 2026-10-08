@@ -11,3 +11,12 @@ ReactDOM.createRoot(document.getElementById('root')).render(
     </BrowserRouter>
   </React.StrictMode>
 );
+
+// Registro de Service Worker para Notificaciones Push y PWA
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch((err) => {
+      console.warn('⚠️ Error registrando Service Worker:', err);
+    });
+  });
+}
