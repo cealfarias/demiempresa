@@ -2412,6 +2412,7 @@ app.get('/api/admin/drivers', async (req, res) => {
           dp.dui_front_url, dp.dui_back_url, dp.license_front_url, dp.license_back_url,
           dp.circulation_card_url, dp.police_record_url, dp.criminal_record_url,
           dp.vehicle_photo_front, dp.vehicle_photo_inside, dp.rejection_reason,
+          dp.has_courtesy_pass, dp.courtesy_pass_ends_at,
           dp.created_at
         FROM viajes_driver_profiles dp
         JOIN viajes_users u ON dp.user_id = u.id
@@ -2467,7 +2468,7 @@ app.delete('/api/admin/drivers/:driverId', async (req, res) => {
 app.patch('/api/admin/drivers/:driverId/authorization', async (req, res) => {
   try {
     const { driverId } = req.params;
-    const { status, rejectionReason } = req.body; // 'APPROVED', 'REJECTED', 'SUSPENDED'
+    const { status, rejectionReason } = req.body; // 'APPROVED', 'REJECTED', 'SUSPENDED', 'PENDING'
 
     if (!['APPROVED', 'REJECTED', 'SUSPENDED', 'PENDING'].includes(status)) {
       return res.status(400).json({ success: false, error: 'Estado de autorización no válido.' });
@@ -2482,21 +2483,33 @@ app.patch('/api/admin/drivers/:driverId/authorization', async (req, res) => {
             approved_at = CASE WHEN $1 = 'APPROVED' THEN CURRENT_TIMESTAMP ELSE approved_at END,
             approved_by = 'SUPER_ADMIN',
             is_active = CASE WHEN $1 = 'APPROVED' THEN true ELSE false END,
+            is_online = CASE WHEN $1 = 'APPROVED' THEN is_online ELSE false END,
+            trial_ends_at = CASE WHEN $1 = 'APPROVED' AND trial_ends_at IS NULL THEN CURRENT_TIMESTAMP + INTERVAL '14 days' ELSE trial_ends_at END,
             updated_at = CURRENT_TIMESTAMP
-        WHERE id::text = $3 OR vehicle_plate = $3
+        WHERE id::text = $3 OR vehicle_plate = $3 OR user_id::text = $3
         RETURNING *;
       `, [status, rejectionReason || null, driverId]);
       updated = dbRes.rows[0];
+
+      // Cortafuegos de seguridad: si fue aprobado, actualizar rol de usuario y cancelar bonos promocionales de pasajero
+      if (status === 'APPROVED' && updated?.user_id) {
+        try {
+          await pool.query(`UPDATE viajes_users SET role = 'DRIVER' WHERE id::text = $1`, [updated.user_id.toString()]);
+          await LedgerService.cancelPromotionalBonusesOnDriverApproval(updated.user_id, 'SUPER_ADMIN');
+        } catch (lErr) {
+          console.warn('LedgerService cancel bonuses warning:', lErr.message);
+        }
+      }
     } catch (e) {
       console.warn('DB driver auth fallback:', e.message);
     }
 
-    io.emit('driver_authorization_changed', { driverId, status, rejectionReason });
+    io.emit('driver_authorization_changed', { driverId, status, rejectionReason, driver: updated });
 
     res.json({
       success: true,
-      driver: updated || { id: driverId, approval_status: status },
-      message: `El conductor ha sido ${status === 'APPROVED' ? 'autorizado exitosamente' : 'actualizado a ' + status}.`
+      driver: updated || { id: driverId, approval_status: status, rejection_reason: rejectionReason },
+      message: `El conductor ha sido ${status === 'APPROVED' ? 'autorizado exitosamente' : status === 'REJECTED' ? 'rechazado con observaciones' : 'actualizado a ' + status}.`
     });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });

@@ -48,7 +48,8 @@ import {
   ChevronLeft,
   Globe,
   HelpCircle,
-  Fuel
+  Fuel,
+  Loader2
 } from 'lucide-react';
 import RumboLogo from '../viajes/RumboLogo';
 import ExitIntentRescueModal from '../viajes/ExitIntentRescueModal';
@@ -126,6 +127,8 @@ export default function AdminDashboardPage() {
   const [rejectReasonModal, setRejectReasonModal] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
   const [authActionLoading, setAuthActionLoading] = useState(false);
+  const [driverStatusFilter, setDriverStatusFilter] = useState('ALL'); // 'ALL' | 'PENDING' | 'APPROVED' | 'REJECTED'
+  const [driverSearchQuery, setDriverSearchQuery] = useState('');
 
   // Modal para ver imagen de comprobante o documento ampliado
   const [previewImage, setPreviewImage] = useState(null);
@@ -389,22 +392,23 @@ export default function AdminDashboardPage() {
   };
 
   // Acciones de Autorización de Conductores
-  const handleAuthorizeDriver = async (driverId, newStatus) => {
+  const handleAuthorizeDriver = async (driverId, newStatus, reason = null) => {
     setAuthActionLoading(true);
     try {
+      const finalReason = reason !== null ? reason : (newStatus === 'REJECTED' ? rejectionReason : null);
       const res = await updateDriverAuthorizationApi(driverId, {
         status: newStatus,
-        rejectionReason: newStatus === 'REJECTED' ? rejectionReason : null
+        rejectionReason: finalReason
       });
       if (res && res.success) {
         // Actualizar lista local
-        setDrivers(prev => prev.map(d => d.id === driverId ? { ...d, approval_status: newStatus } : d));
+        setDrivers(prev => prev.map(d => d.id === driverId ? { ...d, approval_status: newStatus, rejection_reason: finalReason } : d));
         if (selectedDriver?.id === driverId) {
-          setSelectedDriver(prev => ({ ...prev, approval_status: newStatus }));
+          setSelectedDriver(prev => ({ ...prev, approval_status: newStatus, rejection_reason: finalReason }));
         }
         setRejectReasonModal(false);
         setRejectionReason('');
-        loadDashboardData();
+        await loadDashboardData();
       }
     } catch (e) {
       alert('Error al actualizar estatus de conductor: ' + e.message);
@@ -451,6 +455,25 @@ export default function AdminDashboardPage() {
   const pendingSugerenciasCount = tickets.filter(t => t.category === 'SUGERENCIAS' && t.status === 'PENDING').length;
   const pendingQuejasCount = tickets.filter(t => t.category === 'QUEJAS' && t.status === 'PENDING').length;
   const pendingSoporteCount = tickets.filter(t => t.category === 'SOPORTE' && t.status === 'PENDING').length;
+
+  // Filtrado y Conteo de Solicitudes de Conductores
+  const pendingDriversCount = drivers.filter(d => (d.approval_status || 'PENDING') === 'PENDING').length;
+  const approvedDriversCount = drivers.filter(d => d.approval_status === 'APPROVED').length;
+  const rejectedDriversCount = drivers.filter(d => d.approval_status === 'REJECTED').length;
+
+  const filteredDrivers = drivers.filter(d => {
+    const status = d.approval_status || 'PENDING';
+    if (driverStatusFilter !== 'ALL' && status !== driverStatusFilter) return false;
+    if (driverSearchQuery.trim()) {
+      const q = driverSearchQuery.toLowerCase();
+      const name = (d.full_name || '').toLowerCase();
+      const dui = (d.dui || '').toLowerCase();
+      const plate = (d.vehicle_plate || '').toLowerCase();
+      const phone = (d.phone || '').toLowerCase();
+      if (!name.includes(q) && !dui.includes(q) && !plate.includes(q) && !phone.includes(q)) return false;
+    }
+    return true;
+  });
 
   // --------------------------------------------------------------------------
   // --------------------------------------------------------------------------
@@ -1074,7 +1097,7 @@ export default function AdminDashboardPage() {
                   Expedientes de Conductores para Autorización
                 </h2>
                 <p className="text-xs text-slate-400">
-                  Revisa DUI, Licencia, antecedentes y fotos del auto para habilitar al conductor en la app.
+                  Revisa DUI, Licencia, Solvencia PNC, Antecedentes y fotos del vehículo para habilitar al conductor.
                 </p>
               </div>
               <div className="flex items-center gap-2">
@@ -1094,45 +1117,124 @@ export default function AdminDashboardPage() {
               </div>
             </div>
 
-            {/* Si no hay expedientes pendientes */}
-            {drivers.length === 0 ? (
+            {/* Barra de Búsqueda y Filtros de Estado */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 p-3 bg-slate-900/90 border border-slate-800 rounded-2xl">
+              <div className="relative flex-1">
+                <Search className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={driverSearchQuery}
+                  onChange={(e) => setDriverSearchQuery(e.target.value)}
+                  placeholder="Buscar por nombre, DUI, placa o celular..."
+                  className="w-full pl-9 pr-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-amber-500/50"
+                />
+                {driverSearchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setDriverSearchQuery('')}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white text-xs"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+
+              {/* Botones de Filtro de Estado */}
+              <div className="flex flex-wrap gap-1.5">
+                {[
+                  { id: 'ALL', label: 'Todos', count: drivers.length, color: 'slate' },
+                  { id: 'PENDING', label: 'Pendientes', count: pendingDriversCount, color: 'amber' },
+                  { id: 'APPROVED', label: 'Aprobados', count: approvedDriversCount, color: 'emerald' },
+                  { id: 'REJECTED', label: 'Rechazados', count: rejectedDriversCount, color: 'rose' }
+                ].map((f) => (
+                  <button
+                    key={f.id}
+                    type="button"
+                    onClick={() => setDriverStatusFilter(f.id)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                      driverStatusFilter === f.id
+                        ? f.id === 'PENDING'
+                          ? 'bg-amber-500 text-slate-950 shadow'
+                          : f.id === 'APPROVED'
+                          ? 'bg-emerald-500 text-slate-950 shadow'
+                          : f.id === 'REJECTED'
+                          ? 'bg-rose-500 text-white shadow'
+                          : 'bg-white text-slate-950 shadow'
+                        : 'bg-slate-950 hover:bg-slate-800 text-slate-400 border border-slate-800'
+                    }`}
+                  >
+                    <span>{f.label}</span>
+                    <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
+                      driverStatusFilter === f.id ? 'bg-black/20 text-current' : 'bg-slate-800 text-slate-300'
+                    }`}>
+                      {f.count}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Si no hay expedientes según el filtro */}
+            {filteredDrivers.length === 0 ? (
               <div className="p-12 text-center bg-slate-900 border border-slate-800 rounded-3xl space-y-3">
                 <div className="w-16 h-16 rounded-3xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center mx-auto text-2xl font-bold">
                   🚗
                 </div>
-                <h3 className="text-base font-black text-white">No hay expedientes pendientes</h3>
+                <h3 className="text-base font-black text-white">
+                  {drivers.length === 0 ? 'No hay expedientes registrados' : 'No hay solicitudes que coincidan con el filtro'}
+                </h3>
                 <p className="text-xs text-slate-400 max-w-md mx-auto">
-                  La bandeja de autorizaciones está completamente limpia a CERO para el prelanzamiento. Cuando los choferes se registren y suban su documentación oficial, sus expedientes aparecerán aquí para revisión.
+                  {drivers.length === 0
+                    ? 'La bandeja de autorizaciones está limpia. Cuando los choferes completen su registro, aparecerán aquí para revisión.'
+                    : 'Prueba cambiando los filtros de estado o el término de búsqueda.'}
                 </p>
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                {drivers.map((drv) => {
-                  const isPending = drv.approval_status === 'PENDING';
-                  const isApproved = drv.approval_status === 'APPROVED';
-                  const isRejected = drv.approval_status === 'REJECTED';
+                {filteredDrivers.map((drv) => {
+                  const status = drv.approval_status || 'PENDING';
+                  const isPending = status === 'PENDING';
+                  const isApproved = status === 'APPROVED';
+                  const isRejected = status === 'REJECTED';
+                  const isSuspended = status === 'SUSPENDED';
 
                   return (
                     <div
                       key={drv.id}
-                      className="p-4 bg-slate-900 border border-slate-800 hover:border-slate-700 rounded-3xl space-y-3 text-xs transition-all shadow"
+                      className={`p-4 bg-slate-900 border rounded-3xl space-y-3 text-xs transition-all shadow ${
+                        isPending
+                          ? 'border-amber-500/40 hover:border-amber-400'
+                          : isApproved
+                          ? 'border-emerald-500/30 hover:border-emerald-400/50'
+                          : 'border-slate-800 hover:border-slate-700'
+                      }`}
                     >
                       <div className="flex items-start justify-between gap-2">
                         <div>
                           <h4 className="font-bold text-white text-sm">{drv.full_name}</h4>
                           <span className="text-slate-400 font-mono text-[11px]">DUI: {drv.dui || 'N/A'}</span>
                         </div>
-                        <span
-                          className={`text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full ${
-                            isApproved
-                              ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                              : isRejected
-                              ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
-                              : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                          }`}
-                        >
-                          {drv.approval_status || 'PENDIENTE'}
-                        </span>
+                        <div className="flex flex-col items-end gap-1">
+                          <span
+                            className={`text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full ${
+                              isApproved
+                                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                                : isRejected
+                                ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                                : isSuspended
+                                ? 'bg-orange-500/20 text-orange-300 border border-orange-500/30'
+                                : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                            }`}
+                          >
+                            {status === 'APPROVED' ? 'APROBADO' : status === 'REJECTED' ? 'RECHAZADO' : status === 'SUSPENDED' ? 'SUSPENDIDO' : 'PENDIENTE'}
+                          </span>
+                          {drv.has_courtesy_pass && (
+                            <span className="text-[9px] font-bold text-amber-300 bg-amber-500/10 border border-amber-500/30 px-2 py-0.5 rounded-md flex items-center gap-1">
+                              <Clock className="w-2.5 h-2.5" />
+                              <span>Pase 14d</span>
+                            </span>
+                          )}
+                        </div>
                       </div>
 
                       <div className="p-2.5 bg-slate-950 rounded-2xl border border-slate-800 space-y-1 font-mono text-[11px]">
@@ -1150,15 +1252,97 @@ export default function AdminDashboardPage() {
                         </div>
                       </div>
 
-                      {/* Botón para ver expediente completo */}
-                      <button
-                        type="button"
-                        onClick={() => setSelectedDriver(drv)}
-                        className="w-full py-2.5 bg-slate-800 hover:bg-slate-750 text-amber-300 font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
-                      >
-                        <Eye className="w-3.5 h-3.5" />
-                        <span>Inspeccionar Documentos y Autorizar</span>
-                      </button>
+                      {/* Motivo de rechazo previo si existe */}
+                      {isRejected && drv.rejection_reason && (
+                        <div className="p-2 bg-rose-950/40 border border-rose-500/30 rounded-xl text-[11px] text-rose-300">
+                          <strong>Observación:</strong> {drv.rejection_reason}
+                        </div>
+                      )}
+
+                      {/* Botones de Acción Funcionales */}
+                      <div className="pt-1 border-t border-slate-800/80">
+                        {isPending ? (
+                          <div className="flex gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => handleAuthorizeDriver(drv.id, 'APPROVED')}
+                              disabled={authActionLoading}
+                              className="flex-1 py-2 px-2 bg-gradient-to-r from-emerald-500 to-teal-500 hover:brightness-110 text-slate-950 font-black rounded-xl text-xs flex items-center justify-center gap-1 cursor-pointer transition-all shadow"
+                              title="Aprobar conductor y habilitar en la app con 14 días gratis"
+                            >
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              <span>Aprobar</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedDriver(drv);
+                                setRejectReasonModal(true);
+                              }}
+                              disabled={authActionLoading}
+                              className="py-2 px-2.5 bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/40 font-bold rounded-xl text-xs flex items-center justify-center gap-1 cursor-pointer transition-colors"
+                              title="Rechazar expediente indicando motivo para el conductor"
+                            >
+                              <XCircle className="w-3.5 h-3.5" />
+                              <span>Rechazar</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => setSelectedDriver(drv)}
+                              className="p-2 bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold rounded-xl text-xs flex items-center justify-center cursor-pointer transition-colors border border-slate-700"
+                              title="Inspeccionar todos los documentos"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        ) : isApproved ? (
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              onClick={() => handleAuthorizeDriver(drv.id, 'SUSPENDED')}
+                              disabled={authActionLoading}
+                              className="flex-1 py-2 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                              title="Suspender acceso de conductor temporalmente"
+                            >
+                              <AlertTriangle className="w-3.5 h-3.5" />
+                              <span>Suspender</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => setSelectedDriver(drv)}
+                              className="flex-1 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer border border-slate-700"
+                            >
+                              <Eye className="w-3.5 h-3.5 text-amber-300" />
+                              <span>Ver Expediente</span>
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              onClick={() => handleAuthorizeDriver(drv.id, 'APPROVED')}
+                              disabled={authActionLoading}
+                              className="flex-1 py-2 bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-300 font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                              title="Aprobar conductor"
+                            >
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              <span>Aprobar</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => setSelectedDriver(drv)}
+                              className="flex-1 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer border border-slate-700"
+                            >
+                              <Eye className="w-3.5 h-3.5 text-amber-300" />
+                              <span>Ver Expediente</span>
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   );
                 })}
@@ -2934,91 +3118,221 @@ export default function AdminDashboardPage() {
             </div>
 
             {/* Datos Personales y del Vehículo */}
-            <div className="grid grid-cols-2 gap-3 text-xs">
-              <div className="p-3 bg-slate-950 rounded-2xl border border-slate-800 space-y-1">
-                <span className="text-[10px] text-slate-400 block uppercase">Conductor</span>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+              <div className="p-3 bg-slate-950 rounded-2xl border border-slate-800 space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] text-slate-400 block uppercase">Conductor</span>
+                  <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${
+                    selectedDriver.approval_status === 'APPROVED'
+                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                      : selectedDriver.approval_status === 'REJECTED'
+                      ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                      : selectedDriver.approval_status === 'SUSPENDED'
+                      ? 'bg-orange-500/20 text-orange-300 border border-orange-500/30'
+                      : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                  }`}>
+                    {selectedDriver.approval_status || 'PENDIENTE'}
+                  </span>
+                </div>
                 <strong className="text-white text-sm block">{selectedDriver.full_name}</strong>
-                <span className="text-slate-300">Teléfono: {selectedDriver.phone}</span>
+                <div className="text-slate-300 space-y-0.5 font-mono text-[11px]">
+                  <div>Teléfono: <strong>{selectedDriver.phone}</strong></div>
+                  <div>DUI: <strong>{selectedDriver.dui || 'N/A'}</strong></div>
+                  {selectedDriver.license_number && (
+                    <div>Licencia Nº: <strong>{selectedDriver.license_number}</strong></div>
+                  )}
+                </div>
               </div>
-              <div className="p-3 bg-slate-950 rounded-2xl border border-slate-800 space-y-1">
+
+              <div className="p-3 bg-slate-950 rounded-2xl border border-slate-800 space-y-1.5">
                 <span className="text-[10px] text-slate-400 block uppercase">Vehículo Registrado</span>
-                <strong className="text-amber-300 text-sm block">{selectedDriver.vehicle_brand} {selectedDriver.vehicle_model}</strong>
-                <span className="text-slate-300">Placa: {selectedDriver.vehicle_plate} • Color: {selectedDriver.vehicle_color}</span>
+                <strong className="text-amber-300 text-sm block">
+                  {selectedDriver.vehicle_brand} {selectedDriver.vehicle_model}
+                </strong>
+                <div className="text-slate-300 space-y-0.5 font-mono text-[11px]">
+                  <div>Placa: <strong className="text-white">{selectedDriver.vehicle_plate}</strong></div>
+                  <div>Color: <strong>{selectedDriver.vehicle_color}</strong></div>
+                  {selectedDriver.vehicle_year && <div>Año: <strong>{selectedDriver.vehicle_year}</strong></div>}
+                </div>
               </div>
             </div>
+
+            {/* Aviso de Pase de Cortesía de 14 Días */}
+            {selectedDriver.has_courtesy_pass && (
+              <div className="p-3.5 bg-gradient-to-r from-amber-500/15 via-orange-500/10 to-amber-500/15 border border-amber-500/40 rounded-2xl text-xs space-y-1.5">
+                <div className="flex items-center gap-2 text-amber-300 font-black text-xs uppercase tracking-wider">
+                  <Clock className="w-4 h-4 text-amber-400" />
+                  <span>Pase de Cortesía de 14 Días Activo</span>
+                </div>
+                <p className="text-[11px] text-slate-300 leading-relaxed">
+                  Este conductor fue inscrito sin Solvencia PNC y/o Antecedentes Penales. Cuenta con 14 días para tramitarlos y actualizarlos (vence el <strong className="text-white font-mono">{selectedDriver.courtesy_pass_ends_at ? new Date(selectedDriver.courtesy_pass_ends_at).toLocaleDateString() : 'en 14 días'}</strong>). Al aprobarlo, podrá trabajar de inmediato durante la vigencia del pase.
+                </p>
+              </div>
+            )}
+
+            {/* Observación Previa si fue Rechazado */}
+            {selectedDriver.approval_status === 'REJECTED' && selectedDriver.rejection_reason && (
+              <div className="p-3 bg-rose-950/40 border border-rose-500/40 rounded-2xl text-xs space-y-1">
+                <span className="font-bold text-rose-300 block">Observación Notificada al Conductor:</span>
+                <p className="text-slate-200 text-[11px]">{selectedDriver.rejection_reason}</p>
+              </div>
+            )}
 
             {/* Galería de Documentos Cargados */}
             <div className="space-y-2">
               <span className="text-xs font-bold text-slate-300 block">
-                Documentos Legales y Fotografías Subidas:
+                Expediente y Documentación Digital (Haz clic para ampliar):
               </span>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
-                {selectedDriver.dui_front_url && (
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                {/* 1. DUI Frente */}
+                {selectedDriver.dui_front_url ? (
                   <div
                     onClick={() => setPreviewImage(selectedDriver.dui_front_url)}
                     className="p-2 bg-slate-950 rounded-xl border border-slate-800 hover:border-amber-400/50 cursor-pointer text-center space-y-1"
                   >
-                    <span className="text-[10px] text-slate-400 block">DUI Frente</span>
+                    <span className="text-[10px] text-slate-400 block font-semibold">DUI Frente</span>
                     <img src={selectedDriver.dui_front_url} alt="DUI Frente" className="h-20 w-full object-cover rounded-lg" />
                   </div>
+                ) : (
+                  <div className="p-2 bg-slate-950/60 rounded-xl border border-rose-500/30 text-center flex flex-col justify-center items-center h-28 space-y-1">
+                    <AlertTriangle className="w-4 h-4 text-rose-400" />
+                    <span className="text-[10px] text-rose-300 font-bold">DUI Frente Faltante</span>
+                  </div>
                 )}
-                {selectedDriver.dui_back_url && (
+
+                {/* 2. DUI Reverso */}
+                {selectedDriver.dui_back_url ? (
                   <div
                     onClick={() => setPreviewImage(selectedDriver.dui_back_url)}
                     className="p-2 bg-slate-950 rounded-xl border border-slate-800 hover:border-amber-400/50 cursor-pointer text-center space-y-1"
                   >
-                    <span className="text-[10px] text-slate-400 block">DUI Reverso</span>
+                    <span className="text-[10px] text-slate-400 block font-semibold">DUI Reverso</span>
                     <img src={selectedDriver.dui_back_url} alt="DUI Reverso" className="h-20 w-full object-cover rounded-lg" />
                   </div>
+                ) : (
+                  <div className="p-2 bg-slate-950/60 rounded-xl border border-rose-500/30 text-center flex flex-col justify-center items-center h-28 space-y-1">
+                    <AlertTriangle className="w-4 h-4 text-rose-400" />
+                    <span className="text-[10px] text-rose-300 font-bold">DUI Reverso Faltante</span>
+                  </div>
                 )}
-                {selectedDriver.license_front_url && (
+
+                {/* 3. Licencia Frente */}
+                {selectedDriver.license_front_url ? (
                   <div
                     onClick={() => setPreviewImage(selectedDriver.license_front_url)}
                     className="p-2 bg-slate-950 rounded-xl border border-slate-800 hover:border-amber-400/50 cursor-pointer text-center space-y-1"
                   >
-                    <span className="text-[10px] text-slate-400 block">Licencia Frente</span>
+                    <span className="text-[10px] text-slate-400 block font-semibold">Licencia Conducir</span>
                     <img src={selectedDriver.license_front_url} alt="Licencia Frente" className="h-20 w-full object-cover rounded-lg" />
                   </div>
+                ) : (
+                  <div className="p-2 bg-slate-950/60 rounded-xl border border-rose-500/30 text-center flex flex-col justify-center items-center h-28 space-y-1">
+                    <AlertTriangle className="w-4 h-4 text-rose-400" />
+                    <span className="text-[10px] text-rose-300 font-bold">Licencia Faltante</span>
+                  </div>
                 )}
-                {selectedDriver.circulation_card_url && (
+
+                {/* 4. Tarjeta de Circulación */}
+                {selectedDriver.circulation_card_url ? (
                   <div
                     onClick={() => setPreviewImage(selectedDriver.circulation_card_url)}
                     className="p-2 bg-slate-950 rounded-xl border border-slate-800 hover:border-amber-400/50 cursor-pointer text-center space-y-1"
                   >
-                    <span className="text-[10px] text-slate-400 block">Tarjeta Circulación</span>
+                    <span className="text-[10px] text-slate-400 block font-semibold">Circulación SERTRACEN</span>
                     <img src={selectedDriver.circulation_card_url} alt="Circulación" className="h-20 w-full object-cover rounded-lg" />
                   </div>
+                ) : (
+                  <div className="p-2 bg-slate-950/60 rounded-xl border border-rose-500/30 text-center flex flex-col justify-center items-center h-28 space-y-1">
+                    <AlertTriangle className="w-4 h-4 text-rose-400" />
+                    <span className="text-[10px] text-rose-300 font-bold">Tarjeta Faltante</span>
+                  </div>
                 )}
-                {selectedDriver.vehicle_photo_front && (
+
+                {/* 5. Vehículo Frente con Placa */}
+                {selectedDriver.vehicle_photo_front ? (
                   <div
                     onClick={() => setPreviewImage(selectedDriver.vehicle_photo_front)}
                     className="p-2 bg-slate-950 rounded-xl border border-slate-800 hover:border-amber-400/50 cursor-pointer text-center space-y-1"
                   >
-                    <span className="text-[10px] text-slate-400 block">Foto Vehículo Frente</span>
+                    <span className="text-[10px] text-slate-400 block font-semibold">Auto con Placa</span>
                     <img src={selectedDriver.vehicle_photo_front} alt="Vehículo Frente" className="h-20 w-full object-cover rounded-lg" />
                   </div>
+                ) : (
+                  <div className="p-2 bg-slate-950/60 rounded-xl border border-rose-500/30 text-center flex flex-col justify-center items-center h-28 space-y-1">
+                    <AlertTriangle className="w-4 h-4 text-rose-400" />
+                    <span className="text-[10px] text-rose-300 font-bold">Foto Auto Faltante</span>
+                  </div>
                 )}
-                {selectedDriver.vehicle_photo_inside && (
+
+                {/* 6. Interior Vehículo */}
+                {selectedDriver.vehicle_photo_inside ? (
                   <div
                     onClick={() => setPreviewImage(selectedDriver.vehicle_photo_inside)}
                     className="p-2 bg-slate-950 rounded-xl border border-slate-800 hover:border-amber-400/50 cursor-pointer text-center space-y-1"
                   >
-                    <span className="text-[10px] text-slate-400 block">Interior Vehículo</span>
+                    <span className="text-[10px] text-slate-400 block font-semibold">Interior Vehículo</span>
                     <img src={selectedDriver.vehicle_photo_inside} alt="Interior" className="h-20 w-full object-cover rounded-lg" />
+                  </div>
+                ) : (
+                  <div className="p-2 bg-slate-950/60 rounded-xl border border-slate-800 text-center flex flex-col justify-center items-center h-28 space-y-1">
+                    <Car className="w-4 h-4 text-slate-600" />
+                    <span className="text-[10px] text-slate-500">Interior (Opcional)</span>
+                  </div>
+                )}
+
+                {/* 7. Solvencia PNC */}
+                {selectedDriver.police_record_url ? (
+                  <div
+                    onClick={() => setPreviewImage(selectedDriver.police_record_url)}
+                    className="p-2 bg-slate-950 rounded-xl border border-emerald-500/30 hover:border-emerald-400 cursor-pointer text-center space-y-1"
+                  >
+                    <span className="text-[10px] text-emerald-400 block font-bold">✓ Solvencia PNC</span>
+                    <img src={selectedDriver.police_record_url} alt="Solvencia PNC" className="h-20 w-full object-cover rounded-lg" />
+                  </div>
+                ) : (
+                  <div className="p-2 bg-slate-950/80 rounded-xl border border-amber-500/30 text-center flex flex-col justify-center items-center h-28 space-y-1">
+                    <Clock className="w-4 h-4 text-amber-400" />
+                    <span className="text-[10px] text-amber-300 font-bold">Solvencia PNC</span>
+                    <span className="text-[9px] text-slate-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
+                      Pase 14 Días
+                    </span>
+                  </div>
+                )}
+
+                {/* 8. Antecedentes Penales */}
+                {selectedDriver.criminal_record_url ? (
+                  <div
+                    onClick={() => setPreviewImage(selectedDriver.criminal_record_url)}
+                    className="p-2 bg-slate-950 rounded-xl border border-emerald-500/30 hover:border-emerald-400 cursor-pointer text-center space-y-1"
+                  >
+                    <span className="text-[10px] text-emerald-400 block font-bold">✓ Antecedentes Penales</span>
+                    <img src={selectedDriver.criminal_record_url} alt="Antecedentes Penales" className="h-20 w-full object-cover rounded-lg" />
+                  </div>
+                ) : (
+                  <div className="p-2 bg-slate-950/80 rounded-xl border border-amber-500/30 text-center flex flex-col justify-center items-center h-28 space-y-1">
+                    <Clock className="w-4 h-4 text-amber-400" />
+                    <span className="text-[10px] text-amber-300 font-bold">Antecedentes Penales</span>
+                    <span className="text-[9px] text-slate-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
+                      Pase 14 Días
+                    </span>
                   </div>
                 )}
               </div>
             </div>
 
             {/* Botones de Decisión Administrativa */}
-            <div className="pt-3 border-t border-slate-800 flex gap-2">
+            <div className="pt-3 border-t border-slate-800 flex flex-wrap gap-2">
               <button
                 type="button"
                 onClick={() => handleAuthorizeDriver(selectedDriver.id, 'APPROVED')}
                 disabled={authActionLoading}
-                className="flex-1 py-3 bg-gradient-to-r from-emerald-500 to-teal-500 hover:brightness-110 text-slate-950 font-black text-xs rounded-xl shadow-lg flex items-center justify-center gap-1.5 cursor-pointer"
+                className="flex-1 min-w-[200px] py-3 bg-gradient-to-r from-emerald-500 to-teal-500 hover:brightness-110 text-slate-950 font-black text-xs rounded-xl shadow-lg flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
               >
-                <CheckCircle2 className="w-4 h-4 text-slate-950" />
+                {authActionLoading ? (
+                  <Loader2 className="w-4 h-4 animate-spin text-slate-950" />
+                ) : (
+                  <CheckCircle2 className="w-4 h-4 text-slate-950" />
+                )}
                 <span>Aprobar y Autorizar Conductor (14 Días Gratis)</span>
               </button>
 
@@ -3026,12 +3340,136 @@ export default function AdminDashboardPage() {
                 type="button"
                 onClick={() => setRejectReasonModal(true)}
                 disabled={authActionLoading}
-                className="px-4 py-3 bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/40 font-bold text-xs rounded-xl cursor-pointer"
+                className="px-4 py-3 bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/40 font-bold text-xs rounded-xl cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
               >
-                Rechazar / Observar
+                <XCircle className="w-4 h-4" />
+                <span>Rechazar / Observar</span>
+              </button>
+
+              {selectedDriver.approval_status === 'APPROVED' && (
+                <button
+                  type="button"
+                  onClick={() => handleAuthorizeDriver(selectedDriver.id, 'SUSPENDED')}
+                  disabled={authActionLoading}
+                  className="px-4 py-3 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 font-bold text-xs rounded-xl cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+                >
+                  <AlertTriangle className="w-4 h-4" />
+                  <span>Suspender</span>
+                </button>
+              )}
+
+              {selectedDriver.approval_status && selectedDriver.approval_status !== 'PENDING' && (
+                <button
+                  type="button"
+                  onClick={() => handleAuthorizeDriver(selectedDriver.id, 'PENDING')}
+                  disabled={authActionLoading}
+                  className="px-3 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-xl cursor-pointer disabled:opacity-50"
+                  title="Regresar a estado pendiente de revisión"
+                >
+                  <span>Volver a Pendiente</span>
+                </button>
+              )}
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* ================================================================== */}
+      {/* MODAL 1.1: MOTIVO DE RECHAZO / OBSERVACIÓN DE EXPEDIENTE */}
+      {/* ================================================================== */}
+      {rejectReasonModal && selectedDriver && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-3 sm:p-5 bg-black/85 backdrop-blur-md animate-fade-in">
+          <div className="relative w-full max-w-lg bg-slate-900 border border-rose-500/40 rounded-3xl p-5 sm:p-6 shadow-2xl text-slate-100 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-rose-500/20 text-rose-400 flex items-center justify-center">
+                  <AlertTriangle className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-black text-sm text-white">Observar o Rechazar Expediente</h3>
+                  <span className="text-[11px] text-slate-400">{selectedDriver.full_name} • Placa: {selectedDriver.vehicle_plate}</span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setRejectReasonModal(false);
+                  setRejectionReason('');
+                }}
+                className="p-1.5 rounded-xl bg-slate-800 text-slate-400 hover:text-white cursor-pointer"
+              >
+                <X className="w-4 h-4" />
               </button>
             </div>
 
+            <div className="space-y-3 text-xs">
+              <p className="text-slate-300">
+                Selecciona un motivo frecuente o describe la corrección necesaria para que el conductor la vea en su pantalla:
+              </p>
+
+              {/* Motivos rápidos para 1 clic */}
+              <div className="flex flex-wrap gap-1.5">
+                {[
+                  'DUI ilegible o borroso',
+                  'Licencia de conducir vencida',
+                  'Tarjeta de circulación SERTRACEN ilegible',
+                  'Foto del vehículo sin placa visible',
+                  'Documentos no corresponden al titular'
+                ].map((chip) => (
+                  <button
+                    key={chip}
+                    type="button"
+                    onClick={() => setRejectionReason(chip)}
+                    className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all cursor-pointer ${
+                      rejectionReason === chip
+                        ? 'bg-rose-500 text-white shadow'
+                        : 'bg-slate-950 text-slate-300 hover:bg-slate-800 border border-slate-800'
+                    }`}
+                  >
+                    {chip}
+                  </button>
+                ))}
+              </div>
+
+              {/* Textarea para personalizar */}
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-slate-400">Detalle de la Observación:</label>
+                <textarea
+                  value={rejectionReason}
+                  onChange={(e) => setRejectionReason(e.target.value)}
+                  rows={3}
+                  placeholder="Ejemplo: Por favor toma una foto más clara del reverso de tu DUI con buena iluminación..."
+                  className="w-full p-3 bg-slate-950 border border-slate-800 rounded-2xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-rose-500/50 resize-none"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-2 pt-2 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => {
+                  setRejectReasonModal(false);
+                  setRejectionReason('');
+                }}
+                className="flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs transition-colors cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => handleAuthorizeDriver(selectedDriver.id, 'REJECTED')}
+                disabled={authActionLoading || !rejectionReason.trim()}
+                className="flex-1 py-2.5 rounded-xl bg-rose-500 hover:bg-rose-600 disabled:opacity-50 text-white font-black text-xs transition-all shadow-md flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                {authActionLoading ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <XCircle className="w-3.5 h-3.5" />
+                )}
+                <span>Confirmar Rechazo</span>
+              </button>
+            </div>
           </div>
         </div>
       )}

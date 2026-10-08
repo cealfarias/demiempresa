@@ -627,15 +627,6 @@ export async function resetDatabaseApi() {
  */
 export async function fetchAdminDriversApi() {
   try {
-    // Si el administrador reinició a cero los expedientes o está en prelanzamiento limpio
-    const isCleared = typeof window !== 'undefined' && (
-      localStorage.getItem('rumbo_drivers_cleared') === 'true' ||
-      localStorage.getItem('rumbo_prelaunch_zero_override') === 'true'
-    );
-    if (isCleared) {
-      return [];
-    }
-
     const res = await fetch(`${API_BASE_URL}/api/admin/drivers`);
     if (!res.ok) throw new Error('Error al consultar conductores');
     const data = await res.json();
