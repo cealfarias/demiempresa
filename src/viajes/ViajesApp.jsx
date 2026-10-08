@@ -2790,10 +2790,11 @@ export default function ViajesApp() {
       }
     }
 
-    // Fallback: abrir directamente la ventana oficial de Google accounts.google.com
-    const redirectUri = window.location.origin;
-    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=token&scope=email%20profile%20openid`;
-    window.open(authUrl, 'GoogleSignIn', 'width=500,height=650');
+    // Si GSI está disponible en el navegador, invocar el selector nativo oficial
+    if (window.google?.accounts?.id) {
+      window.google.accounts.id.prompt();
+      return;
+    }
   };
 
   // Enviar invitación de referido por WhatsApp
@@ -4990,37 +4991,40 @@ export default function ViajesApp() {
                   Ahora que tu viaje ya está asegurado y en camino, valida tu cuenta una única vez para activar tus créditos y viajar con máxima tranquilidad.
                 </p>
 
-                {/* BOTÓN DESTACADO: CONTINUAR CON GOOGLE OFICIAL */}
+                {/* BOTÓN ÚNICO OFICIAL: CONTINUAR CON GOOGLE */}
                 <div className="space-y-2 pt-1">
                   {/* Contenedor oficial donde Google Identity Services inyecta su botón nativo de iframe */}
                   <div ref={googleButtonContainerRef} className="flex justify-center w-full min-h-[44px]" />
 
-                  {/* Botón directo para invocar la ventana oficial de Google (accounts.google.com) */}
-                  <button
-                    type="button"
-                    onClick={handleGoogleSignInClick}
-                    className="w-full py-3 px-4 bg-white hover:bg-slate-100 text-slate-800 font-bold text-sm rounded-2xl shadow-lg flex items-center justify-center gap-3 transition-all cursor-pointer border border-slate-200 group"
-                  >
-                    <svg className="w-5 h-5 flex-shrink-0 transition-transform group-hover:scale-110" viewBox="0 0 24 24">
-                      <path
-                        fill="#EA4335"
-                        d="M12 5c1.6 0 3 .6 4.1 1.6l3.1-3.1C17.3 1.7 14.8 1 12 1 7.4 1 3.5 3.6 1.6 7.4l3.7 2.9C6.2 7.4 8.9 5 12 5z"
-                      />
-                      <path
-                        fill="#4285F4"
-                        d="M23.5 12.3c0-.8-.1-1.6-.2-2.3H12v4.6h6.5c-.3 1.5-1.1 2.8-2.4 3.7l3.7 2.9c2.2-2 3.7-5 3.7-8.9z"
-                      />
-                      <path
-                        fill="#FBBC05"
-                        d="M5.3 14.7c-.2-.7-.4-1.5-.4-2.3s.2-1.6.4-2.3L1.6 7.2C.6 9.2 0 11.5 0 14s.6 4.8 1.6 6.8l3.7-2.9 shadow-none"
-                      />
-                      <path
-                        fill="#34A853"
-                        d="M12 23c3.2 0 6-1.1 8-3l-3.7-2.9c-1.1.7-2.5 1.2-4.3 1.2-3.1 0-5.8-2.4-6.7-5.3L1.6 16c1.9 3.8 5.8 7 10.4 7z"
-                      />
-                    </svg>
-                    <span>Continuar con Google</span>
-                  </button>
+                  {/* Botón de respaldo SOLO si Google Identity Services no ha cargado en el navegador */}
+                  {!window.google?.accounts?.id && (
+                    <button
+                      type="button"
+                      onClick={handleGoogleSignInClick}
+                      className="w-full py-3 px-4 bg-white hover:bg-slate-100 text-slate-800 font-bold text-sm rounded-2xl shadow-lg flex items-center justify-center gap-3 transition-all cursor-pointer border border-slate-200 group"
+                    >
+                      <svg className="w-5 h-5 flex-shrink-0 transition-transform group-hover:scale-110" viewBox="0 0 24 24">
+                        <path
+                          fill="#EA4335"
+                          d="M12 5c1.6 0 3 .6 4.1 1.6l3.1-3.1C17.3 1.7 14.8 1 12 1 7.4 1 3.5 3.6 1.6 7.4l3.7 2.9C6.2 7.4 8.9 5 12 5z"
+                        />
+                        <path
+                          fill="#4285F4"
+                          d="M23.5 12.3c0-.8-.1-1.6-.2-2.3H12v4.6h6.5c-.3 1.5-1.1 2.8-2.4 3.7l3.7 2.9c2.2-2 3.7-5 3.7-8.9z"
+                        />
+                        <path
+                          fill="#FBBC05"
+                          d="M5.3 14.7c-.2-.7-.4-1.5-.4-2.3s.2-1.6.4-2.3L1.6 7.2C.6 9.2 0 11.5 0 14s.6 4.8 1.6 6.8l3.7-2.9 shadow-none"
+                        />
+                        <path
+                          fill="#34A853"
+                          d="M12 23c3.2 0 6-1.1 8-3l-3.7-2.9c-1.1.7-2.5 1.2-4.3 1.2-3.1 0-5.8-2.4-6.7-5.3L1.6 16c1.9 3.8 5.8 7 10.4 7z"
+                        />
+                      </svg>
+                      <span>Continuar con Google</span>
+                    </button>
+                  )}
+
                   <div className="flex items-center justify-center gap-1.5 text-[10px] text-emerald-400 font-medium">
                     <ShieldCheck className="w-3.5 h-3.5 flex-shrink-0" />
                     <span>Conexión oficial protegida por Google Identity Services</span>
@@ -5324,8 +5328,8 @@ export default function ViajesApp() {
             <div className="bg-blue-950/40 border border-blue-500/20 rounded-xl p-3 text-[11px] text-blue-200 space-y-1">
               <p className="font-semibold text-blue-300">¿Cómo habilitarlo en Google Cloud Console?</p>
               <p>1. Ingresa a <strong>console.cloud.google.com</strong> ➔ Credenciales.</p>
-              <p>2. En "ID de cliente de OAuth 2.0", autoriza el origen <code>https://demiempresa.online</code></p>
-              <p>3. Pega el ID aquí para activar la ventana oficial de Google al instante.</p>
+              <p>2. En "ID de cliente de OAuth 2.0" ➔ "Orígenes de JavaScript autorizados", agrega <code>https://viajes.demiempresa.online</code> y <code>https://demiempresa.online</code></p>
+              <p>3. Pega el ID aquí para activar la conexión oficial de Google al instante.</p>
             </div>
 
             <div className="flex gap-2 pt-2">
