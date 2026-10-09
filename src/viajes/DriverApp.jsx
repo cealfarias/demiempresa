@@ -166,6 +166,21 @@ function DriverAppContent() {
     return cleanup;
   }, []);
 
+  // Invitar e iniciar instalación PWA de forma automática para conductores si no está instalada
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+    const hasDeclinedAutoInstall = sessionStorage.getItem('rumbo_driver_install_prompted');
+
+    if (!isStandalone && !hasDeclinedAutoInstall) {
+      const timer = setTimeout(() => {
+        setShowInstallAppModal(true);
+        sessionStorage.setItem('rumbo_driver_install_prompted', 'true');
+      }, 1500);
+      return () => clearTimeout(timer);
+    }
+  }, []);
+
   // Control de Exclusividad de Dispositivo (1 Rol a la vez: Pasajero vs Conductor)
   const [roleConflictState, setRoleConflictState] = useState(() => {
     if (typeof window === 'undefined') return null;

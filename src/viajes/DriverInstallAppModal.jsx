@@ -15,7 +15,7 @@ import {
 import RumboLogo from './RumboLogo';
 
 export default function DriverInstallAppModal({ isOpen, onClose }) {
-  const [deferredPrompt, setDeferredPrompt] = useState(null);
+  const [deferredPrompt, setDeferredPrompt] = useState(() => (typeof window !== 'undefined' ? window.deferredPwaInstallPrompt : null));
   const [isIOS, setIsIOS] = useState(false);
   const [isInstalled, setIsInstalled] = useState(false);
 
@@ -29,14 +29,51 @@ export default function DriverInstallAppModal({ isOpen, onClose }) {
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
     setIsInstalled(isStandalone);
 
+    if (window.deferredPwaInstallPrompt) {
+      setDeferredPrompt(window.deferredPwaInstallPrompt);
+    }
+
     const handleBeforeInstall = (e) => {
       e.preventDefault();
+      window.deferredPwaInstallPrompt = e;
       setDeferredPrompt(e);
     };
 
+    const handlePromptReady = () => {
+      if (window.deferredPwaInstallPrompt) {
+        setDeferredPrompt(window.deferredPwaInstallPrompt);
+      }
+    };
+
     window.addEventListener('beforeinstallprompt', handleBeforeInstall);
-    return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstall);
+    window.addEventListener('pwa:installprompt_ready', handlePromptReady);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstall);
+      window.removeEventListener('pwa:installprompt_ready', handlePromptReady);
+    };
   }, []);
+
+  // Si se abre el modal y el navegador tiene el prompt de instalación listo, lanzarlo automáticamente
+  useEffect(() => {
+    if (isOpen && deferredPrompt) {
+      // Pequeño delay para asegurar renderizado visual
+      const timer = setTimeout(() => {
+        try {
+          deferredPrompt.prompt();
+          deferredPrompt.userChoice.then((choice) => {
+            if (choice && choice.outcome === 'accepted') {
+              setIsInstalled(true);
+              if (onClose) onClose();
+            }
+          }).catch(() => {});
+        } catch (err) {
+          console.warn('Auto prompt install error:', err);
+        }
+      }, 350);
+      return () => clearTimeout(timer);
+    }
+  }, [isOpen, deferredPrompt, onClose]);
 
   if (!isOpen) return null;
 

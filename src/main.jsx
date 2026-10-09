@@ -20,3 +20,11 @@ if ('serviceWorker' in navigator) {
     });
   });
 }
+
+// Captura global de PWA install prompt para que esté disponible instantáneamente
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  window.deferredPwaInstallPrompt = e;
+  window.dispatchEvent(new CustomEvent('pwa:installprompt_ready'));
+});
+

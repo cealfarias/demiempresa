@@ -90,6 +90,21 @@ export default function DriverLandingView({ onStartRegistration, onCheckStatus, 
 
   const autoDetectTimerRef = React.useRef(null);
 
+  // Auto-invitar a instalar la app de conductor al cargar la landing si no está instalada
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+    const hasPrompted = sessionStorage.getItem('rumbo_driver_landing_installed');
+
+    if (!isStandalone && !hasPrompted) {
+      const timer = setTimeout(() => {
+        setShowInstallAppModal(true);
+        sessionStorage.setItem('rumbo_driver_landing_installed', 'true');
+      }, 2000);
+      return () => clearTimeout(timer);
+    }
+  }, []);
+
   // Cerrar y limpiar modal
   const handleCloseLoginModal = () => {
     setShowLoginModal(false);
