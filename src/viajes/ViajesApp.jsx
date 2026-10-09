@@ -62,6 +62,8 @@ import {
 import DeviceRoleConflictModal from './DeviceRoleConflictModal';
 import RumboLogo from './RumboLogo';
 import AdModal from './AdModal';
+import InTripSocialFeed, { PEA_TOPICS } from './InTripSocialFeed';
+import PeaIncentivesModal from './PeaIncentivesModal';
 import RumboInboxModal from './RumboInboxModal';
 import PickupMapModal from './PickupMapModal';
 import DestinationMapModal from './DestinationMapModal';
@@ -974,6 +976,8 @@ export default function ViajesApp() {
   const [regEmail, setRegEmail] = useState('');
   const [regDui, setRegDui] = useState('');
   const [regPhone, setRegPhone] = useState('');
+  const [regInterests, setRegInterests] = useState(['canasta_basica', 'dte_tax']); // Intereses de la PEA
+  const [showPeaIncentivesModal, setShowPeaIncentivesModal] = useState(false);
   const [referrerCode, setReferrerCode] = useState(() => {
     if (typeof window !== 'undefined') {
       try {
@@ -2774,6 +2778,7 @@ export default function ViajesApp() {
         photoUrl: effectivePhoto,
         referralCode: safeReferralCode,
         provider: googleTempUser ? 'google' : 'manual',
+        interests: regInterests,
         isVerified: true,
         sessionToken: regRes?.sessionToken || regRes?.user?.sessionToken || null
       };
@@ -5734,6 +5739,45 @@ export default function ViajesApp() {
                     />
                   </div>
 
+                  {/* Perfilación de la PEA: Intereses y Soluciones */}
+                  <div className="p-3 bg-slate-950/90 rounded-2xl border border-slate-800 space-y-2 text-left">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[11px] font-black uppercase tracking-wider text-amber-400">
+                        🎯 ¿Qué temas o servicios te interesan?
+                      </label>
+                      <span className="text-[10px] text-slate-400">Personaliza tus beneficios</span>
+                    </div>
+                    <p className="text-[11px] text-slate-300">
+                      Selecciona para recibir cupones de descuento, asesoría y participar en rifas de smartphones:
+                    </p>
+                    <div className="grid grid-cols-2 gap-1.5 pt-1">
+                      {PEA_TOPICS.map((topic) => {
+                        const isSelected = regInterests.includes(topic.id);
+                        return (
+                          <button
+                            key={topic.id}
+                            type="button"
+                            onClick={() => {
+                              if (isSelected) {
+                                setRegInterests(regInterests.filter(id => id !== topic.id));
+                              } else {
+                                setRegInterests([...regInterests, topic.id]);
+                              }
+                            }}
+                            className={`p-2 rounded-xl text-left text-xs font-bold transition-all border cursor-pointer ${
+                              isSelected
+                                ? 'bg-amber-500/20 border-amber-400/50 text-amber-300 shadow-sm'
+                                : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
+                            }`}
+                          >
+                            <div className="text-[11px] font-bold truncate">{topic.label}</div>
+                            <div className="text-[9px] text-slate-400 font-normal truncate mt-0.5">{topic.desc}</div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
                   {/* Bloque de Cumplimiento Legal y Consentimientos */}
                   <div className="p-3 bg-slate-950/90 rounded-2xl border border-slate-800 space-y-2 text-[11px] text-slate-300">
                     <label className="flex items-start gap-2.5 cursor-pointer">
@@ -6984,6 +7028,16 @@ export default function ViajesApp() {
           )}
 
           {/* ============================================================== */}
+          {/* FEED SOCIAL / REELS VERTICAL DE LA PEA: MONETIZACIÓN CAUTIVA */}
+          {/* ============================================================== */}
+          <InTripSocialFeed
+            passengerInterests={userProfile?.interests || regInterests || []}
+            destinationMunicipality={destinationMunicipality}
+            onOpenAdModal={() => setShowAdModal(true)}
+            onOpenIncentiveModal={() => setShowPeaIncentivesModal(true)}
+          />
+
+          {/* ============================================================== */}
           {/* FEED PUBLICITARIO COMERCIAL (REELS Y BANNERS EN TRAYECTO)     */}
           {/* ============================================================== */}
           <div className="flex-1 bg-slate-900 border border-slate-800 rounded-3xl p-4 shadow-2xl space-y-4">
@@ -7081,6 +7135,13 @@ export default function ViajesApp() {
 
       {/* Modal B2B Captación en Caliente */}
       <AdModal isOpen={showAdModal} onClose={() => setShowAdModal(false)} />
+
+      {/* Modal Exclusivo de Incentivos PEA (Rifas y Semanas de Viajes Gratis) */}
+      <PeaIncentivesModal
+        isOpen={showPeaIncentivesModal}
+        onClose={() => setShowPeaIncentivesModal(false)}
+        userProfile={userProfile}
+      />
 
       {/* Modal Interactivo de Mapa Leaflet con Pin y Radio 1 km */}
       <PickupMapModal
