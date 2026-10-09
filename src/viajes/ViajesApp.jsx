@@ -53,6 +53,13 @@ import {
   BellRing
 } from 'lucide-react';
 import { isPushSupported, getPushPermissionState, subscribeUserToPush, testPushNotification } from './pushManager';
+import {
+  checkDriverPendingActivity,
+  purgeDriverSessionCleanly,
+  setActiveDeviceRole,
+  STORAGE_KEYS
+} from './deviceRoleManager';
+import DeviceRoleConflictModal from './DeviceRoleConflictModal';
 import RumboLogo from './RumboLogo';
 import AdModal from './AdModal';
 import RumboInboxModal from './RumboInboxModal';
@@ -378,6 +385,32 @@ export default function ViajesApp() {
     const cleanup = initSessionTelemetry('PASSENGER');
     return cleanup;
   }, []);
+
+  // Control de Exclusividad de Dispositivo (1 Rol a la vez: Pasajero vs Conductor)
+  const [roleConflictState, setRoleConflictState] = useState(() => {
+    if (typeof window === 'undefined') return null;
+    const hasDriverSession = !!localStorage.getItem(STORAGE_KEYS.DRIVER_PROFILE);
+    if (hasDriverSession) {
+      const pending = checkDriverPendingActivity();
+      return {
+        hasConflict: true,
+        currentAttemptedRole: 'PASSENGER',
+        existingActiveRole: 'DRIVER',
+        pendingActivity: pending
+      };
+    }
+    // Si no hay conductor, afianzar este dispositivo como PASSENGER
+    setActiveDeviceRole('PASSENGER');
+    return null;
+  });
+
+  const handleResolveSwitchToPassenger = () => {
+    purgeDriverSessionCleanly();
+    setActiveDeviceRole('PASSENGER');
+    setRoleConflictState(null);
+    triggerButtonFeedback();
+    speakAssistantMessage('Has cambiado a Modo Pasajero. Bienvenido a Rumbo.');
+  };
 
   // Datos del Viaje (interactivos y persistidos contra recargas)
   const [origin, setOrigin] = useState(() => initialActiveTripSession?.origin || initialDraft.origin || '');
@@ -3426,15 +3459,31 @@ export default function ViajesApp() {
             </button>
           )}
 
-          {/* ACCESO DIRECTO AL MODO CONDUCTOR */}
-          <a
-            href="/conductor"
+          {/* ACCESO DIRECTO AL MODO CONDUCTOR (Mutuamente Excluyente) */}
+          <button
+            type="button"
+            onClick={() => {
+              const pending = checkPassengerPendingActivity();
+              if (pending.hasActiveTrip) {
+                alert(`⚠️ No puedes cambiar a Modo Conductor en este momento:\n${pending.reason}\n\nDebes finalizar o cancelar tu solicitud actual de pasajero primero.`);
+                return;
+              }
+              if (userProfile) {
+                if (confirm('⚠️ Atención: Un mismo dispositivo no permite ambas aplicaciones activas a la vez.\n\nPara acceder a Rumbo Conductor se cerrará tu sesión de Pasajero de forma limpia.\n\n¿Deseas continuar?')) {
+                  purgePassengerSessionCleanly();
+                  window.location.href = '/conductor';
+                }
+              } else {
+                setActiveDeviceRole('DRIVER');
+                window.location.href = '/conductor';
+              }
+            }}
             title="Ir a la Consola y Radar del Conductor"
-            className="px-2 sm:px-2.5 py-1 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-full flex items-center gap-1 text-[11px] font-bold transition-all shadow-sm flex-shrink-0"
+            className="px-2 sm:px-2.5 py-1 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-full flex items-center gap-1 text-[11px] font-bold transition-all shadow-sm flex-shrink-0 cursor-pointer"
           >
             <Car className="w-3.5 h-3.5 text-amber-400" />
             <span className="hidden md:inline">Soy Conductor</span>
-          </a>
+          </button>
         </div>
       </header>
 
@@ -7517,6 +7566,19 @@ export default function ViajesApp() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Modal de Exclusividad de Dispositivo: Conductor Activo vs Pasajero */}
+      {roleConflictState?.hasConflict && (
+        <DeviceRoleConflictModal
+          currentAttemptedRole="PASSENGER"
+          existingActiveRole="DRIVER"
+          pendingActivity={roleConflictState.pendingActivity}
+          onConfirmSwitch={handleResolveSwitchToPassenger}
+          onStayCurrentRole={() => {
+            window.location.href = '/conductor';
+          }}
+        />
       )}
     </div>
   );

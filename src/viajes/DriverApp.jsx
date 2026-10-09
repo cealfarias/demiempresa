@@ -35,9 +35,17 @@ import {
   Smartphone,
   Gift,
   Bell,
-  BellRing
+  BellRing,
+  User
 } from 'lucide-react';
 import { isPushSupported, getPushPermissionState, subscribeUserToPush, testPushNotification } from './pushManager';
+import {
+  checkPassengerPendingActivity,
+  purgePassengerSessionCleanly,
+  setActiveDeviceRole,
+  STORAGE_KEYS
+} from './deviceRoleManager';
+import DeviceRoleConflictModal from './DeviceRoleConflictModal';
 import RumboLogo from './RumboLogo';
 import GasModal from './GasModal';
 import DriverRegistrationModal from './DriverRegistrationModal';
@@ -157,6 +165,30 @@ function DriverAppContent() {
     const cleanup = initSessionTelemetry('DRIVER');
     return cleanup;
   }, []);
+
+  // Control de Exclusividad de Dispositivo (1 Rol a la vez: Pasajero vs Conductor)
+  const [roleConflictState, setRoleConflictState] = useState(() => {
+    if (typeof window === 'undefined') return null;
+    const hasPassengerSession = !!localStorage.getItem(STORAGE_KEYS.PASSENGER_PROFILE);
+    if (hasPassengerSession) {
+      const pending = checkPassengerPendingActivity();
+      return {
+        hasConflict: true,
+        currentAttemptedRole: 'DRIVER',
+        existingActiveRole: 'PASSENGER',
+        pendingActivity: pending
+      };
+    }
+    // Si no hay pasajero, afianzar este dispositivo como DRIVER
+    setActiveDeviceRole('DRIVER');
+    return null;
+  });
+
+  const handleResolveSwitchToDriver = () => {
+    purgePassengerSessionCleanly();
+    setActiveDeviceRole('DRIVER');
+    setRoleConflictState(null);
+  };
 
   const isApproved = driverProfile && driverProfile.approvalStatus === 'APPROVED';
   const isPending = driverProfile?.approvalStatus === 'PENDING';
@@ -1145,6 +1177,27 @@ function DriverAppContent() {
                 ) : (
                   <Bell className="w-4 h-4 text-amber-400" />
                 )}
+              </button>
+
+              {/* ACCESO DIRECTO AL MODO PASAJERO (Mutuamente Excluyente) */}
+              <button
+                type="button"
+                onClick={() => {
+                  const pending = checkDriverPendingActivity();
+                  if (pending.hasActiveTrip) {
+                    alert(`⚠️ No puedes cambiar a Modo Pasajero mientras tienes una carrera asignada en ejecución.\n\nDebes finalizar o resolver el viaje con el pasajero antes de salir del rol de conductor.`);
+                    return;
+                  }
+                  if (confirm('⚠️ Atención: Un mismo dispositivo no permite ambas aplicaciones activas a la vez.\n\nPara viajar como Pasajero se cerrará tu sesión de Conductor de forma limpia.\n\n¿Deseas continuar?')) {
+                    purgeDriverSessionCleanly();
+                    window.location.href = '/viajes';
+                  }
+                }}
+                title="Cambiar a Modo Pasajero (Pedir un viaje)"
+                className="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-emerald-500/20 text-slate-300 hover:text-emerald-300 text-xs font-bold border border-slate-700/60 hover:border-emerald-500/40 transition-colors flex items-center gap-1 cursor-pointer"
+              >
+                <User className="w-3.5 h-3.5 text-emerald-400" />
+                <span className="hidden sm:inline">Modo Pasajero</span>
               </button>
 
               <button
@@ -2528,6 +2581,19 @@ function DriverAppContent() {
         isOpen={showInstallAppModal}
         onClose={() => setShowInstallAppModal(false)}
       />
+
+      {/* Modal de Exclusividad de Dispositivo: Pasajero Activo vs Conductor */}
+      {roleConflictState?.hasConflict && (
+        <DeviceRoleConflictModal
+          currentAttemptedRole="DRIVER"
+          existingActiveRole="PASSENGER"
+          pendingActivity={roleConflictState.pendingActivity}
+          onConfirmSwitch={handleResolveSwitchToDriver}
+          onStayCurrentRole={() => {
+            window.location.href = '/viajes';
+          }}
+        />
+      )}
 
     </div>
   );

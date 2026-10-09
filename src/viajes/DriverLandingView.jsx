@@ -38,8 +38,10 @@ import {
   Flame,
   Gift,
   X,
-  ChevronLeft
+  ChevronLeft,
+  User
 } from 'lucide-react';
+import { checkPassengerPendingActivity, purgePassengerSessionCleanly, setActiveDeviceRole } from './deviceRoleManager';
 import RumboLogo from './RumboLogo';
 import DriverAvatarNarrator from './DriverAvatarNarrator';
 import SupportTicketModal from './SupportTicketModal';
@@ -446,6 +448,24 @@ export default function DriverLandingView({ onStartRegistration, onCheckStatus, 
           >
             <Smartphone className="w-3.5 h-3.5 text-emerald-400" />
             <span className="hidden xs:inline">Instalar App</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              const pending = checkPassengerPendingActivity();
+              if (pending.hasActiveTrip) {
+                alert(`⚠️ Tienes una solicitud o viaje activo en Modo Pasajero:\n${pending.reason}`);
+                window.location.href = '/viajes';
+                return;
+              }
+              purgeDriverSessionCleanly();
+              window.location.href = '/viajes';
+            }}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-800 hover:bg-emerald-500/20 text-slate-300 hover:text-emerald-300 border border-slate-700/60 hover:border-emerald-500/40 transition-colors cursor-pointer shadow-sm"
+            title="Ir a pedir un viaje como Pasajero"
+          >
+            <User className="w-3.5 h-3.5 text-emerald-400" />
+            <span className="hidden xs:inline">Pedir Viaje</span>
           </button>
           <button
             onClick={() => setShowSupportModal(true)}
