@@ -1238,12 +1238,17 @@ export default function ViajesApp() {
 
   // Inicializar Socket y Eventos
   useEffect(() => {
-    if (userProfile?.id) {
-      socket.emit('client:register', { userId: userProfile.id, role: 'PASSENGER' });
+    const effectiveUserId = userProfile?.id || localStorage.getItem('rumbo_guest_passenger_id') || `guest-${Date.now()}`;
+    if (!localStorage.getItem('rumbo_guest_passenger_id')) {
+      localStorage.setItem('rumbo_guest_passenger_id', effectiveUserId);
     }
+    socket.emit('client:register', { userId: effectiveUserId, role: 'PASSENGER' });
 
     // Escuchar ofertas entrantes de conductores en tiempo real (Vigencia 30s)
     socket.on('passenger:offer_received', (offer) => {
+      if (offer?.tripId) {
+        setTripId(offer.tripId);
+      }
       setActiveOffers((prev) => {
         const exists = prev.find((o) => o.driverProfileId === offer.driverProfileId);
         if (exists) return prev;
@@ -1286,6 +1291,7 @@ export default function ViajesApp() {
 
     // Escuchar posición GPS y tiempo de llegada en vivo del conductor
     socket.on('trip:driver_location', (data) => {
+      if (!data) return;
       if (data?.etaMinutes !== undefined) {
         setDriverEtaMinutes(data.etaMinutes);
       }
@@ -1345,17 +1351,25 @@ export default function ViajesApp() {
       speakAssistantMessage('El conductor no aceptó cancelar. La carrera continúa.');
     });
 
-    // Escuchar cambios de estado del viaje
-    socket.on('trip:status_changed', ({ status }) => {
-      if (status === 'ARRIVED') {
+    // Escuchar cambios de estado del viaje en tiempo real
+    socket.on('trip:status_changed', (data) => {
+      console.log('📡 [trip:status_changed] recibido en pasajero:', data);
+      const nextStatus = typeof data === 'string' ? data : (data?.status || data?.newStatus);
+      if (!nextStatus) return;
+
+      if (data?.tripId) {
+        setTripId(data.tripId);
+      }
+
+      setAppState('IN_TRIP_HUB');
+
+      if (nextStatus === 'ARRIVED') {
         setTripStatus('DRIVER_ARRIVED');
         speakAssistantMessage('¡Tu conductor ha llegado al punto de recogida!');
-      }
-      if (status === 'IN_TRANSIT') {
+      } else if (nextStatus === 'IN_TRANSIT') {
         setTripStatus('IN_TRANSIT');
         speakAssistantMessage('En trayecto hacia tu destino. Conoce las promociones exclusivas en tu ruta.');
-      }
-      if (status === 'COMPLETED') {
+      } else if (nextStatus === 'COMPLETED' || nextStatus === 'DONE') {
         setTripStatus('COMPLETED');
         setShowRatingModal(true);
         speakAssistantMessage('Has llegado a tu destino. ¡Gracias por viajar con Rumbo!');
@@ -2593,8 +2607,14 @@ export default function ViajesApp() {
     const discount = hasCredit ? 1.00 : 0.00;
     const cashToPay = Math.max(0.00, fare - discount);
 
+    const effectiveTripId = offer?.tripId || tripId;
+    if (offer?.tripId) {
+      setTripId(offer.tripId);
+    }
+
     setCreditDiscountApplied(hasCredit);
     setAssignedTrip({
+      tripId: effectiveTripId,
       driver: {
         name: offer.driverName,
         photo: offer.photoUrl,
@@ -2615,12 +2635,13 @@ export default function ViajesApp() {
 
     // Enviar evento de aceptación atómica al servidor
     socket.emit('passenger:accept_offer', {
-      tripId: tripId || 'trip-1',
+      tripId: effectiveTripId || 'trip-1',
       driverProfileId: offer.driverProfileId,
       agreedFare: fare.toFixed(2)
     });
 
     setAppState('IN_TRIP_HUB');
+    setTripStatus('DRIVER_EN_ROUTE');
     setShowRegisterModal(false);
   };
 

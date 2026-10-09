@@ -27,13 +27,19 @@ export function initializeWebSockets(httpServer) {
   io.on('connection', (socket) => {
     console.log(`🔌 Cliente conectado: ${socket.id}`);
 
+    // Por defecto, cada cliente se une al canal de pasajeros para no perder notificaciones generales
+    socket.join('passengers_channel');
+
     socket.on('client:register', ({ userId, role, driverProfileId }) => {
       socket.userId = userId;
       socket.role = role;
       socket.driverProfileId = driverProfileId;
 
-      connectedUsers.set(userId, socket.id);
+      if (userId) {
+        connectedUsers.set(userId, socket.id);
+      }
       if (role === 'DRIVER') {
+        socket.leave('passengers_channel');
         if (driverProfileId) {
           driverSockets.set(driverProfileId, socket.id);
           socket.join(`driver:${driverProfileId}`);
@@ -41,8 +47,11 @@ export function initializeWebSockets(httpServer) {
         socket.join('drivers_channel');
         console.log(`🚖 Conductor suscrito al canal de despacho: ${socket.id}`);
       } else {
-        socket.join(`passenger:${userId}`);
+        if (userId) {
+          socket.join(`passenger:${userId}`);
+        }
         socket.join('passengers_channel');
+        console.log(`🙋 Pasajero suscrito al canal de pasajeros: ${socket.id}`);
       }
     });
 
@@ -58,12 +67,9 @@ export function initializeWebSockets(httpServer) {
 
         await updateDriverLocation(driverProfileId, numLng, numLat);
 
-        const targetTripId = tripId || socket.currentTripId;
+        let targetTripId = tripId || socket.currentTripId;
+        let tripInfo = null;
         if (targetTripId) {
-          socket.currentTripId = targetTripId;
-
-          // Recuperar datos de viaje para calcular distancia precisa y ETA
-          let tripInfo = null;
           try {
             const tripRes = await pool.query(
               'SELECT id, passenger_id, origin_lat, origin_lng, destination_lat, destination_lng, status FROM viajes_trips WHERE id::text = $1',
@@ -71,8 +77,34 @@ export function initializeWebSockets(httpServer) {
             );
             tripInfo = tripRes.rows[0];
           } catch (e) {
-            // Silencioso si falla la consulta
+            // Silencioso si falla la consulta directa
           }
+        }
+
+        // Búsqueda de rescate: si no se encontró con targetTripId, buscar por driverProfileId
+        if (!tripInfo && driverProfileId) {
+          try {
+            const drvTripRes = await pool.query(`
+              SELECT t.id, t.passenger_id, t.origin_lat, t.origin_lng, t.destination_lat, t.destination_lng, t.status
+              FROM viajes_trips t
+              JOIN viajes_driver_profiles dp ON t.driver_id = dp.id
+              WHERE (dp.id::text = $1 OR dp.vehicle_plate = $1)
+                AND t.status IN ('ACCEPTED', 'DRIVER_EN_ROUTE', 'ARRIVED', 'IN_TRANSIT')
+              ORDER BY t.id DESC LIMIT 1;
+            `, [driverProfileId]);
+            if (drvTripRes.rows.length > 0) {
+              tripInfo = drvTripRes.rows[0];
+              targetTripId = tripInfo.id;
+              socket.currentTripId = tripInfo.id;
+            }
+          } catch (e) {
+            // Silencioso
+          }
+        }
+
+        const effectiveTripId = tripInfo?.id || targetTripId;
+        if (effectiveTripId) {
+          socket.currentTripId = effectiveTripId;
 
           let distanceKm = null;
           let etaMinutes = 3;
@@ -98,7 +130,7 @@ export function initializeWebSockets(httpServer) {
           }
 
           const locationPayload = {
-            tripId: targetTripId,
+            tripId: effectiveTripId,
             driverProfileId,
             lat: numLat,
             lng: numLng,
@@ -107,7 +139,10 @@ export function initializeWebSockets(httpServer) {
             status: tripInfo?.status || 'DRIVER_EN_ROUTE'
           };
 
-          io.to(`trip:${targetTripId}`).emit('trip:driver_location', locationPayload);
+          io.to(`trip:${effectiveTripId}`).emit('trip:driver_location', locationPayload);
+          if (targetTripId && String(targetTripId) !== String(effectiveTripId)) {
+            io.to(`trip:${targetTripId}`).emit('trip:driver_location', locationPayload);
+          }
           if (tripInfo?.passenger_id) {
             io.to(`passenger:${tripInfo.passenger_id}`).emit('trip:driver_location', locationPayload);
           }
@@ -292,9 +327,7 @@ export function initializeWebSockets(httpServer) {
 
         const vBrand = driverInfo?.vehicle_brand || '';
         const vModel = driverInfo?.vehicle_model || '';
-        const fullModel = (vBrand || vModel) ? `${vBrand} ${vModel}`.trim() : 'Vehículo Autorizado';
-
-        io.to(`trip:${tripId}`).emit('passenger:offer_received', {
+        const offerPayload = {
           tripId,
           driverProfileId,
           driverName: driverInfo?.full_name || 'Conductor Autorizado',
@@ -305,7 +338,10 @@ export function initializeWebSockets(httpServer) {
           photoUrl: driverInfo?.photo_url || null,
           proposedFare,
           expiresInSeconds: 30
-        });
+        };
+
+        io.to(`trip:${tripId}`).emit('passenger:offer_received', offerPayload);
+        io.to('passengers_channel').emit('passenger:offer_received', offerPayload);
       } catch (err) {
         console.error('Error en driver:offer:', err);
       }
@@ -482,13 +518,16 @@ export function initializeWebSockets(httpServer) {
           }
         }
 
-        const passengerRes = await pool.query('SELECT * FROM viajes_users WHERE id::text = $1', [trip?.passenger_id]);
-        const passenger = passengerRes.rows[0] || { full_name: 'Pasajero', phone: '' };
+        socket.join(`trip:${tripId}`);
+        socket.currentTripId = tripId;
 
         const driverSocketId = driverSockets.get(driverProfileId) || (actualDriverId ? driverSockets.get(actualDriverId.toString()) : null);
         if (driverSocketId) {
           const socketDriver = io.sockets.sockets.get(driverSocketId);
-          if (socketDriver) socketDriver.currentTripId = tripId;
+          if (socketDriver) {
+            socketDriver.currentTripId = tripId;
+            socketDriver.join(`trip:${tripId}`);
+          }
 
           const cleanPassPhone = passenger.phone ? String(passenger.phone).replace(/\D/g, '') : '';
           const waMsg = encodeURIComponent('Hola, soy tu conductor de Rumbo, voy en camino a recogerte.');
@@ -607,10 +646,24 @@ export function initializeWebSockets(httpServer) {
           driver = fallbackRes.rows[0];
         }
 
+        socket.join(`trip:${tripId}`);
+        socket.currentTripId = tripId;
+
         const actualDriverId = driver?.id;
 
-        const tripRes = await pool.query('SELECT * FROM viajes_trips WHERE id::text = $1', [tripId]);
-        const trip = tripRes.rows[0];
+        let tripRes = await pool.query('SELECT * FROM viajes_trips WHERE id::text = $1', [tripId]);
+        let trip = tripRes.rows[0];
+        if (!trip) {
+          const fallbackTripRes = await pool.query(
+            "SELECT * FROM viajes_trips WHERE status = 'REQUESTED' ORDER BY created_at DESC LIMIT 1"
+          );
+          if (fallbackTripRes.rows.length > 0) {
+            trip = fallbackTripRes.rows[0];
+            tripId = trip.id;
+            socket.join(`trip:${tripId}`);
+            socket.currentTripId = tripId;
+          }
+        }
         const creditApplied = parseFloat(trip?.credit_applied || 0.00);
         const cashToCollect = Math.max(0.00, parseFloat(agreedFare) - creditApplied);
 
@@ -637,7 +690,10 @@ export function initializeWebSockets(httpServer) {
         const driverSocketId = driverSockets.get(driverProfileId) || (actualDriverId ? driverSockets.get(actualDriverId.toString()) : null);
         if (driverSocketId) {
           const socketDriver = io.sockets.sockets.get(driverSocketId);
-          if (socketDriver) socketDriver.currentTripId = tripId;
+          if (socketDriver) {
+            socketDriver.currentTripId = tripId;
+            socketDriver.join(`trip:${tripId}`);
+          }
 
           const cleanPassPhone = passenger.phone ? String(passenger.phone).replace(/\D/g, '') : '';
           const waMsg = encodeURIComponent('Hola, soy tu conductor de Rumbo, voy en camino a recogerte.');
@@ -903,7 +959,7 @@ export function initializeWebSockets(httpServer) {
     /**
      * 4.2 Reconexión Resiliente de Pasajero o Conductor (Previene pérdida de viaje por F5 o recarga)
      */
-    socket.on('trip:reconnect', async ({ tripId, role, driverProfileId }, callback) => {
+    socket.on('trip:reconnect', async ({ tripId, role, driverProfileId, passengerId }, callback) => {
       try {
         if (!tripId) {
           if (callback) callback({ success: false, error: 'tripId requerido' });
@@ -1022,7 +1078,10 @@ export function initializeWebSockets(httpServer) {
     socket.on('trip:update_status', async ({ tripId, newStatus, driverProfileId }, callback) => {
       try {
         const normalizedStatus = (newStatus === 'DONE' ? 'COMPLETED' : newStatus);
-        const updateRes = await pool.query(`
+        socket.join(`trip:${tripId}`);
+        socket.currentTripId = tripId;
+
+        let updateRes = await pool.query(`
           UPDATE viajes_trips
           SET status = $1,
               completed_at = CASE WHEN $1 = 'COMPLETED' THEN CURRENT_TIMESTAMP ELSE completed_at END
@@ -1030,7 +1089,31 @@ export function initializeWebSockets(httpServer) {
           RETURNING *;
         `, [normalizedStatus, tripId]);
 
-        const updatedTrip = updateRes.rows[0];
+        let updatedTrip = updateRes.rows[0];
+
+        // Rescate si tripId no coincidió directamente: buscar por driverProfileId
+        if (!updatedTrip && driverProfileId) {
+          const fallbackTripRes = await pool.query(`
+            SELECT id FROM viajes_trips
+            WHERE driver_id::text = (SELECT id::text FROM viajes_driver_profiles WHERE id::text = $1 OR vehicle_plate = $1 LIMIT 1)
+              AND status NOT IN ('COMPLETED', 'CANCELLED')
+            ORDER BY id DESC LIMIT 1;
+          `, [driverProfileId]);
+          if (fallbackTripRes.rows.length > 0) {
+            const realId = fallbackTripRes.rows[0].id;
+            updateRes = await pool.query(`
+              UPDATE viajes_trips
+              SET status = $1,
+                  completed_at = CASE WHEN $1 = 'COMPLETED' THEN CURRENT_TIMESTAMP ELSE completed_at END
+              WHERE id = $2
+              RETURNING *;
+            `, [normalizedStatus, realId]);
+            updatedTrip = updateRes.rows[0];
+            tripId = realId;
+            socket.join(`trip:${tripId}`);
+            socket.currentTripId = tripId;
+          }
+        }
 
         if (normalizedStatus === 'COMPLETED' && updatedTrip) {
           try {
@@ -1050,10 +1133,14 @@ export function initializeWebSockets(httpServer) {
         const statusPayload = {
           tripId,
           status: normalizedStatus,
+          newStatus: normalizedStatus,
           passengerId: updatedTrip?.passenger_id
         };
 
         io.to(`trip:${tripId}`).emit('trip:status_changed', statusPayload);
+        if (updatedTrip?.id && String(updatedTrip.id) !== String(tripId)) {
+          io.to(`trip:${updatedTrip.id}`).emit('trip:status_changed', statusPayload);
+        }
         if (updatedTrip?.passenger_id) {
           io.to(`passenger:${updatedTrip.passenger_id}`).emit('trip:status_changed', statusPayload);
         }

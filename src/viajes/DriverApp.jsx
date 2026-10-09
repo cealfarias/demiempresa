@@ -762,6 +762,7 @@ function DriverAppContent() {
         cashToCollect: parseFloat(assignedData.cashToCollect || fare).toFixed(2),
         creditApplied: assignedData.creditApplied || '0.00'
       });
+      socket.emit('trip:reconnect', { tripId: assignedData.tripId, role: 'DRIVER', driverProfileId });
       setIncomingRequest(null);
       setPendingOffer(null);
       setTripState('EN_ROUTE_TO_PICKUP');
@@ -910,12 +911,15 @@ function DriverAppContent() {
 
   // Controles de estado del viaje
   const handleUpdateStatus = (newStatus) => {
+    console.log(`🚖 [DriverApp] Actualizando estado a: ${newStatus} para viaje #${activeTrip?.id}`);
     setTripState(newStatus);
     if (activeTrip?.id) {
       socket.emit('trip:update_status', {
         tripId: activeTrip.id,
         newStatus: newStatus === 'DONE' ? 'COMPLETED' : newStatus,
         driverProfileId
+      }, (res) => {
+        console.log('📡 [DriverApp] Respuesta trip:update_status:', res);
       });
     }
 
