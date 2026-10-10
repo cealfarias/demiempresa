@@ -2701,6 +2701,10 @@ function recordTelemetryEventDirect({
 }) {
   try {
     const clientIp = extractClientIp(req);
+    // OBVIAR ESTRICTAMENTE 127.0.0.1, ::1 Y LOCALHOST
+    if (!clientIp || clientIp === '127.0.0.1' || clientIp === '::1' || clientIp === 'localhost') {
+      return null;
+    }
     const rawCountry = req?.headers?.['cf-ipcountry'] || req?.headers?.['x-country-code'] || 'SV';
     const countryInfo = resolveCountryInfo(rawCountry);
 
@@ -2782,10 +2786,11 @@ app.post('/api/telemetry/event', async (req, res) => {
     // 1. IP Real del Visitante (Cloudflare Connecting IP, X-Forwarded-For, X-Real-IP)
     const clientIp = extractClientIp(req);
 
-    // 2. Solo descartar si es explícitamente navegación interna del panel admin
+    // 2. OBVIAR ESTRICTAMENTE 127.0.0.1, ::1, LOCALHOST Y VISTAS ADMINISTRATIVAS
+    const isLocalhost = !clientIp || clientIp === '127.0.0.1' || clientIp === '::1' || clientIp === 'localhost';
     const isAdminView = metadata.isAdmin === true || String(path).startsWith('/admin');
-    if (isAdminView) {
-      return res.json({ success: true, ignored: true, reason: 'ADMIN_SCREEN_EXCLUDED' });
+    if (isLocalhost || isAdminView) {
+      return res.json({ success: true, ignored: true, reason: isLocalhost ? 'LOCALHOST_EXCLUDED' : 'ADMIN_SCREEN_EXCLUDED' });
     }
 
     // 3. País Real (Header CF-IPCountry oficial de Cloudflare Edge)
@@ -2864,6 +2869,7 @@ app.get('/api/admin/telemetry/stats', async (req, res) => {
       try {
         const dbRes = await pool.query(`
           SELECT * FROM viajes_telemetry_events
+          WHERE client_ip NOT IN ('127.0.0.1', '::1', 'localhost') AND client_ip IS NOT NULL
           ORDER BY created_at DESC
           LIMIT 1000;
         `);
@@ -2875,8 +2881,15 @@ app.get('/api/admin/telemetry/stats', async (req, res) => {
       }
     }
 
-    // Filtrar estrictamente solo llamadas internas del dashboard admin
-    events = events.filter(e => !String(e.path || '').startsWith('/admin') && e.metadata?.isAdmin !== true);
+    // Filtrar estrictamente cualquier 127.0.0.1, ::1, localhost y llamadas internas del dashboard admin
+    events = events.filter(e => 
+      e.client_ip &&
+      e.client_ip !== '127.0.0.1' &&
+      e.client_ip !== '::1' &&
+      e.client_ip !== 'localhost' &&
+      !String(e.path || '').startsWith('/admin') &&
+      e.metadata?.isAdmin !== true
+    );
 
     let totalLifetimeVisitors = 0;
     let totalLifetimeEvents = events.length;
@@ -2888,7 +2901,8 @@ app.get('/api/admin/telemetry/stats', async (req, res) => {
             COUNT(DISTINCT session_id) as total_unique,
             COUNT(*) as total_events
           FROM viajes_telemetry_events
-          WHERE path NOT LIKE '/admin%' OR path IS NULL;
+          WHERE client_ip NOT IN ('127.0.0.1', '::1', 'localhost') AND client_ip IS NOT NULL
+            AND (path NOT LIKE '/admin%' OR path IS NULL);
         `);
         if (histRes.rows && histRes.rows[0]) {
           totalLifetimeVisitors = Number(histRes.rows[0].total_unique) || 0;
@@ -2926,10 +2940,13 @@ app.get('/api/admin/telemetry/stats', async (req, res) => {
     const eventTypeCounts = {};
 
     for (const ev of events) {
+      const ip = ev.client_ip;
+      if (!ip || ip === '127.0.0.1' || ip === '::1' || ip === 'localhost') {
+        continue;
+      }
       const sId = ev.session_id || 'anon';
       const curDur = Number(ev.duration_seconds) || 0;
       const cInfo = resolveCountryInfo(ev.country_code);
-      const ip = ev.client_ip || '127.0.0.1';
 
       if (!sessionsMap.has(sId) || curDur > sessionsMap.get(sId).maxDuration) {
         sessionsMap.set(sId, {
@@ -2966,10 +2983,11 @@ app.get('/api/admin/telemetry/stats', async (req, res) => {
       curC.visits++;
       countryMap.set(cKey, curC);
 
-      // Desglose de IPs Reales
+      // Desglose de IPs Reales (Sin 127.0.0.1)
       let displayIp = ip;
-      if (ip === '127.0.0.1' || ip === '::1') displayIp = '127.0.0.1 (Localhost / Pruebas)';
-      else if (ip.startsWith('192.168.') || ip.startsWith('10.') || ip.startsWith('172.16.')) displayIp = `${ip} (Red Local / Wi-Fi)`;
+      if (ip.startsWith('192.168.') || ip.startsWith('10.') || ip.startsWith('172.16.')) {
+        displayIp = `${ip} (Red Local / Wi-Fi)`;
+      }
 
       const curIp = ipMap.get(displayIp) || {
         ip: displayIp,
@@ -3151,12 +3169,16 @@ app.get('/api/admin/telemetry/stats', async (req, res) => {
           mobilePercent
         },
         eventTypeCounts,
-        recentEvents: events.slice(0, 50).map(e => {
-          const c = resolveCountryInfo(e.country_code);
-          const rawIp = e.client_ip || '127.0.0.1';
-          let displayIp = rawIp;
-          if (rawIp === '127.0.0.1' || rawIp === '::1') displayIp = '127.0.0.1 (Localhost / Test)';
-          else if (rawIp.startsWith('192.168.') || rawIp.startsWith('10.') || rawIp.startsWith('172.16.')) displayIp = `${rawIp} (Wi-Fi / LAN)`;
+        recentEvents: events
+          .filter(e => e.client_ip && e.client_ip !== '127.0.0.1' && e.client_ip !== '::1' && e.client_ip !== 'localhost')
+          .slice(0, 50)
+          .map(e => {
+            const c = resolveCountryInfo(e.country_code);
+            const rawIp = e.client_ip || '';
+            let displayIp = rawIp;
+            if (rawIp.startsWith('192.168.') || rawIp.startsWith('10.') || rawIp.startsWith('172.16.')) {
+              displayIp = `${rawIp} (Wi-Fi / LAN)`;
+            }
 
           return {
             id: e.id,

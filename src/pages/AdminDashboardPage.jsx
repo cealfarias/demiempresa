@@ -2547,23 +2547,28 @@ export default function AdminDashboardPage() {
                   </span>
                 </div>
 
-                {(!telemetryStats?.topIps || telemetryStats.topIps.length === 0) ? (
-                  <div className="p-6 text-center text-xs text-slate-400">
-                    Aún no hay direcciones IP públicas capturadas.
-                  </div>
-                ) : (
-                  <div className="overflow-x-auto max-h-56">
-                    <table className="w-full text-left text-xs text-slate-300">
-                      <thead className="text-[10px] uppercase font-bold text-slate-400 bg-slate-950/60 sticky top-0">
-                        <tr>
-                          <th className="py-2 px-2.5">Dirección IP</th>
-                          <th className="py-2 px-2.5">Rol / Tipo</th>
-                          <th className="py-2 px-2.5">País</th>
-                          <th className="py-2 px-2.5 text-right">Visitas</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-800/60 font-mono text-[11px]">
-                        {telemetryStats.topIps.map((entry, idx) => (
+                {(() => {
+                  const safeTopIps = (telemetryStats?.topIps || []).filter(e => e.ip && !e.ip.includes('127.0.0.1') && !e.ip.includes('::1') && !e.ip.toLowerCase().includes('localhost'));
+                  if (safeTopIps.length === 0) {
+                    return (
+                      <div className="p-6 text-center text-xs text-slate-400">
+                        Aún no hay direcciones IP públicas capturadas.
+                      </div>
+                    );
+                  }
+                  return (
+                    <div className="overflow-x-auto max-h-56">
+                      <table className="w-full text-left text-xs text-slate-300">
+                        <thead className="text-[10px] uppercase font-bold text-slate-400 bg-slate-950/60 sticky top-0">
+                          <tr>
+                            <th className="py-2 px-2.5">Dirección IP</th>
+                            <th className="py-2 px-2.5">Rol / Tipo</th>
+                            <th className="py-2 px-2.5">País</th>
+                            <th className="py-2 px-2.5 text-right">Visitas</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-800/60 font-mono text-[11px]">
+                          {safeTopIps.map((entry, idx) => (
                           <tr key={idx} className="hover:bg-slate-850/40">
                             <td className="py-2 px-2.5 text-white font-bold">{entry.ip}</td>
                             <td className="py-2 px-2.5">
@@ -2587,7 +2592,8 @@ export default function AdminDashboardPage() {
                       </tbody>
                     </table>
                   </div>
-                )}
+                );
+              })()}
               </div>
 
               {/* Tarjeta 3: Discriminación de Celulares para Rifas y Fidelización */}
@@ -2699,63 +2705,69 @@ export default function AdminDashboardPage() {
                 </span>
               </div>
 
-              {(!telemetryStats?.recentEvents || telemetryStats.recentEvents.length === 0) ? (
-                <div className="p-8 text-center text-xs text-slate-400">
-                  Aún no hay eventos registrados en este momento. La telemetría capturará en vivo la próxima visita.
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs text-slate-300">
-                    <thead className="text-[10px] uppercase font-bold text-slate-400 bg-slate-950/60 border-b border-slate-800">
-                      <tr>
-                        <th className="py-2.5 px-3">Hora</th>
-                        <th className="py-2.5 px-3">Rol</th>
-                        <th className="py-2.5 px-3">IP Real</th>
-                        <th className="py-2.5 px-3">País</th>
-                        <th className="py-2.5 px-3">Celular / Equipo</th>
-                        <th className="py-2.5 px-3">Evento</th>
-                        <th className="py-2.5 px-3">Permanencia</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-800/60 font-mono text-[11px]">
-                      {(telemetryStats?.recentEvents || []).map((ev, idx) => (
-                        <tr key={idx} className="hover:bg-slate-850/40">
-                          <td className="py-2.5 px-3 text-slate-400">
-                            {ev?.createdAt ? new Date(ev.createdAt).toLocaleTimeString('es-SV', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : 'Reciente'}
-                          </td>
-                          <td className="py-2.5 px-3">
-                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                              ev?.role === 'DRIVER' ? 'bg-amber-500/20 text-amber-300' :
-                              ev?.role === 'VISITOR' ? 'bg-sky-500/20 text-sky-300' :
-                              'bg-emerald-500/20 text-emerald-300'
-                            }`}>
-                              {ev?.role === 'DRIVER' ? 'CONDUCTOR' : (ev?.role === 'VISITOR' ? 'PORTAL / WEB' : 'PASAJERO')}
-                            </span>
-                          </td>
-                          <td className="py-2.5 px-3 text-white font-bold">
-                            {ev?.ip || '127.0.0.1'}
-                          </td>
-                          <td className="py-2.5 px-3">
-                            <span className="flex items-center gap-1.5">
-                              <span>{ev?.countryFlag || '🇸🇻'}</span>
-                              <span>{ev?.countryName || 'El Salvador'}</span>
-                            </span>
-                          </td>
-                          <td className="py-2.5 px-3 text-emerald-300 font-semibold">
-                            {ev?.phoneBrand ? `${ev.phoneBrand} ${ev.phoneModel ? `(${ev.phoneModel})` : ''}` : (ev?.device || 'MÓVIL')}
-                          </td>
-                          <td className="py-2.5 px-3 font-semibold text-white">
-                            {ev?.eventType || 'VISIT'}
-                          </td>
-                          <td className="py-2.5 px-3 text-emerald-400 font-bold">
-                            {(ev?.duration ?? 0) > 0 ? `${ev.duration}s` : '0s'}
-                          </td>
+              {(() => {
+                const safeEvents = (telemetryStats?.recentEvents || []).filter(e => e.ip && !e.ip.includes('127.0.0.1') && !e.ip.includes('::1') && !e.ip.toLowerCase().includes('localhost'));
+                if (safeEvents.length === 0) {
+                  return (
+                    <div className="p-8 text-center text-xs text-slate-400">
+                      Aún no hay eventos registrados en este momento. La telemetría capturará en vivo la próxima visita.
+                    </div>
+                  );
+                }
+                return (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs text-slate-300">
+                      <thead className="text-[10px] uppercase font-bold text-slate-400 bg-slate-950/60 border-b border-slate-800">
+                        <tr>
+                          <th className="py-2.5 px-3">Hora</th>
+                          <th className="py-2.5 px-3">Rol</th>
+                          <th className="py-2.5 px-3">IP Real</th>
+                          <th className="py-2.5 px-3">País</th>
+                          <th className="py-2.5 px-3">Celular / Equipo</th>
+                          <th className="py-2.5 px-3">Evento</th>
+                          <th className="py-2.5 px-3">Permanencia</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
+                      </thead>
+                      <tbody className="divide-y divide-slate-800/60 font-mono text-[11px]">
+                        {safeEvents.map((ev, idx) => (
+                          <tr key={idx} className="hover:bg-slate-850/40">
+                            <td className="py-2.5 px-3 text-slate-400">
+                              {ev?.createdAt ? new Date(ev.createdAt).toLocaleTimeString('es-SV', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : 'Reciente'}
+                            </td>
+                            <td className="py-2.5 px-3">
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                ev?.role === 'DRIVER' ? 'bg-amber-500/20 text-amber-300' :
+                                ev?.role === 'VISITOR' ? 'bg-sky-500/20 text-sky-300' :
+                                'bg-emerald-500/20 text-emerald-300'
+                              }`}>
+                                {ev?.role === 'DRIVER' ? 'CONDUCTOR' : (ev?.role === 'VISITOR' ? 'PORTAL / WEB' : 'PASAJERO')}
+                              </span>
+                            </td>
+                            <td className="py-2.5 px-3 text-white font-bold">
+                              {ev?.ip}
+                            </td>
+                            <td className="py-2.5 px-3">
+                              <span className="flex items-center gap-1.5">
+                                <span>{ev?.countryFlag || '🇸🇻'}</span>
+                                <span>{ev?.countryName || 'El Salvador'}</span>
+                              </span>
+                            </td>
+                            <td className="py-2.5 px-3 text-emerald-300 font-semibold">
+                              {ev?.phoneBrand ? `${ev.phoneBrand} ${ev.phoneModel ? `(${ev.phoneModel})` : ''}` : (ev?.device || 'MÓVIL')}
+                            </td>
+                            <td className="py-2.5 px-3 font-semibold text-white">
+                              {ev?.eventType || 'VISIT'}
+                            </td>
+                            <td className="py-2.5 px-3 text-emerald-400 font-bold">
+                              {(ev?.duration ?? 0) > 0 ? `${ev.duration}s` : '0s'}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                );
+              })()}
             </div>
 
           </div>
