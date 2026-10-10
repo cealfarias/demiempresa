@@ -2449,6 +2449,22 @@ app.get('/api/admin/stats', async (req, res) => {
 
       const payPending = await pool.query("SELECT count(*) FROM viajes_inbox_tickets WHERE category = 'PAGOS' AND status = 'PENDING';");
       paymentTicketsCount = Math.max(paymentTicketsCount, parseInt(payPending.rows[0]?.count || 0));
+
+      // Suma real de pagos aprobados en tickets
+      try {
+        const paySum = await pool.query("SELECT COALESCE(SUM(payment_amount), 0) as total FROM viajes_inbox_tickets WHERE category = 'PAGOS' AND status IN ('APPROVED', 'RESOLVED');");
+        totalPaymentsApproved = parseFloat(paySum.rows[0]?.total || 0);
+      } catch (ePay) {
+        // fallback silencioso
+      }
+
+      // Bonos circulantes reales de usuarios disponibles
+      try {
+        const bonSum = await pool.query("SELECT count(*) FROM viajes_user_credits WHERE status = 'AVAILABLE';");
+        totalBonusesCirculating = parseInt(bonSum.rows[0]?.count || 0);
+      } catch (eBon) {
+        // fallback silencioso
+      }
     } catch (e) {
       console.warn('Stats fallback en memoria:', e.message);
     }
@@ -2505,8 +2521,8 @@ app.get('/api/admin/stats', async (req, res) => {
         completedTrips,
         pendingTicketsCount,
         paymentTicketsCount,
-        estimatedGrossRevenue: '$0.00 USD',
-        totalBonusesCirculating: 0,
+        estimatedGrossRevenue: `$${totalPaymentsApproved.toFixed(2)} USD`,
+        totalBonusesCirculating,
         prelaunchPromo,
         serverTime: new Date().toISOString()
       }

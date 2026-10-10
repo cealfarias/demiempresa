@@ -990,11 +990,15 @@ export default function AdminDashboardPage() {
                 <div className="grid grid-cols-2 gap-3 font-mono text-xs pt-1">
                   <div className="p-3 bg-slate-950 rounded-2xl border border-slate-800">
                     <span className="text-[10px] text-slate-400 block font-sans">Volumen de Cuotas:</span>
-                    <strong className="text-emerald-400 text-lg">$1,540.00</strong>
+                    <strong className="text-emerald-400 text-lg">
+                      {stats?.estimatedGrossRevenue || '$0.00 USD'}
+                    </strong>
                   </div>
                   <div className="p-3 bg-slate-950 rounded-2xl border border-slate-800">
                     <span className="text-[10px] text-slate-400 block font-sans">Bonos Circulantes ($1):</span>
-                    <strong className="text-amber-400 text-lg">320 Bonos</strong>
+                    <strong className="text-amber-400 text-lg">
+                      {stats?.totalBonusesCirculating ?? 0} Bonos
+                    </strong>
                   </div>
                 </div>
               </div>
@@ -1404,8 +1408,15 @@ export default function AdminDashboardPage() {
             </div>
 
             {/* Lista de Tickets en Cola */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-              {filteredTickets.map((tkt) => {
+            {filteredTickets.length === 0 ? (
+              <div className="p-8 text-center bg-slate-900 border border-slate-800 rounded-3xl space-y-2">
+                <Inbox className="w-8 h-8 text-slate-600 mx-auto" />
+                <p className="text-sm font-bold text-slate-300">No hay tickets en esta categoría</p>
+                <p className="text-xs text-slate-500">Los tickets y comprobantes enviados por conductores o pasajeros aparecerán aquí en tiempo real.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                {filteredTickets.map((tkt) => {
                 const isPending = tkt.status === 'PENDING';
                 const isApproved = tkt.status === 'APPROVED' || tkt.status === 'RESOLVED';
                 const isPagos = tkt.category === 'PAGOS';
@@ -1517,6 +1528,7 @@ export default function AdminDashboardPage() {
                 );
               })}
             </div>
+            )}
           </div>
         )}
 
@@ -2394,7 +2406,7 @@ export default function AdminDashboardPage() {
                   EN TIEMPO REAL
                 </span>
                 <span className="text-xs text-slate-300 font-medium italic">
-                  {telemetryStats?.googleMapsRealtime?.statusText || 'Menos concurrido de lo habitual'}
+                  {telemetryStats?.googleMapsRealtime?.statusText || 'Sin actividad registrada aún'}
                 </span>
               </div>
 
