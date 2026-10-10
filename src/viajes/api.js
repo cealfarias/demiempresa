@@ -1018,11 +1018,10 @@ export async function sendTelemetryEventApi({
   metadata = {}
 } = {}) {
   try {
-    // OBVIAR SI ES SESIÓN DE ADMINISTRADOR O PANTALLA /ADMIN (Para no inflar estadísticas)
+    // OBVIAR SI ES PANTALLA /ADMIN (Para no inflar estadísticas desde el panel)
     if (typeof window !== 'undefined') {
-      const isAdmin = window.location.pathname.startsWith('/admin') || !!localStorage.getItem('rumbo_admin_session');
-      if (isAdmin) {
-        return; // No registrar al propio administrador
+      if (window.location.pathname.startsWith('/admin')) {
+        return; // No registrar visualizaciones internas del panel admin
       }
     }
 

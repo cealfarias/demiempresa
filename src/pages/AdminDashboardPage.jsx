@@ -2267,7 +2267,7 @@ export default function AdminDashboardPage() {
                   {telemetryStats?.uniqueVisitors ?? 0}
                 </div>
                 <div className="text-[11px] text-slate-400">
-                  <span className="text-emerald-400 font-bold">{telemetryStats?.passengerVisits ?? 0}</span> Pasajeros • <span className="text-amber-400 font-bold">{telemetryStats?.driverVisits ?? 0}</span> Choferes
+                  <span className="text-emerald-400 font-bold">{telemetryStats?.passengerVisits ?? 0}</span> Pasajeros • <span className="text-amber-400 font-bold">{telemetryStats?.driverVisits ?? 0}</span> Choferes{Number(telemetryStats?.visitorVisits ?? 0) > 0 && <> • <span className="text-sky-400 font-bold">{telemetryStats.visitorVisits}</span> Web</>}
                 </div>
                 {Number(telemetryStats?.totalLifetimeVisitors) > Number(telemetryStats?.uniqueVisitors ?? 0) && (
                   <div className="text-[10px] text-slate-500 font-mono pt-0.5">
@@ -2557,6 +2557,7 @@ export default function AdminDashboardPage() {
                       <thead className="text-[10px] uppercase font-bold text-slate-400 bg-slate-950/60 sticky top-0">
                         <tr>
                           <th className="py-2 px-2.5">Dirección IP</th>
+                          <th className="py-2 px-2.5">Rol / Tipo</th>
                           <th className="py-2 px-2.5">País</th>
                           <th className="py-2 px-2.5 text-right">Visitas</th>
                         </tr>
@@ -2565,6 +2566,15 @@ export default function AdminDashboardPage() {
                         {telemetryStats.topIps.map((entry, idx) => (
                           <tr key={idx} className="hover:bg-slate-850/40">
                             <td className="py-2 px-2.5 text-white font-bold">{entry.ip}</td>
+                            <td className="py-2 px-2.5">
+                              <span className={`px-1.5 py-0.5 rounded text-[10px] font-sans font-bold ${
+                                entry.role === 'DRIVER' ? 'bg-amber-500/20 text-amber-300' :
+                                entry.role === 'VISITOR' ? 'bg-sky-500/20 text-sky-300' :
+                                'bg-emerald-500/20 text-emerald-300'
+                              }`}>
+                                {entry.role === 'DRIVER' ? '🚗 Conductor' : (entry.role === 'VISITOR' ? '🌐 Visitante' : '👤 Pasajero')}
+                              </span>
+                            </td>
                             <td className="py-2 px-2.5">
                               <span className="flex items-center gap-1.5">
                                 <span>{entry.flag}</span>
@@ -2715,9 +2725,11 @@ export default function AdminDashboardPage() {
                           </td>
                           <td className="py-2.5 px-3">
                             <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                              ev?.role === 'DRIVER' ? 'bg-amber-500/20 text-amber-300' : 'bg-emerald-500/20 text-emerald-300'
+                              ev?.role === 'DRIVER' ? 'bg-amber-500/20 text-amber-300' :
+                              ev?.role === 'VISITOR' ? 'bg-sky-500/20 text-sky-300' :
+                              'bg-emerald-500/20 text-emerald-300'
                             }`}>
-                              {ev?.role === 'DRIVER' ? 'CONDUCTOR' : 'PASAJERO'}
+                              {ev?.role === 'DRIVER' ? 'CONDUCTOR' : (ev?.role === 'VISITOR' ? 'PORTAL / WEB' : 'PASAJERO')}
                             </span>
                           </td>
                           <td className="py-2.5 px-3 text-white font-bold">

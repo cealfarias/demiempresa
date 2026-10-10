@@ -35,6 +35,7 @@ function verifyPassword(password, storedPasswordHash) {
 }
 
 const app = express();
+app.set('trust proxy', true);
 const server = http.createServer(app);
 const PORT = process.env.PORT || 10000;
 
@@ -141,6 +142,15 @@ app.post('/api/users/register', async (req, res) => {
     }
     // Expulsar cualquier sesión previa en otro dispositivo
     io.emit('passenger_session_revoked', { dui: cleanDui, phone: cleanPhone, activeSessionId: passengerSessionId });
+
+    recordTelemetryEventDirect({
+      req,
+      sessionId: passengerSessionId,
+      eventType: isExistingUser ? 'PASSENGER_LOGIN_SUCCESS' : 'PASSENGER_REGISTER_SUCCESS',
+      role: 'PASSENGER',
+      path: '/viajes',
+      metadata: { dui: cleanDui, phone: cleanPhone, fullName }
+    });
 
     if (isExistingUser) {
       const user = existingCheck.rows[0];
@@ -313,6 +323,15 @@ app.post('/api/users/login', async (req, res) => {
     } catch (wErr) {
       console.warn('⚠️ Error recuperando wallet en login:', wErr.message);
     }
+
+    recordTelemetryEventDirect({
+      req,
+      sessionId: passengerSessionId,
+      eventType: 'PASSENGER_LOGIN_SUCCESS',
+      role: 'PASSENGER',
+      path: '/viajes',
+      metadata: { dui: user.dui, phone: user.phone, fullName: user.full_name }
+    });
 
     return res.json({
       success: true,
@@ -661,6 +680,15 @@ app.post('/api/drivers/register', async (req, res) => {
       profile = insertRes.rows[0];
     }
 
+    recordTelemetryEventDirect({
+      req,
+      sessionId: `reg_${profile?.id || user.id}`,
+      eventType: 'DRIVER_REGISTER_SUBMITTED',
+      role: 'DRIVER',
+      path: '/conductor?register=true',
+      metadata: { phone: user.phone, fullName: user.full_name, vehiclePlate: profile?.vehicle_plate || cleanPlate }
+    });
+
     res.json({
       success: true,
       message: 'Expediente de conductor recibido exitosamente. Tu documentación está en revisión administrativa.',
@@ -1003,6 +1031,15 @@ app.post(['/api/drivers/login-phone', '/api/drivers/login'], async (req, res) =>
       sessionToken: newSessionId
     };
     delete driverProfile.passwordHash;
+
+    recordTelemetryEventDirect({
+      req,
+      sessionId: newSessionId,
+      eventType: 'DRIVER_LOGIN_SUCCESS',
+      role: 'DRIVER',
+      path: '/conductor',
+      metadata: { phone: cleanPhone, driverName: driver.fullName, vehiclePlate: driver.vehiclePlate }
+    });
 
     res.json({
       success: true,
@@ -2621,6 +2658,26 @@ const COUNTRY_MAP = {
   DO: { name: 'Rep. Dominicana', flag: '🇩🇴' }
 };
 
+function extractClientIp(req) {
+  if (!req) return '127.0.0.1';
+  const cfIp = req.headers?.['cf-connecting-ip'];
+  if (cfIp) return String(cfIp).trim();
+
+  const xRealIp = req.headers?.['x-real-ip'];
+  if (xRealIp) return String(xRealIp).trim();
+
+  const xForwardedFor = req.headers?.['x-forwarded-for'];
+  if (xForwardedFor) {
+    const list = String(xForwardedFor).split(',');
+    if (list.length > 0 && list[0].trim()) {
+      return list[0].trim().replace(/^::ffff:/, '');
+    }
+  }
+
+  const raw = req.ip || req.socket?.remoteAddress || '127.0.0.1';
+  return String(raw).replace(/^::ffff:/, '').trim() || '127.0.0.1';
+}
+
 function resolveCountryInfo(code) {
   const clean = String(code || '').toUpperCase().trim();
   if (COUNTRY_MAP[clean]) {
@@ -2630,6 +2687,84 @@ function resolveCountryInfo(code) {
     return { code: 'SV', name: 'El Salvador', flag: '🇸🇻' };
   }
   return { code: clean, name: clean, flag: '🌐' };
+}
+
+function recordTelemetryEventDirect({
+  req,
+  sessionId,
+  eventType = 'PAGE_VIEW',
+  role = 'PASSENGER',
+  path = '/',
+  deviceType,
+  durationSeconds = 0,
+  metadata = {}
+}) {
+  try {
+    const clientIp = extractClientIp(req);
+    const rawCountry = req?.headers?.['cf-ipcountry'] || req?.headers?.['x-country-code'] || 'SV';
+    const countryInfo = resolveCountryInfo(rawCountry);
+
+    const ua = req?.headers?.['user-agent'] || '';
+    let phoneBrand = '';
+    let phoneModel = '';
+    let phoneOs = '';
+    let devType = deviceType || (/Android|iPhone|iPad|Mobile/i.test(ua) ? 'MOBILE' : 'DESKTOP');
+
+    if (/iPhone|iPad|iPod/i.test(ua)) {
+      phoneBrand = 'Apple iPhone';
+      phoneModel = /iPad/i.test(ua) ? 'iPad' : 'iPhone';
+      phoneOs = 'iOS';
+    } else if (/Android/i.test(ua)) {
+      if (/SAMSUNG|SM-[A-Z0-9]+/i.test(ua)) phoneBrand = 'Samsung Galaxy';
+      else if (/Xiaomi|Redmi|POCO/i.test(ua)) phoneBrand = 'Xiaomi / Redmi / POCO';
+      else if (/Motorola|moto/i.test(ua)) phoneBrand = 'Motorola';
+      else if (/HUAWEI|HONOR/i.test(ua)) phoneBrand = 'Huawei / Honor';
+      else phoneBrand = 'Android Genérico';
+      phoneOs = 'Android';
+    } else {
+      phoneBrand = 'Computadora PC';
+      phoneModel = 'Escritorio';
+      phoneOs = 'PC';
+    }
+
+    const eventRecord = {
+      id: 'telem_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
+      session_id: sessionId || ('sess_' + Math.random().toString(36).substring(2, 9)),
+      event_type: eventType,
+      role,
+      path,
+      device_type: devType,
+      duration_seconds: Number(durationSeconds) || 0,
+      metadata,
+      client_ip: clientIp,
+      country_code: countryInfo.code,
+      country_name: countryInfo.name,
+      country_flag: countryInfo.flag,
+      phone_brand: phoneBrand,
+      phone_model: phoneModel,
+      phone_os: phoneOs,
+      created_at: new Date().toISOString()
+    };
+
+    memoryTelemetryEvents.unshift(eventRecord);
+    if (memoryTelemetryEvents.length > 5000) memoryTelemetryEvents.pop();
+
+    if (process.env.DATABASE_URL) {
+      pool.query(`
+        INSERT INTO viajes_telemetry_events (
+          session_id, event_type, role, path, device_type, duration_seconds, metadata, client_ip, country_code, country_name, phone_brand, phone_model, phone_os
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+      `, [eventRecord.session_id, eventType, role, path, devType, Number(durationSeconds) || 0, JSON.stringify(metadata), clientIp, countryInfo.code, countryInfo.name, phoneBrand, phoneModel, phoneOs]).catch(() => {});
+    }
+
+    if (typeof io !== 'undefined') {
+      io.emit('telemetry_live_event', eventRecord);
+    }
+    return eventRecord;
+  } catch (err) {
+    console.warn('Error en recordTelemetryEventDirect:', err.message);
+    return null;
+  }
 }
 
 app.post('/api/telemetry/event', async (req, res) => {
@@ -2644,32 +2779,22 @@ app.post('/api/telemetry/event', async (req, res) => {
       metadata = {}
     } = req.body || {};
 
-    // 1. IP Real del Visitante (Cloudflare Connecting IP o X-Forwarded-For)
-    const rawIp = req.headers['cf-connecting-ip'] || 
-                  req.headers['x-forwarded-for']?.split(',')[0]?.trim() || 
-                  req.headers['x-real-ip'] || 
-                  req.socket?.remoteAddress || 
-                  '127.0.0.1';
-    const clientIp = rawIp.replace(/^::ffff:/, '').trim() || '127.0.0.1';
+    // 1. IP Real del Visitante (Cloudflare Connecting IP, X-Forwarded-For, X-Real-IP)
+    const clientIp = extractClientIp(req);
 
-    // 2. FILTRAR Y OBVIAR LOCALHOST Y SESIÓN ADMINISTRATIVA (Para no inflar estadísticas)
-    const isLocalhostOrAdmin = clientIp === '127.0.0.1' || 
-                               clientIp === '::1' || 
-                               clientIp === 'localhost' || 
-                               metadata.isAdmin === true || 
-                               String(path).startsWith('/admin');
-
-    if (isLocalhostOrAdmin) {
-      return res.json({ success: true, ignored: true, reason: 'ADMIN_OR_LOCALHOST_EXCLUDED' });
+    // 2. Solo descartar si es explícitamente navegación interna del panel admin
+    const isAdminView = metadata.isAdmin === true || String(path).startsWith('/admin');
+    if (isAdminView) {
+      return res.json({ success: true, ignored: true, reason: 'ADMIN_SCREEN_EXCLUDED' });
     }
 
     // 3. País Real (Header CF-IPCountry oficial de Cloudflare Edge)
     const rawCountry = req.headers['cf-ipcountry'] || 
                        req.headers['x-country-code'] || 
-                       (clientIp === '127.0.0.1' || clientIp === '::1' ? 'SV' : 'SV');
+                       'SV';
     const countryInfo = resolveCountryInfo(rawCountry);
 
-    // 4. Discriminación Inteligente de Marca y Modelo de Celular (Para Rifas e Incentivos)
+    // 4. Discriminación Inteligente de Marca y Modelo de Celular
     const phoneInfo = metadata.phoneInfo || {};
     let phoneBrand = phoneInfo.brand || '';
     let phoneModel = phoneInfo.model || '';
@@ -2739,7 +2864,6 @@ app.get('/api/admin/telemetry/stats', async (req, res) => {
       try {
         const dbRes = await pool.query(`
           SELECT * FROM viajes_telemetry_events
-          WHERE client_ip NOT IN ('127.0.0.1', '::1', 'localhost') OR client_ip IS NULL
           ORDER BY created_at DESC
           LIMIT 1000;
         `);
@@ -2751,8 +2875,8 @@ app.get('/api/admin/telemetry/stats', async (req, res) => {
       }
     }
 
-    // Filtrar estrictamente cualquier 127.0.0.1 o loopback local
-    events = events.filter(e => e.client_ip !== '127.0.0.1' && e.client_ip !== '::1' && e.client_ip !== 'localhost' && !e.client_ip?.startsWith('192.168.'));
+    // Filtrar estrictamente solo llamadas internas del dashboard admin
+    events = events.filter(e => !String(e.path || '').startsWith('/admin') && e.metadata?.isAdmin !== true);
 
     let totalLifetimeVisitors = 0;
     let totalLifetimeEvents = events.length;
@@ -2764,7 +2888,7 @@ app.get('/api/admin/telemetry/stats', async (req, res) => {
             COUNT(DISTINCT session_id) as total_unique,
             COUNT(*) as total_events
           FROM viajes_telemetry_events
-          WHERE client_ip NOT IN ('127.0.0.1', '::1', 'localhost') OR client_ip IS NULL;
+          WHERE path NOT LIKE '/admin%' OR path IS NULL;
         `);
         if (histRes.rows && histRes.rows[0]) {
           totalLifetimeVisitors = Number(histRes.rows[0].total_unique) || 0;
@@ -2796,6 +2920,7 @@ app.get('/api/admin/telemetry/stats', async (req, res) => {
     let desktopCount = 0;
     let passengerCount = 0;
     let driverCount = 0;
+    let visitorCount = 0;
     let exitShown = 0;
     let exitConverted = 0;
     const eventTypeCounts = {};
@@ -2808,7 +2933,7 @@ app.get('/api/admin/telemetry/stats', async (req, res) => {
 
       if (!sessionsMap.has(sId) || curDur > sessionsMap.get(sId).maxDuration) {
         sessionsMap.set(sId, {
-          role: ev.role,
+          role: ev.role || 'VISITOR',
           maxDuration: curDur,
           device: ev.device_type,
           ip,
@@ -2842,24 +2967,32 @@ app.get('/api/admin/telemetry/stats', async (req, res) => {
       countryMap.set(cKey, curC);
 
       // Desglose de IPs Reales
-      const curIp = ipMap.get(ip) || {
-        ip,
+      let displayIp = ip;
+      if (ip === '127.0.0.1' || ip === '::1') displayIp = '127.0.0.1 (Localhost / Pruebas)';
+      else if (ip.startsWith('192.168.') || ip.startsWith('10.') || ip.startsWith('172.16.')) displayIp = `${ip} (Red Local / Wi-Fi)`;
+
+      const curIp = ipMap.get(displayIp) || {
+        ip: displayIp,
+        rawIp: ip,
         countryCode: cInfo.code,
         countryName: cInfo.name,
         flag: cInfo.flag,
         visits: 0,
-        role: ev.role,
+        role: ev.role || 'VISITOR',
         device: ev.device_type,
         lastSeen: ev.created_at
       };
       curIp.visits++;
-      ipMap.set(ip, curIp);
+      if (ev.role === 'DRIVER') curIp.role = 'DRIVER';
+      else if (ev.role === 'PASSENGER' && curIp.role !== 'DRIVER') curIp.role = 'PASSENGER';
+      ipMap.set(displayIp, curIp);
 
       if (ev.device_type === 'MOBILE') mobileCount++;
       else if (ev.device_type === 'DESKTOP') desktopCount++;
 
       if (ev.role === 'PASSENGER') passengerCount++;
-      if (ev.role === 'DRIVER') driverCount++;
+      else if (ev.role === 'DRIVER') driverCount++;
+      else visitorCount++;
 
       if (ev.event_type === 'EXIT_INTENT_SHOWN') exitShown++;
       if (ev.event_type === 'EXIT_INTENT_CONVERTED_REGISTER' || ev.event_type === 'EXIT_INTENT_CONVERTED_WHATSAPP') exitConverted++;
@@ -2931,7 +3064,7 @@ app.get('/api/admin/telemetry/stats', async (req, res) => {
 
     const topIps = Array.from(ipMap.values())
       .sort((a, b) => b.visits - a.visits)
-      .slice(0, 25);
+      .slice(0, 30);
 
     // Discriminación Real de Marcas y Modelos de Celulares (Para Rifas de Fidelización)
     const phoneBrandMap = new Map();
@@ -2990,6 +3123,7 @@ app.get('/api/admin/telemetry/stats', async (req, res) => {
         totalLifetimeEvents: totalLifetimeEvents > 0 ? totalLifetimeEvents : events.length,
         passengerVisits: passengerCount,
         driverVisits: driverCount,
+        visitorVisits: visitorCount,
         avgDurationSeconds,
         avgDurationFormatted: formatDuration(avgDurationSeconds),
         bounceRate: `${bounceRate}%`,
@@ -3017,14 +3151,20 @@ app.get('/api/admin/telemetry/stats', async (req, res) => {
           mobilePercent
         },
         eventTypeCounts,
-        recentEvents: events.slice(0, 25).map(e => {
+        recentEvents: events.slice(0, 50).map(e => {
           const c = resolveCountryInfo(e.country_code);
+          const rawIp = e.client_ip || '127.0.0.1';
+          let displayIp = rawIp;
+          if (rawIp === '127.0.0.1' || rawIp === '::1') displayIp = '127.0.0.1 (Localhost / Test)';
+          else if (rawIp.startsWith('192.168.') || rawIp.startsWith('10.') || rawIp.startsWith('172.16.')) displayIp = `${rawIp} (Wi-Fi / LAN)`;
+
           return {
             id: e.id,
             eventType: e.event_type,
             role: e.role,
             device: e.device_type,
-            ip: e.client_ip || '127.0.0.1',
+            ip: displayIp,
+            rawIp: rawIp,
             countryCode: c.code,
             countryName: c.name,
             countryFlag: c.flag,
