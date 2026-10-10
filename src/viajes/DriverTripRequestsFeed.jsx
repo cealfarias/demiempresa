@@ -97,7 +97,7 @@ export default function DriverTripRequestsFeed({
     if (onAcceptRequest) {
       onAcceptRequest(req, safePrice);
     } else if (onSendOffer) {
-      onSendOffer(safePrice, 3);
+      onSendOffer(safePrice, req);
     }
     // Remover de la lista
     if (req?.id) {
@@ -481,14 +481,31 @@ export default function DriverTripRequestsFeed({
 
             {/* Botones de Acción */}
             <div className="space-y-2 pt-2">
-              <button
-                type="button"
-                onClick={() => handleAcceptOffer(selectedRequest, parseFloat(counterOfferAmount))}
-                className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:brightness-110 text-slate-950 font-black text-sm shadow-xl shadow-emerald-500/30 flex items-center justify-center gap-2 cursor-pointer transition-transform active:scale-95"
-              >
-                <Check className="w-5 h-5" />
-                <span>Aceptar viaje por ${counterOfferAmount} USD</span>
-              </button>
+              {parseFloat(counterOfferAmount) > selectedRequest.price ? (
+                <button
+                  type="button"
+                  onClick={() => handleAcceptOffer(selectedRequest, parseFloat(counterOfferAmount))}
+                  className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-amber-500 via-amber-400 to-orange-500 hover:brightness-110 text-slate-950 font-black text-sm shadow-xl shadow-amber-500/30 flex items-center justify-center gap-2 cursor-pointer transition-transform active:scale-95"
+                >
+                  <TrendingUp className="w-5 h-5" />
+                  <span>Enviar Contraoferta por ${counterOfferAmount} USD</span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => handleAcceptOffer(selectedRequest, parseFloat(counterOfferAmount))}
+                  className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:brightness-110 text-slate-950 font-black text-sm shadow-xl shadow-emerald-500/30 flex items-center justify-center gap-2 cursor-pointer transition-transform active:scale-95"
+                >
+                  <Check className="w-5 h-5" />
+                  <span>Aceptar tarifa del pasajero (${counterOfferAmount} USD)</span>
+                </button>
+              )}
+
+              <p className="text-[11px] text-slate-400 text-center leading-tight">
+                {parseFloat(counterOfferAmount) > selectedRequest.price
+                  ? 'El pasajero tendrá 30 segundos en su pantalla para comparar y decidir si acepta tu contraoferta.'
+                  : 'Se enviará tu confirmación al pasajero para que te seleccione de inmediato.'}
+              </p>
 
               <button
                 type="button"

@@ -887,23 +887,27 @@ function DriverAppContent() {
   }, [driverOnline, driverProfileId, gasStations, activeTrip?.id]);
 
   // Conductor responde a solicitud (acepta tarifa o contraoferta)
-  const handleAcceptFare = (fare) => {
-    if (!incomingRequest) return;
+  const handleAcceptFare = (fare, tripObj = null) => {
+    const target = tripObj || incomingRequest;
+    if (!target) return;
+    const targetId = target.id || target.tripId;
+
+    console.log(`🚖 [DriverApp] Enviando oferta/contraoferta de $${fare} para viaje #${targetId}`);
 
     // Emitir oferta a través de WebSockets hacia el pasajero
     socket.emit('driver:offer', {
-      tripId: incomingRequest.id,
+      tripId: targetId,
       driverProfileId,
       proposedFare: fare
     });
 
     // Guardar oferta pendiente mientras el pasajero confirma en su pantalla
     setPendingOffer({
-      tripId: incomingRequest.id,
+      tripId: targetId,
       offeredFare: fare,
-      origin: incomingRequest.origin,
-      destination: incomingRequest.destination,
-      roadDistanceKm: incomingRequest.roadDistanceKm
+      origin: target.origin,
+      destination: target.destination,
+      roadDistanceKm: target.roadDistanceKm
     });
 
     setIncomingRequest(null);
@@ -1783,8 +1787,8 @@ function DriverAppContent() {
                 <DriverTripRequestsFeed
                   driverOnline={driverOnline}
                   onToggleOnline={handleToggleOnline}
-                  onAcceptRequest={handleAcceptRequestFromFeed}
-                  onSendOffer={(fare) => handleAcceptFare(fare)}
+                  onAcceptRequest={(req, fare) => handleAcceptFare(fare, req)}
+                  onSendOffer={(fare, req) => handleAcceptFare(fare, req)}
                   incomingRequest={incomingRequest}
                   onOpenSettings={() => setShowVehicleSettings(true)}
                   onOpenExpediente={() => setShowRegistrationModal(true)}
