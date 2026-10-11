@@ -526,8 +526,8 @@ export async function fetchAdminStatsApi() {
 
     const prelaunchPromo = (rawStats.prelaunchPromo && !isLegacyMock && !isOverriddenZero) ? rawStats.prelaunchPromo : {
       isPromoActive: true,
-      deadlineIso: '2026-10-31T23:59:59-06:00',
-      deadlineFormatted: '31 de Octubre de 2026',
+      deadlineIso: '2026-11-30T23:59:59-06:00',
+      deadlineFormatted: '30 de Noviembre de 2026',
       quotaMaxPerRole: 100,
       passengers: {
         enrolledCount: totalPassengers,
@@ -578,8 +578,8 @@ export async function fetchAdminStatsApi() {
       totalBonusesCirculating: 0,
       prelaunchPromo: {
         isPromoActive: true,
-        deadlineIso: '2026-10-31T23:59:59-06:00',
-        deadlineFormatted: '31 de Octubre de 2026',
+        deadlineIso: '2026-11-30T23:59:59-06:00',
+        deadlineFormatted: '30 de Noviembre de 2026',
         quotaMaxPerRole: 100,
         passengers: {
           enrolledCount: 0,

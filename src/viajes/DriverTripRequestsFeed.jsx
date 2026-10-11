@@ -367,16 +367,16 @@ export default function DriverTripRequestsFeed({
                     <span>Promoción Prelanzamiento: 30 Días Gratis</span>
                   </div>
                   <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-bold border border-amber-500/30">
-                    100 Primeros • Vence 31 Oct
+                    100 Primeros • Vence 30 Nov
                   </span>
                 </div>
                 <p className="text-[11px] text-slate-300 leading-relaxed">
-                  Rumbo a mi Destino está en despliegue piloto. Los primeros 100 conductores inscritos reciben <strong>30 DÍAS GRATIS de prueba ($0 cuota)</strong> hasta el 31 de octubre de 2026 (a partir del 1 de noviembre aplica periodo normal de 14 días). ¡Invita a colegas conductores y a tus pasajeros para multiplicar los viajes en tu zona!
+                  Rumbo a mi Destino está en despliegue piloto. Los primeros 100 conductores inscritos reciben <strong>30 DÍAS GRATIS de prueba ($0 cuota)</strong> hasta el 30 de noviembre de 2026 (a partir del 1 de diciembre aplica periodo normal de 14 días). ¡Invita a colegas conductores y a tus pasajeros para multiplicar los viajes en tu zona!
                 </p>
                 <button
                   type="button"
                   onClick={() => {
-                    const shareMsg = `🚘 ¡Aprovecha la Súper Promoción de Rumbo Conductor en El Salvador! 30 DÍAS GRATIS ($0 cuota) para los primeros 100 conductores inscritos hasta el 31 de Octubre de 2026: https://viajes.demiempresa.online/conductor`;
+                    const shareMsg = `🚘 ¡Aprovecha la Súper Promoción de Rumbo Conductor en El Salvador! 30 DÍAS GRATIS ($0 cuota) para los primeros 100 conductores inscritos hasta el 30 de Noviembre de 2026: https://viajes.demiempresa.online/conductor`;
                     if (navigator.share) {
                       navigator.share({ title: 'Rumbo Conductor - 30 Días Gratis', text: shareMsg, url: 'https://viajes.demiempresa.online/conductor' }).catch(() => {});
                     } else {

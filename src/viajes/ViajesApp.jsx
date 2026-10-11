@@ -4972,16 +4972,16 @@ export default function ViajesApp() {
                       <span>Promoción Prelanzamiento: Bono 200% ($2.00 USD)</span>
                     </div>
                     <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/30">
-                      100 Primeros • Vence 31 Oct
+                      100 Primeros • Vence 30 Nov
                     </span>
                   </div>
                   <p className="text-[11px] text-slate-300 leading-relaxed">
-                    Estamos en despliegue piloto en El Salvador. Los primeros 100 viajeros reciben <strong>$2.00 USD de bienvenida</strong> y <strong>$2.00 USD por cada amigo referido</strong> (vence 31 de octubre de 2026). Si en tu zona aún no hay choferes disponibles al instante, ¡te invitamos a invitar a tus amigos y conductores conocidos para activar la cobertura local!
+                    Estamos en despliegue piloto en El Salvador. Los primeros 100 viajeros reciben <strong>$2.00 USD de bienvenida</strong> y <strong>$2.00 USD por cada amigo referido</strong> (vence 30 de noviembre de 2026). Si en tu zona aún no hay choferes disponibles al instante, ¡te invitamos a invitar a tus amigos y conductores conocidos para activar la cobertura local!
                   </p>
                   <button
                     type="button"
                     onClick={() => {
-                      const shareMsg = `🚗 ¡Aprovecha la Súper Promoción de Prelanzamiento en Rumbo a mi Destino! Bono del 200% ($2.00 USD de bienvenida y $2.00 por referir para los primeros 100 usuarios, vence 31 Octubre 2026): https://viajes.demiempresa.online/viajes`;
+                      const shareMsg = `🚗 ¡Aprovecha la Súper Promoción de Prelanzamiento en Rumbo a mi Destino! Bono del 200% ($2.00 USD de bienvenida y $2.00 por referir para los primeros 100 usuarios, vence 30 Noviembre 2026): https://viajes.demiempresa.online/viajes`;
                       if (navigator.share) {
                         navigator.share({ title: 'Rumbo a mi Destino - Bono 200%', text: shareMsg, url: 'https://viajes.demiempresa.online/viajes' }).catch(() => {});
                       } else {

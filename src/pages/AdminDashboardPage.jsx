@@ -182,9 +182,9 @@ export default function AdminDashboardPage() {
   const PASSENGER_URL = 'https://viajes.demiempresa.online/viajes';
   const DRIVER_URL = 'https://viajes.demiempresa.online/conductor';
 
-  const PASSENGER_WA_MESSAGE = `🚗 *¡Súper Promoción de Prelanzamiento con Rumbo a mi Destino!* 🇸🇻\n\n🎁 *¡BONO DEL 200% PARA LOS PRIMEROS 100 PASAJEROS!* (Hasta el 31 de Octubre de 2026):\n✅ *$2.00 USD de Bienvenida* activo de inmediato para tu primera carrera.\n✅ *$2.00 USD por cada amigo que refieras* para seguir viajando con descuento.\n✅ *0% comisiones abusivas:* pagas en efectivo directo la tarifa negociada con tu conductor.\n✅ Calculadora con precios justos MINEC y subasta en tiempo real (< 1 km).\n\n⏳ *Condición de la Promoción:* Válida exclusivamente para los primeros 100 viajeros inscritos o hasta el *31 de octubre de 2026*. A partir del 1 de noviembre aplica la promoción normal ($1.00 USD).\n\n🚀 *Fase de Prelanzamiento y Prueba Piloto:*\nEstamos en despliegue controlado en El Salvador. Si en tu zona aún no encuentras conductor disponible de inmediato, te solicitamos invitar a tus amigos y conductores de confianza para expandir la cobertura en tu localidad.\n\n👉 Aprovecha tus $2.00 y regístrate en 1 toque aquí:\n${PASSENGER_URL}`;
+  const PASSENGER_WA_MESSAGE = `🚗 *¡Súper Promoción de Prelanzamiento con Rumbo a mi Destino!* 🇸🇻\n\n🎁 *¡BONO DEL 200% PARA LOS PRIMEROS 100 PASAJEROS!* (Hasta el 30 de Noviembre de 2026):\n✅ *$2.00 USD de Bienvenida* activo de inmediato para tu primera carrera.\n✅ *$2.00 USD por cada amigo que refieras* para seguir viajando con descuento.\n✅ *0% comisiones abusivas:* pagas en efectivo directo la tarifa negociada con tu conductor.\n✅ Calculadora con precios justos MINEC y subasta en tiempo real (< 1 km).\n\n⏳ *Condición de la Promoción:* Válida exclusivamente para los primeros 100 viajeros inscritos o hasta el *30 de noviembre de 2026*. A partir del 1 de diciembre aplica la promoción normal ($1.00 USD).\n\n🚀 *Fase de Prelanzamiento y Prueba Piloto:*\nEstamos en despliegue controlado en El Salvador. Si en tu zona aún no encuentras conductor disponible de inmediato, te solicitamos invitar a tus amigos y conductores de confianza para expandir la cobertura en tu localidad.\n\n👉 Aprovecha tus $2.00 y regístrate en 1 toque aquí:\n${PASSENGER_URL}`;
 
-  const DRIVER_WA_MESSAGE = `🚘 *¡Conserva el 100% de tus carreras en tu bolsillo con Rumbo Conductor!* 🇸🇻\n\n🎁 *¡30 DÍAS GRATIS PARA LOS PRIMEROS 100 CONDUCTORES!* (Hasta el 31 de Octubre de 2026):\n🔥 *1 Mes Completo a $0 Cuota:* conserva el 100% del dinero de todas tus carreras sin pagar membresía de plataforma.\n🔥 *0% Comisión por viaje:* todo el dinero que cobres en efectivo va íntegro a tu mano.\n💵 Cuota fija semanal posterior de $15.00 (o pase diario de $3.00), reducible hasta *$0.00* acumulando bonos de pasajeros.\n⛽ Radar de gasolineras baratas en ruta y despacho a menos de 1 km.\n\n⏳ *Condición de la Promoción:* Los *30 días gratis* aplican únicamente a los primeros 100 conductores que completen su expediente hasta el *31 de octubre de 2026*. A partir del 1 de noviembre aplica el periodo normal de 14 días gratis.\n\n🚀 *Fase de Prelanzamiento y Prueba Piloto:*\nEstamos en periodo de prueba piloto oficial. El flujo de solicitudes de pasajeros está aumentando día a día. Inscríbete hoy para asegurar tu mes gratis y construir tu cartera de clientes desde el inicio.\n\n👉 Inscríbete en 3 minutos completando tu expediente aquí:\n${DRIVER_URL}`;
+  const DRIVER_WA_MESSAGE = `🚘 *¡Conserva el 100% de tus carreras en tu bolsillo con Rumbo Conductor!* 🇸🇻\n\n🎁 *¡30 DÍAS GRATIS PARA LOS PRIMEROS 100 CONDUCTORES!* (Hasta el 30 de Noviembre de 2026):\n🔥 *1 Mes Completo a $0 Cuota:* conserva el 100% del dinero de todas tus carreras sin pagar membresía de plataforma.\n🔥 *0% Comisión por viaje:* todo el dinero que cobres en efectivo va íntegro a tu mano.\n💵 Cuota fija semanal posterior de $15.00 (o pase diario de $3.00), reducible hasta *$0.00* acumulando bonos de pasajeros.\n⛽ Radar de gasolineras baratas en ruta y despacho a menos de 1 km.\n\n⏳ *Condición de la Promoción:* Los *30 días gratis* aplican únicamente a los primeros 100 conductores que completen su expediente hasta el *30 de noviembre de 2026*. A partir del 1 de diciembre aplica el periodo normal de 14 días gratis.\n\n🚀 *Fase de Prelanzamiento y Prueba Piloto:*\nEstamos en periodo de prueba piloto oficial. El flujo de solicitudes de pasajeros está aumentando día a día. Inscríbete hoy para asegurar tu mes gratis y construir tu cartera de clientes desde el inicio.\n\n👉 Inscríbete en 3 minutos completando tu expediente aquí:\n${DRIVER_URL}`;
 
   const handleCopyText = async (text, targetKey) => {
     try {
@@ -1578,11 +1578,11 @@ export default function AdminDashboardPage() {
                         Control de Prelanzamiento: Bono 200% & 30 Días Gratis
                       </h2>
                       <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[10px] font-black uppercase tracking-wider">
-                        VENCE 31 OCT 2026
+                        VENCE 30 NOV 2026
                       </span>
                     </div>
                     <p className="text-xs text-slate-300">
-                      Promoción exclusiva para los primeros 100 viajeros y primeros 100 conductores inscritos. Desde el 1 de Noviembre de 2026 aplica régimen regular.
+                      Promoción exclusiva para los primeros 100 viajeros y primeros 100 conductores inscritos. Desde el 1 de Diciembre de 2026 aplica régimen regular.
                     </p>
                   </div>
                 </div>
@@ -1698,7 +1698,7 @@ export default function AdminDashboardPage() {
                 <div className="flex items-center gap-2">
                   <Clock className="w-4 h-4 text-amber-400 shrink-0" />
                   <span>
-                    <strong>Condición de Vigencia:</strong> Esta promoción vence impostergablemente el <strong>31 de Octubre de 2026 a las 23:59:59</strong>. A partir del <strong>1 de Noviembre de 2026</strong> la plataforma aplicará los valores normales ($1.00 USD bono viajero y 14 días gratis chofer).
+                    <strong>Condición de Vigencia:</strong> Esta promoción vence impostergablemente el <strong>30 de Noviembre de 2026 a las 23:59:59</strong>. A partir del <strong>1 de Diciembre de 2026</strong> la plataforma aplicará los valores normales ($1.00 USD bono viajero y 14 días gratis chofer).
                   </span>
                 </div>
               </div>
@@ -2402,7 +2402,7 @@ export default function AdminDashboardPage() {
                   </div>
 
                   <p className="text-xs text-slate-300 leading-relaxed">
-                    Invita a usuarios a registrarse: los primeros 100 viajeros reciben <strong>$2.00 USD de bienvenida</strong> y <strong>$2.00 USD por cada amigo referido</strong> (válido hasta el 31 de octubre de 2026).
+                    Invita a usuarios a registrarse: los primeros 100 viajeros reciben <strong>$2.00 USD de bienvenida</strong> y <strong>$2.00 USD por cada amigo referido</strong> (válido hasta el 30 de noviembre de 2026).
                   </p>
 
                   {/* URL Oficial */}
@@ -2498,7 +2498,7 @@ export default function AdminDashboardPage() {
                   </div>
 
                   <p className="text-xs text-slate-300 leading-relaxed">
-                    Invita a conductores particulares: los primeros 100 choferes reciben <strong>30 DÍAS GRATIS de prueba</strong> (1 mes completo a $0 cuota), conservando el 100% de su efectivo directo. Cuota fija posterior de $15/semana o $3/día (válido hasta el 31 de octubre de 2026).
+                    Invita a conductores particulares: los primeros 100 choferes reciben <strong>30 DÍAS GRATIS de prueba</strong> (1 mes completo a $0 cuota), conservando el 100% de su efectivo directo. Cuota fija posterior de $15/semana o $3/día (válido hasta el 30 de noviembre de 2026).
                   </p>
 
                   {/* URL Oficial */}
