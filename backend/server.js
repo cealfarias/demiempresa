@@ -2618,21 +2618,23 @@ app.patch('/api/admin/drivers/:driverId/authorization', async (req, res) => {
     await pool.query(`ALTER TABLE viajes_driver_profiles ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;`).catch(() => {});
     await pool.query(`ALTER TABLE viajes_driver_profiles ADD COLUMN IF NOT EXISTS rejection_reason TEXT;`).catch(() => {});
 
+    const isApproved = status === 'APPROVED';
+
     let updated = null;
     try {
       const dbRes = await pool.query(`
         UPDATE viajes_driver_profiles
-        SET approval_status = $1,
+        SET approval_status = $1::text,
             rejection_reason = $2,
-            approved_at = CASE WHEN $1 = 'APPROVED' THEN CURRENT_TIMESTAMP ELSE approved_at END,
+            approved_at = CASE WHEN $3 = true THEN CURRENT_TIMESTAMP ELSE approved_at END,
             approved_by = 'SUPER_ADMIN',
-            is_active = CASE WHEN $1 = 'APPROVED' THEN true ELSE false END,
-            is_online = CASE WHEN $1 = 'APPROVED' THEN is_online ELSE false END,
-            trial_ends_at = CASE WHEN $1 = 'APPROVED' AND trial_ends_at IS NULL THEN CURRENT_TIMESTAMP + INTERVAL '14 days' ELSE trial_ends_at END,
+            is_active = CASE WHEN $3 = true THEN true ELSE false END,
+            is_online = CASE WHEN $3 = true THEN is_online ELSE false END,
+            trial_ends_at = CASE WHEN $3 = true AND trial_ends_at IS NULL THEN CURRENT_TIMESTAMP + INTERVAL '14 days' ELSE trial_ends_at END,
             updated_at = CURRENT_TIMESTAMP
-        WHERE id::text = $3 OR user_id::text = $3 OR vehicle_plate::text = $3
+        WHERE id::text = $4 OR user_id::text = $4 OR vehicle_plate::text = $4
         RETURNING *;
-      `, [status, rejectionReason || null, cleanId]);
+      `, [status, rejectionReason || null, isApproved, cleanId]);
 
       updated = dbRes.rows[0];
 
