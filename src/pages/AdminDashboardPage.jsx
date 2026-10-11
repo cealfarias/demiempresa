@@ -409,9 +409,18 @@ export default function AdminDashboardPage() {
         setRejectReasonModal(false);
         setRejectionReason('');
         await loadDashboardData();
+        const successMessage = res.message || (
+          newStatus === 'APPROVED' ? '✅ Conductor autorizado exitosamente (14 días gratis activados).' :
+          newStatus === 'REJECTED' ? '❌ Conductor rechazado con observaciones.' :
+          newStatus === 'SUSPENDED' ? '⚠️ Conductor suspendido temporalmente.' :
+          'ℹ️ Estado de conductor actualizado a ' + newStatus + '.'
+        );
+        alert(successMessage);
+      } else {
+        alert('⚠️ ' + (res?.error || 'No se pudo actualizar el expediente del conductor.'));
       }
     } catch (e) {
-      alert('Error al actualizar estatus de conductor: ' + e.message);
+      alert('❌ Error al actualizar estatus de conductor: ' + e.message);
     } finally {
       setAuthActionLoading(false);
     }

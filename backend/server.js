@@ -1913,31 +1913,32 @@ async function initializeDatabase() {
     await PushService.initPushTable().catch(() => {});
 
     // 1. Asegurar columnas de cumplimiento y expediente de conductores de inmediato
-    await pool.query(`
-      DO $$ BEGIN
-        ALTER TABLE viajes_driver_profiles ADD COLUMN IF NOT EXISTS license_number VARCHAR(30);
-        ALTER TABLE viajes_driver_profiles ADD COLUMN IF NOT EXISTS approval_status VARCHAR(20) DEFAULT 'PENDING';
-        ALTER TABLE viajes_driver_profiles ADD COLUMN IF NOT EXISTS approved_at TIMESTAMP WITH TIME ZONE;
-        ALTER TABLE viajes_driver_profiles ADD COLUMN IF NOT EXISTS approved_by VARCHAR(64);
-        ALTER TABLE viajes_driver_profiles ADD COLUMN IF NOT EXISTS dui_front_url TEXT;
-        ALTER TABLE viajes_driver_profiles ADD COLUMN IF NOT EXISTS dui_back_url TEXT;
-        ALTER TABLE viajes_driver_profiles ADD COLUMN IF NOT EXISTS license_front_url TEXT;
-        ALTER TABLE viajes_driver_profiles ADD COLUMN IF NOT EXISTS license_back_url TEXT;
-        ALTER TABLE viajes_driver_profiles ADD COLUMN IF NOT EXISTS circulation_card_url TEXT;
-        ALTER TABLE viajes_driver_profiles ADD COLUMN IF NOT EXISTS police_record_url TEXT;
-        ALTER TABLE viajes_driver_profiles ADD COLUMN IF NOT EXISTS criminal_record_url TEXT;
-        ALTER TABLE viajes_driver_profiles ADD COLUMN IF NOT EXISTS vehicle_photo_front TEXT;
-        ALTER TABLE viajes_driver_profiles ADD COLUMN IF NOT EXISTS vehicle_photo_inside TEXT;
-        ALTER TABLE viajes_driver_profiles ADD COLUMN IF NOT EXISTS emergency_contact_name VARCHAR(150);
-        ALTER TABLE viajes_driver_profiles ADD COLUMN IF NOT EXISTS emergency_contact_phone VARCHAR(20);
-        ALTER TABLE viajes_driver_profiles ADD COLUMN IF NOT EXISTS rejection_reason TEXT;
-        ALTER TABLE viajes_driver_profiles ADD COLUMN IF NOT EXISTS password_hash TEXT;
-        ALTER TABLE viajes_driver_profiles ADD COLUMN IF NOT EXISTS has_courtesy_pass BOOLEAN DEFAULT FALSE;
-        ALTER TABLE viajes_driver_profiles ADD COLUMN IF NOT EXISTS courtesy_pass_ends_at TIMESTAMP WITH TIME ZONE;
-        ALTER TABLE viajes_driver_profiles ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
-        ALTER TABLE viajes_users ADD COLUMN IF NOT EXISTS password_hash TEXT;
-      EXCEPTION WHEN others THEN null; END $$;
-    `);
+    const driverColumns = [
+      'license_number VARCHAR(30)',
+      'approval_status VARCHAR(20) DEFAULT \'PENDING\'',
+      'approved_at TIMESTAMP WITH TIME ZONE',
+      'approved_by VARCHAR(64)',
+      'dui_front_url TEXT',
+      'dui_back_url TEXT',
+      'license_front_url TEXT',
+      'license_back_url TEXT',
+      'circulation_card_url TEXT',
+      'police_record_url TEXT',
+      'criminal_record_url TEXT',
+      'vehicle_photo_front TEXT',
+      'vehicle_photo_inside TEXT',
+      'emergency_contact_name VARCHAR(150)',
+      'emergency_contact_phone VARCHAR(20)',
+      'rejection_reason TEXT',
+      'password_hash TEXT',
+      'has_courtesy_pass BOOLEAN DEFAULT FALSE',
+      'courtesy_pass_ends_at TIMESTAMP WITH TIME ZONE',
+      'updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP'
+    ];
+    for (const col of driverColumns) {
+      await pool.query(`ALTER TABLE viajes_driver_profiles ADD COLUMN IF NOT EXISTS ${col};`).catch(() => {});
+    }
+    await pool.query(`ALTER TABLE viajes_users ADD COLUMN IF NOT EXISTS password_hash TEXT;`).catch(() => {});
 
     // 1.1 Crear tabla de Tickets de Inbox (Pagos, Sugerencias, Quejas, Soporte)
     try {
@@ -2608,6 +2609,15 @@ app.patch('/api/admin/drivers/:driverId/authorization', async (req, res) => {
       return res.status(400).json({ success: false, error: 'Estado de autorización no válido.' });
     }
 
+    const cleanId = String(driverId || '').trim();
+    if (!cleanId) {
+      return res.status(400).json({ success: false, error: 'Identificador de conductor requerido.' });
+    }
+
+    // Asegurar columnas críticas en caliente
+    await pool.query(`ALTER TABLE viajes_driver_profiles ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;`).catch(() => {});
+    await pool.query(`ALTER TABLE viajes_driver_profiles ADD COLUMN IF NOT EXISTS rejection_reason TEXT;`).catch(() => {});
+
     let updated = null;
     try {
       const dbRes = await pool.query(`
@@ -2620,13 +2630,22 @@ app.patch('/api/admin/drivers/:driverId/authorization', async (req, res) => {
             is_online = CASE WHEN $1 = 'APPROVED' THEN is_online ELSE false END,
             trial_ends_at = CASE WHEN $1 = 'APPROVED' AND trial_ends_at IS NULL THEN CURRENT_TIMESTAMP + INTERVAL '14 days' ELSE trial_ends_at END,
             updated_at = CURRENT_TIMESTAMP
-        WHERE id::text = $3 OR vehicle_plate = $3 OR user_id::text = $3
+        WHERE id::text = $3 OR user_id::text = $3 OR vehicle_plate::text = $3
         RETURNING *;
-      `, [status, rejectionReason || null, driverId]);
+      `, [status, rejectionReason || null, cleanId]);
+
       updated = dbRes.rows[0];
 
+      if (!updated) {
+        console.warn(`[Driver Auth] Conductor no encontrado en DB con id: "${cleanId}"`);
+        return res.status(404).json({
+          success: false,
+          error: `No se encontró ningún expediente de conductor con el identificador: ${cleanId}`
+        });
+      }
+
       // Cortafuegos de seguridad: si fue aprobado, actualizar rol de usuario y cancelar bonos promocionales de pasajero
-      if (status === 'APPROVED' && updated?.user_id) {
+      if (status === 'APPROVED' && updated.user_id) {
         try {
           await pool.query(`UPDATE viajes_users SET role = 'DRIVER' WHERE id::text = $1`, [updated.user_id.toString()]);
           await LedgerService.cancelPromotionalBonusesOnDriverApproval(updated.user_id, 'SUPER_ADMIN');
@@ -2635,18 +2654,31 @@ app.patch('/api/admin/drivers/:driverId/authorization', async (req, res) => {
         }
       }
     } catch (e) {
-      console.warn('DB driver auth fallback:', e.message);
+      console.error('Error al actualizar conductor en DB:', e.message);
+      return res.status(500).json({
+        success: false,
+        error: `Error al persistir autorización en la base de datos: ${e.message}`
+      });
     }
 
-    io.emit('driver_authorization_changed', { driverId, status, rejectionReason, driver: updated });
+    io.emit('driver_authorization_changed', { driverId: cleanId, status, rejectionReason, driver: updated });
 
-    res.json({
+    const statusMsg = status === 'APPROVED'
+      ? 'autorizado exitosamente con 14 días gratis'
+      : status === 'REJECTED'
+      ? 'rechazado con observaciones'
+      : status === 'SUSPENDED'
+      ? 'suspendido'
+      : 'actualizado a ' + status;
+
+    return res.json({
       success: true,
-      driver: updated || { id: driverId, approval_status: status, rejection_reason: rejectionReason },
-      message: `El conductor ha sido ${status === 'APPROVED' ? 'autorizado exitosamente' : status === 'REJECTED' ? 'rechazado con observaciones' : 'actualizado a ' + status}.`
+      driver: updated,
+      message: `El conductor ha sido ${statusMsg}.`
     });
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    console.error('Error general en endpoint driver authorization:', err);
+    return res.status(500).json({ success: false, error: err.message });
   }
 });
 
