@@ -49,13 +49,18 @@ import {
   Globe,
   HelpCircle,
   Fuel,
-  Loader2
+  Loader2,
+  ArrowUpDown,
+  Award,
+  Zap,
+  Navigation
 } from 'lucide-react';
 import RumboLogo from '../viajes/RumboLogo';
 import ExitIntentRescueModal from '../viajes/ExitIntentRescueModal';
 import {
   loginAdminSecureApi,
   fetchAdminStatsApi,
+  fetchAdminAdvancedAnalyticsApi,
   fetchAdminDriversApi,
   updateDriverAuthorizationApi,
   purgeAdminDriversApi,
@@ -129,6 +134,16 @@ export default function AdminDashboardPage() {
   const [authActionLoading, setAuthActionLoading] = useState(false);
   const [driverStatusFilter, setDriverStatusFilter] = useState('ALL'); // 'ALL' | 'PENDING' | 'APPROVED' | 'REJECTED'
   const [driverSearchQuery, setDriverSearchQuery] = useState('');
+
+  // Estados de Analítica Avanzada e Impacto
+  const [analyticsData, setAnalyticsData] = useState(null);
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
+  const [analyticsPeriod, setAnalyticsPeriod] = useState('month'); // 'today' | 'week' | 'days_30' | 'month' | 'year' | 'all'
+  const [analyticsOrder, setAnalyticsOrder] = useState('desc'); // 'desc' | 'asc'
+  const [analyticsYear, setAnalyticsYear] = useState(() => new Date().getFullYear());
+  const [analyticsMonth, setAnalyticsMonth] = useState(() => new Date().getMonth() + 1);
+  const [analyticsDriverSearch, setAnalyticsDriverSearch] = useState('');
+  const [analyticsActiveSubTab, setAnalyticsActiveSubTab] = useState('DRIVERS'); // 'DRIVERS' | 'ROUTES' | 'HOURLY' | 'FEES_BONUSES' | 'BI'
 
   // Modal para ver imagen de comprobante o documento ampliado
   const [previewImage, setPreviewImage] = useState(null);
@@ -243,6 +258,31 @@ export default function AdminDashboardPage() {
       setLoadingData(false);
     }
   };
+
+  const loadAdvancedAnalytics = async () => {
+    setAnalyticsLoading(true);
+    try {
+      const res = await fetchAdminAdvancedAnalyticsApi({
+        period: analyticsPeriod,
+        order: analyticsOrder,
+        year: analyticsYear,
+        month: analyticsMonth
+      });
+      if (res && res.success) {
+        setAnalyticsData(res);
+      }
+    } catch (err) {
+      console.warn('Error loading advanced analytics:', err);
+    } finally {
+      setAnalyticsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (adminSession && activeTab === 'ANALYTICS') {
+      loadAdvancedAnalytics();
+    }
+  }, [adminSession, activeTab, analyticsPeriod, analyticsOrder, analyticsYear, analyticsMonth]);
 
   const handleUpdateGasPrices = async (e) => {
     if (e) e.preventDefault();
@@ -682,6 +722,22 @@ export default function AdminDashboardPage() {
 
         <button
           type="button"
+          onClick={() => setActiveTab('ANALYTICS')}
+          className={`py-3 px-4 text-xs font-black border-b-2 transition-all flex items-center gap-2 cursor-pointer relative ${
+            activeTab === 'ANALYTICS'
+              ? 'border-purple-400 text-purple-400 bg-purple-500/10'
+              : 'border-transparent text-slate-400 hover:text-white'
+          }`}
+        >
+          <BarChart3 className="w-4 h-4 text-purple-400" />
+          <span>Impacto & Analítica Avanzada</span>
+          <span className="px-1.5 py-0.5 rounded-full bg-purple-500 text-slate-950 font-black text-[9px] uppercase tracking-wider">
+            FILTROS Y RANKING
+          </span>
+        </button>
+
+        <button
+          type="button"
           onClick={() => setActiveTab('DRIVERS')}
           className={`py-3 px-4 text-xs font-black border-b-2 transition-all flex items-center gap-2 cursor-pointer relative ${
             activeTab === 'DRIVERS'
@@ -786,6 +842,723 @@ export default function AdminDashboardPage() {
 
       {/* 3. CONTENEDOR DE PESTAÑAS */}
       <main className="flex-1 p-4 sm:p-8 max-w-7xl mx-auto w-full space-y-6">
+
+        {/* ================================================================== */}
+        {/* PESTAÑA: IMPACTO & ANALÍTICA AVANZADA (FILTROS Y RANKINGS) */}
+        {/* ================================================================== */}
+        {activeTab === 'ANALYTICS' && (
+          <div className="space-y-6 animate-fade-in">
+            {/* Header del Módulo con Barra de Filtros Temporales y Ordenamiento */}
+            <div className="p-5 sm:p-6 bg-gradient-to-r from-purple-950/40 via-slate-900 to-slate-900 border border-purple-500/30 rounded-3xl space-y-4 shadow-xl">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="flex items-center gap-3.5">
+                  <div className="w-12 h-12 rounded-2xl bg-purple-500/20 text-purple-400 border border-purple-500/30 flex items-center justify-center font-black shadow">
+                    <BarChart3 className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-base sm:text-lg font-black text-white">Analítica de Impacto & Promociones</h2>
+                      <span className="px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/40 text-[10px] font-bold">
+                        INTELIGENCIA DE NEGOCIO
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-400">
+                      Filtros temporales, ranking de ingresos de choferes, rutas más transitadas, horas pico y ciclo de bonos.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={loadAdvancedAnalytics}
+                    disabled={analyticsLoading}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold transition-all cursor-pointer border border-slate-700"
+                    title="Actualizar métricas"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${analyticsLoading ? 'animate-spin' : ''}`} />
+                    <span className="hidden sm:inline">Actualizar</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setAnalyticsOrder(prev => prev === 'desc' ? 'asc' : 'desc')}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 border border-purple-500/40 text-xs font-bold transition-all cursor-pointer"
+                    title="Cambiar orden de clasificación"
+                  >
+                    <ArrowUpDown className="w-3.5 h-3.5" />
+                    <span>{analyticsOrder === 'desc' ? 'Mayor a Menor ▼' : 'Menor a Mayor ▲'}</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Barra de Filtros de Período de Tiempo */}
+              <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-800">
+                <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                  <span className="text-[11px] text-slate-400 font-bold mr-1 flex items-center gap-1">
+                    <Calendar className="w-3.5 h-3.5 text-purple-400" />
+                    <span>Período:</span>
+                  </span>
+
+                  {[
+                    { id: 'today', label: 'Hoy' },
+                    { id: 'week', label: 'Semana (7d)' },
+                    { id: 'days_30', label: '30 Días' },
+                    { id: 'month', label: 'Mes' },
+                    { id: 'year', label: 'Año' },
+                    { id: 'all', label: 'Todo' }
+                  ].map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => setAnalyticsPeriod(p.id)}
+                      className={`px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer ${
+                        analyticsPeriod === p.id
+                          ? 'bg-purple-600 text-white shadow-md'
+                          : 'bg-slate-950 text-slate-400 hover:text-white border border-slate-800'
+                      }`}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Selectores dinámicos de Mes y Año si corresponde */}
+                <div className="flex items-center gap-2 text-xs">
+                  {analyticsPeriod === 'month' && (
+                    <select
+                      value={analyticsMonth}
+                      onChange={(e) => setAnalyticsMonth(parseInt(e.target.value, 10))}
+                      className="bg-slate-950 border border-slate-800 text-slate-200 px-2.5 py-1.5 rounded-xl font-bold focus:outline-none focus:border-purple-500 cursor-pointer"
+                    >
+                      {['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'].map((m, idx) => (
+                        <option key={idx} value={idx + 1}>{m}</option>
+                      ))}
+                    </select>
+                  )}
+
+                  {(analyticsPeriod === 'month' || analyticsPeriod === 'year') && (
+                    <select
+                      value={analyticsYear}
+                      onChange={(e) => setAnalyticsYear(parseInt(e.target.value, 10))}
+                      className="bg-slate-950 border border-slate-800 text-slate-200 px-2.5 py-1.5 rounded-xl font-bold focus:outline-none focus:border-purple-500 cursor-pointer"
+                    >
+                      {[2026, 2025, 2024].map((y) => (
+                        <option key={y} value={y}>{y}</option>
+                      ))}
+                    </select>
+                  )}
+
+                  <span className="text-[11px] font-mono text-purple-300 bg-purple-950/40 px-2.5 py-1 rounded-lg border border-purple-500/30">
+                    {analyticsData?.filter?.filterLabel || 'Cargando...'}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* 5 KPIs Ejecutivos del Período */}
+            <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+              <div className="p-4 bg-slate-900 border border-slate-800 rounded-2xl space-y-1">
+                <div className="flex items-center justify-between text-slate-400 text-xs">
+                  <span>Ingresos Choferes</span>
+                  <DollarSign className="w-4 h-4 text-emerald-400" />
+                </div>
+                <div className="text-xl sm:text-2xl font-black text-emerald-400 font-mono">
+                  ${(analyticsData?.analytics?.driverEarnings || []).reduce((acc, d) => acc + parseFloat(d.gross_revenue_usd || 0), 0).toFixed(2)}
+                </div>
+                <div className="text-[11px] text-slate-400">
+                  {(analyticsData?.analytics?.driverEarnings || []).reduce((acc, d) => acc + parseInt(d.total_trips_completed || 0), 0)} carreras cerradas
+                </div>
+              </div>
+
+              <div className="p-4 bg-slate-900 border border-slate-800 rounded-2xl space-y-1">
+                <div className="flex items-center justify-between text-slate-400 text-xs">
+                  <span>Cuotas a Plataforma</span>
+                  <CreditCard className="w-4 h-4 text-amber-400" />
+                </div>
+                <div className="text-xl sm:text-2xl font-black text-amber-400 font-mono">
+                  ${parseFloat(analyticsData?.analytics?.driverFeePayments?.usdTotalPaid || 0).toFixed(2)}
+                </div>
+                <div className="text-[11px] text-slate-400">
+                  +{analyticsData?.analytics?.driverFeePayments?.bonusesDeductedCount || 0} Bonos canjeados
+                </div>
+              </div>
+
+              <div className="p-4 bg-slate-900 border border-slate-800 rounded-2xl space-y-1">
+                <div className="flex items-center justify-between text-slate-400 text-xs">
+                  <span>Éxito de Subastas</span>
+                  <CheckCircle2 className="w-4 h-4 text-sky-400" />
+                </div>
+                <div className="text-xl sm:text-2xl font-black text-sky-400 font-mono">
+                  {analyticsData?.analytics?.advancedBI?.auctionMatchRate || '0%'}
+                </div>
+                <div className="text-[11px] text-slate-400">
+                  {analyticsData?.analytics?.advancedBI?.completedTrips || 0} de {analyticsData?.analytics?.advancedBI?.totalTripsRequested || 0} pedidos
+                </div>
+              </div>
+
+              <div className="p-4 bg-slate-900 border border-slate-800 rounded-2xl space-y-1">
+                <div className="flex items-center justify-between text-slate-400 text-xs">
+                  <span>Bonos Redimidos</span>
+                  <Gift className="w-4 h-4 text-purple-400" />
+                </div>
+                <div className="text-xl sm:text-2xl font-black text-purple-400 font-mono">
+                  {analyticsData?.analytics?.bonusStats?.redeemed || 0}
+                </div>
+                <div className="text-[11px] text-slate-400">
+                  ${parseFloat(analyticsData?.analytics?.bonusStats?.redeemedAmountUsd || 0).toFixed(2)} USD aplicados
+                </div>
+              </div>
+
+              <div className="p-4 bg-slate-900 border border-slate-800 rounded-2xl space-y-1 col-span-2 lg:col-span-1">
+                <div className="flex items-center justify-between text-slate-400 text-xs">
+                  <span>Nuevos Registros</span>
+                  <Users className="w-4 h-4 text-teal-400" />
+                </div>
+                <div className="text-xl sm:text-2xl font-black text-white font-mono">
+                  {(analyticsData?.analytics?.userRegistrations?.newPassengers || 0) + (analyticsData?.analytics?.userRegistrations?.newDriversTotal || 0)}
+                </div>
+                <div className="text-[11px] text-slate-400">
+                  {analyticsData?.analytics?.userRegistrations?.newPassengers || 0} pax • {analyticsData?.analytics?.userRegistrations?.newDriversTotal || 0} choferes
+                </div>
+              </div>
+            </div>
+
+            {/* Sub-Pestañas de Navegación de Analítica */}
+            <div className="flex gap-2 overflow-x-auto pb-1 border-b border-slate-800 text-xs font-bold">
+              {[
+                { id: 'DRIVERS', label: 'a) Ingresos Conductores', icon: Car },
+                { id: 'ROUTES', label: 'b) Orígenes & Destinos', icon: MapPin },
+                { id: 'HOURLY', label: 'b.2) Horas Pico Demanda', icon: Clock },
+                { id: 'FEES_BONUSES', label: 'c) Cuotas USD vs Bonos', icon: CreditCard },
+                { id: 'BI', label: 'd) Inteligencia & Churn', icon: Zap }
+              ].map((tab) => {
+                const IconComponent = tab.icon;
+                const isSelected = analyticsActiveSubTab === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setAnalyticsActiveSubTab(tab.id)}
+                    className={`py-2 px-3.5 rounded-xl transition-all flex items-center gap-2 cursor-pointer shrink-0 ${
+                      isSelected
+                        ? 'bg-purple-600 text-white shadow-lg'
+                        : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
+                    }`}
+                  >
+                    <IconComponent className="w-4 h-4" />
+                    <span>{tab.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* CONTENIDO DE SUB-PESTAÑA A: INGRESOS DE CONDUCTORES */}
+            {analyticsActiveSubTab === 'DRIVERS' && (
+              <div className="space-y-4 animate-fade-in">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-slate-900 border border-slate-800 rounded-2xl">
+                  <div>
+                    <h3 className="font-black text-sm text-white flex items-center gap-2">
+                      <Award className="w-4 h-4 text-amber-400" />
+                      <span>Ranking de Ingresos de Conductores (Orden: {analyticsOrder === 'desc' ? 'Mayor a Menor' : 'Menor a Mayor'})</span>
+                    </h3>
+                    <p className="text-xs text-slate-400">
+                      Ingresos generados en carreras terminadas, cobro directo en mano y ticket promedio por viaje.
+                    </p>
+                  </div>
+
+                  <div className="relative w-full sm:w-72">
+                    <Search className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      value={analyticsDriverSearch}
+                      onChange={(e) => setAnalyticsDriverSearch(e.target.value)}
+                      placeholder="Buscar por chofer, placa o celular..."
+                      className="w-full pl-9 pr-3 py-1.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-purple-500"
+                    />
+                  </div>
+                </div>
+
+                {(() => {
+                  const filteredDrivers = (analyticsData?.analytics?.driverEarnings || []).filter(d => {
+                    if (!analyticsDriverSearch.trim()) return true;
+                    const q = analyticsDriverSearch.toLowerCase();
+                    return (
+                      (d.driver_name || '').toLowerCase().includes(q) ||
+                      (d.vehicle_plate || '').toLowerCase().includes(q) ||
+                      (d.driver_phone || '').includes(q)
+                    );
+                  });
+
+                  if (filteredDrivers.length === 0) {
+                    return (
+                      <div className="p-8 text-center bg-slate-900 border border-slate-800 rounded-3xl space-y-2">
+                        <Car className="w-8 h-8 text-slate-600 mx-auto" />
+                        <p className="text-sm font-bold text-slate-300">No hay carreras registradas en este período</p>
+                        <p className="text-xs text-slate-500">Prueba cambiando el filtro de tiempo a "Semana", "Mes" o "Todo el Histórico".</p>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="overflow-x-auto rounded-2xl border border-slate-800 bg-slate-900/90 shadow-xl">
+                      <table className="w-full text-left border-collapse text-xs">
+                        <thead>
+                          <tr className="border-b border-slate-800 bg-slate-950/70 text-slate-400 uppercase text-[10px] tracking-wider font-mono">
+                            <th className="py-3 px-4"># Ranking</th>
+                            <th className="py-3 px-4">Conductor</th>
+                            <th className="py-3 px-4">Vehículo & Placa</th>
+                            <th className="py-3 px-4 text-center">Viajes Completados</th>
+                            <th className="py-3 px-4 text-right">Ingreso Bruto ($ USD)</th>
+                            <th className="py-3 px-4 text-right">Efectivo vs Bonos</th>
+                            <th className="py-3 px-4 text-right">Tarifa Promedio</th>
+                            <th className="py-3 px-4 text-center">Estado</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-800/60 font-sans">
+                          {filteredDrivers.map((drv, idx) => {
+                            const isTop1 = idx === 0 && analyticsOrder === 'desc';
+                            const isTop2 = idx === 1 && analyticsOrder === 'desc';
+                            const isTop3 = idx === 2 && analyticsOrder === 'desc';
+                            const medal = isTop1 ? '🥇' : isTop2 ? '🥈' : isTop3 ? '🥉' : `#${idx + 1}`;
+
+                            return (
+                              <tr key={drv.driver_id || idx} className="hover:bg-slate-800/40 transition-colors">
+                                <td className="py-3 px-4 font-mono font-bold text-slate-300">
+                                  <span className="text-sm mr-1">{medal}</span>
+                                </td>
+                                <td className="py-3 px-4">
+                                  <div className="font-bold text-white text-xs">{drv.driver_name}</div>
+                                  <div className="text-[11px] text-slate-400 font-mono">Tel: {drv.driver_phone}</div>
+                                </td>
+                                <td className="py-3 px-4">
+                                  <div className="text-slate-300 font-medium">{drv.vehicle_brand} {drv.vehicle_model} ({drv.vehicle_color})</div>
+                                  <span className="inline-block px-1.5 py-0.5 rounded bg-slate-950 text-amber-300 font-mono font-bold text-[10px] border border-slate-800">
+                                    {drv.vehicle_plate}
+                                  </span>
+                                </td>
+                                <td className="py-3 px-4 text-center">
+                                  <span className="font-mono font-black text-sky-400 text-sm">
+                                    {drv.total_trips_completed}
+                                  </span>
+                                </td>
+                                <td className="py-3 px-4 text-right font-mono font-black text-sm text-emerald-400">
+                                  ${parseFloat(drv.gross_revenue_usd || 0).toFixed(2)}
+                                </td>
+                                <td className="py-3 px-4 text-right font-mono text-[11px]">
+                                  <div className="text-slate-300">${parseFloat(drv.cash_collected_usd || 0).toFixed(2)} mano</div>
+                                  <div className="text-purple-400">${parseFloat(drv.credits_received_usd || 0).toFixed(2)} bonos</div>
+                                </td>
+                                <td className="py-3 px-4 text-right font-mono text-xs text-amber-300 font-bold">
+                                  ${parseFloat(drv.average_fare_usd || 0).toFixed(2)}
+                                </td>
+                                <td className="py-3 px-4 text-center">
+                                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                    drv.approval_status === 'APPROVED'
+                                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                                      : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                                  }`}>
+                                    {drv.approval_status}
+                                  </span>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
+
+            {/* CONTENIDO DE SUB-PESTAÑA B: ORÍGENES, DESTINOS Y CORREDORES */}
+            {analyticsActiveSubTab === 'ROUTES' && (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 animate-fade-in">
+                {/* Panel 1: Top Destinos y Municipios */}
+                <div className="p-5 bg-slate-900 border border-slate-800 rounded-3xl space-y-4 shadow-xl">
+                  <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-9 h-9 rounded-xl bg-purple-500/20 text-purple-400 flex items-center justify-center font-bold">
+                        <MapPin className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h4 className="font-black text-sm text-white">Top Destinos Más Solicitados</h4>
+                        <p className="text-[11px] text-slate-400">Municipios y zonas con mayor demanda de pasajeros</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {(!analyticsData?.analytics?.topDestinations || analyticsData.analytics.topDestinations.length === 0) ? (
+                    <div className="p-6 text-center text-xs text-slate-500">
+                      Sin viajes registrados en este período.
+                    </div>
+                  ) : (
+                    <div className="space-y-2.5 text-xs">
+                      {analyticsData.analytics.topDestinations.map((dst, idx) => (
+                        <div key={idx} className="p-3 bg-slate-950 rounded-2xl border border-slate-800/80 flex items-center justify-between">
+                          <div className="space-y-0.5">
+                            <span className="font-bold text-white flex items-center gap-1.5">
+                              <span className="text-[10px] text-purple-400 font-mono font-black">#{idx + 1}</span>
+                              <span>{dst.destination}</span>
+                            </span>
+                            <span className="text-[11px] text-slate-400 font-mono block">
+                              Tarifa promedio: <strong className="text-amber-300">${parseFloat(dst.avg_fare_usd || 0).toFixed(2)}</strong>
+                            </span>
+                          </div>
+                          <div className="text-right font-mono">
+                            <span className="font-black text-sm text-sky-400 block">{dst.trip_count} viajes</span>
+                            <span className="text-[11px] text-emerald-400">${parseFloat(dst.total_volume_usd || 0).toFixed(2)}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Panel 2: Top Corredores (Origen -> Destino) */}
+                <div className="p-5 bg-slate-900 border border-slate-800 rounded-3xl space-y-4 shadow-xl">
+                  <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-9 h-9 rounded-xl bg-sky-500/20 text-sky-400 flex items-center justify-center font-bold">
+                        <Navigation className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h4 className="font-black text-sm text-white">Top Corredores y Rutas Frecuentes</h4>
+                        <p className="text-[11px] text-slate-400">Pares Origen ➔ Destino con mayor volumen para promociones</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {(!analyticsData?.analytics?.topCorridors || analyticsData.analytics.topCorridors.length === 0) ? (
+                    <div className="p-6 text-center text-xs text-slate-500">
+                      Sin corredores registrados en este período.
+                    </div>
+                  ) : (
+                    <div className="space-y-2.5 text-xs">
+                      {analyticsData.analytics.topCorridors.map((c, idx) => (
+                        <div key={idx} className="p-3 bg-slate-950 rounded-2xl border border-slate-800/80 space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] font-mono font-bold text-sky-400 px-2 py-0.5 rounded bg-sky-500/10 border border-sky-500/30">
+                              Corredor #{idx + 1} • {c.destination_municipality}
+                            </span>
+                            <span className="font-mono font-black text-emerald-400 text-xs">
+                              ${parseFloat(c.avg_fare_usd || 0).toFixed(2)} prom.
+                            </span>
+                          </div>
+
+                          <div className="text-slate-200 text-xs flex items-center gap-1.5">
+                            <span className="truncate max-w-[45%] text-slate-300 font-medium" title={c.origin_address}>
+                              {c.origin_address}
+                            </span>
+                            <span className="text-amber-400 font-bold shrink-0">➔</span>
+                            <span className="truncate max-w-[45%] text-white font-bold" title={c.destination_address}>
+                              {c.destination_address}
+                            </span>
+                          </div>
+
+                          <div className="text-[10px] text-slate-400 flex justify-between font-mono pt-0.5">
+                            <span>Volumen acumulado: ${parseFloat(c.total_volume_usd || 0).toFixed(2)}</span>
+                            <strong className="text-white">{c.trip_count} carreras</strong>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* CONTENIDO DE SUB-PESTAÑA C: HORAS PICO Y CURVA DE DEMANDA */}
+            {analyticsActiveSubTab === 'HOURLY' && (
+              <div className="space-y-4 animate-fade-in">
+                <div className="p-5 sm:p-6 bg-slate-900 border border-slate-800 rounded-3xl space-y-4 shadow-xl">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
+                    <div>
+                      <h3 className="font-black text-sm text-white flex items-center gap-2">
+                        <Clock className="w-4 h-4 text-amber-400" />
+                        <span>Distribución de Demanda por Hora (00:00 a 23:00 Horas)</span>
+                      </h3>
+                      <p className="text-xs text-slate-400">
+                        Picos de demanda para planificar incentivos a conductores y promociones de tarifa valle a pasajeros.
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 text-[11px] font-mono">
+                      <span className="flex items-center gap-1 text-amber-400">
+                        <span className="w-2.5 h-2.5 rounded-sm bg-amber-500" />
+                        <span>Hora Pico</span>
+                      </span>
+                      <span className="flex items-center gap-1 text-slate-400">
+                        <span className="w-2.5 h-2.5 rounded-sm bg-slate-700" />
+                        <span>Hora Regular</span>
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Gráfica de Barras de 24 Horas */}
+                  {(() => {
+                    const hours = analyticsData?.analytics?.hourlyDemand || [];
+                    const maxRequests = Math.max(1, ...hours.map(h => h.requests || 0));
+
+                    return (
+                      <div className="pt-4">
+                        <div className="grid grid-cols-12 sm:grid-cols-24 gap-1.5 items-end h-44 pb-2 border-b border-slate-800">
+                          {hours.map((h) => {
+                            const isPeak = (h.hour >= 6 && h.hour <= 8) || (h.hour >= 17 && h.hour <= 19);
+                            const heightPercent = Math.max(8, Math.round(((h.requests || 0) / maxRequests) * 100));
+
+                            return (
+                              <div key={h.hour} className="flex flex-col items-center h-full justify-end group relative">
+                                {/* Tooltip al pasar el mouse */}
+                                <div className="hidden group-hover:block absolute bottom-full mb-2 z-20 w-32 p-2 bg-slate-950 text-white rounded-xl border border-slate-700 shadow-xl text-[10px] font-mono pointer-events-none">
+                                  <div className="font-bold text-amber-300">{h.label}</div>
+                                  <div>Pedidos: <strong className="text-white">{h.requests}</strong></div>
+                                  <div>Completados: <strong className="text-emerald-400">{h.completed}</strong></div>
+                                  <div>Cancelados: <strong className="text-rose-400">{h.cancelled}</strong></div>
+                                </div>
+
+                                <div
+                                  style={{ height: `${heightPercent}%` }}
+                                  className={`w-full rounded-t-md transition-all ${
+                                    isPeak
+                                      ? 'bg-gradient-to-t from-amber-600 to-amber-400 group-hover:brightness-125'
+                                      : 'bg-gradient-to-t from-slate-800 to-slate-600 group-hover:bg-purple-500'
+                                  }`}
+                                />
+                                <span className="text-[9px] font-mono text-slate-500 mt-1 block group-hover:text-white">
+                                  {h.hour}h
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Tarjetas de Estrategia Promocional */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2">
+                    <div className="p-3.5 bg-slate-950 rounded-2xl border border-amber-500/30 space-y-1">
+                      <span className="text-xs font-bold text-amber-400 flex items-center gap-1.5">
+                        <Zap className="w-3.5 h-3.5" />
+                        <span>Horas Pico de Alta Demanda (06:00 - 08:59 y 17:00 - 19:59)</span>
+                      </span>
+                      <p className="text-[11px] text-slate-300 leading-relaxed">
+                        Mayor probabilidad de contraofertas aceptadas. Recomendación: Notificar por WhatsApp a los choferes a las 05:45 AM y 16:30 PM para que enciendan la app.
+                      </p>
+                    </div>
+
+                    <div className="p-3.5 bg-slate-950 rounded-2xl border border-sky-500/30 space-y-1">
+                      <span className="text-xs font-bold text-sky-400 flex items-center gap-1.5">
+                        <Gift className="w-3.5 h-3.5" />
+                        <span>Horas Valle de Estimulación (10:00 - 15:00)</span>
+                      </span>
+                      <p className="text-[11px] text-slate-300 leading-relaxed">
+                        Flujo moderado. Oportunidad para activar campañas de fidelización y bonos viajeros de $1.00 para incentivar salidas comerciales y visitas médicas.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* CONTENIDO DE SUB-PESTAÑA D: CUOTAS EN USD & AUDITORÍA DE BONOS */}
+            {analyticsActiveSubTab === 'FEES_BONUSES' && (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 animate-fade-in">
+                {/* Cuotas de Conductores */}
+                <div className="p-5 bg-slate-900 border border-slate-800 rounded-3xl space-y-4 shadow-xl">
+                  <div className="flex items-center gap-2.5 border-b border-slate-800 pb-3">
+                    <div className="w-9 h-9 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold">
+                      <CreditCard className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h4 className="font-black text-sm text-white">Pagos de Cuotas de Conductores</h4>
+                      <p className="text-[11px] text-slate-400">Recaudación real en USD y bonos canjeados por choferes</p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3 font-mono text-xs">
+                    <div className="p-3.5 bg-slate-950 rounded-2xl border border-slate-800 space-y-1">
+                      <span className="text-[10px] text-slate-400 block font-sans">USD Recaudados en Cuotas:</span>
+                      <strong className="text-emerald-400 text-lg block font-bold">
+                        ${parseFloat(analyticsData?.analytics?.driverFeePayments?.usdTotalPaid || 0).toFixed(2)}
+                      </strong>
+                      <span className="text-[10px] text-slate-500 block font-sans">
+                        {analyticsData?.analytics?.driverFeePayments?.approvedReceiptsCount || 0} transferencias bancarias verificadas
+                      </span>
+                    </div>
+
+                    <div className="p-3.5 bg-slate-950 rounded-2xl border border-slate-800 space-y-1">
+                      <span className="text-[10px] text-slate-400 block font-sans">Bonos Canjeados en Cuotas:</span>
+                      <strong className="text-amber-400 text-lg block font-bold">
+                        {analyticsData?.analytics?.driverFeePayments?.bonusesDeductedCount || 0} Bonos
+                      </strong>
+                      <span className="text-[10px] text-slate-500 block font-sans">
+                        ${parseFloat(analyticsData?.analytics?.driverFeePayments?.bonusesDeductedUsd || 0).toFixed(2)} USD descontados a choferes
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="p-3 bg-slate-950 rounded-2xl border border-slate-800/80 text-[11px] text-slate-300">
+                    💡 <strong>Modelo de Retención:</strong> Los choferes pueden pagar sus $15.00 semanales amortizando hasta $10.00 en bonos acumulados de pasajeros. Esto incentiva al conductor a aceptar bonos sin perder dinero.
+                  </div>
+                </div>
+
+                {/* Ciclo Completo de Bonos de Pasajeros */}
+                <div className="p-5 bg-slate-900 border border-slate-800 rounded-3xl space-y-4 shadow-xl">
+                  <div className="flex items-center gap-2.5 border-b border-slate-800 pb-3">
+                    <div className="w-9 h-9 rounded-xl bg-purple-500/20 text-purple-400 flex items-center justify-center font-bold">
+                      <Gift className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h4 className="font-black text-sm text-white">Auditoría y Ciclo de Bonos</h4>
+                      <p className="text-[11px] text-slate-400">Emisión, redención y expiración de créditos ($1 y $2 USD)</p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2.5 text-xs font-mono">
+                    <div className="p-2.5 bg-slate-950 rounded-xl border border-slate-800">
+                      <span className="text-[10px] text-slate-400 block font-sans">Por Bienvenida ($2 / $1):</span>
+                      <strong className="text-white text-sm">{analyticsData?.analytics?.bonusStats?.welcomeBonuses || 0}</strong>
+                    </div>
+
+                    <div className="p-2.5 bg-slate-950 rounded-xl border border-slate-800">
+                      <span className="text-[10px] text-slate-400 block font-sans">Por Referidos:</span>
+                      <strong className="text-sky-400 text-sm">{analyticsData?.analytics?.bonusStats?.referralBonuses || 0}</strong>
+                    </div>
+
+                    <div className="p-2.5 bg-slate-950 rounded-xl border border-slate-800">
+                      <span className="text-[10px] text-slate-400 block font-sans">Disponibles en Billeteras:</span>
+                      <strong className="text-amber-400 text-sm">{analyticsData?.analytics?.bonusStats?.available || 0}</strong>
+                    </div>
+
+                    <div className="p-2.5 bg-slate-950 rounded-xl border border-slate-800">
+                      <span className="text-[10px] text-slate-400 block font-sans">Redimidos en Carreras:</span>
+                      <strong className="text-emerald-400 text-sm">
+                        {analyticsData?.analytics?.bonusStats?.redeemed || 0} (${parseFloat(analyticsData?.analytics?.bonusStats?.redeemedAmountUsd || 0).toFixed(2)})
+                      </strong>
+                    </div>
+
+                    <div className="p-2.5 bg-slate-950 rounded-xl border border-slate-800">
+                      <span className="text-[10px] text-slate-400 block font-sans">Vencidos (TTL 7 días):</span>
+                      <strong className="text-rose-400 text-sm">
+                        {analyticsData?.analytics?.bonusStats?.expired || 0} (${parseFloat(analyticsData?.analytics?.bonusStats?.expiredAmountUsd || 0).toFixed(2)})
+                      </strong>
+                    </div>
+
+                    <div className="p-2.5 bg-slate-950 rounded-xl border border-slate-800">
+                      <span className="text-[10px] text-slate-400 block font-sans">Tasa de Conversión:</span>
+                      <strong className="text-purple-400 text-sm">{analyticsData?.analytics?.bonusStats?.redemptionRate || '0%'}</strong>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* CONTENIDO DE SUB-PESTAÑA E: INTELIGENCIA DE NEGOCIO & CHURN */}
+            {analyticsActiveSubTab === 'BI' && (
+              <div className="space-y-4 animate-fade-in">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {/* Eficiencia de Subasta */}
+                  <div className="p-5 bg-slate-900 border border-slate-800 rounded-3xl space-y-3 shadow-xl">
+                    <span className="text-xs font-bold text-sky-400 uppercase tracking-wider block">
+                      Eficiencia de Negociación
+                    </span>
+                    <div className="space-y-2 text-xs">
+                      <div className="flex justify-between p-2.5 bg-slate-950 rounded-xl border border-slate-800">
+                        <span className="text-slate-400">Tarifa Propuesta Pasajero:</span>
+                        <strong className="text-white font-mono">${parseFloat(analyticsData?.analytics?.advancedBI?.avgProposedFare || 0).toFixed(2)}</strong>
+                      </div>
+                      <div className="flex justify-between p-2.5 bg-slate-950 rounded-xl border border-slate-800">
+                        <span className="text-slate-400">Tarifa Acordada Chofer:</span>
+                        <strong className="text-emerald-400 font-mono">${parseFloat(analyticsData?.analytics?.advancedBI?.avgAgreedFare || 0).toFixed(2)}</strong>
+                      </div>
+                      <div className="flex justify-between p-2.5 bg-slate-950 rounded-xl border border-slate-800">
+                        <span className="text-slate-400">Dispersión Promedio:</span>
+                        <strong className="text-amber-400 font-mono">+${parseFloat(analyticsData?.analytics?.advancedBI?.fareSpread || 0).toFixed(2)} USD</strong>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Ahorro Total Otorgado al Chofer frente a Apps Extranjeras */}
+                  <div className="p-5 bg-slate-900 border border-slate-800 rounded-3xl space-y-3 shadow-xl">
+                    <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider block">
+                      Propuesta de Valor (0% Comisión)
+                    </span>
+                    {(() => {
+                      const totalVol = (analyticsData?.analytics?.driverEarnings || []).reduce((acc, d) => acc + parseFloat(d.gross_revenue_usd || 0), 0);
+                      const savedCommissions = totalVol * 0.25; // 25% de Uber/InDrive
+                      return (
+                        <div className="space-y-2">
+                          <div className="text-2xl font-black text-emerald-400 font-mono">
+                            ${savedCommissions.toFixed(2)} USD
+                          </div>
+                          <p className="text-[11px] text-slate-300 leading-relaxed">
+                            Dinero que los conductores han conservado en su bolsa al no pagar la comisión del 25% habitual en El Salvador.
+                          </p>
+                        </div>
+                      );
+                    })()}
+                  </div>
+
+                  {/* K-Factor de Crecimiento */}
+                  <div className="p-5 bg-slate-900 border border-slate-800 rounded-3xl space-y-3 shadow-xl">
+                    <span className="text-xs font-bold text-purple-400 uppercase tracking-wider block">
+                      Crecimiento Orgánico
+                    </span>
+                    <div className="space-y-2">
+                      <div className="text-2xl font-black text-purple-400 font-mono">
+                        {analyticsData?.analytics?.bonusStats?.referralBonuses || 0}
+                      </div>
+                      <p className="text-[11px] text-slate-300 leading-relaxed">
+                        Usuarios traídos por el programa de referidos de boca en boca sin costo publicitario pagado.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Semáforo de Retención: Conductores en Riesgo de Churn (Periodo Gratis por Vencer) */}
+                <div className="p-5 bg-slate-900 border border-slate-800 rounded-3xl space-y-3 shadow-xl">
+                  <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                    <div className="flex items-center gap-2">
+                      <AlertTriangle className="w-5 h-5 text-amber-400" />
+                      <div>
+                        <h4 className="font-black text-sm text-white">Semáforo de Retención: Conductores con Pase Gratis por Vencer (Próximos 3 Días)</h4>
+                        <p className="text-[11px] text-slate-400">Choferes que necesitan acompañamiento para activar su cuota semanal o bonos</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {(!analyticsData?.analytics?.advancedBI?.churnRiskDrivers || analyticsData.analytics.advancedBI.churnRiskDrivers.length === 0) ? (
+                    <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800 text-center text-xs text-slate-400">
+                      ✅ No hay conductores con periodo gratuito por vencer en los próximos 3 días.
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {analyticsData.analytics.advancedBI.churnRiskDrivers.map((drv) => (
+                        <div key={drv.driver_id} className="p-3 bg-slate-950 rounded-2xl border border-amber-500/30 flex items-center justify-between text-xs">
+                          <div>
+                            <div className="font-bold text-white">{drv.driver_name}</div>
+                            <div className="text-[11px] text-slate-400 font-mono">Placa: {drv.vehicle_plate} • Vence: {new Date(drv.trial_ends_at).toLocaleDateString('es-SV')}</div>
+                          </div>
+                          <a
+                            href={`https://wa.me/503${drv.driver_phone ? drv.driver_phone.replace(/\D/g, '') : ''}?text=${encodeURIComponent(`Hola ${drv.driver_name}, te saludamos de Rumbo. Tu periodo de cortesía está próximo a finalizar. Queremos recordarte que puedes pagar tu cuota con bonos de carreras o Transfer365. ¿Podemos apoyarte en algo?`)}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="px-3 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 font-bold text-xs flex items-center gap-1.5 cursor-pointer"
+                          >
+                            <MessageCircle className="w-3.5 h-3.5" />
+                            <span>WhatsApp</span>
+                          </a>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* ================================================================== */}
         {/* PESTAÑA A: ESTADÍSTICAS & KPIS EN TIEMPO REAL */}

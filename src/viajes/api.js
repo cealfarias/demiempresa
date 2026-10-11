@@ -609,6 +609,27 @@ export async function fetchAdminStatsApi() {
 }
 
 /**
+ * 21.05 Estadísticas Avanzadas con Filtros de Tiempo y Ordenamiento
+ */
+export async function fetchAdminAdvancedAnalyticsApi({ period = 'month', order = 'desc', year, month } = {}) {
+  try {
+    const params = new URLSearchParams();
+    if (period) params.append('period', period);
+    if (order) params.append('order', order);
+    if (year) params.append('year', year);
+    if (month) params.append('month', month);
+
+    const res = await fetch(`${API_BASE_URL}/api/admin/advanced-analytics?${params.toString()}`);
+    if (!res.ok) throw new Error('Error al cargar analíticas avanzadas');
+    const data = await res.json();
+    return data;
+  } catch (err) {
+    console.warn('Fallback analíticas avanzadas:', err);
+    return null;
+  }
+}
+
+/**
  * 21.1 Reiniciar a Cero la Base de Datos y Memoria
  */
 export async function resetDatabaseApi() {

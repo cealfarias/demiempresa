@@ -2428,6 +2428,8 @@ app.get('/api/admin/stats', async (req, res) => {
     let completedTrips = 0;
     let pendingTicketsCount = memoryInboxTickets.filter(t => t.status === 'PENDING').length;
     let paymentTicketsCount = memoryInboxTickets.filter(t => t.category === 'PAGOS' && t.status === 'PENDING').length;
+    let totalPaymentsApproved = 0;
+    let totalBonusesCirculating = 0;
 
     try {
       const pRes = await pool.query("SELECT count(*) FROM viajes_users WHERE role = 'PASSENGER';");
@@ -2442,8 +2444,14 @@ app.get('/api/admin/stats', async (req, res) => {
       const dPend = await pool.query("SELECT count(*) FROM viajes_driver_profiles WHERE approval_status = 'PENDING';");
       pendingDrivers = parseInt(dPend.rows[0]?.count || 0);
 
-      const tRes = await pool.query("SELECT count(*) FROM viajes_trip_requests WHERE status = 'COMPLETED';");
-      completedTrips = parseInt(tRes.rows[0]?.count || 0);
+      try {
+        const tRes = await pool.query("SELECT count(*) FROM viajes_trips WHERE status = 'COMPLETED';");
+        completedTrips = parseInt(tRes.rows[0]?.count || 0);
+      } catch (tErr) {
+        // Fallback si la tabla es viajes_trip_requests
+        const tRes2 = await pool.query("SELECT count(*) FROM viajes_trip_requests WHERE status = 'COMPLETED';").catch(() => ({ rows: [] }));
+        completedTrips = parseInt(tRes2.rows[0]?.count || 0);
+      }
 
       const tktPending = await pool.query("SELECT count(*) FROM viajes_inbox_tickets WHERE status = 'PENDING';");
       pendingTicketsCount = Math.max(pendingTicketsCount, parseInt(tktPending.rows[0]?.count || 0));
@@ -2529,6 +2537,372 @@ app.get('/api/admin/stats', async (req, res) => {
       }
     });
   } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Helper de nombres de meses en español
+const SPANISH_ANALYTICS_MONTHS = [
+  'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+  'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+];
+
+// 9.2.5 Estadísticas Avanzadas con Filtros de Tiempo (Hoy, Semana, Días, Mes, Año) y Ordenamiento
+app.get('/api/admin/advanced-analytics', async (req, res) => {
+  try {
+    const {
+      period = 'month', // 'today', 'week', 'days_30', 'month', 'year', 'all'
+      order = 'desc',   // 'desc', 'asc'
+      year,
+      month
+    } = req.query;
+
+    const orderDirection = String(order).toLowerCase() === 'asc' ? 'ASC' : 'DESC';
+
+    // Determinar rango de tiempo en zona horaria El Salvador (UTC-6)
+    const nowSv = new Date(Date.now() - (6 * 3600 * 1000));
+    let startIso = null;
+    let endIso = new Date().toISOString();
+    let filterLabel = 'Todo el Histórico';
+
+    if (period === 'today') {
+      const todayStart = new Date(Date.UTC(nowSv.getUTCFullYear(), nowSv.getUTCMonth(), nowSv.getUTCDate(), 6, 0, 0));
+      startIso = todayStart.toISOString();
+      filterLabel = `Hoy (${nowSv.getUTCDate()} de ${SPANISH_ANALYTICS_MONTHS[nowSv.getUTCMonth()]})`;
+    } else if (period === 'week') {
+      startIso = new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString();
+      filterLabel = 'Últimos 7 Días';
+    } else if (period === 'days_30') {
+      startIso = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString();
+      filterLabel = 'Últimos 30 Días';
+    } else if (period === 'month') {
+      const yr = year ? parseInt(year, 10) : nowSv.getUTCFullYear();
+      const mo = month ? parseInt(month, 10) - 1 : nowSv.getUTCMonth();
+      const startMonth = new Date(Date.UTC(yr, mo, 1, 6, 0, 0));
+      const endMonth = new Date(Date.UTC(yr, mo + 1, 1, 5, 59, 59, 999));
+      startIso = startMonth.toISOString();
+      endIso = endMonth.toISOString();
+      filterLabel = `${SPANISH_ANALYTICS_MONTHS[mo]} ${yr}`;
+    } else if (period === 'year') {
+      const yr = year ? parseInt(year, 10) : nowSv.getUTCFullYear();
+      const startYear = new Date(Date.UTC(yr, 0, 1, 6, 0, 0));
+      const endYear = new Date(Date.UTC(yr + 1, 0, 1, 5, 59, 59, 999));
+      startIso = startYear.toISOString();
+      endIso = endYear.toISOString();
+      filterLabel = `Año ${yr}`;
+    }
+
+    const timeParams = [startIso, endIso];
+
+    // a) Ranking de Ingresos y Actividad de Conductores
+    let driverEarnings = [];
+    try {
+      const qDriver = `
+        SELECT 
+          dp.id AS driver_id,
+          dp.user_id,
+          u.full_name AS driver_name,
+          u.phone AS driver_phone,
+          dp.vehicle_plate,
+          dp.vehicle_brand,
+          dp.vehicle_model,
+          dp.vehicle_color,
+          dp.approval_status,
+          COUNT(t.id)::int AS total_trips_completed,
+          COALESCE(SUM(t.agreed_fare), 0)::numeric(10,2) AS gross_revenue_usd,
+          COALESCE(SUM(t.cash_to_collect), 0)::numeric(10,2) AS cash_collected_usd,
+          COALESCE(SUM(t.credit_applied), 0)::numeric(10,2) AS credits_received_usd,
+          COALESCE(AVG(t.agreed_fare), 0)::numeric(10,2) AS average_fare_usd
+        FROM viajes_driver_profiles dp
+        JOIN viajes_users u ON dp.user_id = u.id
+        LEFT JOIN viajes_trips t ON t.driver_id = dp.id 
+          AND t.status = 'COMPLETED'
+          AND ($1::timestamptz IS NULL OR (t.completed_at >= $1::timestamptz AND t.completed_at <= $2::timestamptz))
+        GROUP BY dp.id, dp.user_id, u.full_name, u.phone, dp.vehicle_plate, dp.vehicle_brand, dp.vehicle_model, dp.vehicle_color, dp.approval_status
+        ORDER BY gross_revenue_usd ${orderDirection}, total_trips_completed ${orderDirection}
+        LIMIT 50;
+      `;
+      const resDriver = await pool.query(qDriver, timeParams);
+      driverEarnings = resDriver.rows;
+    } catch (e) {
+      console.warn('Analytics driver earnings fallback:', e.message);
+    }
+
+    // b) Orígenes, Destinos y Corredores
+    let topDestinations = [];
+    let topCorridors = [];
+    try {
+      const qDest = `
+        SELECT 
+          COALESCE(NULLIF(TRIM(destination_municipality), ''), 'Sin especificar') AS destination,
+          COUNT(*)::int AS trip_count,
+          COALESCE(SUM(agreed_fare), 0)::numeric(10,2) AS total_volume_usd,
+          COALESCE(AVG(agreed_fare), 0)::numeric(10,2) AS avg_fare_usd
+        FROM viajes_trips
+        WHERE ($1::timestamptz IS NULL OR (created_at >= $1::timestamptz AND created_at <= $2::timestamptz))
+        GROUP BY destination
+        ORDER BY trip_count ${orderDirection}
+        LIMIT 15;
+      `;
+      const resDest = await pool.query(qDest, timeParams);
+      topDestinations = resDest.rows;
+
+      const qCorridors = `
+        SELECT 
+          origin_address,
+          destination_address,
+          COALESCE(NULLIF(TRIM(destination_municipality), ''), 'San Salvador') AS destination_municipality,
+          COUNT(*)::int AS trip_count,
+          COALESCE(SUM(agreed_fare), 0)::numeric(10,2) AS total_volume_usd,
+          COALESCE(AVG(agreed_fare), 0)::numeric(10,2) AS avg_fare_usd
+        FROM viajes_trips
+        WHERE ($1::timestamptz IS NULL OR (created_at >= $1::timestamptz AND created_at <= $2::timestamptz))
+        GROUP BY origin_address, destination_address, destination_municipality
+        ORDER BY trip_count ${orderDirection}
+        LIMIT 15;
+      `;
+      const resCorridors = await pool.query(qCorridors, timeParams);
+      topCorridors = resCorridors.rows;
+    } catch (e) {
+      console.warn('Analytics routes fallback:', e.message);
+    }
+
+    // b.2) Horas de Mayor Demanda (0 - 23 horas)
+    let hourlyDemand = new Array(24).fill(0).map((_, h) => ({
+      hour: h,
+      label: `${String(h).padStart(2, '0')}:00`,
+      requests: 0,
+      completed: 0,
+      cancelled: 0
+    }));
+    try {
+      const qHourly = `
+        SELECT 
+          EXTRACT(HOUR FROM (created_at AT TIME ZONE 'UTC' AT TIME ZONE 'America/El_Salvador'))::int AS hour_of_day,
+          COUNT(*)::int AS request_count,
+          COUNT(*) FILTER (WHERE status = 'COMPLETED')::int AS completed_count,
+          COUNT(*) FILTER (WHERE status = 'CANCELLED')::int AS cancelled_count
+        FROM viajes_trips
+        WHERE ($1::timestamptz IS NULL OR (created_at >= $1::timestamptz AND created_at <= $2::timestamptz))
+        GROUP BY hour_of_day
+        ORDER BY hour_of_day ASC;
+      `;
+      const resHourly = await pool.query(qHourly, timeParams);
+      for (const row of resHourly.rows) {
+        const h = row.hour_of_day;
+        if (h >= 0 && h < 24) {
+          hourlyDemand[h].requests = row.request_count;
+          hourlyDemand[h].completed = row.completed_count;
+          hourlyDemand[h].cancelled = row.cancelled_count;
+        }
+      }
+    } catch (e) {
+      console.warn('Analytics hourly fallback:', e.message);
+    }
+
+    // b.3) Ciclo de Bonos (Otorgados, Redimidos, Vencidos)
+    let bonusStats = {
+      totalGranted: 0,
+      welcomeBonuses: 0,
+      referralBonuses: 0,
+      available: 0,
+      redeemed: 0,
+      expired: 0,
+      redeemedAmountUsd: 0,
+      expiredAmountUsd: 0,
+      redemptionRate: '0%'
+    };
+    try {
+      const qBonuses = `
+        SELECT 
+          COUNT(*)::int AS total_granted,
+          COUNT(*) FILTER (WHERE referral_id IS NULL)::int AS welcome_bonuses,
+          COUNT(*) FILTER (WHERE referral_id IS NOT NULL)::int AS referral_bonuses,
+          COUNT(*) FILTER (WHERE status = 'AVAILABLE')::int AS available,
+          COUNT(*) FILTER (WHERE status = 'REDEEMED')::int AS redeemed,
+          COUNT(*) FILTER (WHERE status = 'CREDIT_EXPIRED')::int AS expired,
+          COALESCE(SUM(amount) FILTER (WHERE status = 'REDEEMED'), 0)::numeric(10,2) AS redeemed_amount_usd,
+          COALESCE(SUM(amount) FILTER (WHERE status = 'CREDIT_EXPIRED'), 0)::numeric(10,2) AS expired_amount_usd
+        FROM viajes_user_credits
+        WHERE ($1::timestamptz IS NULL OR (granted_at >= $1::timestamptz AND granted_at <= $2::timestamptz));
+      `;
+      const resBonuses = await pool.query(qBonuses, timeParams);
+      if (resBonuses.rows.length > 0) {
+        const b = resBonuses.rows[0];
+        const total = b.total_granted || 0;
+        const red = b.redeemed || 0;
+        bonusStats = {
+          totalGranted: total,
+          welcomeBonuses: b.welcome_bonuses || 0,
+          referralBonuses: b.referral_bonuses || 0,
+          available: b.available || 0,
+          redeemed: red,
+          expired: b.expired || 0,
+          redeemedAmountUsd: parseFloat(b.redeemed_amount_usd || 0),
+          expiredAmountUsd: parseFloat(b.expired_amount_usd || 0),
+          redemptionRate: total > 0 ? `${Math.round((red / total) * 100)}%` : '0%'
+        };
+      }
+    } catch (e) {
+      console.warn('Analytics bonuses fallback:', e.message);
+    }
+
+    // c) Pago de Conductores en USD y Bonos de Cuota
+    let driverFeePayments = {
+      usdTotalPaid: 0,
+      approvedReceiptsCount: 0,
+      bonusesDeductedCount: 0,
+      bonusesDeductedUsd: 0,
+      weeklySubscriptionsCount: 0
+    };
+    try {
+      const qFees = `
+        SELECT 
+          COALESCE(SUM(payment_amount), 0)::numeric(10,2) AS total_usd_paid,
+          COUNT(*)::int AS approved_receipts_count
+        FROM viajes_inbox_tickets
+        WHERE category = 'PAGOS' 
+          AND status IN ('APPROVED', 'RESOLVED')
+          AND ($1::timestamptz IS NULL OR (created_at >= $1::timestamptz AND created_at <= $2::timestamptz));
+      `;
+      const resFees = await pool.query(qFees, timeParams);
+      if (resFees.rows.length > 0) {
+        driverFeePayments.usdTotalPaid = parseFloat(resFees.rows[0].total_usd_paid || 0);
+        driverFeePayments.approvedReceiptsCount = resFees.rows[0].approved_receipts_count || 0;
+      }
+
+      const qSubs = `
+        SELECT 
+          COALESCE(SUM(bonuses_count), 0)::int AS total_bonuses,
+          COUNT(*)::int AS subs_count
+        FROM viajes_driver_subscriptions
+        WHERE ($1::timestamptz IS NULL OR (created_at >= $1::timestamptz AND created_at <= $2::timestamptz));
+      `;
+      const resSubs = await pool.query(qSubs, timeParams);
+      if (resSubs.rows.length > 0) {
+        driverFeePayments.bonusesDeductedCount = resSubs.rows[0].total_bonuses || 0;
+        driverFeePayments.bonusesDeductedUsd = resSubs.rows[0].total_bonuses || 0;
+        driverFeePayments.weeklySubscriptionsCount = resSubs.rows[0].subs_count || 0;
+      }
+    } catch (e) {
+      console.warn('Analytics fees fallback:', e.message);
+    }
+
+    // c.2) Registros de Usuarios (Pasajeros vs Conductores)
+    let userRegistrations = {
+      newPassengers: 0,
+      newDriversTotal: 0,
+      newDriversApproved: 0,
+      newDriversPending: 0
+    };
+    try {
+      const qPass = `
+        SELECT COUNT(*)::int AS count
+        FROM viajes_users
+        WHERE role = 'PASSENGER'
+          AND ($1::timestamptz IS NULL OR (created_at >= $1::timestamptz AND created_at <= $2::timestamptz));
+      `;
+      const resPass = await pool.query(qPass, timeParams);
+      userRegistrations.newPassengers = resPass.rows[0]?.count || 0;
+
+      const qDriv = `
+        SELECT 
+          COUNT(*)::int AS total,
+          COUNT(*) FILTER (WHERE approval_status = 'APPROVED')::int AS approved,
+          COUNT(*) FILTER (WHERE approval_status = 'PENDING')::int AS pending
+        FROM viajes_driver_profiles
+        WHERE ($1::timestamptz IS NULL OR (created_at >= $1::timestamptz AND created_at <= $2::timestamptz));
+      `;
+      const resDriv = await pool.query(qDriv, timeParams);
+      userRegistrations.newDriversTotal = resDriv.rows[0]?.total || 0;
+      userRegistrations.newDriversApproved = resDriv.rows[0]?.approved || 0;
+      userRegistrations.newDriversPending = resDriv.rows[0]?.pending || 0;
+    } catch (e) {
+      console.warn('Analytics user registrations fallback:', e.message);
+    }
+
+    // d) Estadísticas Avanzadas de Subasta y Churn
+    let advancedBI = {
+      totalTripsRequested: 0,
+      completedTrips: 0,
+      cancelledTrips: 0,
+      auctionMatchRate: '0%',
+      avgProposedFare: 0,
+      avgAgreedFare: 0,
+      fareSpread: 0,
+      churnRiskDrivers: []
+    };
+    try {
+      const qMatch = `
+        SELECT 
+          COUNT(*)::int AS total_requests,
+          COUNT(*) FILTER (WHERE status = 'COMPLETED')::int AS completed,
+          COUNT(*) FILTER (WHERE status = 'CANCELLED')::int AS cancelled,
+          COALESCE(AVG(proposed_fare), 0)::numeric(10,2) AS avg_proposed_fare,
+          COALESCE(AVG(agreed_fare) FILTER (WHERE status = 'COMPLETED'), 0)::numeric(10,2) AS avg_agreed_fare
+        FROM viajes_trips
+        WHERE ($1::timestamptz IS NULL OR (created_at >= $1::timestamptz AND created_at <= $2::timestamptz));
+      `;
+      const resMatch = await pool.query(qMatch, timeParams);
+      if (resMatch.rows.length > 0) {
+        const m = resMatch.rows[0];
+        const tot = m.total_requests || 0;
+        const comp = m.completed || 0;
+        const prop = parseFloat(m.avg_proposed_fare || 0);
+        const agr = parseFloat(m.avg_agreed_fare || 0);
+        advancedBI.totalTripsRequested = tot;
+        advancedBI.completedTrips = comp;
+        advancedBI.cancelledTrips = m.cancelled || 0;
+        advancedBI.auctionMatchRate = tot > 0 ? `${Math.round((comp / tot) * 100)}%` : '0%';
+        advancedBI.avgProposedFare = prop;
+        advancedBI.avgAgreedFare = agr;
+        advancedBI.fareSpread = parseFloat((agr - prop).toFixed(2));
+      }
+
+      // Choferes cuyo periodo gratis vence en los próximos 3 días
+      const qRisk = `
+        SELECT 
+          dp.id AS driver_id,
+          u.full_name AS driver_name,
+          u.phone AS driver_phone,
+          dp.vehicle_plate,
+          dp.trial_ends_at
+        FROM viajes_driver_profiles dp
+        JOIN viajes_users u ON dp.user_id = u.id
+        WHERE dp.approval_status = 'APPROVED'
+          AND dp.trial_ends_at BETWEEN CURRENT_TIMESTAMP AND CURRENT_TIMESTAMP + INTERVAL '3 days'
+        ORDER BY dp.trial_ends_at ASC
+        LIMIT 10;
+      `;
+      const resRisk = await pool.query(qRisk);
+      advancedBI.churnRiskDrivers = resRisk.rows;
+    } catch (e) {
+      console.warn('Analytics advanced BI fallback:', e.message);
+    }
+
+    res.json({
+      success: true,
+      filter: {
+        period,
+        order: orderDirection.toLowerCase(),
+        filterLabel,
+        startDate: startIso,
+        endDate: endIso
+      },
+      analytics: {
+        driverEarnings,
+        topDestinations,
+        topCorridors,
+        hourlyDemand,
+        bonusStats,
+        driverFeePayments,
+        userRegistrations,
+        advancedBI,
+        serverTime: new Date().toISOString()
+      }
+    });
+  } catch (err) {
+    console.error('Error en /api/admin/advanced-analytics:', err);
     res.status(500).json({ success: false, error: err.message });
   }
 });
