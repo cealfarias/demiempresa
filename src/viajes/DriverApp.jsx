@@ -36,7 +36,11 @@ import {
   Gift,
   Bell,
   BellRing,
-  User
+  User,
+  Eye,
+  RefreshCw,
+  ArrowRightLeft,
+  Send
 } from 'lucide-react';
 import { isPushSupported, getPushPermissionState, subscribeUserToPush, testPushNotification } from './pushManager';
 import {
@@ -396,6 +400,9 @@ function DriverAppContent() {
   const [driverWaitingPeerResponse, setDriverWaitingPeerResponse] = useState(false);
   const [incomingPassengerCancelRequest, setIncomingPassengerCancelRequest] = useState(null);
   const [driverCancelNoticeMsg, setDriverCancelNoticeMsg] = useState(null);
+
+  // Auditoría en Vivo: Comparativa de Generales Recibidas vs Enviadas al Dar Click en He Llegado
+  const [statusAuditModal, setStatusAuditModal] = useState(null);
 
   // Sincronizar activeTrip y tripState en localStorage
   useEffect(() => {
@@ -940,13 +947,55 @@ function DriverAppContent() {
     console.log(`🚖 [DriverApp] Actualizando estado a: ${newStatus} para viaje #${targetTripId}`);
     setTripState(newStatus);
     const normalized = newStatus === 'DONE' ? 'COMPLETED' : newStatus;
-    
+
+    // Diagnóstico en vivo: captura de datos recibidos y paquete a enviar
+    const auditData = {
+      timestamp: new Date().toLocaleTimeString(),
+      statusAttempted: newStatus,
+      normalizedStatus: normalized,
+      received: {
+        tripId: activeTrip?.id || '(Sin ID asignado / active)',
+        passengerName: activeTrip?.passengerName || '(Sin nombre)',
+        passengerPhone: activeTrip?.passengerPhone || '(Sin teléfono)',
+        passengerId: activeTrip?.passengerId || activeTrip?.passenger_id || '(No especificado)',
+        origin: activeTrip?.origin || '(Sin origen)',
+        destination: activeTrip?.destination || '(Sin destino)',
+        agreedFare: activeTrip?.agreedFare || activeTrip?.suggestedFare || '0.00',
+        cashToCollect: activeTrip?.cashToCollect || '0.00',
+        changeNeeded: activeTrip?.changeNeeded || '0.00',
+        currentTripState: tripState,
+        driverProfileId: driverProfileId || '(Sin ID chofer)',
+        socketId: socket?.id || 'Desconectado',
+        socketConnected: socket?.connected ? 'CONECTADO ✅' : 'DESCONECTADO ❌'
+      },
+      sending: {
+        targetTripId,
+        newStatus: normalized,
+        driverProfileId,
+        socketEvent: 'trip:update_status',
+        restEndpoint: `POST /api/trips/${targetTripId}/status`,
+        socketResponse: '⏳ Esperando respuesta del Socket...',
+        restResponse: '⏳ Esperando respuesta de API REST...',
+        socketOk: null,
+        restOk: null
+      }
+    };
+    setStatusAuditModal(auditData);
+
     socket.emit('trip:update_status', {
       tripId: targetTripId,
       newStatus: normalized,
       driverProfileId
     }, (res) => {
       console.log('📡 [DriverApp] Respuesta trip:update_status:', res);
+      setStatusAuditModal((prev) => prev ? {
+        ...prev,
+        sending: {
+          ...prev.sending,
+          socketResponse: res ? JSON.stringify(res, null, 2) : 'Sin respuesta (timeout o vacío)',
+          socketOk: Boolean(res?.success)
+        }
+      } : null);
       if (res?.trip?.id && (!activeTrip?.id || activeTrip.id === 'active')) {
         setActiveTrip((prev) => prev ? { ...prev, id: res.trip.id } : prev);
       }
@@ -954,11 +1003,27 @@ function DriverAppContent() {
 
     // Respaldo REST inmediato para garantizar persistencia y emisión segura a pasajeros
     updateTripStatusApi(targetTripId, normalized, driverProfileId).then((res) => {
+      setStatusAuditModal((prev) => prev ? {
+        ...prev,
+        sending: {
+          ...prev.sending,
+          restResponse: res ? JSON.stringify(res, null, 2) : 'Respuesta REST vacía',
+          restOk: Boolean(res?.success)
+        }
+      } : null);
       if (res?.trip?.id && (!activeTrip?.id || activeTrip.id === 'active')) {
         setActiveTrip((prev) => prev ? { ...prev, id: res.trip.id } : prev);
       }
     }).catch((err) => {
       console.warn('Advertencia en actualización REST de viaje:', err.message);
+      setStatusAuditModal((prev) => prev ? {
+        ...prev,
+        sending: {
+          ...prev.sending,
+          restResponse: `Error en REST: ${err.message}`,
+          restOk: false
+        }
+      } : null);
     });
 
     if (newStatus === 'DONE') {
@@ -1723,23 +1788,43 @@ function DriverAppContent() {
             {/* Controles de Estado del Viaje */}
             <div className="pt-2 space-y-2">
               {tripState === 'EN_ROUTE_TO_PICKUP' && (
-                <button
-                  onClick={() => handleUpdateStatus('ARRIVED')}
-                  className="w-full py-3.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-xl text-sm shadow-lg flex items-center justify-center gap-2 cursor-pointer"
-                >
-                  <CheckCircle className="w-5 h-5" />
-                  <span>YA LLEGUÉ AL PUNTO DE RECOGIDA</span>
-                </button>
+                <div className="space-y-2">
+                  <button
+                    onClick={() => handleUpdateStatus('ARRIVED')}
+                    className="w-full py-3.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-xl text-sm shadow-lg flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-[0.99]"
+                  >
+                    <CheckCircle className="w-5 h-5" />
+                    <span>YA LLEGUÉ AL PUNTO DE RECOGIDA</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleUpdateStatus('ARRIVED')}
+                    className="w-full py-2 bg-slate-900 hover:bg-slate-800 text-amber-400 font-bold text-xs rounded-xl border border-amber-500/40 flex items-center justify-center gap-1.5 cursor-pointer shadow-sm transition-all"
+                  >
+                    <ArrowRightLeft className="w-3.5 h-3.5 text-amber-400" />
+                    <span>🔍 Comparar Generales: Recibidas vs Enviadas</span>
+                  </button>
+                </div>
               )}
 
               {tripState === 'ARRIVED' && (
-                <button
-                  onClick={() => handleUpdateStatus('IN_TRANSIT')}
-                  className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-500 text-white font-black rounded-xl text-sm shadow-lg flex items-center justify-center gap-2 cursor-pointer"
-                >
-                  <Car className="w-5 h-5" />
-                  <span>PASAJERO A BORDO: INICIAR VIAJE</span>
-                </button>
+                <div className="space-y-2">
+                  <button
+                    onClick={() => handleUpdateStatus('IN_TRANSIT')}
+                    className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-500 text-white font-black rounded-xl text-sm shadow-lg flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <Car className="w-5 h-5" />
+                    <span>PASAJERO A BORDO: INICIAR VIAJE</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleUpdateStatus('ARRIVED')}
+                    className="w-full py-2 bg-slate-900 hover:bg-slate-800 text-amber-400 font-bold text-xs rounded-xl border border-amber-500/40 flex items-center justify-center gap-1.5 cursor-pointer shadow-sm transition-all"
+                  >
+                    <ArrowRightLeft className="w-3.5 h-3.5 text-amber-400" />
+                    <span>🔍 Ver Comparativa de Generales (ARRIVED)</span>
+                  </button>
+                </div>
               )}
 
               {tripState === 'IN_TRANSIT' && (
@@ -2657,6 +2742,176 @@ function DriverAppContent() {
             window.location.href = '/viajes';
           }}
         />
+      )}
+
+      {/* Modal de Auditoría en Vivo: Comparativa de Generales Recibidas vs Enviadas al marcar 'ARRIVED' */}
+      {statusAuditModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md animate-fade-in">
+          <div className="bg-slate-900 border border-amber-500/50 rounded-2xl p-4 sm:p-5 max-w-2xl w-full max-h-[92vh] flex flex-col shadow-2xl text-left overflow-hidden">
+            
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3 mb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400">
+                  <ArrowRightLeft className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm sm:text-base font-black text-white flex items-center gap-2">
+                    Prueba en Vivo: "He Llegado"
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                      {statusAuditModal.timestamp}
+                    </span>
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    Comparación lado a lado de las generales del pasajero y estado del envío
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setStatusAuditModal(null)}
+                className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Contenido en 2 columnas lado a lado */}
+            <div className="flex-1 overflow-y-auto space-y-3 pr-1">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                
+                {/* COLUMNA 1: RECIBIDAS (Memoria del Conductor) */}
+                <div className="p-3.5 bg-slate-950/90 rounded-xl border border-sky-500/40 flex flex-col justify-between shadow-inner">
+                  <div>
+                    <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-800">
+                      <span className="text-xs font-black text-sky-400 flex items-center gap-1.5">
+                        📥 GENERALES RECIBIDAS (En Teléfono)
+                      </span>
+                    </div>
+
+                    <div className="space-y-2 text-xs">
+                      <div>
+                        <span className="text-[10px] uppercase font-bold text-slate-500 block">ID del Viaje:</span>
+                        <span className="font-mono font-bold text-amber-300 break-all">{statusAuditModal.received.tripId}</span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] uppercase font-bold text-slate-500 block">Nombre del Pasajero:</span>
+                        <span className="font-semibold text-white">{statusAuditModal.received.passengerName}</span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] uppercase font-bold text-slate-500 block">Teléfono Pasajero:</span>
+                        <span className="text-slate-300">{statusAuditModal.received.passengerPhone || 'No proporcionado'}</span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] uppercase font-bold text-slate-500 block">Origen Recibido:</span>
+                        <span className="text-slate-300 line-clamp-2">{statusAuditModal.received.origin}</span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] uppercase font-bold text-slate-500 block">Destino Recibido:</span>
+                        <span className="text-slate-300 line-clamp-2">{statusAuditModal.received.destination}</span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-800/60">
+                        <div>
+                          <span className="text-[10px] uppercase font-bold text-slate-500 block">Tarifa:</span>
+                          <span className="font-bold text-emerald-400">${statusAuditModal.received.agreedFare}</span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] uppercase font-bold text-slate-500 block">Por Cobrar:</span>
+                          <span className="font-bold text-emerald-400">${statusAuditModal.received.cashToCollect}</span>
+                        </div>
+                      </div>
+                      <div className="pt-1 border-t border-slate-800/60">
+                        <span className="text-[10px] uppercase font-bold text-slate-500 block">Estado Local Actual:</span>
+                        <span className="font-mono text-[11px] text-amber-300 font-bold">{statusAuditModal.received.currentTripState}</span>
+                      </div>
+                      <div className="pt-1 border-t border-slate-800/60">
+                        <span className="text-[10px] uppercase font-bold text-slate-500 block">Conexión Socket Conductor:</span>
+                        <span className="text-[11px] text-slate-300 font-medium">{statusAuditModal.received.socketConnected}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* COLUMNA 2: ENVIADAS (Al Servidor en este instante) */}
+                <div className="p-3.5 bg-slate-950/90 rounded-xl border border-amber-500/40 flex flex-col justify-between shadow-inner">
+                  <div>
+                    <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-800">
+                      <span className="text-xs font-black text-amber-400 flex items-center gap-1.5">
+                        📤 GENERALES ENVIADAS (Al Servidor)
+                      </span>
+                      <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-amber-950 text-amber-300 border border-amber-800">
+                        {statusAuditModal.sending.newStatus}
+                      </span>
+                    </div>
+
+                    <div className="space-y-2 text-xs">
+                      <div>
+                        <span className="text-[10px] uppercase font-bold text-slate-500 block">Trip ID Enviado:</span>
+                        <span className="font-mono font-bold text-amber-300 break-all">{statusAuditModal.sending.targetTripId}</span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] uppercase font-bold text-slate-500 block">Driver Profile ID Enviado:</span>
+                        <span className="font-mono text-[11px] text-slate-300 break-all">{statusAuditModal.sending.driverProfileId}</span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] uppercase font-bold text-slate-500 block">Evento WebSocket:</span>
+                        <span className="font-mono text-emerald-400">{statusAuditModal.sending.socketEvent}</span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] uppercase font-bold text-slate-500 block">Endpoint REST:</span>
+                        <span className="font-mono text-[11px] text-slate-300 break-all">{statusAuditModal.sending.restEndpoint}</span>
+                      </div>
+
+                      {/* Respuestas del Servidor en Vivo */}
+                      <div className="pt-2 border-t border-slate-800/80 space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] uppercase font-bold text-slate-400">Respuesta WebSocket:</span>
+                          {statusAuditModal.sending.socketOk === true && <span className="text-[10px] text-emerald-400 font-bold">✅ ÉXITO</span>}
+                          {statusAuditModal.sending.socketOk === false && <span className="text-[10px] text-rose-400 font-bold">❌ FALLÓ</span>}
+                          {statusAuditModal.sending.socketOk === null && <span className="text-[10px] text-amber-400 font-bold">⏳ ESPERANDO</span>}
+                        </div>
+                        <pre className="p-2 bg-slate-900 border border-slate-800 rounded text-[10px] font-mono text-slate-300 max-h-20 overflow-y-auto whitespace-pre-wrap break-all">
+                          {statusAuditModal.sending.socketResponse}
+                        </pre>
+
+                        <div className="flex items-center justify-between pt-1">
+                          <span className="text-[10px] uppercase font-bold text-slate-400">Respuesta API REST:</span>
+                          {statusAuditModal.sending.restOk === true && <span className="text-[10px] text-emerald-400 font-bold">✅ ÉXITO</span>}
+                          {statusAuditModal.sending.restOk === false && <span className="text-[10px] text-rose-400 font-bold">❌ FALLÓ</span>}
+                          {statusAuditModal.sending.restOk === null && <span className="text-[10px] text-amber-400 font-bold">⏳ ESPERANDO</span>}
+                        </div>
+                        <pre className="p-2 bg-slate-900 border border-slate-800 rounded text-[10px] font-mono text-slate-300 max-h-20 overflow-y-auto whitespace-pre-wrap break-all">
+                          {statusAuditModal.sending.restResponse}
+                        </pre>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+
+            {/* Footer Acciones */}
+            <div className="pt-3 mt-3 border-t border-slate-800 flex items-center justify-between gap-2">
+              <button
+                type="button"
+                onClick={() => handleUpdateStatus('ARRIVED')}
+                className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl flex items-center gap-1.5 cursor-pointer shadow transition-all active:scale-95"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                <span>Reintentar Envío "ARRIVED"</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setStatusAuditModal(null)}
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs rounded-xl cursor-pointer"
+              >
+                Cerrar Comparativa
+              </button>
+            </div>
+
+          </div>
+        </div>
       )}
 
     </div>
