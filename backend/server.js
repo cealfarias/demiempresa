@@ -1070,6 +1070,24 @@ app.post('/api/trips/:tripId/status', async (req, res) => {
     io.to('passengers_channel').emit('trip:status_changed', statusPayload);
     io.emit('trip:status_changed', statusPayload);
 
+    // Eventos dedicados por canal privado desde REST
+    if (normalizedStatus === 'ARRIVED') {
+      io.to(`trip:${updatedTrip.id}`).emit('trip:driver_arrived', statusPayload);
+      if (updatedTrip.passenger_id) io.to(`passenger:${updatedTrip.passenger_id}`).emit('trip:driver_arrived', statusPayload);
+      io.to('passengers_channel').emit('trip:driver_arrived', statusPayload);
+      io.emit('trip:driver_arrived', statusPayload);
+    } else if (normalizedStatus === 'IN_TRANSIT') {
+      io.to(`trip:${updatedTrip.id}`).emit('trip:trip_started', statusPayload);
+      if (updatedTrip.passenger_id) io.to(`passenger:${updatedTrip.passenger_id}`).emit('trip:trip_started', statusPayload);
+      io.to('passengers_channel').emit('trip:trip_started', statusPayload);
+      io.emit('trip:trip_started', statusPayload);
+    } else if (normalizedStatus === 'COMPLETED') {
+      io.to(`trip:${updatedTrip.id}`).emit('trip:trip_completed', statusPayload);
+      if (updatedTrip.passenger_id) io.to(`passenger:${updatedTrip.passenger_id}`).emit('trip:trip_completed', statusPayload);
+      io.to('passengers_channel').emit('trip:trip_completed', statusPayload);
+      io.emit('trip:trip_completed', statusPayload);
+    }
+
     let pkgDetails = {};
     try {
       pkgDetails = typeof updatedTrip.package_details === 'string' ? JSON.parse(updatedTrip.package_details) : (updatedTrip.package_details || {});

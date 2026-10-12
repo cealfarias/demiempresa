@@ -791,6 +791,7 @@ function DriverAppContent() {
         creditApplied: assignedData.creditApplied || '0.00'
       });
       socket.emit('trip:reconnect', { tripId: assignedData.tripId, role: 'DRIVER', driverProfileId });
+      socket.emit('trip:join_private_room', { tripId: assignedData.tripId, role: 'DRIVER', profileId: driverProfileId });
       setIncomingRequest(null);
       setPendingOffer(null);
       setTripState('EN_ROUTE_TO_PICKUP');
@@ -864,6 +865,38 @@ function DriverAppContent() {
       socket.off('driver_session_revoked');
     };
   }, [driverProfileId, driverProfile?.phone, driverProfile?.sessionToken]);
+
+  // Mantenimiento de Canal Privado Activo para el Conductor
+  useEffect(() => {
+    const activeId = activeTrip?.id;
+    if (!activeId || tripState === 'DONE') return;
+
+    const joinPrivateRoom = () => {
+      console.log(`🔒 [DriverApp] Asegurando canal privado para viaje #${activeId}`);
+      socket.emit('trip:join_private_room', {
+        tripId: activeId,
+        role: 'DRIVER',
+        profileId: driverProfileId
+      });
+    };
+
+    joinPrivateRoom();
+
+    const handleReconnect = () => joinPrivateRoom();
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') joinPrivateRoom();
+    };
+
+    socket.on('connect', handleReconnect);
+    document.addEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('focus', handleVisibility);
+
+    return () => {
+      socket.off('connect', handleReconnect);
+      document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('focus', handleVisibility);
+    };
+  }, [activeTrip?.id, tripState, driverProfileId]);
 
   // Transmisión continua de posición GPS cada 4 segundos & Detección de Gasolineras en Ruta
   useEffect(() => {

@@ -995,6 +995,55 @@ export function initializeWebSockets(httpServer) {
     });
 
     /**
+     * 4.1.9 CANAL PRIVADO DEDICADO POR VIAJE: UNIÓN Y SINCRONIZACIÓN EN TIEMPO REAL
+     */
+    socket.on('trip:join_private_room', async ({ tripId, role, profileId }, callback) => {
+      try {
+        if (!tripId) {
+          if (callback) callback({ success: false, error: 'tripId requerido' });
+          return;
+        }
+
+        const room = `trip:${tripId}`;
+        socket.join(room);
+        socket.currentTripId = tripId;
+
+        let dbTrip = null;
+        try {
+          const tRes = await pool.query('SELECT id, passenger_id, driver_id, status FROM viajes_trips WHERE id::text = $1 LIMIT 1', [tripId]);
+          dbTrip = tRes.rows[0];
+          if (!dbTrip && role === 'DRIVER' && profileId) {
+            const fRes = await pool.query("SELECT id, passenger_id, driver_id, status FROM viajes_trips WHERE (driver_id::text = $1 OR driver_id IN (SELECT id FROM viajes_driver_profiles WHERE id::text = $1 OR vehicle_plate = $1)) AND status NOT IN ('COMPLETED', 'CANCELLED') ORDER BY created_at DESC LIMIT 1", [profileId]);
+            dbTrip = fRes.rows[0];
+          }
+          if (dbTrip) {
+            socket.join(`trip:${dbTrip.id}`);
+            if (dbTrip.passenger_id) socket.join(`passenger:${dbTrip.passenger_id}`);
+            if (dbTrip.driver_id) socket.join(`driver:${dbTrip.driver_id}`);
+          }
+        } catch (dbErr) {
+          console.warn('Error resolviendo trip en join_private_room:', dbErr.message);
+        }
+
+        console.log(`🔒 [Canal Privado] Socket ${socket.id} (${role}) se unió al canal exclusivo ${room}`);
+
+        io.to(room).emit('trip:channel_synced', {
+          tripId,
+          channel: room,
+          joinedRole: role,
+          socketId: socket.id,
+          tripStatus: dbTrip?.status || null,
+          timestamp: Date.now()
+        });
+
+        if (callback) callback({ success: true, channel: room, tripId, dbTripId: dbTrip?.id, status: dbTrip?.status });
+      } catch (err) {
+        console.error('Error en trip:join_private_room:', err);
+        if (callback) callback({ success: false, error: err.message });
+      }
+    });
+
+    /**
      * 4.2 Reconexión Resiliente de Pasajero o Conductor (Previene pérdida de viaje por F5 o recarga)
      */
     socket.on('trip:reconnect', async ({ tripId, role, driverProfileId, passengerId }, callback) => {
@@ -1231,6 +1280,42 @@ export function initializeWebSockets(httpServer) {
         }
         io.to('passengers_channel').emit('trip:status_changed', statusPayload);
         io.emit('trip:status_changed', statusPayload);
+
+        // EVENTOS EXPLÍCITOS DEDICADOS POR CANAL PRIVADO (Cero ambigüedad)
+        if (normalizedStatus === 'ARRIVED') {
+          io.to(`trip:${tripId}`).emit('trip:driver_arrived', statusPayload);
+          if (updatedTrip?.id && String(updatedTrip.id) !== String(tripId)) {
+            io.to(`trip:${updatedTrip.id}`).emit('trip:driver_arrived', statusPayload);
+          }
+          if (updatedTrip?.passenger_id) {
+            io.to(`passenger:${updatedTrip.passenger_id}`).emit('trip:driver_arrived', statusPayload);
+          }
+          io.to('passengers_channel').emit('trip:driver_arrived', statusPayload);
+          io.emit('trip:driver_arrived', statusPayload);
+          console.log(`📍 [Canal Privado] Evento trip:driver_arrived emitido para viaje #${tripId}`);
+        } else if (normalizedStatus === 'IN_TRANSIT') {
+          io.to(`trip:${tripId}`).emit('trip:trip_started', statusPayload);
+          if (updatedTrip?.id && String(updatedTrip.id) !== String(tripId)) {
+            io.to(`trip:${updatedTrip.id}`).emit('trip:trip_started', statusPayload);
+          }
+          if (updatedTrip?.passenger_id) {
+            io.to(`passenger:${updatedTrip.passenger_id}`).emit('trip:trip_started', statusPayload);
+          }
+          io.to('passengers_channel').emit('trip:trip_started', statusPayload);
+          io.emit('trip:trip_started', statusPayload);
+          console.log(`🚕 [Canal Privado] Evento trip:trip_started emitido para viaje #${tripId}`);
+        } else if (normalizedStatus === 'COMPLETED') {
+          io.to(`trip:${tripId}`).emit('trip:trip_completed', statusPayload);
+          if (updatedTrip?.id && String(updatedTrip.id) !== String(tripId)) {
+            io.to(`trip:${updatedTrip.id}`).emit('trip:trip_completed', statusPayload);
+          }
+          if (updatedTrip?.passenger_id) {
+            io.to(`passenger:${updatedTrip.passenger_id}`).emit('trip:trip_completed', statusPayload);
+          }
+          io.to('passengers_channel').emit('trip:trip_completed', statusPayload);
+          io.emit('trip:trip_completed', statusPayload);
+          console.log(`🏁 [Canal Privado] Evento trip:trip_completed emitido para viaje #${tripId}`);
+        }
 
         // Notificaciones Push según el estado operativo
         const passengerTargetIds = [updatedTrip?.passenger_id, updatedTrip?.package_details?.clientPassengerId].filter(Boolean);

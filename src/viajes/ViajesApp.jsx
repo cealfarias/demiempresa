@@ -1420,6 +1420,44 @@ export default function ViajesApp() {
       }
     });
 
+    // CANAL PRIVADO: Eventos dedicados directos
+    socket.on('trip:driver_arrived', (data) => {
+      console.log('🚨 [Canal Privado] ¡Conductor llegó! (trip:driver_arrived):', data);
+      setTripStatus('DRIVER_ARRIVED');
+      setAppState('IN_TRIP_HUB');
+      triggerSelectionFeedback();
+      if (navigator.vibrate) navigator.vibrate([300, 150, 300, 150, 300]);
+      speakAssistantMessage('¡Tu conductor ha llegado al punto de recogida! Por favor abórdalo.');
+    });
+
+    socket.on('trip:trip_started', (data) => {
+      console.log('🚕 [Canal Privado] Viaje iniciado (trip:trip_started):', data);
+      setTripStatus('IN_TRANSIT');
+      setAppState('IN_TRIP_HUB');
+      triggerSelectionFeedback();
+      if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+      speakAssistantMessage('En trayecto hacia tu destino. ¡Buen viaje!');
+    });
+
+    socket.on('trip:trip_completed', (data) => {
+      console.log('🏁 [Canal Privado] Viaje finalizado (trip:trip_completed):', data);
+      setTripStatus('COMPLETED');
+      setAppState('IN_TRIP_HUB');
+      setShowRatingModal(true);
+      triggerCelebrationConfetti();
+      if (navigator.vibrate) navigator.vibrate([200, 100, 200, 100, 400]);
+      speakAssistantMessage('Has llegado a tu destino. ¡Viaje finalizado con éxito!');
+    });
+
+    socket.on('trip:channel_synced', (syncData) => {
+      console.log('🟢 [Canal Privado] Sincronización de canal confirmada:', syncData);
+      if (syncData?.tripStatus) {
+        if (syncData.tripStatus === 'ARRIVED') setTripStatus('DRIVER_ARRIVED');
+        else if (syncData.tripStatus === 'IN_TRANSIT') setTripStatus('IN_TRANSIT');
+        else if (syncData.tripStatus === 'COMPLETED') setTripStatus('COMPLETED');
+      }
+    });
+
     // Regla de Dispositivo Único Implacable para Pasajeros
     socket.on('passenger_session_revoked', (ev) => {
       const myDui = userProfile?.dui ? String(userProfile.dui).trim() : '';
@@ -1445,9 +1483,45 @@ export default function ViajesApp() {
       socket.off('trip:mutual_cancellation_confirmed');
       socket.off('trip:mutual_cancellation_declined');
       socket.off('trip:status_changed');
+      socket.off('trip:driver_arrived');
+      socket.off('trip:trip_started');
+      socket.off('trip:trip_completed');
+      socket.off('trip:channel_synced');
       socket.off('passenger_session_revoked');
     };
   }, [userProfile]);
+
+  // Mantenimiento de Canal Privado Activo: Unión automática y resiliente ante reconexión o cambio de pestaña
+  useEffect(() => {
+    const activeId = tripId || assignedTrip?.tripId;
+    if (!activeId || appState !== 'IN_TRIP_HUB' || tripStatus === 'COMPLETED') return;
+
+    const joinPrivateRoom = () => {
+      console.log(`🔒 [ViajesApp] Asegurando canal privado para viaje #${activeId}`);
+      socket.emit('trip:join_private_room', {
+        tripId: activeId,
+        role: 'PASSENGER',
+        profileId: userProfile?.id || localStorage.getItem('rumbo_guest_passenger_id')
+      });
+    };
+
+    joinPrivateRoom();
+
+    const handleReconnect = () => joinPrivateRoom();
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') joinPrivateRoom();
+    };
+
+    socket.on('connect', handleReconnect);
+    document.addEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('focus', handleVisibility);
+
+    return () => {
+      socket.off('connect', handleReconnect);
+      document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('focus', handleVisibility);
+    };
+  }, [tripId, assignedTrip?.tripId, appState, tripStatus, userProfile?.id]);
 
   // Polling resiliente de sincronización continua de estado de viaje (salvaguarda si el WebSocket se pausa en móvil)
   useEffect(() => {
