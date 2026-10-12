@@ -576,7 +576,10 @@ export function initializeWebSockets(httpServer) {
             suggestedFare: trip?.proposed_fare || effectiveFare.toFixed(2),
             preferences: trip?.package_details?.preferences || {},
             cashBill: trip?.payment_timing === 'EXACT' ? 'EXACT' : '10',
-            changeNeeded: '0.00',
+            changeNeeded: (() => {
+              if (trip?.payment_timing === 'EXACT') return '0.00';
+              return Math.max(0, 10.00 - cashToCollect).toFixed(2);
+            })(),
             wazeUrl: `https://waze.com/ul?ll=${trip?.origin_lat || 13.7013},${trip?.origin_lng || -89.2244}&navigate=yes`,
             googleMapsUrl: `https://www.google.com/maps/dir/?api=1&destination=${trip?.origin_lat || 13.7013},${trip?.origin_lng || -89.2244}`
           });
@@ -643,7 +646,7 @@ export function initializeWebSockets(httpServer) {
     /**
      * 4. Asignación Atómica
      */
-    socket.on('passenger:accept_offer', async ({ tripId, driverProfileId, agreedFare }, callback) => {
+    socket.on('passenger:accept_offer', async ({ tripId, driverProfileId, agreedFare, cashBill, changeNeeded }, callback) => {
       try {
         const lockResult = await atomicAcceptTrip(tripId, driverProfileId);
         if (!lockResult.success) {
@@ -741,8 +744,13 @@ export function initializeWebSockets(httpServer) {
             roadDistanceKm: parseFloat(trip?.distance_km || 5.0),
             suggestedFare: trip?.proposed_fare || agreedFare,
             preferences: trip?.package_details?.preferences || {},
-            cashBill: trip?.payment_timing === 'EXACT' ? 'EXACT' : '10',
-            changeNeeded: '0.00',
+            cashBill: cashBill || (trip?.payment_timing === 'EXACT' ? 'EXACT' : '10'),
+            changeNeeded: (() => {
+              const effBill = cashBill || (trip?.payment_timing === 'EXACT' ? 'EXACT' : '10');
+              if (effBill === 'EXACT') return '0.00';
+              const billNum = effBill === '50+' ? 50 : (parseFloat(effBill) || 10);
+              return Math.max(0, billNum - cashToCollect).toFixed(2);
+            })(),
             wazeUrl: `https://waze.com/ul?ll=${trip?.origin_lat || 13.7013},${trip?.origin_lng || -89.2244}&navigate=yes`,
             googleMapsUrl: `https://www.google.com/maps/dir/?api=1&destination=${trip?.origin_lat || 13.7013},${trip?.origin_lng || -89.2244}`
           });

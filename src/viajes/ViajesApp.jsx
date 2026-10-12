@@ -2692,7 +2692,9 @@ export default function ViajesApp() {
     socket.emit('passenger:accept_offer', {
       tripId: effectiveTripId || 'trip-1',
       driverProfileId: offer.driverProfileId,
-      agreedFare: fare.toFixed(2)
+      agreedFare: fare.toFixed(2),
+      cashBill,
+      changeNeeded: calculateChange(fare)
     });
 
     setAppState('IN_TRIP_HUB');

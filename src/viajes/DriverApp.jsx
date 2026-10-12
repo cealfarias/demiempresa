@@ -756,8 +756,13 @@ function DriverAppContent() {
         delayMinutes: parseInt(assignedData.delayMinutes || 0, 10),
         suggestedFare: assignedData.suggestedFare ? parseFloat(assignedData.suggestedFare) : fare,
         preferences: typeof assignedData.preferences === 'object' && assignedData.preferences ? assignedData.preferences : {},
-        cashBill: assignedData.cashBill || '10',
-        changeNeeded: assignedData.changeNeeded || '0.00',
+        cashBill: assignedData.cashBill === 'EXACT' ? 'EXACT' : (assignedData.cashBill || '10'),
+        changeNeeded: (() => {
+          if (assignedData.cashBill === 'EXACT') return '0.00';
+          const toCollectVal = parseFloat(assignedData.cashToCollect || fare);
+          const billNum = assignedData.cashBill === '50+' ? 50 : (parseFloat(assignedData.cashBill) || 10);
+          return Math.max(0, billNum - toCollectVal).toFixed(2);
+        })(),
         agreedFare: fare.toFixed(2),
         cashToCollect: parseFloat(assignedData.cashToCollect || fare).toFixed(2),
         creditApplied: assignedData.creditApplied || '0.00'
@@ -1481,7 +1486,14 @@ function DriverAppContent() {
                   {activeTrip.cashBill !== 'EXACT' ? (
                     <>
                       <span className="text-[10px] uppercase font-bold text-slate-400 block">👉 Entregar de vuelto:</span>
-                      <strong className="text-amber-300 text-base font-black">${activeTrip.changeNeeded || '6.50'}</strong>
+                      <strong className="text-amber-300 text-base font-black">
+                        {(() => {
+                          const billNum = activeTrip.cashBill === '50+' ? 50 : (parseFloat(activeTrip.cashBill) || 10);
+                          const toCollect = parseFloat(activeTrip.cashToCollect ?? activeTrip.agreedFare ?? 0);
+                          const calculatedChange = Math.max(0, billNum - toCollect);
+                          return `$${calculatedChange.toFixed(2)}`;
+                        })()}
+                      </strong>
                     </>
                   ) : (
                     <span className="text-emerald-400 font-bold">Sin vuelto necesario</span>
