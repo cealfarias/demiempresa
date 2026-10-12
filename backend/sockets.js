@@ -278,7 +278,10 @@ export function initializeWebSockets(httpServer) {
           io.to(targetSocketId).emit('trip:new_request', tripPayload);
         }
 
-        // 3. Notificación Push Web en segundo plano a conductores registrados
+        // 3. Emitir globalmente para asegurar entrega a 0ms a toda app de conductor conectada
+        io.emit('trip:new_request', tripPayload);
+
+        // 4. Notificación Push Web en segundo plano a conductores registrados
         PushService.sendNotificationToDrivers({
           title: '🚗 Nueva Solicitud de Viaje',
           body: `Viaje hacia ${tripPayload.destinationMunicipality || tripPayload.destination || 'destino'} por $${tripPayload.proposedFare} USD. Toca para ver la ruta.`,

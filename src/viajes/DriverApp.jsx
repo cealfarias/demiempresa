@@ -710,9 +710,9 @@ function DriverAppContent() {
   // Inicializar WebSockets para el Chofer y Foreground GPS
   useEffect(() => {
     socket.emit('client:register', {
-      userId: 'driver-user-1',
+      userId: driverProfileId || driverProfile?.id || 'driver-user-1',
       role: 'DRIVER',
-      driverProfileId
+      driverProfileId: driverProfileId || driverProfile?.id
     });
 
     // Cargar cuota semanal del backend

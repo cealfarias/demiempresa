@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Star,
   MoreVertical,
@@ -22,7 +22,7 @@ import {
   BatteryCharging,
   Zap
 } from 'lucide-react';
-import { triggerCashRewardFeedback } from './soundFeedbackService';
+import { triggerCashRewardFeedback, playListeningStartChime, vibrate } from './soundFeedbackService';
 import { fetchPendingTripsApi } from './api';
 
 export default function DriverTripRequestsFeed({
@@ -41,6 +41,7 @@ export default function DriverTripRequestsFeed({
   const [counterOfferAmount, setCounterOfferAmount] = useState('');
   const [activeRequests, setActiveRequests] = useState([]);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const dismissedTripIdsRef = useRef(new Set());
 
   // Carga inicial y sondeo continuo de solicitudes pendientes desde el backend
   const loadPendingTrips = useCallback(async () => {
@@ -98,18 +99,28 @@ export default function DriverTripRequestsFeed({
 
         const merged = Array.from(map.values());
 
-        // 3. Si el conductor abrió la app desde la notificación con ?tripId=... abrir modal de inmediato
-        if (urlTripId && !selectedRequest) {
-          const matchedReq = merged.find((r) => String(r.id) === String(urlTripId));
+        // 3. ¡AUTO-APERTURA AUTOMÁTICA! Si hay una solicitud pendiente activa, abrir la tarjeta de inmediato
+        if (!selectedRequest && merged.length > 0) {
+          const matchedReq = urlTripId
+            ? (merged.find((r) => String(r.id) === String(urlTripId)) || merged[0])
+            : merged.find((r) => !dismissedTripIdsRef.current.has(String(r.id)));
+
           if (matchedReq) {
             setSelectedRequest(matchedReq);
             const baseP = parseFloat(matchedReq.price || 4.00);
             setCounterOfferAmount(baseP.toFixed(2));
             try {
-              const newUrl = new URL(window.location.href);
-              newUrl.searchParams.delete('tripId');
-              window.history.replaceState({}, document.title, newUrl.pathname + (newUrl.search ? newUrl.search : ''));
+              playListeningStartChime();
+              vibrate([300, 150, 300]);
             } catch {}
+
+            if (urlTripId) {
+              try {
+                const newUrl = new URL(window.location.href);
+                newUrl.searchParams.delete('tripId');
+                window.history.replaceState({}, document.title, newUrl.pathname + (newUrl.search ? newUrl.search : ''));
+              } catch {}
+            }
           }
         }
 
@@ -122,49 +133,61 @@ export default function DriverTripRequestsFeed({
 
   useEffect(() => {
     loadPendingTrips();
-    const interval = setInterval(loadPendingTrips, 3500);
+    const interval = setInterval(loadPendingTrips, 3000);
     return () => clearInterval(interval);
   }, [loadPendingTrips]);
 
-  // Si entra una solicitud real por WebSockets en tiempo real, insertarla al inicio
+  // Si entra una solicitud en tiempo real vía WebSockets: inserción Y apertura automática
   useEffect(() => {
     if (incomingRequest) {
+      const reqId = incomingRequest.id || incomingRequest.tripId;
+      const isPool = incomingRequest.serviceType === 'SHARED_POOL';
+      const newReq = {
+        id: reqId,
+        isPool,
+        serviceType: incomingRequest.serviceType || 'PASSENGER',
+        passengerCount: incomingRequest.passengerCount || (isPool ? 4 : 1),
+        corridorName: incomingRequest.corridorName || '',
+        stops: incomingRequest.stops || [],
+        passengerName: isPool ? 'Colectivo (4 Pasajeros)' : (incomingRequest.passengerName || 'Pasajero Invitado').trim(),
+        passengerPhone: incomingRequest.passengerPhone ? String(incomingRequest.passengerPhone) : '',
+        passengerPhoto: isPool ? null : (incomingRequest.passengerPhoto || null),
+        rating: incomingRequest.passengerRating || 5.0,
+        ratingCount: isPool ? 4 : (incomingRequest.passengerTrips || 1),
+        isGuest: isPool ? false : Boolean(incomingRequest.isGuest || incomingRequest.passengerName === 'Pasajero' || incomingRequest.passengerName === 'Pasajero Invitado'),
+        timeAgo: 'Reciente',
+        price: parseFloat(incomingRequest.offeredFare || incomingRequest.proposedFare || incomingRequest.suggestedFare || (isPool ? 21.60 : 4.00)),
+        priceLabel: isPool ? '👥 4 Cupos Llenos • Cero Esperas' : (incomingRequest.priceLabel || 'Oferta directa'),
+        pickupDistanceMeters: Math.round((incomingRequest.distanceKm || 0.6) * 1000),
+        tripDistanceKm: parseFloat(incomingRequest.roadDistanceKm || incomingRequest.distanceKm || 5.0),
+        origin: incomingRequest.origin || incomingRequest.originAddress || 'Punto de recogida',
+        originLat: parseFloat(incomingRequest.originLat) || 13.7013,
+        originLng: parseFloat(incomingRequest.originLng) || -89.2244,
+        destination: incomingRequest.destination || incomingRequest.destinationAddress || (isPool ? 'Ruta de 4 Paradas' : 'Punto de destino'),
+        destinationLat: parseFloat(incomingRequest.destinationLat) || 13.6738,
+        destinationLng: parseFloat(incomingRequest.destinationLng) || -89.2789,
+        delayMinutes: parseInt(incomingRequest.delayMinutes || 0, 10),
+        preferences: incomingRequest.preferences || {},
+        cashBill: isPool ? 'EXACT' : (incomingRequest.cashBill || '10'),
+        changeNeeded: incomingRequest.changeNeeded || '0.00'
+      };
+
       setActiveRequests((prev) => {
-        const reqId = incomingRequest.id || incomingRequest.tripId;
         const exists = prev.find((r) => r.id === reqId);
         if (exists) return prev;
-        const isPool = incomingRequest.serviceType === 'SHARED_POOL';
-        const newReq = {
-          id: reqId,
-          isPool,
-          serviceType: incomingRequest.serviceType || 'PASSENGER',
-          passengerCount: incomingRequest.passengerCount || (isPool ? 4 : 1),
-          corridorName: incomingRequest.corridorName || '',
-          stops: incomingRequest.stops || [],
-          passengerName: isPool ? 'Colectivo (4 Pasajeros)' : (incomingRequest.passengerName || 'Pasajero Invitado').trim(),
-          passengerPhone: incomingRequest.passengerPhone ? String(incomingRequest.passengerPhone) : '',
-          passengerPhoto: isPool ? null : (incomingRequest.passengerPhoto || null),
-          rating: incomingRequest.passengerRating || 5.0,
-          ratingCount: isPool ? 4 : (incomingRequest.passengerTrips || 1),
-          isGuest: isPool ? false : Boolean(incomingRequest.isGuest || incomingRequest.passengerName === 'Pasajero' || incomingRequest.passengerName === 'Pasajero Invitado'),
-          timeAgo: 'Reciente',
-          price: parseFloat(incomingRequest.offeredFare || incomingRequest.proposedFare || incomingRequest.suggestedFare || (isPool ? 21.60 : 4.00)),
-          priceLabel: isPool ? '👥 4 Cupos Llenos • Cero Esperas' : (incomingRequest.priceLabel || 'Oferta directa'),
-          pickupDistanceMeters: Math.round((incomingRequest.distanceKm || 0.6) * 1000),
-          tripDistanceKm: parseFloat(incomingRequest.roadDistanceKm || incomingRequest.distanceKm || 5.0),
-          origin: incomingRequest.origin || incomingRequest.originAddress || 'Punto de recogida',
-          originLat: parseFloat(incomingRequest.originLat) || 13.7013,
-          originLng: parseFloat(incomingRequest.originLng) || -89.2244,
-          destination: incomingRequest.destination || incomingRequest.destinationAddress || (isPool ? 'Ruta de 4 Paradas' : 'Punto de destino'),
-          destinationLat: parseFloat(incomingRequest.destinationLat) || 13.6738,
-          destinationLng: parseFloat(incomingRequest.destinationLng) || -89.2789,
-          delayMinutes: parseInt(incomingRequest.delayMinutes || 0, 10),
-          preferences: incomingRequest.preferences || {},
-          cashBill: isPool ? 'EXACT' : (incomingRequest.cashBill || '10'),
-          changeNeeded: incomingRequest.changeNeeded || '0.00'
-        };
         return [newReq, ...prev];
       });
+
+      // ¡Apertura automática e instantánea!
+      if (!dismissedTripIdsRef.current.has(String(reqId))) {
+        setSelectedRequest(newReq);
+        const baseP = parseFloat(newReq.price || 4.00);
+        setCounterOfferAmount(baseP.toFixed(2));
+        try {
+          playListeningStartChime();
+          vibrate([300, 150, 300]);
+        } catch {}
+      }
     }
   }, [incomingRequest]);
 
@@ -175,11 +198,22 @@ export default function DriverTripRequestsFeed({
     setCounterOfferAmount(baseP.toFixed(2));
   };
 
+  const handleDismiss = (req) => {
+    if (req?.id) {
+      dismissedTripIdsRef.current.add(String(req.id));
+      setActiveRequests((prev) => prev.filter((r) => r.id !== req.id));
+    }
+    setSelectedRequest(null);
+  };
+
   const handleAcceptOffer = (req, finalPrice) => {
     try {
       triggerCashRewardFeedback();
     } catch {}
     const safePrice = parseFloat(finalPrice || req?.price || 4.00);
+    if (req?.id) {
+      dismissedTripIdsRef.current.add(String(req.id));
+    }
     if (onAcceptRequest) {
       onAcceptRequest(req, safePrice);
     } else if (onSendOffer) {
@@ -528,8 +562,8 @@ export default function DriverTripRequestsFeed({
               </div>
               <button
                 type="button"
-                onClick={() => setSelectedRequest(null)}
-                className="text-slate-400 hover:text-white p-1 text-sm font-bold"
+                onClick={() => handleDismiss(selectedRequest)}
+                className="text-slate-400 hover:text-white p-1 text-sm font-bold cursor-pointer"
               >
                 ✕
               </button>
@@ -616,7 +650,7 @@ export default function DriverTripRequestsFeed({
 
               <button
                 type="button"
-                onClick={() => setSelectedRequest(null)}
+                onClick={() => handleDismiss(selectedRequest)}
                 className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs cursor-pointer"
               >
                 Declinar solicitud
