@@ -282,7 +282,48 @@ export const createAvatarSvgDataUri = (emoji, [c1, c2]) => {
   return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
 };
 
-export default function ViajesApp() {
+class PassengerErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+  componentDidCatch(error, errorInfo) {
+    console.error("Error capturado en ViajesApp:", error, errorInfo);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-center p-6 text-center space-y-4 font-sans">
+          <div className="w-16 h-16 rounded-3xl bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center justify-center text-3xl shadow-lg">
+            ⚠️
+          </div>
+          <h2 className="text-xl font-black">Aplicación Rumbo Recuperada</h2>
+          <p className="text-xs text-slate-400 max-w-sm">
+            {this.state.error?.message || "Ocurrió un error inesperado al renderizar el estado del viaje."}
+          </p>
+          <div className="flex gap-3 pt-2">
+            <button
+              type="button"
+              onClick={() => {
+                this.setState({ hasError: false, error: null });
+                window.location.reload();
+              }}
+              className="px-5 py-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-xl text-xs cursor-pointer shadow-lg"
+            >
+              Recargar Pantalla
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+function ViajesAppContent() {
   // 1. Leer borrador guardado y sesión de viaje activa para resistir recargas y F5 sin perder datos
   const initialDraft = (() => {
     try {
@@ -7963,7 +8004,7 @@ export default function ViajesApp() {
                 ¡Tu conductor ya está en el punto de recogida!
               </h4>
               <p className="text-xs text-slate-300 mt-1">
-                {displayTrip?.driver?.name ? <strong className="text-white">{displayTrip.driver.name}</strong> : 'Tu conductor'} te espera afuera. Aborda el auto placa <strong className="text-amber-400 font-mono bg-slate-950 px-1.5 py-0.5 rounded border border-amber-400/40">{displayTrip?.driver?.vehiclePlate || 'asignado'}</strong>.
+                {assignedTrip?.driver?.name ? <strong className="text-white">{assignedTrip.driver.name}</strong> : 'Tu conductor'} te espera afuera. Aborda el auto placa <strong className="text-amber-400 font-mono bg-slate-950 px-1.5 py-0.5 rounded border border-amber-400/40">{assignedTrip?.driver?.vehiclePlate || 'asignado'}</strong>.
               </p>
             </div>
           </div>
@@ -7983,5 +8024,13 @@ export default function ViajesApp() {
         />
       )}
     </div>
+  );
+}
+
+export default function ViajesApp() {
+  return (
+    <PassengerErrorBoundary>
+      <ViajesAppContent />
+    </PassengerErrorBoundary>
   );
 }
