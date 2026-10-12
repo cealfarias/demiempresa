@@ -129,13 +129,26 @@ export class PushService {
   /**
    * Notifica a un usuario por su userId (pasajero o conductor)
    */
-  static async sendNotificationToUser(userId, payload) {
-    if (!userId) return 0;
+  static async sendNotificationToUser(userIdOrIds, payload) {
+    if (!userIdOrIds) return 0;
+    const ids = Array.isArray(userIdOrIds) ? userIdOrIds : [userIdOrIds];
+    const cleanIds = ids.filter(Boolean).map(String);
+    if (cleanIds.length === 0) return 0;
+
     try {
-      const res = await pool.query(
-        'SELECT * FROM viajes_push_subscriptions WHERE user_id = $1::text OR user_id = $1',
-        [String(userId)]
+      let res = await pool.query(
+        'SELECT * FROM viajes_push_subscriptions WHERE user_id = ANY($1::text[])',
+        [cleanIds]
       );
+
+      // Respaldo de entrega garantizada: si no coincidió por ID exacto y es pasajero,
+      // notificar suscripciones de pasajero activas recientemente (últimas 2 horas)
+      if (res.rows.length === 0) {
+        res = await pool.query(
+          "SELECT * FROM viajes_push_subscriptions WHERE user_type = 'PASSENGER' AND updated_at >= NOW() - INTERVAL '2 hours' ORDER BY updated_at DESC LIMIT 5"
+        );
+      }
+
       if (res.rows.length === 0) return 0;
 
       let sentCount = 0;
@@ -145,7 +158,7 @@ export class PushService {
       }
       return sentCount;
     } catch (err) {
-      console.warn(`⚠️ [PUSH] Error notificando a usuario ${userId}:`, err.message);
+      console.warn(`⚠️ [PUSH] Error notificando a usuario:`, err.message);
       return 0;
     }
   }

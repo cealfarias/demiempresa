@@ -1246,6 +1246,10 @@ export default function ViajesApp() {
     }
     socket.emit('client:register', { userId: effectiveUserId, role: 'PASSENGER' });
 
+    if (isPushSupported() && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+      subscribeUserToPush({ userId: effectiveUserId, userType: 'PASSENGER' }).catch(() => {});
+    }
+
     // Escuchar ofertas entrantes de conductores en tiempo real (Vigencia 30s)
     socket.on('passenger:offer_received', (offer) => {
       if (offer?.tripId) {
@@ -2630,9 +2634,17 @@ export default function ViajesApp() {
     const dLat = destinationCoords?.lat || 13.6738;
     const dLng = destinationCoords?.lng || -89.2789;
 
+    const effectivePassengerId = userProfile?.id || localStorage.getItem('rumbo_guest_passenger_id') || `guest-${Date.now()}`;
+    if (!localStorage.getItem('rumbo_guest_passenger_id')) {
+      localStorage.setItem('rumbo_guest_passenger_id', effectivePassengerId);
+    }
+    if (isPushSupported() && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+      subscribeUserToPush({ userId: effectivePassengerId, userType: 'PASSENGER' }).catch(() => {});
+    }
+
     // Emitir solicitud al WebSocket Gateway (Despacho a Conductores Reales)
     socket.emit('trip:request', {
-      passengerId: userProfile?.id || 'guest-passenger',
+      passengerId: effectivePassengerId,
       passengerName: (userProfile?.fullName || userProfile?.full_name || userProfile?.name || 'Pasajero Invitado').trim(),
       passengerPhoto: userProfile?.photoUrl || null,
       passengerRating: userProfile?.rating || 5.0,
@@ -7852,6 +7864,33 @@ export default function ViajesApp() {
               >
                 <span>Finalizar y Enviar Calificación</span>
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Alerta Destacada Flotante de Llegada del Conductor */}
+      {tripStatus === 'DRIVER_ARRIVED' && appState === 'IN_TRIP_HUB' && (
+        <div className="fixed top-4 inset-x-3 sm:inset-x-auto sm:right-6 sm:w-96 z-50 bg-slate-900/95 border-2 border-amber-400 p-4 rounded-3xl shadow-2xl backdrop-blur-md animate-pop-bounce text-white">
+          <div className="flex items-start gap-3">
+            <div className="w-12 h-12 rounded-2xl bg-amber-400 text-slate-950 flex items-center justify-center text-2xl shrink-0 font-black shadow-lg shadow-amber-400/20 animate-pulse">
+              📍
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-black uppercase tracking-wider bg-amber-400 text-slate-950 px-2 py-0.5 rounded-full font-sans">
+                  ¡Conductor en el sitio!
+                </span>
+                <span className="text-xs font-bold text-amber-300">
+                  Esperándote
+                </span>
+              </div>
+              <h4 className="text-sm font-black text-white mt-1 leading-tight font-sans">
+                ¡Tu conductor ya está en el punto de recogida!
+              </h4>
+              <p className="text-xs text-slate-300 mt-1">
+                {displayTrip?.driver?.name ? <strong className="text-white">{displayTrip.driver.name}</strong> : 'Tu conductor'} te espera afuera. Aborda el auto placa <strong className="text-amber-400 font-mono bg-slate-950 px-1.5 py-0.5 rounded border border-amber-400/40">{displayTrip?.driver?.vehiclePlate || 'asignado'}</strong>.
+              </p>
             </div>
           </div>
         </div>

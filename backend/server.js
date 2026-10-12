@@ -1068,23 +1068,31 @@ app.post('/api/trips/:tripId/status', async (req, res) => {
       io.to(`passenger:${updatedTrip.passenger_id}`).emit('trip:status_changed', statusPayload);
     }
     io.to('passengers_channel').emit('trip:status_changed', statusPayload);
+    io.emit('trip:status_changed', statusPayload);
 
-    if (updatedTrip.passenger_id) {
+    let pkgDetails = {};
+    try {
+      pkgDetails = typeof updatedTrip.package_details === 'string' ? JSON.parse(updatedTrip.package_details) : (updatedTrip.package_details || {});
+    } catch {}
+
+    const passengerTargetIds = [updatedTrip.passenger_id, pkgDetails?.clientPassengerId].filter(Boolean);
+    if (passengerTargetIds.length > 0) {
       if (normalizedStatus === 'ARRIVED') {
-        PushService.sendNotificationToUser(updatedTrip.passenger_id, {
+        const drvInfo = driverDetails ? `${driverDetails.name} en ${driverDetails.vehicleModel} (${driverDetails.vehiclePlate})` : 'Tu conductor';
+        PushService.sendNotificationToUser(passengerTargetIds, {
           title: '📍 ¡Tu conductor ya está afuera!',
-          body: 'El vehículo ha llegado al punto de recogida. Por favor dirígete a abordarlo.',
+          body: `¡${drvInfo} ha llegado al punto de recogida! Te está esperando afuera.`,
           url: '/viajes',
           vibrate: [300, 100, 300, 100, 300]
         }).catch(() => {});
       } else if (normalizedStatus === 'IN_TRANSIT') {
-        PushService.sendNotificationToUser(updatedTrip.passenger_id, {
+        PushService.sendNotificationToUser(passengerTargetIds, {
           title: '🚕 ¡Viaje en Curso!',
           body: `En camino hacia ${updatedTrip.destination_address || 'tu destino'}. ¡Buen viaje!`,
           url: '/viajes'
         }).catch(() => {});
       } else if (normalizedStatus === 'COMPLETED') {
-        PushService.sendNotificationToUser(updatedTrip.passenger_id, {
+        PushService.sendNotificationToUser(passengerTargetIds, {
           title: '🏁 ¡Has llegado a tu destino!',
           body: 'Viaje finalizado con éxito. ¡Gracias por preferir Rumbo!',
           url: '/viajes'
