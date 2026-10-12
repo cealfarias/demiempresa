@@ -106,7 +106,8 @@ import {
   fetchAdFeedApi,
   checkContactRegisteredApi,
   dismissReferralNoticeApi,
-  initSessionTelemetry
+  initSessionTelemetry,
+  fetchTripActiveOffersApi
 } from './api';
 
 // Formatear destino resuelto por geocodificador para la cajita de punto de llegada
@@ -1250,10 +1251,18 @@ export default function ViajesApp() {
         setTripId(offer.tripId);
       }
       setActiveOffers((prev) => {
-        const exists = prev.find((o) => o.driverProfileId === offer.driverProfileId);
-        if (exists) return prev;
+        const targetId = String(offer.driverProfileId || offer.driverId);
+        const exists = prev.find((o) => String(o.driverProfileId || o.driverId) === targetId);
+        if (exists) {
+          return prev.map((o) => String(o.driverProfileId || o.driverId) === targetId ? { ...o, ...offer, timeLeft: offer.expiresInSeconds || 30 } : o);
+        }
         return [...prev, { ...offer, timeLeft: offer.expiresInSeconds || 30 }];
       });
+      triggerSelectionFeedback();
+      if (navigator.vibrate) {
+        navigator.vibrate([200, 100, 200]);
+      }
+      speakAssistantMessage(`¡Oferta recibida de conductor por $${offer.proposedFare} dólares!`);
     });
 
     // Escuchar confirmación de viaje asignado
@@ -2594,6 +2603,52 @@ export default function ViajesApp() {
 
     return () => clearInterval(interval);
   }, [appState, activeOffers.length]);
+
+  // Sondeo de Respaldo (Polling REST) de Contraofertas Activas mientras está en Subasta
+  useEffect(() => {
+    if (appState !== 'AUCTION' || !tripId) return;
+
+    let isMounted = true;
+    const pollOffers = async () => {
+      try {
+        const res = await fetchTripActiveOffersApi(tripId);
+        if (!isMounted) return;
+        if (res && res.success && Array.isArray(res.offers) && res.offers.length > 0) {
+          setActiveOffers((prev) => {
+            const updated = [...prev];
+            let hasNew = false;
+            res.offers.forEach((remoteOffer) => {
+              const targetId = String(remoteOffer.driverProfileId || remoteOffer.driverId);
+              const idx = updated.findIndex((o) => String(o.driverProfileId || o.driverId) === targetId);
+              if (idx >= 0) {
+                updated[idx] = { ...updated[idx], ...remoteOffer };
+              } else {
+                updated.push(remoteOffer);
+                hasNew = true;
+              }
+            });
+            if (hasNew) {
+              triggerSelectionFeedback();
+              if (navigator.vibrate) {
+                navigator.vibrate([200, 100, 200]);
+              }
+              speakAssistantMessage('¡Conductor disponible! Recibiste una contraoferta.');
+            }
+            return updated;
+          });
+        }
+      } catch (err) {
+        // Silencioso
+      }
+    };
+
+    pollOffers();
+    const interval = setInterval(pollOffers, 2500);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [appState, tripId]);
 
   // Manejar Aceptación de Tarifa (Instantánea, sin fricción ni modales bloqueantes)
   const handleSelectOffer = (offer) => {

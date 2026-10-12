@@ -761,6 +761,53 @@ app.get('/api/drivers/:id/status', async (req, res) => {
   }
 });
 
+// 5.1.1 CONSULTA DE CONTRAOFERTAS ACTIVAS DE UN VIAJE (FALLBACK RESILIENTE REST)
+app.get('/api/trips/:tripId/offers', async (req, res) => {
+  try {
+    const { tripId } = req.params;
+    if (!tripId) {
+      return res.json({ success: true, offers: [] });
+    }
+
+    const offersRes = await pool.query(`
+      SELECT o.id as offer_id, o.trip_id, o.driver_id, o.proposed_fare, o.expires_at, o.created_at,
+             dp.vehicle_plate, dp.vehicle_brand, dp.vehicle_model, dp.vehicle_color, dp.photo_url,
+             u.full_name, u.phone
+      FROM viajes_trip_offers o
+      JOIN viajes_driver_profiles dp ON o.driver_id = dp.id
+      JOIN viajes_users u ON dp.user_id = u.id
+      WHERE o.trip_id::text = $1 AND o.status = 'PENDING' AND o.expires_at > CURRENT_TIMESTAMP
+      ORDER BY o.created_at DESC;
+    `, [tripId]);
+
+    const offers = offersRes.rows.map(row => {
+      const vBrand = row.vehicle_brand || '';
+      const vModel = row.vehicle_model || '';
+      const fullModel = (vBrand || vModel) ? `${vBrand} ${vModel}`.trim() : 'Vehículo Autorizado';
+      const remainingSeconds = Math.max(1, Math.round((new Date(row.expires_at).getTime() - Date.now()) / 1000));
+      return {
+        tripId: row.trip_id,
+        driverProfileId: row.driver_id,
+        driverId: row.driver_id,
+        driverName: row.full_name || 'Conductor Autorizado',
+        driverPhone: row.phone || '',
+        vehiclePlate: row.vehicle_plate || '',
+        vehicleModel: fullModel,
+        vehicleColor: row.vehicle_color || '',
+        photoUrl: row.photo_url || null,
+        proposedFare: parseFloat(row.proposed_fare).toFixed(2),
+        expiresInSeconds: remainingSeconds,
+        timeLeft: remainingSeconds
+      };
+    });
+
+    res.json({ success: true, offers });
+  } catch (err) {
+    console.error('Error al consultar ofertas de viaje:', err.message);
+    res.json({ success: true, offers: [] });
+  }
+});
+
 // 5.1.0 HELPER: CONSULTA Y VERIFICACIÓN ESTRICTA DE EXPEDIENTES DE CONDUCTORES (CERO PLACEHOLDERS)
 async function findDriverRecordByPhone(cleanPhone) {
   if (!cleanPhone || cleanPhone.length < 8) return null;

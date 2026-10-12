@@ -230,6 +230,7 @@ export function initializeWebSockets(httpServer) {
         await initTripLock(newTrip.id);
 
         const tripPayload = {
+          id: newTrip.id,
           tripId: newTrip.id,
           serviceType: newTrip.service_type,
           transportType: tripData.transportType || 'CAR',
@@ -319,29 +320,52 @@ export function initializeWebSockets(httpServer) {
           driverInfo = fallbackRes.rows[0];
         }
 
-        await pool.query(`
-          INSERT INTO viajes_trip_offers (trip_id, driver_id, proposed_fare, status, expires_at)
-          VALUES ($1, $2, $3, 'PENDING', CURRENT_TIMESTAMP + INTERVAL '30 seconds')
-          ON CONFLICT (trip_id, driver_id, created_at) DO NOTHING;
-        `, [tripId, driverInfo?.id || driverProfileId, proposedFare]).catch(() => {});
+        let passengerId = null;
+        try {
+          const tripRes = await pool.query('SELECT id, passenger_id FROM viajes_trips WHERE id::text = $1', [tripId]);
+          if (tripRes.rows.length > 0) {
+            passengerId = tripRes.rows[0].passenger_id;
+            tripId = tripRes.rows[0].id;
+          }
+        } catch (e) {
+          console.warn('Error resolviendo viaje en driver:offer:', e.message);
+        }
+
+        if (tripId && (driverInfo?.id || driverProfileId)) {
+          await pool.query(`
+            INSERT INTO viajes_trip_offers (trip_id, driver_id, proposed_fare, status, expires_at)
+            VALUES ($1, $2, $3, 'PENDING', CURRENT_TIMESTAMP + INTERVAL '30 seconds')
+            ON CONFLICT (trip_id, driver_id, created_at) DO NOTHING;
+          `, [tripId, driverInfo?.id || driverProfileId, proposedFare]).catch((dbErr) => {
+            console.warn('Advertencia en insert viajes_trip_offers:', dbErr.message);
+          });
+        }
 
         const vBrand = driverInfo?.vehicle_brand || '';
         const vModel = driverInfo?.vehicle_model || '';
+        const fullModel = (vBrand || vModel) ? `${vBrand} ${vModel}`.trim() : 'Vehículo Autorizado';
+
         const offerPayload = {
           tripId,
           driverProfileId,
+          driverId: driverInfo?.id || driverProfileId,
           driverName: driverInfo?.full_name || 'Conductor Autorizado',
           driverPhone: driverInfo?.phone || '',
           vehiclePlate: driverInfo?.vehicle_plate || '',
           vehicleModel: fullModel,
           vehicleColor: driverInfo?.vehicle_color || '',
           photoUrl: driverInfo?.photo_url || null,
-          proposedFare,
-          expiresInSeconds: 30
+          proposedFare: parseFloat(proposedFare).toFixed(2),
+          expiresInSeconds: 30,
+          timeLeft: 30
         };
 
         io.to(`trip:${tripId}`).emit('passenger:offer_received', offerPayload);
+        if (passengerId) {
+          io.to(`passenger:${passengerId}`).emit('passenger:offer_received', offerPayload);
+        }
         io.to('passengers_channel').emit('passenger:offer_received', offerPayload);
+        console.log(`📡 [driver:offer] Contraoferta de $${offerPayload.proposedFare} USD emitida para viaje #${tripId}`);
       } catch (err) {
         console.error('Error en driver:offer:', err);
       }

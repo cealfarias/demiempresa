@@ -1288,3 +1288,17 @@ export async function fetchAdminDriverGasReportsApi() {
     throw err;
   }
 }
+
+/**
+ * 43. Consultar Ofertas Activas de un Viaje (Fallback REST para Contraofertas)
+ */
+export async function fetchTripActiveOffersApi(tripId) {
+  if (!tripId) return { success: true, offers: [] };
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/trips/${encodeURIComponent(tripId)}/offers`);
+    if (!res.ok) return { success: false, offers: [] };
+    return await res.json();
+  } catch (err) {
+    return { success: false, offers: [] };
+  }
+}
