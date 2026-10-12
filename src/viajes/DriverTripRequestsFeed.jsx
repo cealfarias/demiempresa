@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Star,
   MoreVertical,
@@ -43,96 +43,88 @@ export default function DriverTripRequestsFeed({
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Carga inicial y sondeo continuo de solicitudes pendientes desde el backend
-  useEffect(() => {
-    let isMounted = true;
+  const loadPendingTrips = useCallback(async () => {
+    try {
+      const res = await fetchPendingTripsApi();
+      if (!res?.success || !Array.isArray(res.trips)) return;
 
-    const loadPendingTrips = async () => {
-      try {
-        const res = await fetchPendingTripsApi();
-        if (!isMounted || !res?.success || !Array.isArray(res.trips)) return;
+      const urlParams = new URLSearchParams(window.location.search);
+      const urlTripId = urlParams.get('tripId');
 
-        const urlParams = new URLSearchParams(window.location.search);
-        const urlTripId = urlParams.get('tripId');
+      setActiveRequests((prev) => {
+        const map = new Map();
 
-        setActiveRequests((prev) => {
-          const map = new Map();
-
-          // 1. Incorporar solicitudes remotas de la base de datos
-          res.trips.forEach((remote) => {
-            const isPool = remote.serviceType === 'SHARED_POOL';
-            const formatted = {
-              id: remote.id,
-              isPool,
-              serviceType: remote.serviceType || 'PASSENGER',
-              passengerCount: remote.passengerCount || (isPool ? 4 : 1),
-              corridorName: remote.corridorName || '',
-              stops: remote.stops || [],
-              passengerName: isPool ? 'Colectivo (4 Pasajeros)' : (remote.passengerName || 'Pasajero Invitado').trim(),
-              passengerPhone: remote.passengerPhone ? String(remote.passengerPhone) : '',
-              passengerPhoto: isPool ? null : (remote.passengerPhoto || null),
-              rating: remote.passengerRating || 5.0,
-              ratingCount: isPool ? 4 : (remote.passengerTrips || 1),
-              isGuest: Boolean(remote.isGuest),
-              timeAgo: 'Reciente',
-              price: parseFloat(remote.offeredFare || remote.proposedFare || remote.suggestedFare || (isPool ? 21.60 : 4.00)),
-              priceLabel: isPool ? '👥 4 Cupos Llenos • Cero Esperas' : 'Oferta directa',
-              pickupDistanceMeters: Math.round((remote.distanceKm || 0.6) * 1000),
-              tripDistanceKm: parseFloat(remote.roadDistanceKm || remote.distanceKm || 5.0),
-              origin: remote.origin || remote.originAddress || 'Punto de recogida',
-              originLat: parseFloat(remote.originLat) || 13.7013,
-              originLng: parseFloat(remote.originLng) || -89.2244,
-              destination: remote.destination || remote.destinationAddress || 'Punto de destino',
-              destinationLat: parseFloat(remote.destinationLat) || 13.6738,
-              destinationLng: parseFloat(remote.destinationLng) || -89.2789,
-              delayMinutes: parseInt(remote.delayMinutes || 0, 10),
-              preferences: remote.preferences || {},
-              cashBill: remote.cashBill || '10',
-              changeNeeded: remote.changeNeeded || '0.00'
-            };
-            map.set(remote.id, formatted);
-          });
-
-          // 2. Preservar las que ya estaban en memoria (por WebSockets)
-          prev.forEach((p) => {
-            if (!map.has(p.id)) {
-              map.set(p.id, p);
-            }
-          });
-
-          const merged = Array.from(map.values());
-
-          // 3. Si el conductor abrió la app desde la notificación con ?tripId=... abrir modal de inmediato
-          if (urlTripId && !selectedRequest) {
-            const matchedReq = merged.find((r) => String(r.id) === String(urlTripId));
-            if (matchedReq) {
-              setSelectedRequest(matchedReq);
-              const baseP = parseFloat(matchedReq.price || 4.00);
-              setCounterOfferAmount(baseP.toFixed(2));
-              try {
-                const newUrl = new URL(window.location.href);
-                newUrl.searchParams.delete('tripId');
-                window.history.replaceState({}, document.title, newUrl.pathname + (newUrl.search ? newUrl.search : ''));
-              } catch {}
-            }
-          }
-
-          return merged;
+        // 1. Incorporar solicitudes remotas de la base de datos
+        res.trips.forEach((remote) => {
+          const isPool = remote.serviceType === 'SHARED_POOL';
+          const formatted = {
+            id: remote.id,
+            isPool,
+            serviceType: remote.serviceType || 'PASSENGER',
+            passengerCount: remote.passengerCount || (isPool ? 4 : 1),
+            corridorName: remote.corridorName || '',
+            stops: remote.stops || [],
+            passengerName: isPool ? 'Colectivo (4 Pasajeros)' : (remote.passengerName || 'Pasajero Invitado').trim(),
+            passengerPhone: remote.passengerPhone ? String(remote.passengerPhone) : '',
+            passengerPhoto: isPool ? null : (remote.passengerPhoto || null),
+            rating: remote.passengerRating || 5.0,
+            ratingCount: isPool ? 4 : (remote.passengerTrips || 1),
+            isGuest: Boolean(remote.isGuest),
+            timeAgo: 'Reciente',
+            price: parseFloat(remote.offeredFare || remote.proposedFare || remote.suggestedFare || (isPool ? 21.60 : 4.00)),
+            priceLabel: isPool ? '👥 4 Cupos Llenos • Cero Esperas' : 'Oferta directa',
+            pickupDistanceMeters: Math.round((remote.distanceKm || 0.6) * 1000),
+            tripDistanceKm: parseFloat(remote.roadDistanceKm || remote.distanceKm || 5.0),
+            origin: remote.origin || remote.originAddress || 'Punto de recogida',
+            originLat: parseFloat(remote.originLat) || 13.7013,
+            originLng: parseFloat(remote.originLng) || -89.2244,
+            destination: remote.destination || remote.destinationAddress || 'Punto de destino',
+            destinationLat: parseFloat(remote.destinationLat) || 13.6738,
+            destinationLng: parseFloat(remote.destinationLng) || -89.2789,
+            delayMinutes: parseInt(remote.delayMinutes || 0, 10),
+            preferences: remote.preferences || {},
+            cashBill: remote.cashBill || '10',
+            changeNeeded: remote.changeNeeded || '0.00'
+          };
+          map.set(remote.id, formatted);
         });
-      } catch (err) {
-        console.warn('Error cargando solicitudes pendientes:', err);
-      } finally {
-        if (isMounted) setIsRefreshing(false);
-      }
-    };
 
+        // 2. Preservar las que ya estaban en memoria (por WebSockets)
+        prev.forEach((p) => {
+          if (!map.has(p.id)) {
+            map.set(p.id, p);
+          }
+        });
+
+        const merged = Array.from(map.values());
+
+        // 3. Si el conductor abrió la app desde la notificación con ?tripId=... abrir modal de inmediato
+        if (urlTripId && !selectedRequest) {
+          const matchedReq = merged.find((r) => String(r.id) === String(urlTripId));
+          if (matchedReq) {
+            setSelectedRequest(matchedReq);
+            const baseP = parseFloat(matchedReq.price || 4.00);
+            setCounterOfferAmount(baseP.toFixed(2));
+            try {
+              const newUrl = new URL(window.location.href);
+              newUrl.searchParams.delete('tripId');
+              window.history.replaceState({}, document.title, newUrl.pathname + (newUrl.search ? newUrl.search : ''));
+            } catch {}
+          }
+        }
+
+        return merged;
+      });
+    } catch (err) {
+      console.warn('Error cargando solicitudes pendientes:', err);
+    }
+  }, [selectedRequest]);
+
+  useEffect(() => {
     loadPendingTrips();
     const interval = setInterval(loadPendingTrips, 3500);
-
-    return () => {
-      isMounted = false;
-      clearInterval(interval);
-    };
-  }, [selectedRequest]);
+    return () => clearInterval(interval);
+  }, [loadPendingTrips]);
 
   // Si entra una solicitud real por WebSockets en tiempo real, insertarla al inicio
   useEffect(() => {
@@ -460,41 +452,7 @@ export default function DriverTripRequestsFeed({
                   onClick={async () => {
                     setIsRefreshing(true);
                     try {
-                      const res = await fetchPendingTripsApi();
-                      if (res?.success && Array.isArray(res.trips)) {
-                        setActiveRequests(res.trips.map((remote) => {
-                          const isPool = remote.serviceType === 'SHARED_POOL';
-                          return {
-                            id: remote.id,
-                            isPool,
-                            serviceType: remote.serviceType || 'PASSENGER',
-                            passengerCount: remote.passengerCount || (isPool ? 4 : 1),
-                            corridorName: remote.corridorName || '',
-                            stops: remote.stops || [],
-                            passengerName: isPool ? 'Colectivo (4 Pasajeros)' : (remote.passengerName || 'Pasajero Invitado').trim(),
-                            passengerPhone: remote.passengerPhone ? String(remote.passengerPhone) : '',
-                            passengerPhoto: isPool ? null : (remote.passengerPhoto || null),
-                            rating: remote.passengerRating || 5.0,
-                            ratingCount: isPool ? 4 : (remote.passengerTrips || 1),
-                            isGuest: Boolean(remote.isGuest),
-                            timeAgo: 'Reciente',
-                            price: parseFloat(remote.offeredFare || remote.proposedFare || remote.suggestedFare || (isPool ? 21.60 : 4.00)),
-                            priceLabel: isPool ? '👥 4 Cupos Llenos • Cero Esperas' : 'Oferta directa',
-                            pickupDistanceMeters: Math.round((remote.distanceKm || 0.6) * 1000),
-                            tripDistanceKm: parseFloat(remote.roadDistanceKm || remote.distanceKm || 5.0),
-                            origin: remote.origin || remote.originAddress || 'Punto de recogida',
-                            originLat: parseFloat(remote.originLat) || 13.7013,
-                            originLng: parseFloat(remote.originLng) || -89.2244,
-                            destination: remote.destination || remote.destinationAddress || 'Punto de destino',
-                            destinationLat: parseFloat(remote.destinationLat) || 13.6738,
-                            destinationLng: parseFloat(remote.destinationLng) || -89.2789,
-                            delayMinutes: parseInt(remote.delayMinutes || 0, 10),
-                            preferences: remote.preferences || {},
-                            cashBill: remote.cashBill || '10',
-                            changeNeeded: remote.changeNeeded || '0.00'
-                          };
-                        }));
-                      }
+                      await loadPendingTrips();
                     } finally {
                       setIsRefreshing(false);
                     }
