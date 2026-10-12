@@ -953,11 +953,36 @@ app.post('/api/trips/:tripId/status', async (req, res) => {
       }
     }
 
+    let driverDetails = null;
+    if (updatedTrip?.driver_id) {
+      const dRes = await pool.query(`
+        SELECT dp.*, u.full_name, u.phone
+        FROM viajes_driver_profiles dp
+        JOIN viajes_users u ON dp.user_id = u.id
+        WHERE dp.id = $1 LIMIT 1;
+      `, [updatedTrip.driver_id]);
+      if (dRes.rows.length > 0) {
+        const d = dRes.rows[0];
+        driverDetails = {
+          id: d.id,
+          name: d.full_name || 'Conductor Autorizado',
+          phone: d.phone || '',
+          vehiclePlate: d.vehicle_plate || '',
+          vehicleModel: `${d.vehicle_brand || ''} ${d.vehicle_model || ''}`.trim() || 'Vehículo Autorizado',
+          vehicleColor: d.vehicle_color || '',
+          photo: d.photo_url || null
+        };
+      }
+    }
+
     const statusPayload = {
       tripId: updatedTrip.id,
       status: normalizedStatus,
       newStatus: normalizedStatus,
-      passengerId: updatedTrip.passenger_id
+      passengerId: updatedTrip.passenger_id,
+      agreedFare: updatedTrip.agreed_fare,
+      cashToCollect: updatedTrip.cash_to_collect,
+      driver: driverDetails
     };
 
     io.to(`trip:${updatedTrip.id}`).emit('trip:status_changed', statusPayload);

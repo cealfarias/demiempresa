@@ -1368,16 +1368,34 @@ export default function ViajesApp() {
       const nextStatus = typeof data === 'string' ? data : (data?.status || data?.newStatus);
       if (!nextStatus) return;
 
-      const isUUID = (str) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(str || ''));
-      if (tripId && data?.tripId && isUUID(tripId) && isUUID(data.tripId) && String(tripId) !== String(data.tripId)) {
-        return;
-      }
-
       if (data?.tripId) {
         setTripId(data.tripId);
       }
 
       setAppState('IN_TRIP_HUB');
+
+      // Hidratar o asegurar información del conductor en assignedTrip
+      setAssignedTrip((prev) => {
+        const dObj = data?.driver || prev?.driver || {
+          name: data?.driverName || 'Conductor Autorizado',
+          vehiclePlate: data?.vehiclePlate || 'EN CAMINO',
+          vehicleModel: data?.vehicleModel || 'Vehículo Autorizado',
+          vehicleColor: data?.vehicleColor || '',
+          photo: data?.photoUrl || null,
+          phone: data?.driverPhone || ''
+        };
+        return {
+          ...(prev || {}),
+          tripId: data?.tripId || prev?.tripId || tripId,
+          driver: dObj,
+          cashToPay: data?.cashToCollect || data?.agreedFare || prev?.cashToPay || proposedFare || '3.50',
+          agreedFare: data?.agreedFare || prev?.agreedFare || proposedFare || '3.50',
+          cashBill: prev?.cashBill || cashBill || 'EXACT',
+          changeNeeded: prev?.changeNeeded || '0.00',
+          origin: prev?.origin || origin,
+          destination: prev?.destination || destination
+        };
+      });
 
       if (nextStatus === 'ARRIVED' || nextStatus === 'DRIVER_ARRIVED') {
         setTripStatus('DRIVER_ARRIVED');
@@ -1425,7 +1443,7 @@ export default function ViajesApp() {
       socket.off('trip:status_changed');
       socket.off('passenger_session_revoked');
     };
-  }, [userProfile, tripId]);
+  }, [userProfile]);
 
   // Polling resiliente de sincronización continua de estado de viaje (salvaguarda si el WebSocket se pausa en móvil)
   useEffect(() => {
@@ -6957,17 +6975,23 @@ export default function ViajesApp() {
       {/* ============================================================== */}
       {/* FASE 2: HUB COMERCIAL POST-ACEPTACIÓN (En Espera y Trayecto)   */}
       {/* ============================================================== */}
-      {appState === 'IN_TRIP_HUB' && !assignedTrip && (
-        <main className="flex-1 max-w-lg mx-auto w-full p-6 space-y-4 animate-fade-in flex flex-col items-center justify-center text-center py-20">
-          <div className="w-14 h-14 rounded-full border border-amber-500/40 bg-amber-500/10 flex items-center justify-center text-amber-400">
-            <div className="w-6 h-6 border-2 border-amber-400 border-t-transparent rounded-full animate-spin" />
-          </div>
-          <h4 className="text-base font-bold text-white mt-2">Conectando detalles de tu viaje...</h4>
-          <p className="text-xs text-slate-400 max-w-xs">Estamos sincronizando la información del vehículo y conductor asignado.</p>
-        </main>
-      )}
-
-      {appState === 'IN_TRIP_HUB' && assignedTrip && (
+      {appState === 'IN_TRIP_HUB' && (() => {
+        const displayTrip = assignedTrip || {
+          tripId: tripId || 'trip-1',
+          driver: {
+            name: 'Conductor Asignado',
+            vehiclePlate: 'EN CAMINO',
+            vehicleModel: 'Vehículo Rumbo',
+            vehicleColor: '',
+            photo: null,
+            phone: '70000000'
+          },
+          cashToPay: proposedFare || '3.50',
+          agreedFare: proposedFare || '3.50',
+          cashBill: cashBill || 'EXACT',
+          changeNeeded: '0.00'
+        };
+        return (
         <main className="flex-1 max-w-lg mx-auto w-full p-4 space-y-4 animate-fade-in flex flex-col">
           
           {/* BARRA SUPERIOR DE CONTROL OPERATIVO */}
@@ -7010,7 +7034,7 @@ export default function ViajesApp() {
                 </div>
                 <div>
                   <h4 className="text-xs font-black text-amber-300 uppercase tracking-wide">¡El vehículo ya está en tu ubicación!</h4>
-                  <p className="text-[11px] text-slate-200">Tu conductor te espera afuera. Aborda el auto placa <strong className="text-white font-mono bg-slate-950 px-1.5 py-0.5 rounded border border-amber-500/40">{assignedTrip.driver?.vehiclePlate || 'asignado'}</strong>.</p>
+                  <p className="text-[11px] text-slate-200">Tu conductor te espera afuera. Aborda el auto placa <strong className="text-white font-mono bg-slate-950 px-1.5 py-0.5 rounded border border-amber-500/40">{displayTrip.driver?.vehiclePlate || 'asignado'}</strong>.</p>
                 </div>
               </div>
             )}
@@ -7046,27 +7070,27 @@ export default function ViajesApp() {
               <div>
                 <div className="text-[11px] text-slate-400 font-semibold uppercase tracking-wider">Placa del Vehículo</div>
                 <div className="text-3xl font-black text-white tracking-widest bg-slate-950 px-3 py-1 rounded-xl border border-slate-800 inline-block font-mono text-amber-400">
-                  {assignedTrip.driver?.vehiclePlate || 'EN CAMINO'}
+                  {displayTrip.driver?.vehiclePlate || 'EN CAMINO'}
                 </div>
                 <div className="text-xs text-slate-300 mt-1">
-                  {assignedTrip.driver?.vehicleModel ? `${assignedTrip.driver.vehicleModel}${assignedTrip.driver?.vehicleColor ? ` • ${assignedTrip.driver.vehicleColor}` : ''}` : 'Vehículo Asignado'}
+                  {displayTrip.driver?.vehicleModel ? `${displayTrip.driver.vehicleModel}${displayTrip.driver?.vehicleColor ? ` • ${displayTrip.driver.vehicleColor}` : ''}` : 'Vehículo Asignado'}
                 </div>
               </div>
 
               <div className="text-right">
-                {assignedTrip.driver?.photo ? (
+                {displayTrip.driver?.photo ? (
                   <img
-                    src={assignedTrip.driver.photo}
-                    alt={assignedTrip.driver?.name}
+                    src={displayTrip.driver.photo}
+                    alt={displayTrip.driver?.name}
                     className="w-14 h-14 rounded-2xl object-cover border-2 border-amber-500 shadow-md ml-auto"
                   />
                 ) : (
                   <div className="w-14 h-14 rounded-2xl bg-slate-800 border-2 border-amber-500 shadow-md ml-auto flex items-center justify-center text-amber-400 font-bold text-lg">
-                    {assignedTrip.driver?.name ? assignedTrip.driver.name.charAt(0).toUpperCase() : 'C'}
+                    {displayTrip.driver?.name ? displayTrip.driver.name.charAt(0).toUpperCase() : 'C'}
                   </div>
                 )}
                 <div className="text-xs font-bold text-white mt-1">
-                  {assignedTrip.driver?.name || 'Conductor Rumbo'}
+                  {displayTrip.driver?.name || 'Conductor Rumbo'}
                 </div>
               </div>
             </div>
@@ -7082,7 +7106,7 @@ export default function ViajesApp() {
                 )}
               </div>
               <div className="text-3xl font-black text-white font-mono">
-                ${assignedTrip.cashToPay} <span className="text-xs font-medium text-slate-400 font-sans">USD</span>
+                ${displayTrip.cashToPay} <span className="text-xs font-medium text-slate-400 font-sans">USD</span>
               </div>
             </div>
 
@@ -7091,18 +7115,18 @@ export default function ViajesApp() {
               <div>
                 <span className="text-[10px] uppercase font-bold text-slate-400 block">💎 Tu forma de pago:</span>
                 <strong className="text-rose-300 font-bold">
-                  {assignedTrip.cashBill === 'EXACT'
+                  {displayTrip.cashBill === 'EXACT'
                     ? 'Efectivo exacto'
-                    : (!isNaN(parseFloat(assignedTrip.cashBill)) && parseFloat(assignedTrip.cashBill) > 0)
-                      ? `Billete de $${parseFloat(assignedTrip.cashBill).toFixed(2)}`
+                    : (!isNaN(parseFloat(displayTrip.cashBill)) && parseFloat(displayTrip.cashBill) > 0)
+                      ? `Billete de $${parseFloat(displayTrip.cashBill).toFixed(2)}`
                       : 'Efectivo'}
                 </strong>
               </div>
               <div className="text-right">
-                {assignedTrip.cashBill !== 'EXACT' && !isNaN(parseFloat(assignedTrip.changeNeeded)) && parseFloat(assignedTrip.changeNeeded) >= 0 ? (
+                {displayTrip.cashBill !== 'EXACT' && !isNaN(parseFloat(displayTrip.changeNeeded)) && parseFloat(displayTrip.changeNeeded) >= 0 ? (
                   <>
                     <span className="text-[10px] uppercase font-bold text-slate-400 block">👉 Chofer te entregará:</span>
-                    <strong className="text-amber-300 font-black text-sm">${parseFloat(assignedTrip.changeNeeded).toFixed(2)} de vuelto</strong>
+                    <strong className="text-amber-300 font-black text-sm">${parseFloat(displayTrip.changeNeeded).toFixed(2)} de vuelto</strong>
                   </>
                 ) : (
                   <span className="text-emerald-400 font-medium">Pago exacto (sin vuelto)</span>
@@ -7113,14 +7137,14 @@ export default function ViajesApp() {
             {/* Botones de Contacto Directo */}
             <div className="grid grid-cols-2 gap-2">
               <a
-                href={`tel:${assignedTrip.driver?.phone || '70000000'}`}
+                href={`tel:${displayTrip.driver?.phone || '70000000'}`}
                 className="py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 border border-slate-700"
               >
                 <Phone className="w-4 h-4 text-emerald-400" />
                 <span>Llamar al Chofer</span>
               </a>
               <a
-                href={`https://wa.me/503${(assignedTrip.driver?.phone || '70000000').replace(/\D/g, '')}?text=Hola,%20soy%20tu%20pasajero%20de%20demiempresa.online`}
+                href={`https://wa.me/503${(displayTrip.driver?.phone || '70000000').replace(/\D/g, '')}?text=Hola,%20soy%20tu%20pasajero%20de%20demiempresa.online`}
                 target="_blank"
                 rel="noreferrer"
                 className="py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2"
@@ -7334,7 +7358,8 @@ export default function ViajesApp() {
           </div>
 
         </main>
-      )}
+        );
+      })()}
 
       {/* Modal B2B Captación en Caliente */}
       <AdModal isOpen={showAdModal} onClose={() => setShowAdModal(false)} />

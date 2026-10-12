@@ -545,6 +545,9 @@ export function initializeWebSockets(httpServer) {
         socket.join(`trip:${tripId}`);
         socket.currentTripId = tripId;
 
+        const passengerRes = await pool.query('SELECT * FROM viajes_users WHERE id::text = $1', [trip?.passenger_id]);
+        const passenger = passengerRes.rows[0] || { full_name: 'Pasajero', phone: '' };
+
         const driverSocketId = driverSockets.get(driverProfileId) || (actualDriverId ? driverSockets.get(actualDriverId.toString()) : null);
         if (driverSocketId) {
           const socketDriver = io.sockets.sockets.get(driverSocketId);
@@ -1184,11 +1187,36 @@ export function initializeWebSockets(httpServer) {
           }
         }
 
+        let driverDetails = null;
+        if (updatedTrip?.driver_id) {
+          const dRes = await pool.query(`
+            SELECT dp.*, u.full_name, u.phone
+            FROM viajes_driver_profiles dp
+            JOIN viajes_users u ON dp.user_id = u.id
+            WHERE dp.id = $1 LIMIT 1;
+          `, [updatedTrip.driver_id]);
+          if (dRes.rows.length > 0) {
+            const d = dRes.rows[0];
+            driverDetails = {
+              id: d.id,
+              name: d.full_name || 'Conductor Autorizado',
+              phone: d.phone || '',
+              vehiclePlate: d.vehicle_plate || '',
+              vehicleModel: `${d.vehicle_brand || ''} ${d.vehicle_model || ''}`.trim() || 'Vehículo Autorizado',
+              vehicleColor: d.vehicle_color || '',
+              photo: d.photo_url || null
+            };
+          }
+        }
+
         const statusPayload = {
           tripId,
           status: normalizedStatus,
           newStatus: normalizedStatus,
-          passengerId: updatedTrip?.passenger_id
+          passengerId: updatedTrip?.passenger_id,
+          agreedFare: updatedTrip?.agreed_fare,
+          cashToCollect: updatedTrip?.cash_to_collect,
+          driver: driverDetails
         };
 
         io.to(`trip:${tripId}`).emit('trip:status_changed', statusPayload);
