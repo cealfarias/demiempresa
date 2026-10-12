@@ -921,22 +921,30 @@ function DriverAppContent() {
 
   // Controles de estado del viaje
   const handleUpdateStatus = (newStatus) => {
-    console.log(`🚖 [DriverApp] Actualizando estado a: ${newStatus} para viaje #${activeTrip?.id}`);
+    const targetTripId = activeTrip?.id || 'active';
+    console.log(`🚖 [DriverApp] Actualizando estado a: ${newStatus} para viaje #${targetTripId}`);
     setTripState(newStatus);
     const normalized = newStatus === 'DONE' ? 'COMPLETED' : newStatus;
-    if (activeTrip?.id) {
-      socket.emit('trip:update_status', {
-        tripId: activeTrip.id,
-        newStatus: normalized,
-        driverProfileId
-      }, (res) => {
-        console.log('📡 [DriverApp] Respuesta trip:update_status:', res);
-      });
-      // Respaldo REST inmediato para garantizar persistencia y emisión segura a pasajeros
-      updateTripStatusApi(activeTrip.id, normalized, driverProfileId).catch((err) => {
-        console.warn('Advertencia en actualización REST de viaje:', err.message);
-      });
-    }
+    
+    socket.emit('trip:update_status', {
+      tripId: targetTripId,
+      newStatus: normalized,
+      driverProfileId
+    }, (res) => {
+      console.log('📡 [DriverApp] Respuesta trip:update_status:', res);
+      if (res?.trip?.id && (!activeTrip?.id || activeTrip.id === 'active')) {
+        setActiveTrip((prev) => prev ? { ...prev, id: res.trip.id } : prev);
+      }
+    });
+
+    // Respaldo REST inmediato para garantizar persistencia y emisión segura a pasajeros
+    updateTripStatusApi(targetTripId, normalized, driverProfileId).then((res) => {
+      if (res?.trip?.id && (!activeTrip?.id || activeTrip.id === 'active')) {
+        setActiveTrip((prev) => prev ? { ...prev, id: res.trip.id } : prev);
+      }
+    }).catch((err) => {
+      console.warn('Advertencia en actualización REST de viaje:', err.message);
+    });
 
     if (newStatus === 'DONE') {
       if (weeklyBonuses < bonusCap && activeTrip?.creditApplied === '1.00') {

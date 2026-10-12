@@ -1147,6 +1147,28 @@ export function initializeWebSockets(httpServer) {
           }
         }
 
+        if (!updatedTrip) {
+          const fallbackAnyRes = await pool.query(`
+            SELECT id FROM viajes_trips
+            WHERE status NOT IN ('COMPLETED', 'CANCELLED')
+            ORDER BY created_at DESC LIMIT 1;
+          `);
+          if (fallbackAnyRes.rows.length > 0) {
+            const realId = fallbackAnyRes.rows[0].id;
+            updateRes = await pool.query(`
+              UPDATE viajes_trips
+              SET status = $1,
+                  completed_at = CASE WHEN $1 = 'COMPLETED' THEN CURRENT_TIMESTAMP ELSE completed_at END
+              WHERE id = $2
+              RETURNING *;
+            `, [normalizedStatus, realId]);
+            updatedTrip = updateRes.rows[0];
+            tripId = realId;
+            socket.join(`trip:${tripId}`);
+            socket.currentTripId = tripId;
+          }
+        }
+
         if (normalizedStatus === 'COMPLETED' && updatedTrip) {
           try {
             await ReferralService.processTripCompletionForReferral(

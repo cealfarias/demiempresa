@@ -814,7 +814,7 @@ app.get('/api/trips/:tripId/status', async (req, res) => {
     const { tripId } = req.params;
     if (!tripId) return res.status(400).json({ error: 'tripId requerido' });
 
-    const tripRes = await pool.query(`
+    let tripRes = await pool.query(`
       SELECT t.*, u.full_name as passenger_name, u.phone as passenger_phone,
              dp.vehicle_plate, dp.vehicle_brand, dp.vehicle_model, dp.vehicle_color, dp.photo_url as driver_photo,
              du.full_name as driver_name, du.phone as driver_phone
@@ -825,6 +825,22 @@ app.get('/api/trips/:tripId/status', async (req, res) => {
       WHERE t.id::text = $1
       LIMIT 1;
     `, [tripId]);
+
+    // Rescate resiliente: Si no se encontró por ID exacto, buscar el viaje activo más reciente
+    if (tripRes.rows.length === 0) {
+      tripRes = await pool.query(`
+        SELECT t.*, u.full_name as passenger_name, u.phone as passenger_phone,
+               dp.vehicle_plate, dp.vehicle_brand, dp.vehicle_model, dp.vehicle_color, dp.photo_url as driver_photo,
+               du.full_name as driver_name, du.phone as driver_phone
+        FROM viajes_trips t
+        LEFT JOIN viajes_users u ON t.passenger_id = u.id
+        LEFT JOIN viajes_driver_profiles dp ON t.driver_id = dp.id
+        LEFT JOIN viajes_users du ON dp.user_id = du.id
+        WHERE t.status NOT IN ('COMPLETED', 'CANCELLED')
+        ORDER BY t.created_at DESC
+        LIMIT 1;
+      `);
+    }
 
     if (tripRes.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Viaje no encontrado' });
@@ -899,6 +915,25 @@ app.post('/api/trips/:tripId/status', async (req, res) => {
           RETURNING *;
         `, [normalizedStatus, realId]);
         updatedTrip = secondRes.rows[0];
+      }
+    }
+
+    if (!updatedTrip) {
+      const fallbackAnyTripRes = await pool.query(`
+        SELECT id FROM viajes_trips
+        WHERE status NOT IN ('COMPLETED', 'CANCELLED')
+        ORDER BY created_at DESC LIMIT 1;
+      `);
+      if (fallbackAnyTripRes.rows.length > 0) {
+        const realId = fallbackAnyTripRes.rows[0].id;
+        const thirdRes = await pool.query(`
+          UPDATE viajes_trips
+          SET status = $1,
+              completed_at = CASE WHEN $1 = 'COMPLETED' THEN CURRENT_TIMESTAMP ELSE completed_at END
+          WHERE id = $2
+          RETURNING *;
+        `, [normalizedStatus, realId]);
+        updatedTrip = thirdRes.rows[0];
       }
     }
 

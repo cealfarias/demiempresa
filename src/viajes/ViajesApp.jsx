@@ -1270,6 +1270,7 @@ export default function ViajesApp() {
     socket.on('trip:confirmed', (data) => {
       if (data?.tripId) {
         setTripId(data.tripId);
+        socket.emit('trip:reconnect', { tripId: data.tripId, role: 'PASSENGER', passengerId: userProfile?.id || null });
       }
       const driverObj = data.driver || {
         id: data.driverId,
@@ -1367,8 +1368,8 @@ export default function ViajesApp() {
       const nextStatus = typeof data === 'string' ? data : (data?.status || data?.newStatus);
       if (!nextStatus) return;
 
-      // Si el evento está dirigido a un pasajero específico, descartar si no coincide con nuestro usuario
-      if (data?.passengerId && userProfile?.id && String(data.passengerId) !== String(userProfile.id)) {
+      const isUUID = (str) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(str || ''));
+      if (tripId && data?.tripId && isUUID(tripId) && isUUID(data.tripId) && String(tripId) !== String(data.tripId)) {
         return;
       }
 
@@ -1424,19 +1425,24 @@ export default function ViajesApp() {
       socket.off('trip:status_changed');
       socket.off('passenger_session_revoked');
     };
-  }, [userProfile]);
+  }, [userProfile, tripId]);
 
   // Polling resiliente de sincronización continua de estado de viaje (salvaguarda si el WebSocket se pausa en móvil)
   useEffect(() => {
-    if (appState !== 'IN_TRIP_HUB' || !tripId || tripStatus === 'COMPLETED') return;
+    if ((appState !== 'IN_TRIP_HUB' && appState !== 'AUCTION') || tripStatus === 'COMPLETED') return;
     let isMounted = true;
 
     const syncStatus = async () => {
       try {
-        const res = await fetchTripStatusApi(tripId);
+        const queryId = tripId || assignedTrip?.tripId || 'active';
+        const res = await fetchTripStatusApi(queryId);
         if (!isMounted || !res?.success || !res?.status) return;
 
         const nextStatus = res.status;
+
+        if (res.tripId && res.tripId !== tripId) {
+          setTripId(res.tripId);
+        }
 
         // Si faltaba información detallada del vehículo o chofer, enriquecerla
         if (res.driver) {
@@ -1462,16 +1468,19 @@ export default function ViajesApp() {
         }
 
         if ((nextStatus === 'ARRIVED' || nextStatus === 'DRIVER_ARRIVED') && tripStatus !== 'DRIVER_ARRIVED' && tripStatus !== 'IN_TRANSIT' && tripStatus !== 'COMPLETED') {
+          setAppState('IN_TRIP_HUB');
           setTripStatus('DRIVER_ARRIVED');
           triggerSelectionFeedback();
           if (navigator.vibrate) navigator.vibrate([300, 150, 300, 150, 300]);
           speakAssistantMessage('¡Tu conductor ha llegado al punto de recogida! Por favor abórdalo.');
         } else if (nextStatus === 'IN_TRANSIT' && tripStatus !== 'IN_TRANSIT' && tripStatus !== 'COMPLETED') {
+          setAppState('IN_TRIP_HUB');
           setTripStatus('IN_TRANSIT');
           triggerSelectionFeedback();
           if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
           speakAssistantMessage('En trayecto hacia tu destino. ¡Buen viaje!');
         } else if ((nextStatus === 'COMPLETED' || nextStatus === 'DONE') && tripStatus !== 'COMPLETED') {
+          setAppState('IN_TRIP_HUB');
           setTripStatus('COMPLETED');
           setShowRatingModal(true);
           triggerCelebrationConfetti();
@@ -1484,12 +1493,12 @@ export default function ViajesApp() {
     };
 
     syncStatus();
-    const interval = setInterval(syncStatus, 2500);
+    const interval = setInterval(syncStatus, 2000);
     return () => {
       isMounted = false;
       clearInterval(interval);
     };
-  }, [appState, tripId, tripStatus]);
+  }, [appState, tripId, tripStatus, assignedTrip?.tripId]);
 
   // Verificación de Dopamina: Notificar al referente si un amigo se registró con su enlace y hacer sonar dinero
   useEffect(() => {
