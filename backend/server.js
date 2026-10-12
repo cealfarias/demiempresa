@@ -965,14 +965,15 @@ app.post('/api/trips/:tripId/status', async (req, res) => {
     if (!tripId || !status) return res.status(400).json({ error: 'tripId y status requeridos' });
 
     const normalizedStatus = (status === 'DONE' ? 'COMPLETED' : status);
+    const isCompleted = normalizedStatus === 'COMPLETED';
 
     let updateRes = await pool.query(`
       UPDATE viajes_trips
-      SET status = $1,
-          completed_at = CASE WHEN $1 = 'COMPLETED' THEN CURRENT_TIMESTAMP ELSE completed_at END
-      WHERE id::text = $2
+      SET status = $1::viajes_trip_status,
+          completed_at = CASE WHEN $2 = true THEN CURRENT_TIMESTAMP ELSE completed_at END
+      WHERE id::text = $3
       RETURNING *;
-    `, [normalizedStatus, tripId]);
+    `, [normalizedStatus, isCompleted, tripId]);
 
     let updatedTrip = updateRes.rows[0];
 
@@ -987,11 +988,11 @@ app.post('/api/trips/:tripId/status', async (req, res) => {
         const realId = fallbackTripRes.rows[0].id;
         const secondRes = await pool.query(`
           UPDATE viajes_trips
-          SET status = $1,
-              completed_at = CASE WHEN $1 = 'COMPLETED' THEN CURRENT_TIMESTAMP ELSE completed_at END
-          WHERE id = $2
+          SET status = $1::viajes_trip_status,
+              completed_at = CASE WHEN $2 = true THEN CURRENT_TIMESTAMP ELSE completed_at END
+          WHERE id::text = $3
           RETURNING *;
-        `, [normalizedStatus, realId]);
+        `, [normalizedStatus, isCompleted, realId]);
         updatedTrip = secondRes.rows[0];
       }
     }
@@ -1006,11 +1007,11 @@ app.post('/api/trips/:tripId/status', async (req, res) => {
         const realId = fallbackAnyTripRes.rows[0].id;
         const thirdRes = await pool.query(`
           UPDATE viajes_trips
-          SET status = $1,
-              completed_at = CASE WHEN $1 = 'COMPLETED' THEN CURRENT_TIMESTAMP ELSE completed_at END
-          WHERE id = $2
+          SET status = $1::viajes_trip_status,
+              completed_at = CASE WHEN $2 = true THEN CURRENT_TIMESTAMP ELSE completed_at END
+          WHERE id::text = $3
           RETURNING *;
-        `, [normalizedStatus, realId]);
+        `, [normalizedStatus, isCompleted, realId]);
         updatedTrip = thirdRes.rows[0];
       }
     }

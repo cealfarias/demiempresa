@@ -1165,16 +1165,17 @@ export function initializeWebSockets(httpServer) {
     socket.on('trip:update_status', async ({ tripId, newStatus, driverProfileId }, callback) => {
       try {
         const normalizedStatus = (newStatus === 'DONE' ? 'COMPLETED' : newStatus);
+        const isCompleted = normalizedStatus === 'COMPLETED';
         socket.join(`trip:${tripId}`);
         socket.currentTripId = tripId;
 
         let updateRes = await pool.query(`
           UPDATE viajes_trips
-          SET status = $1,
-              completed_at = CASE WHEN $1 = 'COMPLETED' THEN CURRENT_TIMESTAMP ELSE completed_at END
-          WHERE id::text = $2
+          SET status = $1::viajes_trip_status,
+              completed_at = CASE WHEN $2 = true THEN CURRENT_TIMESTAMP ELSE completed_at END
+          WHERE id::text = $3
           RETURNING *;
-        `, [normalizedStatus, tripId]);
+        `, [normalizedStatus, isCompleted, tripId]);
 
         let updatedTrip = updateRes.rows[0];
 
@@ -1190,11 +1191,11 @@ export function initializeWebSockets(httpServer) {
             const realId = fallbackTripRes.rows[0].id;
             updateRes = await pool.query(`
               UPDATE viajes_trips
-              SET status = $1,
-                  completed_at = CASE WHEN $1 = 'COMPLETED' THEN CURRENT_TIMESTAMP ELSE completed_at END
-              WHERE id = $2
+              SET status = $1::viajes_trip_status,
+                  completed_at = CASE WHEN $2 = true THEN CURRENT_TIMESTAMP ELSE completed_at END
+              WHERE id::text = $3
               RETURNING *;
-            `, [normalizedStatus, realId]);
+            `, [normalizedStatus, isCompleted, realId]);
             updatedTrip = updateRes.rows[0];
             tripId = realId;
             socket.join(`trip:${tripId}`);
@@ -1212,11 +1213,11 @@ export function initializeWebSockets(httpServer) {
             const realId = fallbackAnyRes.rows[0].id;
             updateRes = await pool.query(`
               UPDATE viajes_trips
-              SET status = $1,
-                  completed_at = CASE WHEN $1 = 'COMPLETED' THEN CURRENT_TIMESTAMP ELSE completed_at END
-              WHERE id = $2
+              SET status = $1::viajes_trip_status,
+                  completed_at = CASE WHEN $2 = true THEN CURRENT_TIMESTAMP ELSE completed_at END
+              WHERE id::text = $3
               RETURNING *;
-            `, [normalizedStatus, realId]);
+            `, [normalizedStatus, isCompleted, realId]);
             updatedTrip = updateRes.rows[0];
             tripId = realId;
             socket.join(`trip:${tripId}`);
