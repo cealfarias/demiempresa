@@ -1335,3 +1335,16 @@ export async function updateTripStatusApi(tripId, status, driverProfileId = null
   }
 }
 
+/**
+ * 46. Consultar Solicitudes de Viaje Pendientes (Feed y Recuperación al Abrir Notificación)
+ */
+export async function fetchPendingTripsApi() {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/trips/pending`);
+    if (!res.ok) return { success: false, trips: [] };
+    return await res.json();
+  } catch (err) {
+    return { success: false, error: err.message, trips: [] };
+  }
+}
+

@@ -761,6 +761,73 @@ app.get('/api/drivers/:id/status', async (req, res) => {
   }
 });
 
+// 5.1.0 CONSULTA DE SOLICITUDES DE VIAJE PENDIENTES (DESPACHO Y FEED PARA CONDUCTORES)
+app.get('/api/trips/pending', async (req, res) => {
+  try {
+    const tripsRes = await pool.query(`
+      SELECT t.*, u.full_name as passenger_name, u.phone as passenger_phone, u.photo_url as passenger_photo, u.rating as passenger_rating
+      FROM viajes_trips t
+      LEFT JOIN viajes_users u ON t.passenger_id = u.id
+      WHERE t.status = 'REQUESTED'
+        AND t.created_at >= NOW() - INTERVAL '30 minutes'
+      ORDER BY t.created_at DESC;
+    `);
+
+    const trips = tripsRes.rows.map(row => {
+      const safeOriginLat = parseFloat(row.origin_lat) || 13.7013;
+      const safeOriginLng = parseFloat(row.origin_lng) || -89.2244;
+      const safeDestLat = parseFloat(row.destination_lat) || 13.6738;
+      const safeDestLng = parseFloat(row.destination_lng) || -89.2789;
+      const distKm = parseFloat(row.distance_km || 5.0);
+      const fare = parseFloat(row.proposed_fare || 3.50).toFixed(2);
+      const isPool = row.service_type === 'SHARED_POOL';
+
+      return {
+        id: row.id,
+        tripId: row.id,
+        serviceType: row.service_type || 'PASSENGER',
+        isPool,
+        passengerName: (row.passenger_name || 'Pasajero Invitado').trim(),
+        passengerPhone: row.passenger_phone ? String(row.passenger_phone) : '',
+        passengerPhoto: row.passenger_photo || null,
+        passengerRating: parseFloat(row.passenger_rating || 5.0),
+        passengerTrips: 1,
+        isGuest: !row.passenger_name || row.passenger_name === 'Pasajero Invitado',
+        timeAgo: 'Reciente',
+        origin: row.origin_address || 'Punto de recogida',
+        originAddress: row.origin_address || 'Punto de recogida',
+        originLat: safeOriginLat,
+        originLng: safeOriginLng,
+        destination: row.destination_address || 'Punto de destino',
+        destinationAddress: row.destination_address || 'Punto de destino',
+        destinationLat: safeDestLat,
+        destinationLng: safeDestLng,
+        destinationMunicipality: row.destination_municipality || 'San Salvador',
+        distanceKm: distKm,
+        roadDistanceKm: distKm,
+        offeredFare: fare,
+        proposedFare: fare,
+        suggestedFare: fare,
+        delayMinutes: 0,
+        trafficLevel: 'FLUID',
+        trafficLabel: 'Tráfico Fluido',
+        trafficColor: '#10B981',
+        preferences: row.package_details || {},
+        cashBill: row.payment_timing === 'EXACT' ? 'EXACT' : '10',
+        changeNeeded: '0.00',
+        hasBonusDiscount: parseFloat(row.credit_applied || 0) > 0,
+        timeLeft: 30,
+        createdAt: row.created_at
+      };
+    });
+
+    res.json({ success: true, trips });
+  } catch (err) {
+    console.error('Error en GET /api/trips/pending:', err);
+    res.status(500).json({ success: false, error: err.message, trips: [] });
+  }
+});
+
 // 5.1.1 CONSULTA DE CONTRAOFERTAS ACTIVAS DE UN VIAJE (FALLBACK RESILIENTE REST)
 app.get('/api/trips/:tripId/offers', async (req, res) => {
   try {

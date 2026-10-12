@@ -70,7 +70,8 @@ import {
   fetchDriverStatusApi,
   verifyMagicTokenApi,
   initSessionTelemetry,
-  updateTripStatusApi
+  updateTripStatusApi,
+  fetchPendingTripsApi
 } from './api';
 
 class DriverErrorBoundary extends React.Component {
@@ -524,6 +525,20 @@ function DriverAppContent() {
         .catch(() => {});
     }
   }, []);
+
+  // Consultar solicitudes pendientes al abrir la app de conductor (especialmente útil tras pulsar push notifications)
+  useEffect(() => {
+    if (!activeTrip && driverOnline) {
+      fetchPendingTripsApi().then((res) => {
+        if (res?.success && Array.isArray(res.trips) && res.trips.length > 0) {
+          const urlParams = new URLSearchParams(window.location.search);
+          const urlTripId = urlParams.get('tripId');
+          const target = urlTripId ? (res.trips.find(t => String(t.id) === String(urlTripId)) || res.trips[0]) : res.trips[0];
+          setIncomingRequest(target);
+        }
+      }).catch(() => {});
+    }
+  }, [activeTrip, driverOnline]);
 
   // Controlar conexión en línea con validación de aprobación administrativa y pase de cortesía
   const handleToggleOnline = () => {
@@ -1813,8 +1828,8 @@ function DriverAppContent() {
                 <DriverTripRequestsFeed
                   driverOnline={driverOnline}
                   onToggleOnline={handleToggleOnline}
-                  onAcceptRequest={(req, fare) => handleAcceptFare(fare, req)}
-                  onSendOffer={(fare, req) => handleAcceptFare(fare, req)}
+                  onAcceptRequest={(req, fare) => handleAcceptRequestFromFeed(req, fare)}
+                  onSendOffer={(fare, req) => handleAcceptRequestFromFeed(req, fare)}
                   incomingRequest={incomingRequest}
                   onOpenSettings={() => setShowVehicleSettings(true)}
                   onOpenExpediente={() => setShowRegistrationModal(true)}

@@ -23,6 +23,7 @@ import {
   Zap
 } from 'lucide-react';
 import { triggerCashRewardFeedback } from './soundFeedbackService';
+import { fetchPendingTripsApi } from './api';
 
 export default function DriverTripRequestsFeed({
   driverOnline,
@@ -39,8 +40,101 @@ export default function DriverTripRequestsFeed({
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [counterOfferAmount, setCounterOfferAmount] = useState('');
   const [activeRequests, setActiveRequests] = useState([]);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // Si entra una solicitud real por WebSockets, insertarla al inicio
+  // Carga inicial y sondeo continuo de solicitudes pendientes desde el backend
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadPendingTrips = async () => {
+      try {
+        const res = await fetchPendingTripsApi();
+        if (!isMounted || !res?.success || !Array.isArray(res.trips)) return;
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlTripId = urlParams.get('tripId');
+
+        setActiveRequests((prev) => {
+          const map = new Map();
+
+          // 1. Incorporar solicitudes remotas de la base de datos
+          res.trips.forEach((remote) => {
+            const isPool = remote.serviceType === 'SHARED_POOL';
+            const formatted = {
+              id: remote.id,
+              isPool,
+              serviceType: remote.serviceType || 'PASSENGER',
+              passengerCount: remote.passengerCount || (isPool ? 4 : 1),
+              corridorName: remote.corridorName || '',
+              stops: remote.stops || [],
+              passengerName: isPool ? 'Colectivo (4 Pasajeros)' : (remote.passengerName || 'Pasajero Invitado').trim(),
+              passengerPhone: remote.passengerPhone ? String(remote.passengerPhone) : '',
+              passengerPhoto: isPool ? null : (remote.passengerPhoto || null),
+              rating: remote.passengerRating || 5.0,
+              ratingCount: isPool ? 4 : (remote.passengerTrips || 1),
+              isGuest: Boolean(remote.isGuest),
+              timeAgo: 'Reciente',
+              price: parseFloat(remote.offeredFare || remote.proposedFare || remote.suggestedFare || (isPool ? 21.60 : 4.00)),
+              priceLabel: isPool ? '👥 4 Cupos Llenos • Cero Esperas' : 'Oferta directa',
+              pickupDistanceMeters: Math.round((remote.distanceKm || 0.6) * 1000),
+              tripDistanceKm: parseFloat(remote.roadDistanceKm || remote.distanceKm || 5.0),
+              origin: remote.origin || remote.originAddress || 'Punto de recogida',
+              originLat: parseFloat(remote.originLat) || 13.7013,
+              originLng: parseFloat(remote.originLng) || -89.2244,
+              destination: remote.destination || remote.destinationAddress || 'Punto de destino',
+              destinationLat: parseFloat(remote.destinationLat) || 13.6738,
+              destinationLng: parseFloat(remote.destinationLng) || -89.2789,
+              delayMinutes: parseInt(remote.delayMinutes || 0, 10),
+              preferences: remote.preferences || {},
+              cashBill: remote.cashBill || '10',
+              changeNeeded: remote.changeNeeded || '0.00'
+            };
+            map.set(remote.id, formatted);
+          });
+
+          // 2. Preservar las que ya estaban en memoria (por WebSockets)
+          prev.forEach((p) => {
+            if (!map.has(p.id)) {
+              map.set(p.id, p);
+            }
+          });
+
+          const merged = Array.from(map.values());
+
+          // 3. Si el conductor abrió la app desde la notificación con ?tripId=... abrir modal de inmediato
+          if (urlTripId && !selectedRequest) {
+            const matchedReq = merged.find((r) => String(r.id) === String(urlTripId));
+            if (matchedReq) {
+              setSelectedRequest(matchedReq);
+              const baseP = parseFloat(matchedReq.price || 4.00);
+              setCounterOfferAmount(baseP.toFixed(2));
+              try {
+                const newUrl = new URL(window.location.href);
+                newUrl.searchParams.delete('tripId');
+                window.history.replaceState({}, document.title, newUrl.pathname + (newUrl.search ? newUrl.search : ''));
+              } catch {}
+            }
+          }
+
+          return merged;
+        });
+      } catch (err) {
+        console.warn('Error cargando solicitudes pendientes:', err);
+      } finally {
+        if (isMounted) setIsRefreshing(false);
+      }
+    };
+
+    loadPendingTrips();
+    const interval = setInterval(loadPendingTrips, 3500);
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [selectedRequest]);
+
+  // Si entra una solicitud real por WebSockets en tiempo real, insertarla al inicio
   useEffect(() => {
     if (incomingRequest) {
       setActiveRequests((prev) => {
@@ -358,6 +452,61 @@ export default function DriverTripRequestsFeed({
                 ? 'Cuando un pasajero cercano pida viaje, aparecerá inmediatamente aquí con su tarifa propuesta.'
                 : 'Activa el botón "En línea" arriba para comenzar a recibir solicitudes de viajes cercanos.'}
             </p>
+
+            {driverOnline && (
+              <div className="flex justify-center pt-1 pb-1">
+                <button
+                  type="button"
+                  onClick={async () => {
+                    setIsRefreshing(true);
+                    try {
+                      const res = await fetchPendingTripsApi();
+                      if (res?.success && Array.isArray(res.trips)) {
+                        setActiveRequests(res.trips.map((remote) => {
+                          const isPool = remote.serviceType === 'SHARED_POOL';
+                          return {
+                            id: remote.id,
+                            isPool,
+                            serviceType: remote.serviceType || 'PASSENGER',
+                            passengerCount: remote.passengerCount || (isPool ? 4 : 1),
+                            corridorName: remote.corridorName || '',
+                            stops: remote.stops || [],
+                            passengerName: isPool ? 'Colectivo (4 Pasajeros)' : (remote.passengerName || 'Pasajero Invitado').trim(),
+                            passengerPhone: remote.passengerPhone ? String(remote.passengerPhone) : '',
+                            passengerPhoto: isPool ? null : (remote.passengerPhoto || null),
+                            rating: remote.passengerRating || 5.0,
+                            ratingCount: isPool ? 4 : (remote.passengerTrips || 1),
+                            isGuest: Boolean(remote.isGuest),
+                            timeAgo: 'Reciente',
+                            price: parseFloat(remote.offeredFare || remote.proposedFare || remote.suggestedFare || (isPool ? 21.60 : 4.00)),
+                            priceLabel: isPool ? '👥 4 Cupos Llenos • Cero Esperas' : 'Oferta directa',
+                            pickupDistanceMeters: Math.round((remote.distanceKm || 0.6) * 1000),
+                            tripDistanceKm: parseFloat(remote.roadDistanceKm || remote.distanceKm || 5.0),
+                            origin: remote.origin || remote.originAddress || 'Punto de recogida',
+                            originLat: parseFloat(remote.originLat) || 13.7013,
+                            originLng: parseFloat(remote.originLng) || -89.2244,
+                            destination: remote.destination || remote.destinationAddress || 'Punto de destino',
+                            destinationLat: parseFloat(remote.destinationLat) || 13.6738,
+                            destinationLng: parseFloat(remote.destinationLng) || -89.2789,
+                            delayMinutes: parseInt(remote.delayMinutes || 0, 10),
+                            preferences: remote.preferences || {},
+                            cashBill: remote.cashBill || '10',
+                            changeNeeded: remote.changeNeeded || '0.00'
+                          };
+                        }));
+                      }
+                    } finally {
+                      setIsRefreshing(false);
+                    }
+                  }}
+                  disabled={isRefreshing}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold border border-slate-700/60 cursor-pointer transition-colors shadow-sm"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-amber-400' : 'text-slate-400'}`} />
+                  <span>{isRefreshing ? 'Actualizando...' : 'Actualizar solicitudes'}</span>
+                </button>
+              </div>
+            )}
 
             {driverOnline && (
               <div className="mt-4 p-3.5 bg-gradient-to-r from-amber-500/10 via-slate-900 to-amber-500/15 border border-amber-500/30 rounded-2xl text-left space-y-2 max-w-sm mx-auto animate-fade-in text-xs">

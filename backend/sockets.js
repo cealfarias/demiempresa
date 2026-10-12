@@ -282,7 +282,7 @@ export function initializeWebSockets(httpServer) {
         PushService.sendNotificationToDrivers({
           title: '🚗 Nueva Solicitud de Viaje',
           body: `Viaje hacia ${tripPayload.destinationMunicipality || tripPayload.destination || 'destino'} por $${tripPayload.proposedFare} USD. Toca para ver la ruta.`,
-          url: '/conductor'
+          url: `/conductor?tripId=${newTrip.id}`
         }).catch(() => {});
 
         console.log(`📡 [trip:request] Solicitud #${newTrip.id} enviada exitosamente a conductores.`);
