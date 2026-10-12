@@ -107,7 +107,8 @@ import {
   checkContactRegisteredApi,
   dismissReferralNoticeApi,
   initSessionTelemetry,
-  fetchTripActiveOffersApi
+  fetchTripActiveOffersApi,
+  fetchTripStatusApi
 } from './api';
 
 // Formatear destino resuelto por geocodificador para la cajita de punto de llegada
@@ -1360,11 +1361,16 @@ export default function ViajesApp() {
       speakAssistantMessage('El conductor no aceptó cancelar. La carrera continúa.');
     });
 
-    // Escuchar cambios de estado del viaje en tiempo real
+    // Escuchar cambios de estado del viaje en tiempo real (Conductor avanza la carrera)
     socket.on('trip:status_changed', (data) => {
       console.log('📡 [trip:status_changed] recibido en pasajero:', data);
       const nextStatus = typeof data === 'string' ? data : (data?.status || data?.newStatus);
       if (!nextStatus) return;
+
+      // Si el evento está dirigido a un pasajero específico, descartar si no coincide con nuestro usuario
+      if (data?.passengerId && userProfile?.id && String(data.passengerId) !== String(userProfile.id)) {
+        return;
+      }
 
       if (data?.tripId) {
         setTripId(data.tripId);
@@ -1372,16 +1378,22 @@ export default function ViajesApp() {
 
       setAppState('IN_TRIP_HUB');
 
-      if (nextStatus === 'ARRIVED') {
+      if (nextStatus === 'ARRIVED' || nextStatus === 'DRIVER_ARRIVED') {
         setTripStatus('DRIVER_ARRIVED');
-        speakAssistantMessage('¡Tu conductor ha llegado al punto de recogida!');
+        triggerSelectionFeedback();
+        if (navigator.vibrate) navigator.vibrate([300, 150, 300, 150, 300]);
+        speakAssistantMessage('¡Tu conductor ha llegado al punto de recogida! Por favor abórdalo.');
       } else if (nextStatus === 'IN_TRANSIT') {
         setTripStatus('IN_TRANSIT');
-        speakAssistantMessage('En trayecto hacia tu destino. Conoce las promociones exclusivas en tu ruta.');
+        triggerSelectionFeedback();
+        if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+        speakAssistantMessage('En trayecto hacia tu destino. ¡Buen viaje!');
       } else if (nextStatus === 'COMPLETED' || nextStatus === 'DONE') {
         setTripStatus('COMPLETED');
         setShowRatingModal(true);
-        speakAssistantMessage('Has llegado a tu destino. ¡Gracias por viajar con Rumbo!');
+        triggerCelebrationConfetti();
+        if (navigator.vibrate) navigator.vibrate([200, 100, 200, 100, 400]);
+        speakAssistantMessage('Has llegado a tu destino. ¡Viaje finalizado con éxito!');
       }
     });
 
@@ -1413,6 +1425,71 @@ export default function ViajesApp() {
       socket.off('passenger_session_revoked');
     };
   }, [userProfile]);
+
+  // Polling resiliente de sincronización continua de estado de viaje (salvaguarda si el WebSocket se pausa en móvil)
+  useEffect(() => {
+    if (appState !== 'IN_TRIP_HUB' || !tripId || tripStatus === 'COMPLETED') return;
+    let isMounted = true;
+
+    const syncStatus = async () => {
+      try {
+        const res = await fetchTripStatusApi(tripId);
+        if (!isMounted || !res?.success || !res?.status) return;
+
+        const nextStatus = res.status;
+
+        // Si faltaba información detallada del vehículo o chofer, enriquecerla
+        if (res.driver) {
+          setAssignedTrip((prev) => {
+            if (!prev) {
+              return {
+                tripId: res.tripId,
+                driver: res.driver,
+                agreedFare: res.agreedFare,
+                cashToPay: res.cashToCollect || res.agreedFare
+              };
+            }
+            if (!prev.driver || !prev.driver.vehiclePlate) {
+              return {
+                ...prev,
+                driver: res.driver,
+                agreedFare: res.agreedFare || prev.agreedFare,
+                cashToPay: res.cashToCollect || prev.cashToPay || res.agreedFare
+              };
+            }
+            return prev;
+          });
+        }
+
+        if ((nextStatus === 'ARRIVED' || nextStatus === 'DRIVER_ARRIVED') && tripStatus !== 'DRIVER_ARRIVED' && tripStatus !== 'IN_TRANSIT' && tripStatus !== 'COMPLETED') {
+          setTripStatus('DRIVER_ARRIVED');
+          triggerSelectionFeedback();
+          if (navigator.vibrate) navigator.vibrate([300, 150, 300, 150, 300]);
+          speakAssistantMessage('¡Tu conductor ha llegado al punto de recogida! Por favor abórdalo.');
+        } else if (nextStatus === 'IN_TRANSIT' && tripStatus !== 'IN_TRANSIT' && tripStatus !== 'COMPLETED') {
+          setTripStatus('IN_TRANSIT');
+          triggerSelectionFeedback();
+          if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+          speakAssistantMessage('En trayecto hacia tu destino. ¡Buen viaje!');
+        } else if ((nextStatus === 'COMPLETED' || nextStatus === 'DONE') && tripStatus !== 'COMPLETED') {
+          setTripStatus('COMPLETED');
+          setShowRatingModal(true);
+          triggerCelebrationConfetti();
+          if (navigator.vibrate) navigator.vibrate([200, 100, 200, 100, 400]);
+          speakAssistantMessage('Has llegado a tu destino. ¡Viaje finalizado con éxito!');
+        }
+      } catch (err) {
+        // Fallback silencioso
+      }
+    };
+
+    syncStatus();
+    const interval = setInterval(syncStatus, 2500);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [appState, tripId, tripStatus]);
 
   // Verificación de Dopamina: Notificar al referente si un amigo se registró con su enlace y hacer sonar dinero
   useEffect(() => {
@@ -6890,8 +6967,8 @@ export default function ViajesApp() {
             {/* Estado del Conductor & ETA */}
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping"></span>
-                <span className="text-xs font-bold uppercase tracking-wider text-emerald-400">
+                <span className={`w-2.5 h-2.5 rounded-full ${tripStatus === 'DRIVER_ARRIVED' ? 'bg-amber-400 animate-ping' : tripStatus === 'IN_TRANSIT' ? 'bg-teal-400 animate-pulse' : tripStatus === 'COMPLETED' ? 'bg-emerald-400' : 'bg-emerald-400 animate-ping'}`}></span>
+                <span className={`text-xs font-bold uppercase tracking-wider ${tripStatus === 'DRIVER_ARRIVED' ? 'text-amber-400' : tripStatus === 'IN_TRANSIT' ? 'text-teal-400' : tripStatus === 'COMPLETED' ? 'text-emerald-300' : 'text-emerald-400'}`}>
                   {tripStatus === 'DRIVER_EN_ROUTE' && (
                     <>
                       Conductor en camino • {driverDistanceKm ? `A ${driverDistanceKm} km • ` : ''}ETA: ~{driverEtaMinutes} min
@@ -6903,7 +6980,7 @@ export default function ViajesApp() {
                       En trayecto al destino • {driverDistanceKm ? `A ${driverDistanceKm} km • ` : ''}ETA: ~{driverEtaMinutes} min
                     </>
                   )}
-                  {tripStatus === 'COMPLETED' && 'Viaje Finalizado'}
+                  {tripStatus === 'COMPLETED' && 'Viaje Finalizado con Éxito'}
                 </span>
               </div>
 
@@ -6915,6 +6992,45 @@ export default function ViajesApp() {
                 <span>{copiedLink ? '¡Enlace copiado!' : 'Compartir'}</span>
               </button>
             </div>
+
+            {/* Banner de Aviso de Llegada del Conductor */}
+            {tripStatus === 'DRIVER_ARRIVED' && (
+              <div className="p-3.5 bg-gradient-to-r from-amber-500/20 via-emerald-500/15 to-amber-500/20 border-2 border-amber-400 rounded-2xl flex items-center gap-3 animate-pulse shadow-lg">
+                <div className="w-10 h-10 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center font-black text-xl shrink-0 shadow-sm">
+                  📍
+                </div>
+                <div>
+                  <h4 className="text-xs font-black text-amber-300 uppercase tracking-wide">¡El vehículo ya está en tu ubicación!</h4>
+                  <p className="text-[11px] text-slate-200">Tu conductor te espera afuera. Aborda el auto placa <strong className="text-white font-mono bg-slate-950 px-1.5 py-0.5 rounded border border-amber-500/40">{assignedTrip.driver?.vehiclePlate || 'asignado'}</strong>.</p>
+                </div>
+              </div>
+            )}
+
+            {/* Banner de En Trayecto */}
+            {tripStatus === 'IN_TRANSIT' && (
+              <div className="p-3.5 bg-gradient-to-r from-emerald-500/20 via-teal-500/15 to-slate-900 border border-emerald-400/40 rounded-2xl flex items-center gap-3 shadow-lg">
+                <div className="w-10 h-10 rounded-xl bg-emerald-400 text-slate-950 flex items-center justify-center font-black text-xl shrink-0 shadow-sm">
+                  🚗
+                </div>
+                <div>
+                  <h4 className="text-xs font-black text-emerald-300 uppercase tracking-wide">En trayecto hacia tu destino</h4>
+                  <p className="text-[11px] text-slate-200">Viaje en curso seguro con tarifa acordada. {driverEtaMinutes ? `Tiempo estimado: ~${driverEtaMinutes} min.` : '¡Buen viaje!'}</p>
+                </div>
+              </div>
+            )}
+
+            {/* Banner de Viaje Finalizado */}
+            {tripStatus === 'COMPLETED' && (
+              <div className="p-3.5 bg-gradient-to-r from-emerald-500/25 via-teal-500/20 to-emerald-500/25 border-2 border-emerald-400 rounded-2xl flex items-center gap-3 shadow-xl">
+                <div className="w-10 h-10 rounded-xl bg-emerald-400 text-slate-950 flex items-center justify-center font-black text-xl shrink-0 shadow-sm">
+                  🏁
+                </div>
+                <div>
+                  <h4 className="text-xs font-black text-emerald-300 uppercase tracking-wide">¡Viaje Finalizado con Éxito!</h4>
+                  <p className="text-[11px] text-slate-200">Has llegado a tu destino. Entrega el monto acordado al conductor.</p>
+                </div>
+              </div>
+            )}
 
             {/* Placa en Grande y Datos del Auto */}
             <div className="flex items-center justify-between">

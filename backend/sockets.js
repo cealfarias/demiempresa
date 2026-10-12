@@ -1127,9 +1127,9 @@ export function initializeWebSockets(httpServer) {
         if (!updatedTrip && driverProfileId) {
           const fallbackTripRes = await pool.query(`
             SELECT id FROM viajes_trips
-            WHERE driver_id::text = (SELECT id::text FROM viajes_driver_profiles WHERE id::text = $1 OR vehicle_plate = $1 LIMIT 1)
+            WHERE (driver_id::text = $1 OR driver_id IN (SELECT id FROM viajes_driver_profiles WHERE id::text = $1 OR vehicle_plate = $1))
               AND status NOT IN ('COMPLETED', 'CANCELLED')
-            ORDER BY id DESC LIMIT 1;
+            ORDER BY created_at DESC LIMIT 1;
           `, [driverProfileId]);
           if (fallbackTripRes.rows.length > 0) {
             const realId = fallbackTripRes.rows[0].id;

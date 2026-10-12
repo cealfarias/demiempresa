@@ -1302,3 +1302,36 @@ export async function fetchTripActiveOffersApi(tripId) {
     return { success: false, offers: [] };
   }
 }
+
+/**
+ * 44. Consultar Estado en Vivo de un Viaje (Polling REST para Pasajero y Chofer)
+ */
+export async function fetchTripStatusApi(tripId) {
+  if (!tripId) return { success: false, error: 'tripId missing' };
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/trips/${encodeURIComponent(tripId)}/status`);
+    if (!res.ok) return { success: false };
+    return await res.json();
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+}
+
+/**
+ * 45. Actualizar Estado de un Viaje (Respaldo REST Atómico para Chofer)
+ */
+export async function updateTripStatusApi(tripId, status, driverProfileId = null) {
+  if (!tripId || !status) return { success: false, error: 'missing params' };
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/trips/${encodeURIComponent(tripId)}/status`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status, driverProfileId })
+    });
+    if (!res.ok) return { success: false };
+    return await res.json();
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+}
+

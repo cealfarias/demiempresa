@@ -808,6 +808,159 @@ app.get('/api/trips/:tripId/offers', async (req, res) => {
   }
 });
 
+// 5.1.2 CONSULTA EN TIEMPO REAL DEL ESTADO DEL VIAJE (FALLBACK RESILIENTE REST)
+app.get('/api/trips/:tripId/status', async (req, res) => {
+  try {
+    const { tripId } = req.params;
+    if (!tripId) return res.status(400).json({ error: 'tripId requerido' });
+
+    const tripRes = await pool.query(`
+      SELECT t.*, u.full_name as passenger_name, u.phone as passenger_phone,
+             dp.vehicle_plate, dp.vehicle_brand, dp.vehicle_model, dp.vehicle_color, dp.photo_url as driver_photo,
+             du.full_name as driver_name, du.phone as driver_phone
+      FROM viajes_trips t
+      LEFT JOIN viajes_users u ON t.passenger_id = u.id
+      LEFT JOIN viajes_driver_profiles dp ON t.driver_id = dp.id
+      LEFT JOIN viajes_users du ON dp.user_id = du.id
+      WHERE t.id::text = $1
+      LIMIT 1;
+    `, [tripId]);
+
+    if (tripRes.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Viaje no encontrado' });
+    }
+
+    const row = tripRes.rows[0];
+    res.json({
+      success: true,
+      tripId: row.id,
+      status: row.status,
+      serviceType: row.service_type,
+      originAddress: row.origin_address,
+      destinationAddress: row.destination_address,
+      destinationMunicipality: row.destination_municipality,
+      agreedFare: row.agreed_fare,
+      cashToCollect: row.cash_to_collect,
+      creditApplied: row.credit_applied,
+      createdAt: row.created_at,
+      acceptedAt: row.accepted_at,
+      completedAt: row.completed_at,
+      passengerId: row.passenger_id,
+      driverId: row.driver_id,
+      driver: row.driver_id ? {
+        id: row.driver_id,
+        name: row.driver_name || 'Conductor Autorizado',
+        phone: row.driver_phone || '',
+        vehiclePlate: row.vehicle_plate || '',
+        vehicleModel: `${row.vehicle_brand || ''} ${row.vehicle_model || ''}`.trim() || 'Vehículo Autorizado',
+        vehicleColor: row.vehicle_color || '',
+        photo: row.driver_photo || null
+      } : null
+    });
+  } catch (err) {
+    console.error('Error en GET /api/trips/:tripId/status:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 5.1.3 ACTUALIZACIÓN ATÓMICA DEL ESTADO DEL VIAJE (REST + EMISIÓN WEBSOCKET)
+app.post('/api/trips/:tripId/status', async (req, res) => {
+  try {
+    const { tripId } = req.params;
+    const { status, driverProfileId } = req.body;
+    if (!tripId || !status) return res.status(400).json({ error: 'tripId y status requeridos' });
+
+    const normalizedStatus = (status === 'DONE' ? 'COMPLETED' : status);
+
+    let updateRes = await pool.query(`
+      UPDATE viajes_trips
+      SET status = $1,
+          completed_at = CASE WHEN $1 = 'COMPLETED' THEN CURRENT_TIMESTAMP ELSE completed_at END
+      WHERE id::text = $2
+      RETURNING *;
+    `, [normalizedStatus, tripId]);
+
+    let updatedTrip = updateRes.rows[0];
+
+    if (!updatedTrip && driverProfileId) {
+      const fallbackTripRes = await pool.query(`
+        SELECT id FROM viajes_trips
+        WHERE (driver_id::text = $1 OR driver_id IN (SELECT id FROM viajes_driver_profiles WHERE id::text = $1 OR vehicle_plate = $1))
+          AND status NOT IN ('COMPLETED', 'CANCELLED')
+        ORDER BY created_at DESC LIMIT 1;
+      `, [driverProfileId]);
+      if (fallbackTripRes.rows.length > 0) {
+        const realId = fallbackTripRes.rows[0].id;
+        const secondRes = await pool.query(`
+          UPDATE viajes_trips
+          SET status = $1,
+              completed_at = CASE WHEN $1 = 'COMPLETED' THEN CURRENT_TIMESTAMP ELSE completed_at END
+          WHERE id = $2
+          RETURNING *;
+        `, [normalizedStatus, realId]);
+        updatedTrip = secondRes.rows[0];
+      }
+    }
+
+    if (!updatedTrip) {
+      return res.status(404).json({ success: false, error: 'Viaje no encontrado para actualizar' });
+    }
+
+    if (normalizedStatus === 'COMPLETED' && updatedTrip) {
+      try {
+        await ReferralService.processTripCompletionForReferral(
+          updatedTrip.id,
+          updatedTrip.passenger_id,
+          updatedTrip.agreed_fare
+        );
+      } catch (refErr) {
+        console.warn('Referral completion notice REST:', refErr.message);
+      }
+    }
+
+    const statusPayload = {
+      tripId: updatedTrip.id,
+      status: normalizedStatus,
+      newStatus: normalizedStatus,
+      passengerId: updatedTrip.passenger_id
+    };
+
+    io.to(`trip:${updatedTrip.id}`).emit('trip:status_changed', statusPayload);
+    if (updatedTrip.passenger_id) {
+      io.to(`passenger:${updatedTrip.passenger_id}`).emit('trip:status_changed', statusPayload);
+    }
+    io.to('passengers_channel').emit('trip:status_changed', statusPayload);
+
+    if (updatedTrip.passenger_id) {
+      if (normalizedStatus === 'ARRIVED') {
+        PushService.sendNotificationToUser(updatedTrip.passenger_id, {
+          title: '📍 ¡Tu conductor ya está afuera!',
+          body: 'El vehículo ha llegado al punto de recogida. Por favor dirígete a abordarlo.',
+          url: '/viajes',
+          vibrate: [300, 100, 300, 100, 300]
+        }).catch(() => {});
+      } else if (normalizedStatus === 'IN_TRANSIT') {
+        PushService.sendNotificationToUser(updatedTrip.passenger_id, {
+          title: '🚕 ¡Viaje en Curso!',
+          body: `En camino hacia ${updatedTrip.destination_address || 'tu destino'}. ¡Buen viaje!`,
+          url: '/viajes'
+        }).catch(() => {});
+      } else if (normalizedStatus === 'COMPLETED') {
+        PushService.sendNotificationToUser(updatedTrip.passenger_id, {
+          title: '🏁 ¡Has llegado a tu destino!',
+          body: 'Viaje finalizado con éxito. ¡Gracias por preferir Rumbo!',
+          url: '/viajes'
+        }).catch(() => {});
+      }
+    }
+
+    res.json({ success: true, trip: updatedTrip });
+  } catch (err) {
+    console.error('Error en POST /api/trips/:tripId/status:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // 5.1.0 HELPER: CONSULTA Y VERIFICACIÓN ESTRICTA DE EXPEDIENTES DE CONDUCTORES (CERO PLACEHOLDERS)
 async function findDriverRecordByPhone(cleanPhone) {
   if (!cleanPhone || cleanPhone.length < 8) return null;

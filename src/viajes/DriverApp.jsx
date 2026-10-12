@@ -69,7 +69,8 @@ import {
   fetchWalletSummaryApi,
   fetchDriverStatusApi,
   verifyMagicTokenApi,
-  initSessionTelemetry
+  initSessionTelemetry,
+  updateTripStatusApi
 } from './api';
 
 class DriverErrorBoundary extends React.Component {
@@ -922,13 +923,18 @@ function DriverAppContent() {
   const handleUpdateStatus = (newStatus) => {
     console.log(`🚖 [DriverApp] Actualizando estado a: ${newStatus} para viaje #${activeTrip?.id}`);
     setTripState(newStatus);
+    const normalized = newStatus === 'DONE' ? 'COMPLETED' : newStatus;
     if (activeTrip?.id) {
       socket.emit('trip:update_status', {
         tripId: activeTrip.id,
-        newStatus: newStatus === 'DONE' ? 'COMPLETED' : newStatus,
+        newStatus: normalized,
         driverProfileId
       }, (res) => {
         console.log('📡 [DriverApp] Respuesta trip:update_status:', res);
+      });
+      // Respaldo REST inmediato para garantizar persistencia y emisión segura a pasajeros
+      updateTripStatusApi(activeTrip.id, normalized, driverProfileId).catch((err) => {
+        console.warn('Advertencia en actualización REST de viaje:', err.message);
       });
     }
 
