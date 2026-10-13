@@ -4197,6 +4197,60 @@ app.post('/api/push/test', async (req, res) => {
   }
 });
 
+
+// ==========================================
+// API DE LICENCIAS ADB ANTIGRAVITY PRO
+// ==========================================
+app.get('/api/antigravity/licencias', async (req, res) => {
+  try {
+    const { rows } = await pool.query('SELECT * FROM agy_licencias ORDER BY id DESC LIMIT 50');
+    res.json({ success: true, licencias: rows });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/antigravity/activar', async (req, res) => {
+  try {
+    const { hwid, cliente_nombre, telefono, dias, pin } = req.body;
+    if (pin !== '6957') {
+      return res.status(401).json({ success: false, error: 'PIN incorrecto' });
+    }
+    if (!hwid) {
+      return res.status(400).json({ success: false, error: 'HWID requerido' });
+    }
+    const hwidClean = hwid.trim().toUpperCase();
+    const diasNum = parseInt(dias) || 30;
+    const ahora = new Date();
+    const expiracion = new Date();
+    expiracion.setDate(expiracion.getDate() + diasNum);
+
+    const query = 'INSERT INTO agy_licencias (hwid, cliente_nombre, telefono, metodo_pago, estado, dias_validez, fecha_activacion, fecha_expiracion) ' +
+      'VALUES ($1, $2, $3, \'TRANSFER_365\', \'ACTIVA\', $4, $5, $6) ' +
+      'ON CONFLICT (hwid) DO UPDATE SET ' +
+      'cliente_nombre = EXCLUDED.cliente_nombre, ' +
+      'telefono = EXCLUDED.telefono, ' +
+      'metodo_pago = EXCLUDED.metodo_pago, ' +
+      'estado = \'ACTIVA\', ' +
+      'dias_validez = EXCLUDED.dias_validez, ' +
+      'fecha_activacion = EXCLUDED.fecha_activacion, ' +
+      'fecha_expiracion = EXCLUDED.fecha_expiracion ' +
+      'RETURNING *;';
+
+    const { rows } = await pool.query(query, [
+      hwidClean,
+      cliente_nombre || 'Cliente Davivienda 365',
+      telefono || '',
+      diasNum,
+      ahora,
+      expiracion
+    ]);
+    res.json({ success: true, licencia: rows[0] });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 server.listen(PORT, async () => {
   console.log(`🚀 Servidor demiempresa.online corriendo en http://localhost:${PORT}`);
   console.log(`📡 Tablas aisladas con prefijo: viajes_*`);

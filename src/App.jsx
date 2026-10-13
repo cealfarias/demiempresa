@@ -7,6 +7,7 @@ import FacturacionDTEPage from './pages/FacturacionDTEPage';
 import ViajesApp from './viajes/ViajesApp';
 import DriverApp from './viajes/DriverApp';
 import AdminDashboardPage from './pages/AdminDashboardPage';
+import AntigravityAdminPage from './pages/AntigravityAdminPage';
 import { sendTelemetryEventApi } from './viajes/api';
 
 function GlobalTelemetryTracker() {
@@ -51,6 +52,7 @@ function App() {
       <Route path="/admin" element={<AdminDashboardPage />} />
       <Route path="/portal" element={<LandingPortal />} />
       <Route path="/mercado" element={<MercadoApp />} />
+      <Route path="/antigravity-admin" element={<AntigravityAdminPage />} />
       <Route path="/facturacion-dte" element={<FacturacionDTEPage />} />
       <Route path="/crear-empresa" element={<AsesoriaCreacionEmpresa />} />
       <Route path="*" element={<Navigate to="/" replace />} />
