@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Key, CheckCircle, Clock, Shield, Search, RefreshCw, Smartphone, Send, Copy, AlertTriangle } from 'lucide-react';
 
+const BACKEND_URL = import.meta.env.VITE_API_URL || 'https://api.demiempresa.online';
+
 export default function AntigravityAdminPage() {
   const [licencias, setLicencias] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -16,7 +18,7 @@ export default function AntigravityAdminPage() {
   const fetchLicencias = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/antigravity/licencias');
+      const res = await fetch(`${BACKEND_URL}/api/antigravity/licencias`);
       const data = await res.json();
       if (data.success) {
         setLicencias(data.licencias);
@@ -41,7 +43,7 @@ export default function AntigravityAdminPage() {
     setSubmitting(true);
     setFeedback(null);
     try {
-      const res = await fetch('/api/antigravity/activar', {
+      const res = await fetch(`${BACKEND_URL}/api/antigravity/activar`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
