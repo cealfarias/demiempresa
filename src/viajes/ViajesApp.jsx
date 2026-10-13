@@ -4678,25 +4678,6 @@ function ViajesAppContent() {
                     </div>
                   </button>
                 </div>
-
-                {/* Política Estricta de A/C: Solo se muestra si el vehículo permite A/C y el usuario no lo ha activado */}
-                {!isMotoMode && serviceType !== 'PACKAGE' && !tripPreferences.airConditioning && (
-                  <div className="mt-2.5 p-2.5 rounded-xl bg-cyan-950/20 border border-cyan-500/30 flex items-center justify-between gap-2 text-[11px] text-cyan-300 animate-fade-in">
-                    <div className="flex items-center gap-2">
-                      <Wind className="w-4 h-4 text-cyan-400/70 flex-shrink-0" />
-                      <span className="leading-tight text-[11px]">
-                        Tarifa base sin climatización. Puedes activar aire acondicionado por solo ${suggestedFareInfo.suggestedFare}.
-                      </span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={handleEnableAcWithSuggestedFare}
-                      className="px-2.5 py-1 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black text-[10px] whitespace-nowrap cursor-pointer transition-all shadow-sm"
-                    >
-                      Activar A/C (${suggestedFareInfo.suggestedFare})
-                    </button>
-                  </div>
-                )}
               </div>
 
               {/* DIAMANTE ROJO: ¿Necesitas cambio? */}
