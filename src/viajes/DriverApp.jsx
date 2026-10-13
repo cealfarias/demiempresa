@@ -129,6 +129,42 @@ class DriverErrorBoundary extends React.Component {
   }
 }
 
+const calculateRoadDistance = (lat1, lon1, lat2, lon2, fallbackFare = 0, originText = '', destText = '') => {
+  const nLat1 = parseFloat(lat1);
+  const nLon1 = parseFloat(lon1);
+  const nLat2 = parseFloat(lat2);
+  const nLon2 = parseFloat(lon2);
+  if (!isNaN(nLat1) && !isNaN(nLon1) && !isNaN(nLat2) && !isNaN(nLon2) && (Math.abs(nLat1 - nLat2) > 0.001 || Math.abs(nLon1 - nLon2) > 0.001)) {
+    const R = 6371;
+    const dLat = (nLat2 - nLat1) * Math.PI / 180;
+    const dLon = (nLon2 - nLon1) * Math.PI / 180;
+    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+              Math.cos(nLat1 * Math.PI / 180) * Math.cos(nLat2 * Math.PI / 180) *
+              Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    const dist = +( (R * c) * 1.35 ).toFixed(1);
+    if (dist > 1.0) return dist;
+  }
+  const text = `${originText || ''} ${destText || ''}`.toLowerCase();
+  if (text.includes('san miguel')) return 138.0;
+  if (text.includes('santa ana')) return 65.0;
+  if (text.includes('sonsonate')) return 68.0;
+  if (text.includes('usulut')) return 110.0;
+  if (text.includes('ahuachap')) return 100.0;
+  if (text.includes('la uni')) return 185.0;
+  if (text.includes('chalatenango')) return 75.0;
+  if (text.includes('aeropuerto') || text.includes('comalapa')) return 42.0;
+  if (text.includes('cojutepeque')) return 33.0;
+  if (text.includes('san vicente')) return 58.0;
+  if (text.includes('puerto de la libertad') || text.includes('el tunco')) return 35.0;
+
+  const fareNum = parseFloat(fallbackFare || 0);
+  if (fareNum > 8) {
+    return +( (fareNum / 0.85).toFixed(1) );
+  }
+  return 5.0;
+};
+
 function DriverAppContent() {
   const [driverProfile, setDriverProfile] = useState(() => {
     try {
@@ -379,7 +415,23 @@ function DriverAppContent() {
   const initialActiveTrip = (() => {
     try {
       if (typeof window === 'undefined') return null;
-      return JSON.parse(localStorage.getItem('rumbo_driver_active_trip') || 'null');
+      const trip = JSON.parse(localStorage.getItem('rumbo_driver_active_trip') || 'null');
+      if (trip) {
+        const d = parseFloat(trip.roadDistanceKm || trip.distanceKm || 0);
+        const fare = parseFloat(trip.agreedFare || trip.cashToCollect || trip.suggestedFare || 0);
+        if ((!d || d === 5.0) && (fare > 8 || (trip.originLat && trip.destinationLat))) {
+          trip.roadDistanceKm = calculateRoadDistance(
+            trip.originLat,
+            trip.originLng,
+            trip.destinationLat,
+            trip.destinationLng,
+            fare,
+            trip.origin,
+            trip.destination
+          );
+        }
+      }
+      return trip;
     } catch {
       return null;
     }
@@ -394,15 +446,35 @@ function DriverAppContent() {
   });
   const [gpsActive, setGpsActive] = useState(false);
 
+  // Reparación retroactiva automática de distancias congeladas en 5km en el historial del chofer
+  useEffect(() => {
+    try {
+      const savedTrips = JSON.parse(localStorage.getItem('rumbo_driver_completed_trips') || '[]');
+      let hasChanges = false;
+      const repaired = savedTrips.map((p) => {
+        const pDist = parseFloat(p.distanceKm || 0);
+        const pFare = parseFloat(p.fare || 0);
+        if ((!pDist || pDist === 5.0) && pFare > 8) {
+          hasChanges = true;
+          return {
+            ...p,
+            distanceKm: calculateRoadDistance(null, null, null, null, pFare, p.origin, p.destination)
+          };
+        }
+        return p;
+      });
+      if (hasChanges) {
+        localStorage.setItem('rumbo_driver_completed_trips', JSON.stringify(repaired));
+      }
+    } catch {}
+  }, []);
+
   // Estados de Cancelación por Mutuo Acuerdo para el Conductor
   const [showDriverMutualCancelModal, setShowDriverMutualCancelModal] = useState(false);
   const [driverCancelReason, setDriverCancelReason] = useState('Inconveniente técnico con el vehículo');
   const [driverWaitingPeerResponse, setDriverWaitingPeerResponse] = useState(false);
   const [incomingPassengerCancelRequest, setIncomingPassengerCancelRequest] = useState(null);
   const [driverCancelNoticeMsg, setDriverCancelNoticeMsg] = useState(null);
-
-  // Auditoría en Vivo: Comparativa de Generales Recibidas vs Enviadas al Dar Click en He Llegado
-  const [statusAuditModal, setStatusAuditModal] = useState(null);
 
   // Sincronizar activeTrip y tripState en localStorage
   useEffect(() => {
@@ -732,6 +804,18 @@ function DriverAppContent() {
     // Escuchar nuevas solicitudes entrantes
     socket.on('trip:new_request', (reqData) => {
       console.log('🚗 Nueva solicitud recibida en el conductor:', reqData);
+      const originLat = parseFloat(reqData.originLat) || 13.7013;
+      const originLng = parseFloat(reqData.originLng) || -89.2244;
+      const destLat = parseFloat(reqData.destinationLat) || 13.6738;
+      const destLng = parseFloat(reqData.destinationLng) || -89.2789;
+      const originText = reqData.origin || reqData.originAddress || 'Ubicación de recogida';
+      const destText = reqData.destination || reqData.destinationAddress || 'Punto de destino';
+      const fare = reqData.offeredFare || reqData.proposedFare || '3.50';
+      const rawDist = parseFloat(reqData.roadDistanceKm || reqData.distanceKm || 0);
+      const computedDist = (rawDist > 0 && rawDist !== 5.0)
+        ? rawDist
+        : calculateRoadDistance(originLat, originLng, destLat, destLng, fare, originText, destText);
+
       setIncomingRequest({
         id: reqData.tripId,
         passengerName: (reqData.passengerName || 'Pasajero Invitado').trim(),
@@ -742,16 +826,16 @@ function DriverAppContent() {
         isGuest: Boolean(reqData.isGuest),
         serviceType: reqData.serviceType,
         transportType: reqData.transportType || 'CAR',
-        origin: reqData.origin || reqData.originAddress || 'Ubicación de recogida',
-        originLat: parseFloat(reqData.originLat) || 13.7013,
-        originLng: parseFloat(reqData.originLng) || -89.2244,
-        destination: reqData.destination || reqData.destinationAddress || 'Punto de destino',
-        destinationLat: parseFloat(reqData.destinationLat) || 13.6738,
-        destinationLng: parseFloat(reqData.destinationLng) || -89.2789,
-        distanceKm: reqData.distanceKm || 0.5,
-        roadDistanceKm: reqData.roadDistanceKm || reqData.distanceKm || 5.0,
-        offeredFare: reqData.offeredFare || reqData.proposedFare || '3.50',
-        suggestedFare: reqData.suggestedFare || reqData.proposedFare || '3.50',
+        origin: originText,
+        originLat,
+        originLng,
+        destination: destText,
+        destinationLat: destLat,
+        destinationLng: destLng,
+        distanceKm: computedDist,
+        roadDistanceKm: computedDist,
+        offeredFare: fare,
+        suggestedFare: reqData.suggestedFare || fare,
         delayMinutes: reqData.delayMinutes || 0,
         trafficLevel: reqData.trafficLevel || 'FLUID',
         trafficLabel: reqData.trafficLabel || 'Tráfico Fluido',
@@ -767,15 +851,28 @@ function DriverAppContent() {
     // Escuchar asignación de viaje ganada
     socket.on('trip:assigned', (assignedData) => {
       const fare = parseFloat(assignedData.agreedFare || assignedData.cashToCollect || 4.00);
+      const originLat = parseFloat(assignedData.originLat) || 13.7013;
+      const originLng = parseFloat(assignedData.originLng) || -89.2244;
+      const destLat = parseFloat(assignedData.destinationLat) || 13.6738;
+      const destLng = parseFloat(assignedData.destinationLng) || -89.2789;
+      const originText = assignedData.originAddress || 'Ubicación de recogida';
+      const destText = assignedData.destinationAddress || 'Punto de destino';
+      const rawDist = parseFloat(assignedData.roadDistanceKm || assignedData.distanceKm || 0);
+      const computedDist = (rawDist > 0 && rawDist !== 5.0)
+        ? rawDist
+        : calculateRoadDistance(originLat, originLng, destLat, destLng, fare, originText, destText);
+
       setActiveTrip({
         id: assignedData.tripId,
         passengerName: assignedData.passengerName || 'Pasajero',
         passengerPhone: assignedData.passengerPhone ? String(assignedData.passengerPhone) : '',
-        origin: assignedData.originAddress || 'Ubicación de recogida',
-        originLat: parseFloat(assignedData.originLat) || 13.7013,
-        originLng: parseFloat(assignedData.originLng) || -89.2244,
-        destination: assignedData.destinationAddress || 'Punto de destino',
-        roadDistanceKm: parseFloat(assignedData.roadDistanceKm || assignedData.distanceKm || 5.0),
+        origin: originText,
+        originLat,
+        originLng,
+        destination: destText,
+        destinationLat: destLat,
+        destinationLng: destLng,
+        roadDistanceKm: computedDist,
         delayMinutes: parseInt(assignedData.delayMinutes || 0, 10),
         suggestedFare: assignedData.suggestedFare ? parseFloat(assignedData.suggestedFare) : fare,
         preferences: typeof assignedData.preferences === 'object' && assignedData.preferences ? assignedData.preferences : {},
@@ -981,54 +1078,12 @@ function DriverAppContent() {
     setTripState(newStatus);
     const normalized = newStatus === 'DONE' ? 'COMPLETED' : newStatus;
 
-    // Diagnóstico en vivo: captura de datos recibidos y paquete a enviar
-    const auditData = {
-      timestamp: new Date().toLocaleTimeString(),
-      statusAttempted: newStatus,
-      normalizedStatus: normalized,
-      received: {
-        tripId: activeTrip?.id || '(Sin ID asignado / active)',
-        passengerName: activeTrip?.passengerName || '(Sin nombre)',
-        passengerPhone: activeTrip?.passengerPhone || '(Sin teléfono)',
-        passengerId: activeTrip?.passengerId || activeTrip?.passenger_id || '(No especificado)',
-        origin: activeTrip?.origin || '(Sin origen)',
-        destination: activeTrip?.destination || '(Sin destino)',
-        agreedFare: activeTrip?.agreedFare || activeTrip?.suggestedFare || '0.00',
-        cashToCollect: activeTrip?.cashToCollect || '0.00',
-        changeNeeded: activeTrip?.changeNeeded || '0.00',
-        currentTripState: tripState,
-        driverProfileId: driverProfileId || '(Sin ID chofer)',
-        socketId: socket?.id || 'Desconectado',
-        socketConnected: socket?.connected ? 'CONECTADO ✅' : 'DESCONECTADO ❌'
-      },
-      sending: {
-        targetTripId,
-        newStatus: normalized,
-        driverProfileId,
-        socketEvent: 'trip:update_status',
-        restEndpoint: `POST /api/trips/${targetTripId}/status`,
-        socketResponse: '⏳ Esperando respuesta del Socket...',
-        restResponse: '⏳ Esperando respuesta de API REST...',
-        socketOk: null,
-        restOk: null
-      }
-    };
-    setStatusAuditModal(auditData);
-
     socket.emit('trip:update_status', {
       tripId: targetTripId,
       newStatus: normalized,
       driverProfileId
     }, (res) => {
       console.log('📡 [DriverApp] Respuesta trip:update_status:', res);
-      setStatusAuditModal((prev) => prev ? {
-        ...prev,
-        sending: {
-          ...prev.sending,
-          socketResponse: res ? JSON.stringify(res, null, 2) : 'Sin respuesta (timeout o vacío)',
-          socketOk: Boolean(res?.success)
-        }
-      } : null);
       if (res?.trip?.id && (!activeTrip?.id || activeTrip.id === 'active')) {
         setActiveTrip((prev) => prev ? { ...prev, id: res.trip.id } : prev);
       }
@@ -1036,27 +1091,11 @@ function DriverAppContent() {
 
     // Respaldo REST inmediato para garantizar persistencia y emisión segura a pasajeros
     updateTripStatusApi(targetTripId, normalized, driverProfileId).then((res) => {
-      setStatusAuditModal((prev) => prev ? {
-        ...prev,
-        sending: {
-          ...prev.sending,
-          restResponse: res ? JSON.stringify(res, null, 2) : 'Respuesta REST vacía',
-          restOk: Boolean(res?.success)
-        }
-      } : null);
       if (res?.trip?.id && (!activeTrip?.id || activeTrip.id === 'active')) {
         setActiveTrip((prev) => prev ? { ...prev, id: res.trip.id } : prev);
       }
     }).catch((err) => {
       console.warn('Advertencia en actualización REST de viaje:', err.message);
-      setStatusAuditModal((prev) => prev ? {
-        ...prev,
-        sending: {
-          ...prev.sending,
-          restResponse: `Error en REST: ${err.message}`,
-          restOk: false
-        }
-      } : null);
     });
 
     if (newStatus === 'DONE') {
@@ -1066,6 +1105,20 @@ function DriverAppContent() {
       if (activeTrip) {
         try {
           const pastTrips = JSON.parse(localStorage.getItem('rumbo_driver_completed_trips') || '[]');
+          const fareVal = parseFloat(activeTrip.agreedFare || activeTrip.cashToCollect || activeTrip.suggestedFare || 4.00);
+          const rawDist = parseFloat(activeTrip.roadDistanceKm || 0);
+          const completedDist = (rawDist > 0 && rawDist !== 5.0)
+            ? rawDist
+            : calculateRoadDistance(
+                activeTrip.originLat,
+                activeTrip.originLng,
+                activeTrip.destinationLat,
+                activeTrip.destinationLng,
+                fareVal,
+                activeTrip.origin,
+                activeTrip.destination
+              );
+
           const completedItem = {
             id: activeTrip.id || `trip-${Date.now()}`,
             passengerName: activeTrip.passengerName || 'Pasajero Rumbo',
@@ -1075,12 +1128,26 @@ function DriverAppContent() {
             timestamp: Date.now(),
             origin: activeTrip.origin || 'Punto de recogida',
             destination: activeTrip.destination || 'Punto de destino',
-            distanceKm: parseFloat(activeTrip.roadDistanceKm || 5.0),
-            fare: parseFloat(activeTrip.agreedFare || activeTrip.cashToCollect || activeTrip.suggestedFare || 4.00),
+            distanceKm: completedDist,
+            fare: fareVal,
             paymentMethod: '100% Efectivo',
-            commissionSaved: parseFloat(activeTrip.agreedFare || activeTrip.cashToCollect || 4.00) * 0.28
+            commissionSaved: fareVal * 0.28
           };
-          localStorage.setItem('rumbo_driver_completed_trips', JSON.stringify([completedItem, ...pastTrips]));
+
+          // Reparar retroactivamente viajes anteriores que hayan quedado congelados en 5.0 km
+          const repairedPastTrips = pastTrips.map((p) => {
+            const pDist = parseFloat(p.distanceKm || 0);
+            const pFare = parseFloat(p.fare || 0);
+            if ((!pDist || pDist === 5.0) && pFare > 8) {
+              return {
+                ...p,
+                distanceKm: calculateRoadDistance(null, null, null, null, pFare, p.origin, p.destination)
+              };
+            }
+            return p;
+          });
+
+          localStorage.setItem('rumbo_driver_completed_trips', JSON.stringify([completedItem, ...repairedPastTrips]));
         } catch (e) {
           console.error('Error saving completed trip:', e);
         }
@@ -1821,43 +1888,23 @@ function DriverAppContent() {
             {/* Controles de Estado del Viaje */}
             <div className="pt-2 space-y-2">
               {tripState === 'EN_ROUTE_TO_PICKUP' && (
-                <div className="space-y-2">
-                  <button
-                    onClick={() => handleUpdateStatus('ARRIVED')}
-                    className="w-full py-3.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-xl text-sm shadow-lg flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-[0.99]"
-                  >
-                    <CheckCircle className="w-5 h-5" />
-                    <span>YA LLEGUÉ AL PUNTO DE RECOGIDA</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleUpdateStatus('ARRIVED')}
-                    className="w-full py-2 bg-slate-900 hover:bg-slate-800 text-amber-400 font-bold text-xs rounded-xl border border-amber-500/40 flex items-center justify-center gap-1.5 cursor-pointer shadow-sm transition-all"
-                  >
-                    <ArrowRightLeft className="w-3.5 h-3.5 text-amber-400" />
-                    <span>🔍 Comparar Generales: Recibidas vs Enviadas</span>
-                  </button>
-                </div>
+                <button
+                  onClick={() => handleUpdateStatus('ARRIVED')}
+                  className="w-full py-3.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-xl text-sm shadow-lg flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-[0.99]"
+                >
+                  <CheckCircle className="w-5 h-5" />
+                  <span>YA LLEGUÉ AL PUNTO DE RECOGIDA</span>
+                </button>
               )}
 
               {tripState === 'ARRIVED' && (
-                <div className="space-y-2">
-                  <button
-                    onClick={() => handleUpdateStatus('IN_TRANSIT')}
-                    className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-500 text-white font-black rounded-xl text-sm shadow-lg flex items-center justify-center gap-2 cursor-pointer"
-                  >
-                    <Car className="w-5 h-5" />
-                    <span>PASAJERO A BORDO: INICIAR VIAJE</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleUpdateStatus('ARRIVED')}
-                    className="w-full py-2 bg-slate-900 hover:bg-slate-800 text-amber-400 font-bold text-xs rounded-xl border border-amber-500/40 flex items-center justify-center gap-1.5 cursor-pointer shadow-sm transition-all"
-                  >
-                    <ArrowRightLeft className="w-3.5 h-3.5 text-amber-400" />
-                    <span>🔍 Ver Comparativa de Generales (ARRIVED)</span>
-                  </button>
-                </div>
+                <button
+                  onClick={() => handleUpdateStatus('IN_TRANSIT')}
+                  className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-500 text-white font-black rounded-xl text-sm shadow-lg flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <Car className="w-5 h-5" />
+                  <span>PASAJERO A BORDO: INICIAR VIAJE</span>
+                </button>
               )}
 
               {tripState === 'IN_TRANSIT' && (
@@ -2777,8 +2824,8 @@ function DriverAppContent() {
         />
       )}
 
-      {/* Modal de Auditoría en Vivo: Comparativa de Generales Recibidas vs Enviadas al marcar 'ARRIVED' */}
-      {statusAuditModal && (
+      {/* Modal de Auditoría en Vivo desactivado tras verificación exitosa */}
+      {false && statusAuditModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md animate-fade-in">
           <div className="bg-slate-900 border border-amber-500/50 rounded-2xl p-4 sm:p-5 max-w-2xl w-full max-h-[92vh] flex flex-col shadow-2xl text-left overflow-hidden">
             

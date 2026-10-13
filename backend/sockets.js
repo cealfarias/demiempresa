@@ -24,6 +24,25 @@ export function initializeWebSockets(httpServer) {
   const connectedUsers = new Map();
   const driverSockets = new Map();
 
+  function calculateRoadDistanceKm(lat1, lon1, lat2, lon2, defaultKm = 5.0) {
+    const nLat1 = parseFloat(lat1);
+    const nLon1 = parseFloat(lon1);
+    const nLat2 = parseFloat(lat2);
+    const nLon2 = parseFloat(lon2);
+    if (isNaN(nLat1) || isNaN(nLon1) || isNaN(nLat2) || isNaN(nLon2)) return defaultKm;
+    if ((nLat1 === 0 && nLon1 === 0) || (nLat2 === 0 && nLon2 === 0)) return defaultKm;
+    if (Math.abs(nLat1 - nLat2) < 0.0001 && Math.abs(nLon1 - nLon2) < 0.0001) return defaultKm;
+    const R = 6371;
+    const dLat = (nLat2 - nLat1) * Math.PI / 180;
+    const dLon = (nLon2 - nLon1) * Math.PI / 180;
+    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+              Math.cos(nLat1 * Math.PI / 180) * Math.cos(nLat2 * Math.PI / 180) *
+              Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    const roadDist = (R * c) * 1.35; // Factor de curvatura vial real en El Salvador
+    return Math.max(0.5, +(roadDist.toFixed(1)));
+  }
+
   io.on('connection', (socket) => {
     console.log(`🔌 Cliente conectado: ${socket.id}`);
 
@@ -211,18 +230,24 @@ export function initializeWebSockets(httpServer) {
         const finalOrigin = (originAddress || tripData.origin || 'Ubicación de partida').trim();
         const finalDest = (destinationAddress || tripData.destination || 'Punto de destino').trim();
 
+        // Calcular y preservar distancia vial real (km)
+        const incomingDist = parseFloat(tripData.roadDistanceKm || tripData.distanceKm || 0);
+        const effectiveRoadDist = (incomingDist > 0 && incomingDist !== 5.0)
+          ? incomingDist
+          : calculateRoadDistanceKm(safeOriginLat, safeOriginLng, safeDestLat, safeDestLng, incomingDist || 5.0);
+
         const insertRes = await pool.query(`
           INSERT INTO viajes_trips (
             service_type, passenger_id, origin_address, origin_lat, origin_lng,
             destination_address, destination_lat, destination_lng, destination_municipality,
-            proposed_fare, credit_applied, package_details, payment_timing, status
+            distance_km, proposed_fare, credit_applied, package_details, payment_timing, status
           )
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'REQUESTED')
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, 'REQUESTED')
           RETURNING *;
         `, [
           serviceType, effectivePassengerId, finalOrigin, safeOriginLat, safeOriginLng,
           finalDest, safeDestLat, safeDestLng, destinationMunicipality,
-          safeFare, creditApplied, packageDetails || null, paymentTiming || 'AT_ORIGIN'
+          effectiveRoadDist, safeFare, creditApplied, packageDetails || null, paymentTiming || 'AT_ORIGIN'
         ]);
 
         const newTrip = insertRes.rows[0];
@@ -250,8 +275,8 @@ export function initializeWebSockets(httpServer) {
           offeredFare: newTrip.proposed_fare,
           proposedFare: newTrip.proposed_fare,
           suggestedFare: tripData.suggestedFare || newTrip.proposed_fare,
-          distanceKm: 0.5,
-          roadDistanceKm: tripData.distanceKm || 5.0,
+          distanceKm: effectiveRoadDist,
+          roadDistanceKm: effectiveRoadDist,
           delayMinutes: tripData.delayMinutes || 0,
           trafficLevel: tripData.trafficLevel || 'FLUID',
           trafficLabel: tripData.trafficLabel || 'Tráfico Fluido',
@@ -578,7 +603,8 @@ export function initializeWebSockets(httpServer) {
             passengerName: passenger.full_name || 'Pasajero',
             passengerPhone: passenger.phone ? String(passenger.phone) : '',
             whatsappLink,
-            roadDistanceKm: parseFloat(trip?.distance_km || 5.0),
+            roadDistanceKm: parseFloat(trip?.distance_km || 0) || calculateRoadDistanceKm(trip?.origin_lat, trip?.origin_lng, trip?.destination_lat, trip?.destination_lng, 5.0),
+            distanceKm: parseFloat(trip?.distance_km || 0) || calculateRoadDistanceKm(trip?.origin_lat, trip?.origin_lng, trip?.destination_lat, trip?.destination_lng, 5.0),
             suggestedFare: trip?.proposed_fare || effectiveFare.toFixed(2),
             preferences: trip?.package_details?.preferences || {},
             cashBill: trip?.payment_timing === 'EXACT' ? 'EXACT' : '10',
@@ -747,7 +773,8 @@ export function initializeWebSockets(httpServer) {
             passengerName: passenger.full_name || 'Pasajero',
             passengerPhone: passenger.phone ? String(passenger.phone) : '',
             whatsappLink,
-            roadDistanceKm: parseFloat(trip?.distance_km || 5.0),
+            roadDistanceKm: parseFloat(trip?.distance_km || 0) || calculateRoadDistanceKm(trip?.origin_lat, trip?.origin_lng, trip?.destination_lat, trip?.destination_lng, 5.0),
+            distanceKm: parseFloat(trip?.distance_km || 0) || calculateRoadDistanceKm(trip?.origin_lat, trip?.origin_lng, trip?.destination_lat, trip?.destination_lng, 5.0),
             suggestedFare: trip?.proposed_fare || agreedFare,
             preferences: trip?.package_details?.preferences || {},
             cashBill: cashBill || (trip?.payment_timing === 'EXACT' ? 'EXACT' : '10'),

@@ -26,10 +26,36 @@ export default function DriverEarningsView({
   const [timeframe, setTimeframe] = useState('TODAY'); // 'TODAY' | 'WEEK' | 'MONTH' | 'YEAR'
   const [hoveredPoint, setHoveredPoint] = useState(null);
 
-  // Obtener viajes completados reales almacenados en el dispositivo
+  // Obtener viajes completados reales almacenados en el dispositivo y reparar distancias
   const completedTrips = useMemo(() => {
     try {
-      return JSON.parse(localStorage.getItem('rumbo_driver_completed_trips') || '[]');
+      const raw = JSON.parse(localStorage.getItem('rumbo_driver_completed_trips') || '[]');
+      let hasChanges = false;
+      const repaired = raw.map((t) => {
+        const d = parseFloat(t.distanceKm || 0);
+        const fare = parseFloat(t.fare || 0);
+        if ((!d || d === 5.0) && fare > 8) {
+          hasChanges = true;
+          const text = `${t.origin || ''} ${t.destination || ''}`.toLowerCase();
+          let fixedKm = +( (fare / 0.85).toFixed(1) );
+          if (text.includes('san miguel')) fixedKm = 138.0;
+          else if (text.includes('santa ana')) fixedKm = 65.0;
+          else if (text.includes('sonsonate')) fixedKm = 68.0;
+          else if (text.includes('usulut')) fixedKm = 110.0;
+          else if (text.includes('ahuachap')) fixedKm = 100.0;
+          else if (text.includes('la uni')) fixedKm = 185.0;
+          else if (text.includes('chalatenango')) fixedKm = 75.0;
+          else if (text.includes('aeropuerto') || text.includes('comalapa')) fixedKm = 42.0;
+          return { ...t, distanceKm: fixedKm };
+        }
+        return t;
+      });
+      if (hasChanges) {
+        try {
+          localStorage.setItem('rumbo_driver_completed_trips', JSON.stringify(repaired));
+        } catch {}
+      }
+      return repaired;
     } catch {
       return [];
     }

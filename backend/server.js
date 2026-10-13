@@ -761,6 +761,25 @@ app.get('/api/drivers/:id/status', async (req, res) => {
   }
 });
 
+function calculateRoadDistanceKm(lat1, lon1, lat2, lon2, defaultKm = 5.0) {
+  const nLat1 = parseFloat(lat1);
+  const nLon1 = parseFloat(lon1);
+  const nLat2 = parseFloat(lat2);
+  const nLon2 = parseFloat(lon2);
+  if (isNaN(nLat1) || isNaN(nLon1) || isNaN(nLat2) || isNaN(nLon2)) return defaultKm;
+  if ((nLat1 === 0 && nLon1 === 0) || (nLat2 === 0 && nLon2 === 0)) return defaultKm;
+  if (Math.abs(nLat1 - nLat2) < 0.0001 && Math.abs(nLon1 - nLon2) < 0.0001) return defaultKm;
+  const R = 6371;
+  const dLat = (nLat2 - nLat1) * Math.PI / 180;
+  const dLon = (nLon2 - nLon1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(nLat1 * Math.PI / 180) * Math.cos(nLat2 * Math.PI / 180) *
+            Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  const roadDist = (R * c) * 1.35;
+  return Math.max(0.5, +(roadDist.toFixed(1)));
+}
+
 // 5.1.0 CONSULTA DE SOLICITUDES DE VIAJE PENDIENTES (DESPACHO Y FEED PARA CONDUCTORES)
 app.get('/api/trips/pending', async (req, res) => {
   try {
@@ -789,7 +808,8 @@ app.get('/api/trips/pending', async (req, res) => {
       const safeOriginLng = parseFloat(row.origin_lng) || -89.2244;
       const safeDestLat = parseFloat(row.destination_lat) || 13.6738;
       const safeDestLng = parseFloat(row.destination_lng) || -89.2789;
-      const distKm = parseFloat(detailsObj?.distanceKm || row.distance_km || 5.0);
+      const rawDist = parseFloat(detailsObj?.distanceKm || row.distance_km || 0);
+      const distKm = (rawDist > 0 && rawDist !== 5.0) ? rawDist : calculateRoadDistanceKm(safeOriginLat, safeOriginLng, safeDestLat, safeDestLng, rawDist || 5.0);
       const fare = parseFloat(row.proposed_fare || 3.50).toFixed(2);
       const isPool = row.service_type === 'SHARED_POOL';
 
@@ -933,6 +953,8 @@ app.get('/api/trips/:tripId/status', async (req, res) => {
       originAddress: row.origin_address,
       destinationAddress: row.destination_address,
       destinationMunicipality: row.destination_municipality,
+      roadDistanceKm: parseFloat(row.distance_km || 0) || calculateRoadDistanceKm(row.origin_lat, row.origin_lng, row.destination_lat, row.destination_lng, 5.0),
+      distanceKm: parseFloat(row.distance_km || 0) || calculateRoadDistanceKm(row.origin_lat, row.origin_lng, row.destination_lat, row.destination_lng, 5.0),
       agreedFare: row.agreed_fare,
       cashToCollect: row.cash_to_collect,
       creditApplied: row.credit_applied,
@@ -2304,6 +2326,7 @@ async function initializeDatabase() {
       await pool.query(`ALTER TABLE viajes_driver_profiles ADD COLUMN IF NOT EXISTS ${col};`).catch(() => {});
     }
     await pool.query(`ALTER TABLE viajes_users ADD COLUMN IF NOT EXISTS password_hash TEXT;`).catch(() => {});
+    await pool.query(`ALTER TABLE viajes_trips ADD COLUMN IF NOT EXISTS distance_km NUMERIC(8,2);`).catch(() => {});
 
     // 1.1 Crear tabla de Tickets de Inbox (Pagos, Sugerencias, Quejas, Soporte)
     try {
