@@ -4555,29 +4555,11 @@ function ViajesAppContent() {
                   </div>
                 )}
 
-                <div className="flex items-center justify-between mb-1.5">
+                <div className="mb-1.5">
                   <label className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
                     <DollarSign className="w-3.5 h-3.5 text-amber-400" />
                     <span>Tu Oferta en Efectivo (USD)</span>
                   </label>
-
-                  {/* Chip de Tarifa Sugerida Calculada en Vivo */}
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-[11px] text-slate-400">
-                      {tripPreferences.airConditioning ? 'Sugerida (con A/C):' : 'Sugerida (sin A/C):'}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={handleUseSuggestedFare}
-                      className="px-2 py-0.5 rounded-lg bg-lime-500/15 border border-lime-500/40 text-lime-300 font-extrabold text-xs flex items-center gap-1 hover:bg-lime-500/25 transition-all cursor-pointer shadow-sm group"
-                      title={tripPreferences.airConditioning ? "Tarifa calculada con aire acondicionado" : "Tarifa base recomendada sin aire acondicionado"}
-                    >
-                      <span className="font-mono">${suggestedFareInfo.suggestedFare}</span>
-                      <span className="text-[9px] uppercase tracking-wider bg-lime-500 text-slate-950 px-1 py-0.5 rounded font-black group-hover:scale-105 transition-transform">
-                        Usar
-                      </span>
-                    </button>
-                  </div>
                 </div>
 
                 <div className="relative">
