@@ -910,21 +910,41 @@ app.get('/api/trips/:tripId/offers', async (req, res) => {
 app.get('/api/trips/:tripId/status', async (req, res) => {
   try {
     const { tripId } = req.params;
+    const { passengerId } = req.query;
     if (!tripId) return res.status(400).json({ error: 'tripId requerido' });
 
-    let tripRes = await pool.query(`
-      SELECT t.*, u.full_name as passenger_name, u.phone as passenger_phone,
-             dp.vehicle_plate, dp.vehicle_brand, dp.vehicle_model, dp.vehicle_color, dp.photo_url as driver_photo,
-             du.full_name as driver_name, du.phone as driver_phone
-      FROM viajes_trips t
-      LEFT JOIN viajes_users u ON t.passenger_id = u.id
-      LEFT JOIN viajes_driver_profiles dp ON t.driver_id = dp.id
-      LEFT JOIN viajes_users du ON dp.user_id = du.id
-      WHERE t.id::text = $1
-      LIMIT 1;
-    `, [tripId]);
+    let tripRes = { rows: [] };
+    if (tripId !== 'active') {
+      tripRes = await pool.query(`
+        SELECT t.*, u.full_name as passenger_name, u.phone as passenger_phone,
+               dp.vehicle_plate, dp.vehicle_brand, dp.vehicle_model, dp.vehicle_color, dp.photo_url as driver_photo,
+               du.full_name as driver_name, du.phone as driver_phone
+        FROM viajes_trips t
+        LEFT JOIN viajes_users u ON t.passenger_id = u.id
+        LEFT JOIN viajes_driver_profiles dp ON t.driver_id = dp.id
+        LEFT JOIN viajes_users du ON dp.user_id = du.id
+        WHERE t.id::text = $1
+        LIMIT 1;
+      `, [tripId]);
+    }
 
-    // Rescate resiliente: Si no se encontró por ID exacto, buscar el viaje activo más reciente
+    // Rescate resiliente por ID de pasajero si tripId era 'active' o no coincidió
+    if (tripRes.rows.length === 0 && passengerId) {
+      tripRes = await pool.query(`
+        SELECT t.*, u.full_name as passenger_name, u.phone as passenger_phone,
+               dp.vehicle_plate, dp.vehicle_brand, dp.vehicle_model, dp.vehicle_color, dp.photo_url as driver_photo,
+               du.full_name as driver_name, du.phone as driver_phone
+        FROM viajes_trips t
+        LEFT JOIN viajes_users u ON t.passenger_id = u.id
+        LEFT JOIN viajes_driver_profiles dp ON t.driver_id = dp.id
+        LEFT JOIN viajes_users du ON dp.user_id = du.id
+        WHERE t.passenger_id::text = $1 AND t.status NOT IN ('COMPLETED', 'CANCELLED')
+        ORDER BY t.created_at DESC
+        LIMIT 1;
+      `, [passengerId]);
+    }
+
+    // Rescate resiliente global: viaje activo más reciente
     if (tripRes.rows.length === 0) {
       tripRes = await pool.query(`
         SELECT t.*, u.full_name as passenger_name, u.phone as passenger_phone,

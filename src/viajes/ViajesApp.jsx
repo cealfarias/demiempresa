@@ -1250,6 +1250,7 @@ function ViajesAppContent() {
             if (res.trip.status === 'ARRIVED') setTripStatus('DRIVER_ARRIVED');
             else if (res.trip.status === 'IN_TRANSIT') setTripStatus('IN_TRANSIT');
             else if (res.trip.status === 'COMPLETED') setTripStatus('COMPLETED');
+            else setTripStatus('DRIVER_EN_ROUTE');
           }
         }
       });
@@ -1564,15 +1565,48 @@ function ViajesAppContent() {
     };
   }, [tripId, assignedTrip?.tripId, appState, tripStatus, userProfile?.id]);
 
+  // Screen Wake Lock: Mantener la pantalla del celular encendida durante la búsqueda de conductor o viaje activo
+  useEffect(() => {
+    let wakeLockSentinel = null;
+
+    const requestWakeLock = async () => {
+      try {
+        if ('wakeLock' in navigator && (appState === 'AUCTION' || appState === 'IN_TRIP_HUB')) {
+          wakeLockSentinel = await navigator.wakeLock.request('screen');
+        }
+      } catch (err) {
+        // Ignorar silenciosamente si el dispositivo no lo permite por ahorro de batería
+      }
+    };
+
+    requestWakeLock();
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        requestWakeLock();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility);
+      if (wakeLockSentinel) {
+        wakeLockSentinel.release().catch(() => {});
+      }
+    };
+  }, [appState]);
+
   // Polling resiliente de sincronización continua de estado de viaje (salvaguarda si el WebSocket se pausa en móvil)
   useEffect(() => {
     if ((appState !== 'IN_TRIP_HUB' && appState !== 'AUCTION') || tripStatus === 'COMPLETED') return;
     let isMounted = true;
+    const effPassengerId = userProfile?.id || localStorage.getItem('rumbo_guest_passenger_id') || null;
 
     const syncStatus = async () => {
       try {
         const queryId = tripId || assignedTrip?.tripId || 'active';
-        const res = await fetchTripStatusApi(queryId);
+        const res = await fetchTripStatusApi(queryId, effPassengerId);
         if (!isMounted || !res?.success || !res?.status) return;
 
         const nextStatus = res.status;
@@ -1604,7 +1638,14 @@ function ViajesAppContent() {
           });
         }
 
-        if ((nextStatus === 'ARRIVED' || nextStatus === 'DRIVER_ARRIVED') && tripStatus !== 'DRIVER_ARRIVED' && tripStatus !== 'IN_TRANSIT' && tripStatus !== 'COMPLETED') {
+        if ((nextStatus === 'ACCEPTED' || nextStatus === 'DRIVER_EN_ROUTE') && tripStatus !== 'DRIVER_EN_ROUTE' && tripStatus !== 'DRIVER_ARRIVED' && tripStatus !== 'IN_TRANSIT' && tripStatus !== 'COMPLETED') {
+          console.log('⚡ [ViajesApp] Sincronización detectó viaje ACEPTADO por conductor. Activando HUB.');
+          setAppState('IN_TRIP_HUB');
+          setTripStatus('DRIVER_EN_ROUTE');
+          triggerSelectionFeedback();
+          if (navigator.vibrate) navigator.vibrate([250, 100, 250]);
+          speakAssistantMessage('¡Conductor asignado! Va en camino a tu punto de recogida.');
+        } else if ((nextStatus === 'ARRIVED' || nextStatus === 'DRIVER_ARRIVED') && tripStatus !== 'DRIVER_ARRIVED' && tripStatus !== 'IN_TRANSIT' && tripStatus !== 'COMPLETED') {
           setAppState('IN_TRIP_HUB');
           setTripStatus('DRIVER_ARRIVED');
           triggerSelectionFeedback();
@@ -1631,11 +1672,28 @@ function ViajesAppContent() {
 
     syncStatus();
     const interval = setInterval(syncStatus, 2000);
+
+    const handleWakeup = () => {
+      console.log('📱 [ViajesApp] Evento de reactivación detectado (pantalla encendida/foco/red). Sincronizando al instante...');
+      syncStatus();
+    };
+
+    document.addEventListener('visibilitychange', handleWakeup);
+    window.addEventListener('focus', handleWakeup);
+    window.addEventListener('pageshow', handleWakeup);
+    window.addEventListener('online', handleWakeup);
+    socket.on('connect', handleWakeup);
+
     return () => {
       isMounted = false;
       clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleWakeup);
+      window.removeEventListener('focus', handleWakeup);
+      window.removeEventListener('pageshow', handleWakeup);
+      window.removeEventListener('online', handleWakeup);
+      socket.off('connect', handleWakeup);
     };
-  }, [appState, tripId, tripStatus, assignedTrip?.tripId]);
+  }, [appState, tripId, tripStatus, assignedTrip?.tripId, userProfile?.id]);
 
   // Verificación de Dopamina: Notificar al referente si un amigo se registró con su enlace y hacer sonar dinero
   useEffect(() => {
@@ -2753,8 +2811,17 @@ function ViajesAppContent() {
     if (!localStorage.getItem('rumbo_guest_passenger_id')) {
       localStorage.setItem('rumbo_guest_passenger_id', effectivePassengerId);
     }
-    if (isPushSupported() && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-      subscribeUserToPush({ userId: effectivePassengerId, userType: 'PASSENGER' }).catch(() => {});
+    if (isPushSupported() && typeof Notification !== 'undefined') {
+      if (Notification.permission === 'granted') {
+        subscribeUserToPush({ userId: effectivePassengerId, userType: 'PASSENGER' }).catch(() => {});
+      } else if (Notification.permission === 'default') {
+        // Pedir permiso al usuario proactivamente para notificar cuando la pantalla esté apagada
+        Notification.requestPermission().then((perm) => {
+          if (perm === 'granted') {
+            subscribeUserToPush({ userId: effectivePassengerId, userType: 'PASSENGER' }).catch(() => {});
+          }
+        }).catch(() => {});
+      }
     }
 
     // Emitir solicitud al WebSocket Gateway (Despacho a Conductores Reales)

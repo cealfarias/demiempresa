@@ -1306,10 +1306,14 @@ export async function fetchTripActiveOffersApi(tripId) {
 /**
  * 44. Consultar Estado en Vivo de un Viaje (Polling REST para Pasajero y Chofer)
  */
-export async function fetchTripStatusApi(tripId) {
+export async function fetchTripStatusApi(tripId, passengerId = null) {
   if (!tripId) return { success: false, error: 'tripId missing' };
   try {
-    const res = await fetch(`${API_BASE_URL}/api/trips/${encodeURIComponent(tripId)}/status`);
+    let url = `${API_BASE_URL}/api/trips/${encodeURIComponent(tripId)}/status`;
+    if (passengerId) {
+      url += `?passengerId=${encodeURIComponent(passengerId)}`;
+    }
+    const res = await fetch(url);
     if (!res.ok) return { success: false };
     return await res.json();
   } catch (err) {
