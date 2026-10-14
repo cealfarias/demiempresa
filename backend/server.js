@@ -4247,7 +4247,30 @@ app.post('/api/antigravity/activar', async (req, res) => {
     ]);
     res.json({ success: true, licencia: rows[0] });
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+// Verificación pública de licencia por HWID (sin exponer credenciales de BD al cliente)
+app.get('/api/antigravity/verificar-licencia', async (req, res) => {
+  try {
+    const hwid = req.query.hwid;
+    if (!hwid) {
+      return res.status(400).json({ active: false, status: 'HWID_REQUIRED', message: 'HWID requerido' });
+    }
+    const hwidClean = hwid.trim().toUpperCase();
+    const { rows } = await pool.query('SELECT * FROM agy_licencias WHERE hwid = $1 LIMIT 1', [hwidClean]);
+    if (rows.length === 0) {
+      return res.json({ active: false, status: 'NO_LICENSE', message: 'Sin licencia registrada' });
+    }
+    const lic = rows[0];
+    const ahora = new Date();
+    if (lic.estado === 'ACTIVA') {
+      if (lic.fecha_expiracion && ahora > new Date(lic.fecha_expiracion)) {
+        return res.json({ active: false, status: 'EXPIRADA', message: 'Licencia vencida. Por favor renueve su plan.' });
+      }
+      const expStr = lic.fecha_expiracion ? new Date(lic.fecha_expiracion).toISOString().split('T')[0] : 'PERMANENTE';
+      return res.json({ active: true, status: 'ACTIVA', cliente: lic.cliente_nombre, expires: expStr });
+    }
+    return res.json({ active: false, status: lic.estado, message: 'Licencia en proceso de verificación (hasta 24h).' });
+  } catch (err) {
+    res.status(500).json({ active: false, status: 'SERVER_ERROR', message: err.message });
   }
 });
 
