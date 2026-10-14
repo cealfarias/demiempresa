@@ -17,15 +17,32 @@ export default function AntigravityAdminPage() {
 
   const fetchLicencias = async () => {
     setLoading(true);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 12000);
+
     try {
-      const res = await fetch(`${BACKEND_URL}/api/antigravity/licencias`);
+      const res = await fetch(`${BACKEND_URL}/api/antigravity/licencias`, { signal: controller.signal });
+      clearTimeout(timeoutId);
       const data = await res.json();
       if (data.success) {
         setLicencias(data.licencias);
+        setFeedback(null);
       }
     } catch (err) {
-      console.error(err);
+      console.warn("Aviso al consultar licencias:", err);
+      if (err.name === 'AbortError') {
+        setFeedback({ 
+          type: 'info', 
+          text: 'El servidor en Render se está despertando tras inactividad. En 15-30 segundos se cargará automáticamente.' 
+        });
+      } else {
+        setFeedback({ 
+          type: 'error', 
+          text: 'Conectando con el backend... Si Render estaba inactivo, pulsa Actualizar en unos segundos.' 
+        });
+      }
     } finally {
+      clearTimeout(timeoutId);
       setLoading(false);
     }
   };
