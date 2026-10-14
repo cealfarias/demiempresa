@@ -89,22 +89,31 @@ export default function AntigravityDownloadPage() {
           {/* Download Box */}
           <div className="pt-4 flex flex-col sm:flex-row items-center justify-center gap-4">
             <a
-              href="/downloads/ADBAntigravityPro.exe"
-              download="ADBAntigravityPro.exe"
+              href="/downloads/ADBAntigravityPro.zip"
+              download="ADBAntigravityPro.zip"
               className="w-full sm:w-auto inline-flex items-center justify-center gap-3 px-8 py-4 rounded-xl font-bold text-slate-950 bg-gradient-to-r from-cyan-400 via-sky-400 to-cyan-300 hover:from-cyan-300 hover:to-sky-300 shadow-xl shadow-cyan-500/25 transition-all transform hover:-translate-y-0.5 active:translate-y-0"
             >
               <Download className="w-5 h-5 text-slate-950" />
-              <span>Descargar ADBAntigravityPro.exe</span>
-              <span className="text-xs bg-slate-950/20 px-2 py-0.5 rounded text-slate-950 font-mono">19.5 MB</span>
+              <span>Descargar Paquete ZIP (Recomendado)</span>
+              <span className="text-xs bg-slate-950/20 px-2 py-0.5 rounded text-slate-950 font-mono">19.2 MB</span>
+            </a>
+
+            <a
+              href="/downloads/ADBAntigravityPro.exe"
+              download="ADBAntigravityPro.exe"
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-4 rounded-xl font-semibold text-slate-300 bg-slate-900 border border-slate-700/80 hover:bg-slate-800 hover:text-white transition-all text-xs"
+            >
+              <Download className="w-4 h-4 text-slate-400" />
+              <span>Descarga Directa .exe</span>
             </a>
 
             <a
               href="https://wa.me/50369574224?text=Hola,%20deseo%20activar%20mi%20licencia%20de%20ADB%20Antigravity%20Pro"
               target="_blank"
               rel="noreferrer"
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-4 rounded-xl font-semibold text-slate-200 bg-slate-900 border border-slate-700/80 hover:bg-slate-800 transition-all"
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-4 rounded-xl font-semibold text-cyan-400 bg-cyan-950/40 border border-cyan-800/60 hover:bg-cyan-900/40 transition-all text-sm"
             >
-              <span>Solicitar Licencia Comercial</span>
+              <span>Solicitar Licencia</span>
               <ArrowRight className="w-4 h-4 text-cyan-400" />
             </a>
           </div>
