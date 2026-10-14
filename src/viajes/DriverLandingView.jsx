@@ -558,6 +558,20 @@ export default function DriverLandingView({ onStartRegistration, onCheckStatus, 
           </button>
         </div>
 
+        {/* Enlace directo a Comunidad Oficial de WhatsApp de Conductores */}
+        <div className="pt-3 max-w-xl mx-auto">
+          <a
+            href="https://chat.whatsapp.com/Gp4a3PqUWug11Xq7f2dOfd"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-full py-3 px-5 rounded-2xl bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/50 text-emerald-300 hover:text-emerald-200 font-bold text-xs sm:text-sm flex items-center justify-center gap-2.5 transition-all shadow-lg shadow-emerald-950/40 group cursor-pointer"
+          >
+            <MessageCircle className="w-4 h-4 text-emerald-400 group-hover:scale-110 transition-transform" />
+            <span>💬 Únete al Grupo Oficial de WhatsApp de Conductores Rumbo</span>
+            <ExternalLink className="w-3.5 h-3.5 text-emerald-400 opacity-70" />
+          </a>
+        </div>
+
         {/* Acceso Rápido para conductores ya inscritos */}
         <div className="pt-1 text-xs text-slate-400">
           ¿Ya enviaste tus documentos?{' '}
@@ -1232,6 +1246,20 @@ export default function DriverLandingView({ onStartRegistration, onCheckStatus, 
           >
             Ya envié mi solicitud • Ver estatus
           </button>
+        </div>
+
+        {/* Enlace directo a Comunidad Oficial de WhatsApp de Conductores (Bottom) */}
+        <div className="pt-4 max-w-md mx-auto">
+          <a
+            href="https://chat.whatsapp.com/Gp4a3PqUWug11Xq7f2dOfd"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-full py-3 px-5 rounded-2xl bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/50 text-emerald-300 hover:text-emerald-200 font-bold text-xs sm:text-sm flex items-center justify-center gap-2.5 transition-all shadow-lg shadow-emerald-950/40 group cursor-pointer"
+          >
+            <MessageCircle className="w-4 h-4 text-emerald-400 group-hover:scale-110 transition-transform" />
+            <span>Únete al Grupo Oficial de WhatsApp de Conductores</span>
+            <ExternalLink className="w-3.5 h-3.5 text-emerald-400 opacity-70" />
+          </a>
         </div>
 
         <div className="pt-8 text-[11px] text-slate-500 border-t border-slate-900 max-w-xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
