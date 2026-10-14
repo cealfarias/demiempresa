@@ -4251,6 +4251,67 @@ app.post('/api/antigravity/activar', async (req, res) => {
   }
 });
 
+// Registro público de 24h gratis a cambio de datos para publicidad
+app.post('/api/antigravity/registro-trial', async (req, res) => {
+  try {
+    const { hwid, nombre, email, telefono, acepta_publicidad } = req.body;
+    if (!hwid || !nombre || (!email && !telefono)) {
+      return res.status(400).json({ success: false, error: 'Nombre y al menos un canal de contacto (Email o WhatsApp) son obligatorios.' });
+    }
+    const hwidClean = hwid.trim().toUpperCase();
+
+    // Comprobar si este HWID ya utilizó su prueba gratuita previamente
+    const { rows: existing } = await pool.query('SELECT * FROM agy_licencias WHERE hwid = $1', [hwidClean]);
+    if (existing.length > 0 && existing[0].es_prueba_gratis && existing[0].estado !== 'PENDIENTE') {
+      return res.status(400).json({
+        success: false,
+        error: 'Este equipo ya utilizó su acceso gratuito de 24 horas. Para continuar disfrutando del servicio adquiera una licencia comercial.'
+      });
+    }
+
+    const ahora = new Date();
+    const expiracion = new Date();
+    expiracion.setHours(expiracion.getHours() + 24); // 24 horas exactas
+
+    const query = `
+      INSERT INTO agy_licencias 
+        (hwid, cliente_nombre, email, telefono, metodo_pago, estado, dias_validez, es_prueba_gratis, acepta_publicidad, fecha_activacion, fecha_expiracion)
+      VALUES 
+        ($1, $2, $3, $4, 'PRUEBA_GRATIS_24H', 'ACTIVA', 1, TRUE, $5, $6, $7)
+      ON CONFLICT (hwid) DO UPDATE SET
+        cliente_nombre = EXCLUDED.cliente_nombre,
+        email = EXCLUDED.email,
+        telefono = EXCLUDED.telefono,
+        metodo_pago = 'PRUEBA_GRATIS_24H',
+        estado = 'ACTIVA',
+        dias_validez = 1,
+        es_prueba_gratis = TRUE,
+        acepta_publicidad = EXCLUDED.acepta_publicidad,
+        fecha_activacion = EXCLUDED.fecha_activacion,
+        fecha_expiracion = EXCLUDED.fecha_expiracion
+      RETURNING *;
+    `;
+
+    const { rows } = await pool.query(query, [
+      hwidClean,
+      nombre.trim(),
+      email ? email.trim().toLowerCase() : '',
+      telefono ? telefono.trim() : '',
+      acepta_publicidad !== false,
+      ahora,
+      expiracion
+    ]);
+
+    res.json({
+      success: true,
+      mensaje: '¡Acceso de prueba activado por 24 horas con éxito!',
+      licencia: rows[0]
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 server.listen(PORT, async () => {
   console.log(`🚀 Servidor demiempresa.online corriendo en http://localhost:${PORT}`);
   console.log(`📡 Tablas aisladas con prefijo: viajes_*`);

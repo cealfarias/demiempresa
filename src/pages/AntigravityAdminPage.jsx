@@ -218,9 +218,11 @@ export default function AntigravityAdminPage() {
               <table className="w-full text-left text-xs text-slate-300">
                 <thead className="bg-slate-950 text-slate-400 uppercase tracking-wider border-b border-slate-800">
                   <tr>
-                    <th className="py-3 px-4">HWID</th>
-                    <th className="py-3 px-4">Cliente</th>
-                    <th className="py-3 px-4">Teléfono</th>
+                    <th className="py-3 px-4">HWID / Equipo</th>
+                    <th className="py-3 px-4">Cliente / Lead</th>
+                    <th className="py-3 px-4">Contacto (Tel / Email)</th>
+                    <th className="py-3 px-4 text-center">Tipo / Plan</th>
+                    <th className="py-3 px-4 text-center">Publicidad</th>
                     <th className="py-3 px-4 text-center">Estado</th>
                     <th className="py-3 px-4 text-right">Vencimiento</th>
                   </tr>
@@ -228,19 +230,43 @@ export default function AntigravityAdminPage() {
                 <tbody className="divide-y divide-slate-800/60">
                   {filtered.length === 0 ? (
                     <tr>
-                      <td colSpan="5" className="py-8 text-center text-slate-500">
-                        No se encontraron licencias.
+                      <td colSpan="7" className="py-8 text-center text-slate-500">
+                        No se encontraron licencias ni registros.
                       </td>
                     </tr>
                   ) : (
                     filtered.map((lic) => {
                       const isActive = lic.estado === 'ACTIVA';
                       const exp = lic.fecha_expiracion ? new Date(lic.fecha_expiracion).toLocaleDateString() : 'Sin activar';
+                      const isTrial = lic.es_prueba_gratis || lic.metodo_pago === 'PRUEBA_GRATIS_24H';
                       return (
                         <tr key={lic.id} className="hover:bg-slate-800/40 transition">
                           <td className="py-3 px-4 font-mono font-bold text-indigo-300">{lic.hwid}</td>
-                          <td className="py-3 px-4 text-slate-200">{lic.cliente_nombre || 'Sin nombre'}</td>
-                          <td className="py-3 px-4 text-slate-400">{lic.telefono || '-'}</td>
+                          <td className="py-3 px-4 text-slate-200 font-semibold">{lic.cliente_nombre || 'Sin nombre'}</td>
+                          <td className="py-3 px-4">
+                            <div className="text-white">{lic.telefono || '-'}</div>
+                            {lic.email && <div className="text-[10px] text-cyan-400 font-mono">{lic.email}</div>}
+                          </td>
+                          <td className="py-3 px-4 text-center">
+                            {isTrial ? (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
+                                🎁 Prueba 24H
+                              </span>
+                            ) : (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                                ⭐ Comercial ({lic.dias_validez || 30}d)
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-3 px-4 text-center">
+                            {lic.acepta_publicidad !== false ? (
+                              <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+                                Aceptado ✔
+                              </span>
+                            ) : (
+                              <span className="text-[10px] text-slate-500">No</span>
+                            )}
+                          </td>
                           <td className="py-3 px-4 text-center">
                             <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
                               isActive ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'

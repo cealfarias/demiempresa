@@ -71,9 +71,9 @@ export default function AntigravityDownloadPage() {
       {/* Hero Section */}
       <section className="relative pt-16 pb-20 px-4">
         <div className="max-w-4xl mx-auto text-center space-y-6">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-900 border border-slate-700/60 text-cyan-400 text-xs font-medium mb-2">
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-slate-900 border border-emerald-500/40 text-emerald-400 text-xs font-semibold mb-2 shadow-lg shadow-emerald-950/40">
             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-            Binario Firmado & Verificado en demiempresa.online
+            ¡Pruébalo Gratis 24 Horas! Registro instantáneo en la app
           </div>
 
           <h1 className="text-4xl sm:text-6xl font-extrabold tracking-tight text-white leading-tight">
@@ -84,7 +84,7 @@ export default function AntigravityDownloadPage() {
           </h1>
 
           <p className="text-slate-400 text-base sm:text-lg max-w-2xl mx-auto leading-relaxed">
-            Elimina secuestradores de pantalla, adware agresivo, troyanos persistentes y purga gigabytes de basura y duplicados conectando el celular por cable USB.
+            Elimina secuestradores de pantalla, adware agresivo, purga basura pesada de WhatsApp (GIFs, Stickers, estados), organiza archivos gigantes y elimina duplicados mediante cable USB.
           </p>
 
           {/* Download Box */}
