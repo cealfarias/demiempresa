@@ -4247,6 +4247,10 @@ app.post('/api/antigravity/activar', async (req, res) => {
     ]);
     res.json({ success: true, licencia: rows[0] });
   } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // Verificación pública de licencia por HWID (sin exponer credenciales de BD al cliente)
 app.get('/api/antigravity/verificar-licencia', async (req, res) => {
   try {
