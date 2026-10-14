@@ -13,7 +13,8 @@ import {
   ExternalLink,
   Smartphone,
   Copy,
-  Check
+  Check,
+  Cable
 } from 'lucide-react';
 
 export default function AntigravityDownloadPage() {
@@ -191,17 +192,34 @@ export default function AntigravityDownloadPage() {
                 Ve a <i>Ajustes &gt; Acerca del teléfono</i> y pulsa 7 veces sobre <i>Número de compilación</i>. Luego ve a <i>Opciones de desarrollador</i> y activa <b>Depuración USB</b>.
               </p>
               <div className="mt-2 text-[11px] p-2 rounded bg-amber-500/10 border border-amber-500/20 text-amber-300">
-                <b>Nota para Xiaomi / Honor / Huawei:</b> Conecta en modo <i>Transferencia de archivos (MTP)</i> y en Xiaomi activa también <i>Depuración USB (Ajustes de seguridad)</i>.
+                <b>Nota para Xiaomi / Honor / Huawei:</b> En Xiaomi activa también <i>Depuración USB (Ajustes de seguridad)</i>.
               </div>
             </div>
           </div>
 
+          <div className="flex gap-4 p-5 rounded-xl bg-cyan-950/20 border-2 border-cyan-500/40 shadow-lg shadow-cyan-500/10">
+            <div className="w-8 h-8 rounded-full bg-cyan-500 text-slate-950 font-bold text-sm flex items-center justify-center shrink-0">3</div>
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <Cable className="w-4 h-4 text-cyan-400 animate-pulse" />
+                <h4 className="font-bold text-white text-sm">Conecta el celular a la computadora mediante CABLE USB</h4>
+              </div>
+              <p className="text-xs text-slate-300 leading-relaxed">
+                Utiliza un cable USB de buena calidad conectado a un puerto directo de la PC. En la pantalla del celular aparecerá una ventana emergente: 
+                <b className="text-cyan-300"> "¿Permitir depuración USB de este equipo?"</b>. Marca la casilla <i>"Permitir siempre"</i> y pulsa <b>Aceptar</b>.
+              </p>
+              <p className="text-[11px] text-slate-400">
+                * Si el celular pregunta qué tipo de conexión usar en la barra de notificaciones, selecciona <b>"Transferencia de archivos / MTP"</b>.
+              </p>
+            </div>
+          </div>
+
           <div className="flex gap-4 p-5 rounded-xl bg-slate-900/40 border border-slate-800">
-            <div className="w-8 h-8 rounded-full bg-cyan-500/20 text-cyan-400 font-bold text-sm flex items-center justify-center shrink-0">3</div>
+            <div className="w-8 h-8 rounded-full bg-cyan-500/20 text-cyan-400 font-bold text-sm flex items-center justify-center shrink-0">4</div>
             <div>
-              <h4 className="font-semibold text-white text-sm">Abre el panel en tu navegador</h4>
+              <h4 className="font-semibold text-white text-sm">Inicia y abre el panel en tu navegador</h4>
               <p className="text-xs text-slate-400 mt-1">
-                El ejecutable levantará automáticamente un panel visual moderno en <b>http://127.0.0.1:8000</b> donde podrás auditar, limpiar y remediar con un solo clic.
+                Descomprime el ZIP y abre <b>ADBAntigravityPro.exe</b>. Se abrirá automáticamente el panel visual en <b>http://127.0.0.1:8000</b> reconociendo tu modelo de celular al instante.
               </p>
             </div>
           </div>
