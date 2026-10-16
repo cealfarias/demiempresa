@@ -337,16 +337,22 @@ function DriverAppContent() {
     const fare = parseFloat(finalPrice || req.price || 4.00);
     const originLat = parseFloat(req.originLat) || 13.7013;
     const originLng = parseFloat(req.originLng) || -89.2244;
+    const destinationLat = parseFloat(req.destinationLat) || 13.6738;
+    const destinationLng = parseFloat(req.destinationLng) || -89.2789;
     const distKm = parseFloat(req.tripDistanceKm || req.roadDistanceKm || req.distanceKm || 5.0);
 
     const safeTrip = {
       id: req.id,
       passengerName: req.passengerName || 'Pasajero Rumbo',
       passengerPhone: req.passengerPhone ? String(req.passengerPhone) : '',
-      origin: req.origin || 'Punto de recogida',
+      origin: req.origin || req.originAddress || 'Punto de recogida',
+      originAddress: req.origin || req.originAddress || 'Punto de recogida',
       originLat,
       originLng,
-      destination: req.destination || 'Punto de destino',
+      destination: req.destination || req.destinationAddress || 'Punto de destino',
+      destinationAddress: req.destination || req.destinationAddress || 'Punto de destino',
+      destinationLat,
+      destinationLng,
       roadDistanceKm: distKm,
       delayMinutes: parseInt(req.delayMinutes || 0, 10),
       suggestedFare: fare,
@@ -384,6 +390,7 @@ function DriverAppContent() {
         // Acepta la tarifa exacta: match atómico inmediato
         setActiveTrip(safeTrip);
         setTripState('EN_ROUTE_TO_PICKUP');
+        setNavTargetTab('PICKUP');
         setPendingOffer(null);
         socket.emit('driver:accept_trip', {
           tripId: req.id,
@@ -445,6 +452,7 @@ function DriverAppContent() {
     }
   });
   const [gpsActive, setGpsActive] = useState(false);
+  const [navTargetTab, setNavTargetTab] = useState(null); // 'PICKUP' | 'DESTINATION' | null (auto-calcula según tripState)
 
   // Reparación retroactiva automática de distancias congeladas en 5km en el historial del chofer
   useEffect(() => {
@@ -524,8 +532,16 @@ function DriverAppContent() {
           setActiveTrip((prev) => ({
             ...prev,
             ...res.trip,
-            passengerName: res.trip.passenger?.name || prev?.passengerName || 'Pasajero',
-            passengerPhone: String(res.trip.passenger?.phone || prev?.passengerPhone || ''),
+            origin: res.trip.originAddress || prev?.origin || 'Punto de recogida',
+            originAddress: res.trip.originAddress || prev?.originAddress || prev?.origin || 'Punto de recogida',
+            originLat: parseFloat(res.trip.originLat || prev?.originLat) || 13.7013,
+            originLng: parseFloat(res.trip.originLng || prev?.originLng) || -89.2244,
+            destination: res.trip.destinationAddress || prev?.destination || 'Punto de destino',
+            destinationAddress: res.trip.destinationAddress || prev?.destinationAddress || prev?.destination || 'Punto de destino',
+            destinationLat: parseFloat(res.trip.destinationLat || prev?.destinationLat) || 13.6738,
+            destinationLng: parseFloat(res.trip.destinationLng || prev?.destinationLng) || -89.2789,
+            passengerName: res.trip.passenger?.name || res.trip.passenger_name || prev?.passengerName || 'Pasajero',
+            passengerPhone: String(res.trip.passenger?.phone || res.trip.passenger_phone || prev?.passengerPhone || ''),
             cashToCollect: parseFloat(res.trip.cashToCollect || prev?.cashToCollect || 4.00).toFixed(2),
             agreedFare: parseFloat(res.trip.agreedFare || prev?.agreedFare || 4.00).toFixed(2)
           }));
@@ -892,6 +908,7 @@ function DriverAppContent() {
       setIncomingRequest(null);
       setPendingOffer(null);
       setTripState('EN_ROUTE_TO_PICKUP');
+      setNavTargetTab('PICKUP');
     });
 
     socket.on('offer:rejected_other_won', () => {
@@ -903,6 +920,7 @@ function DriverAppContent() {
       setPendingOffer(null);
       setIncomingRequest(null);
       setTripState('EN_ROUTE_TO_PICKUP');
+      setNavTargetTab(null);
     });
 
     // Solicitud de cancelación recibida desde el pasajero
@@ -1076,6 +1094,11 @@ function DriverAppContent() {
     const targetTripId = activeTrip?.id || 'active';
     console.log(`🚖 [DriverApp] Actualizando estado a: ${newStatus} para viaje #${targetTripId}`);
     setTripState(newStatus);
+    if (newStatus === 'ARRIVED' || newStatus === 'IN_TRANSIT') {
+      setNavTargetTab('DESTINATION');
+    } else if (newStatus === 'DONE') {
+      setNavTargetTab(null);
+    }
     const normalized = newStatus === 'DONE' ? 'COMPLETED' : newStatus;
 
     socket.emit('trip:update_status', {
@@ -1849,41 +1872,138 @@ function DriverAppContent() {
               )}
             </div>
 
-            {/* Direcciones y Botón Un Toque para Waze / Google Maps */}
-            <div className="space-y-3">
-              <div className="p-3 bg-slate-950 rounded-2xl border border-slate-800 space-y-2 text-xs">
-                <div>
-                  <span className="text-slate-400 font-semibold uppercase">Punto de Recogida:</span>
-                  <p className="text-white font-bold text-sm">{activeTrip.origin}</p>
-                </div>
-                <div className="pt-1 border-t border-slate-800">
-                  <span className="text-slate-400 font-semibold uppercase">Destino:</span>
-                  <p className="text-white font-bold text-sm">{activeTrip.destination}</p>
-                </div>
-              </div>
+            {/* Direcciones y Botón Un Toque para Waze / Google Maps con Selector Inteligente Origen / Destino */}
+            {(() => {
+              const isEnRouteToDest = tripState === 'IN_TRANSIT' || tripState === 'ARRIVED';
+              const currentTarget = navTargetTab || (isEnRouteToDest ? 'DESTINATION' : 'PICKUP');
+              const isTargetDestination = currentTarget === 'DESTINATION';
 
-              {/* Botones de Navegación Externa con Coordenadas Precargadas */}
-              <div className="grid grid-cols-2 gap-2">
-                <a
-                  href={`https://waze.com/ul?ll=${activeTrip.originLat},${activeTrip.originLng}&navigate=yes`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="py-3 bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 shadow"
-                >
-                  <Navigation className="w-4 h-4" />
-                  <span>Abrir en Waze</span>
-                </a>
-                <a
-                  href={`https://www.google.com/maps/dir/?api=1&destination=${activeTrip.originLat},${activeTrip.originLng}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 shadow"
-                >
-                  <ExternalLink className="w-4 h-4" />
-                  <span>Google Maps</span>
-                </a>
-              </div>
-            </div>
+              const pickupAddress = activeTrip.origin || activeTrip.originAddress || activeTrip.origin_address || 'Punto de Recogida';
+              const destAddress = activeTrip.destination || activeTrip.destinationAddress || activeTrip.destination_address || 'Destino Final';
+
+              const pickupLat = parseFloat(activeTrip.originLat || activeTrip.origin_lat) || 13.7013;
+              const pickupLng = parseFloat(activeTrip.originLng || activeTrip.origin_lng) || -89.2244;
+              const destLat = parseFloat(activeTrip.destinationLat || activeTrip.destination_lat) || 13.6738;
+              const destLng = parseFloat(activeTrip.destinationLng || activeTrip.destination_lng) || -89.2789;
+
+              const activeNavLat = isTargetDestination ? destLat : pickupLat;
+              const activeNavLng = isTargetDestination ? destLng : pickupLng;
+              const activeNavAddress = isTargetDestination ? destAddress : pickupAddress;
+
+              const activeWazeUrl = (activeNavLat && activeNavLng && !isNaN(activeNavLat))
+                ? `https://waze.com/ul?ll=${activeNavLat},${activeNavLng}&navigate=yes`
+                : `https://waze.com/ul?q=${encodeURIComponent(activeNavAddress)}&navigate=yes`;
+
+              const activeGoogleMapsUrl = (activeNavLat && activeNavLng && !isNaN(activeNavLat))
+                ? `https://www.google.com/maps/dir/?api=1&destination=${activeNavLat},${activeNavLng}`
+                : `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(activeNavAddress)}`;
+
+              return (
+                <div className="space-y-3">
+                  {/* Selector 1-Click entre Punto de Recogida y Destino Final */}
+                  <div className="flex bg-slate-950 p-1 rounded-2xl border border-slate-800 gap-1.5 shadow-inner">
+                    <button
+                      type="button"
+                      onClick={() => setNavTargetTab('PICKUP')}
+                      className={`flex-1 py-2.5 px-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                        !isTargetDestination
+                          ? 'bg-amber-500 text-slate-950 shadow-lg font-black'
+                          : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
+                      }`}
+                    >
+                      <MapPin className="w-3.5 h-3.5 shrink-0" />
+                      <span className="truncate">1. Recogida</span>
+                      {!isTargetDestination && <span className="w-2 h-2 rounded-full bg-slate-950 animate-pulse shrink-0" />}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setNavTargetTab('DESTINATION')}
+                      className={`flex-1 py-2.5 px-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                        isTargetDestination
+                          ? 'bg-emerald-500 text-slate-950 shadow-lg font-black'
+                          : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
+                      }`}
+                    >
+                      <Navigation className="w-3.5 h-3.5 shrink-0" />
+                      <span className="truncate">2. Destino Final</span>
+                      {isTargetDestination && <span className="w-2 h-2 rounded-full bg-slate-950 animate-pulse shrink-0" />}
+                    </button>
+                  </div>
+
+                  {/* Resumen del Destino Seleccionado */}
+                  <div className={`p-3 rounded-2xl border transition-all ${
+                    isTargetDestination
+                      ? 'bg-emerald-950/20 border-emerald-500/40'
+                      : 'bg-amber-950/20 border-amber-500/40'
+                  }`}>
+                    <div className="flex items-center justify-between text-[11px] font-bold mb-1">
+                      <span className={isTargetDestination ? 'text-emerald-400' : 'text-amber-400'}>
+                        {isTargetDestination ? '🏁 NAVEGANDO HACIA DESTINO FINAL:' : '📍 NAVEGANDO HACIA EL PASAJERO:'}
+                      </span>
+                      <span className="text-[10px] text-slate-400 font-normal">
+                        {isTargetDestination ? 'Ruta del viaje' : 'Punto de encuentro'}
+                      </span>
+                    </div>
+                    <p className="text-white font-extrabold text-sm leading-snug">
+                      {activeNavAddress}
+                    </p>
+                  </div>
+
+                  {/* Botones de Navegación Externa con Coordenadas Precargadas Dinámicas */}
+                  <div className="grid grid-cols-2 gap-2">
+                    <a
+                      href={activeWazeUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="py-3.5 bg-cyan-600 hover:bg-cyan-500 text-white font-black rounded-xl text-xs flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-all text-center"
+                    >
+                      <Navigation className="w-4 h-4 shrink-0" />
+                      <span className="truncate">{isTargetDestination ? 'Waze al Destino' : 'Waze al Pasajero'}</span>
+                    </a>
+                    <a
+                      href={activeGoogleMapsUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="py-3.5 bg-blue-600 hover:bg-blue-500 text-white font-black rounded-xl text-xs flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-all text-center"
+                    >
+                      <ExternalLink className="w-4 h-4 shrink-0" />
+                      <span className="truncate">{isTargetDestination ? 'Maps al Destino' : 'Maps al Pasajero'}</span>
+                    </a>
+                  </div>
+
+                  {/* Mini-tarjetas para ver ambos puntos y cambiar con 1 tap */}
+                  <div className="grid grid-cols-2 gap-2 text-[11px]">
+                    <div
+                      onClick={() => setNavTargetTab('PICKUP')}
+                      className={`p-2.5 rounded-xl border cursor-pointer transition-all ${
+                        !isTargetDestination
+                          ? 'bg-amber-500/10 border-amber-500/60'
+                          : 'bg-slate-950/60 border-slate-800 opacity-60 hover:opacity-100'
+                      }`}
+                    >
+                      <span className="text-[10px] font-bold text-amber-400 uppercase flex items-center gap-1">
+                        <MapPin className="w-3 h-3" /> 1. Recogida
+                      </span>
+                      <p className="text-slate-200 font-semibold line-clamp-1 mt-0.5">{pickupAddress}</p>
+                    </div>
+
+                    <div
+                      onClick={() => setNavTargetTab('DESTINATION')}
+                      className={`p-2.5 rounded-xl border cursor-pointer transition-all ${
+                        isTargetDestination
+                          ? 'bg-emerald-500/10 border-emerald-500/60'
+                          : 'bg-slate-950/60 border-slate-800 opacity-60 hover:opacity-100'
+                      }`}
+                    >
+                      <span className="text-[10px] font-bold text-emerald-400 uppercase flex items-center gap-1">
+                        <Navigation className="w-3 h-3" /> 2. Destino
+                      </span>
+                      <p className="text-slate-200 font-semibold line-clamp-1 mt-0.5">{destAddress}</p>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* Controles de Estado del Viaje */}
             <div className="pt-2 space-y-2">

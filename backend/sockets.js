@@ -613,7 +613,9 @@ export function initializeWebSockets(httpServer) {
               return Math.max(0, 10.00 - cashToCollect).toFixed(2);
             })(),
             wazeUrl: `https://waze.com/ul?ll=${trip?.origin_lat || 13.7013},${trip?.origin_lng || -89.2244}&navigate=yes`,
-            googleMapsUrl: `https://www.google.com/maps/dir/?api=1&destination=${trip?.origin_lat || 13.7013},${trip?.origin_lng || -89.2244}`
+            googleMapsUrl: `https://www.google.com/maps/dir/?api=1&destination=${trip?.origin_lat || 13.7013},${trip?.origin_lng || -89.2244}`,
+            wazeDestinationUrl: `https://waze.com/ul?ll=${trip?.destination_lat || 13.6738},${trip?.destination_lng || -89.2789}&navigate=yes`,
+            googleMapsDestinationUrl: `https://www.google.com/maps/dir/?api=1&destination=${trip?.destination_lat || 13.6738},${trip?.destination_lng || -89.2789}`
           });
         }
 
@@ -785,7 +787,9 @@ export function initializeWebSockets(httpServer) {
               return Math.max(0, billNum - cashToCollect).toFixed(2);
             })(),
             wazeUrl: `https://waze.com/ul?ll=${trip?.origin_lat || 13.7013},${trip?.origin_lng || -89.2244}&navigate=yes`,
-            googleMapsUrl: `https://www.google.com/maps/dir/?api=1&destination=${trip?.origin_lat || 13.7013},${trip?.origin_lng || -89.2244}`
+            googleMapsUrl: `https://www.google.com/maps/dir/?api=1&destination=${trip?.origin_lat || 13.7013},${trip?.origin_lng || -89.2244}`,
+            wazeDestinationUrl: `https://waze.com/ul?ll=${trip?.destination_lat || 13.6738},${trip?.destination_lng || -89.2789}&navigate=yes`,
+            googleMapsDestinationUrl: `https://www.google.com/maps/dir/?api=1&destination=${trip?.destination_lat || 13.6738},${trip?.destination_lng || -89.2789}`
           });
         }
 
