@@ -7864,12 +7864,12 @@ function ViajesAppContent() {
         isOpen={showSocialWorldModal}
         onClose={() => setShowSocialWorldModal(false)}
         tripInfo={{
-          destinationAddress,
+          destinationAddress: destination,
           destinationMunicipality
         }}
         userProfile={userProfile}
         onSelectDestination={(dest) => {
-          if (dest.address) setDestinationAddress(dest.address);
+          if (dest.address) setDestination(dest.address);
           if (dest.municipality) setDestinationMunicipality(dest.municipality);
         }}
       />
