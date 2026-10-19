@@ -378,6 +378,108 @@ app.post('/api/users/login', async (req, res) => {
   }
 });
 
+// Endpoint Oficial: Autenticación Directa y Registro Automático con Google (Onboarding Cero Fricción)
+app.post('/api/users/google-auth', async (req, res) => {
+  const { id: googleId, name, email, photoUrl } = req.body;
+  const cleanEmail = (email || '').toLowerCase().trim();
+  const cleanGoogleId = (googleId || '').trim();
+  const cleanName = (name || 'Usuario Google').trim();
+
+  if (!cleanEmail && !cleanGoogleId) {
+    return res.status(400).json({ error: 'Credenciales de Google requeridas (email o id)' });
+  }
+
+  try {
+    // 1. Buscar si el usuario ya existe por email, google_id o coincidencia exacta de nombre sin email
+    const existingRes = await pool.query(`
+      SELECT id, full_name, phone, dui, role, email, google_id, created_at
+      FROM viajes_users
+      WHERE (email IS NOT NULL AND LOWER(email) = $1 AND $1 <> '')
+         OR (google_id IS NOT NULL AND google_id = $2 AND $2 <> '')
+         OR (email IS NULL AND LOWER(TRIM(full_name)) = LOWER(TRIM($3)) AND $3 <> '')
+      LIMIT 1
+    `, [cleanEmail, cleanGoogleId, cleanName]);
+
+    let user;
+    let isExistingUser = false;
+
+    if (existingRes.rows.length > 0) {
+      user = existingRes.rows[0];
+      isExistingUser = true;
+
+      // Actualizar datos de Google si no estaban guardados
+      await pool.query(`
+        UPDATE viajes_users SET
+          full_name = COALESCE(NULLIF(full_name, ''), $1),
+          email = COALESCE(email, $2),
+          google_id = COALESCE(google_id, $3)
+        WHERE id = $4
+      `, [cleanName, cleanEmail || null, cleanGoogleId || null, user.id]).catch(() => {});
+    } else {
+      // 2. Si no existe, crear la cuenta inmediatamente (Cero Fricción para el Pasajero)
+      const virtualDui = `GGL-${cleanGoogleId.slice(-6) || Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+
+      const insertRes = await pool.query(`
+        INSERT INTO viajes_users (full_name, phone, dui, role, email, google_id)
+        VALUES ($1, $2, $3, 'PASSENGER', $4, $5)
+        RETURNING *;
+      `, [cleanName, '', virtualDui, cleanEmail || null, cleanGoogleId || null]);
+
+      user = insertRes.rows[0];
+
+      // Acreditar Bono de Bienvenida ($1.00 USD) en el Ledger Criptográfico
+      try {
+        await LedgerService.grantWelcomeBonus(user.id);
+      } catch (ledgerErr) {
+        console.warn('⚠️ No se pudo generar bono para usuario Google:', ledgerErr.message);
+      }
+    }
+
+    // 3. Crear sesión de pasajero y recuperar wallet
+    const passengerSessionId = `psess_${user.dui || user.id}_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+    if (user.dui) {
+      activePassengerSessions.set(user.dui, { sessionId: passengerSessionId, loggedAt: new Date().toISOString() });
+    }
+    user.sessionToken = passengerSessionId;
+
+    let existingWallet = null;
+    try {
+      const wRes = await pool.query('SELECT address, referral_code FROM viajes_wallet_identities WHERE user_id = $1', [user.id]);
+      if (wRes.rows.length > 0) {
+        existingWallet = wRes.rows[0];
+      } else {
+        existingWallet = await LedgerService.getOrCreateWalletIdentity(user.id, pool, 'PASSENGER');
+      }
+    } catch (wErr) {
+      console.warn('⚠️ Error recuperando wallet en google-auth:', wErr.message);
+    }
+
+    recordTelemetryEventDirect({
+      req,
+      sessionId: passengerSessionId,
+      eventType: isExistingUser ? 'PASSENGER_GOOGLE_LOGIN_SUCCESS' : 'PASSENGER_GOOGLE_REGISTER_SUCCESS',
+      role: 'PASSENGER',
+      path: '/viajes',
+      metadata: { email: cleanEmail, googleId: cleanGoogleId, fullName: cleanName }
+    });
+
+    return res.json({
+      success: true,
+      user: {
+        ...user,
+        photo_url: photoUrl || user.photo_url || null
+      },
+      wallet: existingWallet ? { address: existingWallet.address, referralCode: existingWallet.referral_code } : null,
+      sessionToken: passengerSessionId,
+      isExistingUser,
+      message: `¡Bienvenido a Rumbo, ${cleanName}!`
+    });
+  } catch (err) {
+    console.error('Error en /api/users/google-auth:', err);
+    return res.status(500).json({ error: 'Error del servidor al autenticar con Google' });
+  }
+});
+
 // 3. PROGRAMA DE REFERIDOS & CRÉDITOS
 app.get('/api/referrals/user/:userId', async (req, res) => {
   try {
@@ -3182,6 +3284,8 @@ async function initializeDatabase() {
     await pool.query(`ALTER TABLE viajes_users ADD COLUMN IF NOT EXISTS password_hash TEXT;`).catch(() => {});
     await pool.query(`ALTER TABLE viajes_users ADD COLUMN IF NOT EXISTS email VARCHAR(255);`).catch(() => {});
     await pool.query(`ALTER TABLE viajes_users ADD COLUMN IF NOT EXISTS google_id VARCHAR(255);`).catch(() => {});
+    await pool.query(`ALTER TABLE viajes_users ALTER COLUMN phone DROP NOT NULL;`).catch(() => {});
+    await pool.query(`ALTER TABLE viajes_users ALTER COLUMN dui DROP NOT NULL;`).catch(() => {});
     await pool.query(`ALTER TABLE viajes_trips ADD COLUMN IF NOT EXISTS distance_km NUMERIC(8,2);`).catch(() => {});
 
     // 1.1 Crear tabla de Tickets de Inbox (Pagos, Sugerencias, Quejas, Soporte)

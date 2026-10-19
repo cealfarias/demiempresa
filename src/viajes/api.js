@@ -60,6 +60,25 @@ export async function loginUserApi({ identifier, email, googleId }) {
 }
 
 /**
+ * 1.2 Autenticación Directa y Registro Automático con Google (Cero Fricción)
+ */
+export async function googleAuthApi({ id, name, email, photoUrl }) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/users/google-auth`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, name, email, photoUrl })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Error en autenticación con Google');
+    return data;
+  } catch (err) {
+    console.error('API Error googleAuth:', err);
+    throw err;
+  }
+}
+
+/**
  * 2. Consulta de Créditos y Referidos (7+7 Días)
  */
 export async function fetchUserCreditsApi(userId) {
