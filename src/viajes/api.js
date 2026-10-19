@@ -24,12 +24,12 @@ socket.on('disconnect', (reason) => {
 /**
  * 1. Registro y Validación de Usuario (Punto de Inflexión con DUI único)
  */
-export async function registerUserApi({ fullName, phone, dui, role = 'PASSENGER', referrerCode }) {
+export async function registerUserApi({ fullName, phone, dui, role = 'PASSENGER', referrerCode, email, googleId }) {
   try {
     const res = await fetch(`${API_BASE_URL}/api/users/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ fullName, phone, dui, role, referrerCode })
+      body: JSON.stringify({ fullName, phone, dui, role, referrerCode, email, googleId })
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Error al registrar usuario');
@@ -43,12 +43,12 @@ export async function registerUserApi({ fullName, phone, dui, role = 'PASSENGER'
 /**
  * 1.1 Inicio de Sesión de Pasajero Registrado (por DUI o Teléfono)
  */
-export async function loginUserApi({ identifier }) {
+export async function loginUserApi({ identifier, email, googleId }) {
   try {
     const res = await fetch(`${API_BASE_URL}/api/users/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ identifier })
+      body: JSON.stringify({ identifier, email, googleId })
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Error al iniciar sesión');

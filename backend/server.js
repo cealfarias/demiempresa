@@ -125,13 +125,19 @@ app.post('/api/users/register', async (req, res) => {
     const cleanDui = dui.trim();
     const cleanPhone = phone ? phone.trim() : '';
 
+    const searchEmail = req.body.email ? req.body.email.toLowerCase().trim() : '';
+    const searchGoogleId = req.body.googleId ? req.body.googleId.trim() : '';
+
     // Comprobar si el usuario ya existía previamente en la base de datos
     const existingCheck = await pool.query(`
-      SELECT id, full_name, phone, dui, role, created_at 
+      SELECT id, full_name, phone, dui, role, email, created_at 
       FROM viajes_users 
-      WHERE dui = $1 OR (phone = $2 AND $2 <> '')
+      WHERE dui = $1 
+         OR (phone = $2 AND $2 <> '')
+         OR (email IS NOT NULL AND LOWER(email) = $3 AND $3 <> '')
+         OR (google_id IS NOT NULL AND google_id = $4 AND $4 <> '')
       LIMIT 1
-    `, [cleanDui, cleanPhone]);
+    `, [cleanDui, cleanPhone, searchEmail, searchGoogleId]);
 
     const isExistingUser = existingCheck.rows.length > 0;
 
@@ -156,6 +162,17 @@ app.post('/api/users/register', async (req, res) => {
     if (isExistingUser) {
       const user = existingCheck.rows[0];
       user.sessionToken = passengerSessionId;
+
+      // Si viene con Google y no tenía el email o google_id guardado, vincularlo ahora
+      if (searchEmail || searchGoogleId) {
+        await pool.query(`
+          UPDATE viajes_users SET
+            email = COALESCE(email, $1),
+            google_id = COALESCE(google_id, $2)
+          WHERE id = $3
+        `, [searchEmail || null, searchGoogleId || null, user.id]).catch(() => {});
+      }
+
       let referrerInfo = null;
 
       // Si el contacto ya registrado intentó abrir el enlace de un amigo anfitrión:
@@ -215,10 +232,10 @@ app.post('/api/users/register', async (req, res) => {
     }
 
     const userRes = await pool.query(`
-      INSERT INTO viajes_users (full_name, phone, dui, role)
-      VALUES ($1, $2, $3, $4)
+      INSERT INTO viajes_users (full_name, phone, dui, role, email, google_id)
+      VALUES ($1, $2, $3, $4, $5, $6)
       RETURNING *;
-    `, [fullName, cleanPhone, cleanDui, role]);
+    `, [fullName, cleanPhone, cleanDui, role, searchEmail || null, searchGoogleId || null]);
 
     const user = userRes.rows[0];
     user.sessionToken = passengerSessionId;
@@ -275,32 +292,46 @@ app.post('/api/users/register', async (req, res) => {
   }
 });
 
-// Endpoint oficial de Inicio de Sesión de Pasajero (DUI o Teléfono)
+// Endpoint oficial de Inicio de Sesión de Pasajero (DUI, Teléfono, Email o Google)
 app.post('/api/users/login', async (req, res) => {
-  const { identifier } = req.body;
-  if (!identifier || !identifier.trim()) {
-    return res.status(400).json({ error: 'Ingresa tu número de DUI o teléfono registrado' });
-  }
-
-  const clean = identifier.trim();
+  const { identifier, email, googleId } = req.body;
+  const clean = (identifier || email || '').trim();
   const digitsOnly = clean.replace(/\D/g, '');
+  const searchEmail = (email || (clean.includes('@') ? clean : '')).toLowerCase().trim();
+  const searchGoogleId = (googleId || '').trim();
+
+  if (!clean && !searchEmail && !searchGoogleId) {
+    return res.status(400).json({ error: 'Ingresa tu número de DUI, teléfono o correo registrado' });
+  }
 
   try {
     const userRes = await pool.query(`
-      SELECT id, full_name, phone, dui, role, created_at 
+      SELECT id, full_name, phone, dui, role, email, created_at 
       FROM viajes_users 
-      WHERE dui = $1 
+      WHERE (dui = $1 AND $1 <> '') 
          OR (phone = $1 AND $1 <> '')
          OR (phone = $2 AND $2 <> '')
-         OR REPLACE(REPLACE(dui, '-', ''), ' ', '') = $2
+         OR (REPLACE(REPLACE(dui, '-', ''), ' ', '') = $2 AND $2 <> '')
+         OR (email IS NOT NULL AND LOWER(email) = $3 AND $3 <> '')
+         OR (google_id IS NOT NULL AND google_id = $4 AND $4 <> '')
       LIMIT 1
-    `, [clean, digitsOnly]);
+    `, [clean, digitsOnly, searchEmail, searchGoogleId]);
 
     if (userRes.rows.length === 0) {
-      return res.status(404).json({ error: 'No encontramos ninguna cuenta con ese DUI o teléfono. Por favor regístrate como nuevo usuario.' });
+      return res.status(404).json({ error: 'No encontramos ninguna cuenta registrada con estos datos.' });
     }
 
     const user = userRes.rows[0];
+
+    // Si viene con Google y no tenía el email o google_id guardado, actualizarlo
+    if (searchEmail || searchGoogleId) {
+      await pool.query(`
+        UPDATE viajes_users SET
+          email = COALESCE(email, $1),
+          google_id = COALESCE(google_id, $2)
+        WHERE id = $3
+      `, [searchEmail || null, searchGoogleId || null, user.id]).catch(() => {});
+    }
 
     // Regla de Dispositivo Único Implacable
     const passengerSessionId = `psess_${user.dui}_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
@@ -3149,6 +3180,8 @@ async function initializeDatabase() {
       await pool.query(`ALTER TABLE viajes_driver_profiles ADD COLUMN IF NOT EXISTS ${col};`).catch(() => {});
     }
     await pool.query(`ALTER TABLE viajes_users ADD COLUMN IF NOT EXISTS password_hash TEXT;`).catch(() => {});
+    await pool.query(`ALTER TABLE viajes_users ADD COLUMN IF NOT EXISTS email VARCHAR(255);`).catch(() => {});
+    await pool.query(`ALTER TABLE viajes_users ADD COLUMN IF NOT EXISTS google_id VARCHAR(255);`).catch(() => {});
     await pool.query(`ALTER TABLE viajes_trips ADD COLUMN IF NOT EXISTS distance_km NUMERIC(8,2);`).catch(() => {});
 
     // 1.1 Crear tabla de Tickets de Inbox (Pagos, Sugerencias, Quejas, Soporte)

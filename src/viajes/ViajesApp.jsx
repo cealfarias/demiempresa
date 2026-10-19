@@ -3212,6 +3212,8 @@ function ViajesAppContent() {
         documentType: docType === 'PASSPORT' ? 'PASSPORT_RESIDENCE' : 'DUI',
         role: 'PASSENGER',
         referrerCode,
+        email: emailToSave,
+        googleId: googleTempUser?.id || null,
         termsAccepted: true,
         consents: {
           geo: geoConsent,
@@ -3242,7 +3244,10 @@ function ViajesAppContent() {
         localStorage.setItem('demiempresa_passenger', JSON.stringify(profile));
         setShowRegisterModal(false);
         setGoogleDuiStep(false);
-        alert(`¡Bienvenido de vuelta, ${profile.fullName}! Has iniciado sesión con tu cuenta existente. Como ya estabas registrado previamente en Rumbo, no aplica nuevo bono de referido para evitar falsas expectativas.`);
+        setGoogleTempUser(null);
+        setAppState('DECOY_FORM');
+        triggerSelectionFeedback();
+        speakAssistantMessage(`¡Bienvenido de vuelta, ${profile.fullName}! Has iniciado sesión con tu cuenta existente.`);
         return;
       }
 
@@ -3295,6 +3300,9 @@ function ViajesAppContent() {
         setUserProfile(profile);
         localStorage.setItem('demiempresa_passenger', JSON.stringify(profile));
         setShowRegisterModal(false);
+        setGoogleDuiStep(false);
+        setGoogleTempUser(null);
+        setAppState('DECOY_FORM');
         setLoginIdentifier('');
         triggerSelectionFeedback();
         speakAssistantMessage(`¡Bienvenido de vuelta, ${res.user.full_name}!`);
@@ -3306,21 +3314,105 @@ function ViajesAppContent() {
     }
   };
 
-  // Manejar Autenticación con Google (Obtener Nombre, Email y solicitar DUI)
-  const handleSelectGoogleAccount = (account) => {
+  // Manejar Autenticación con Google (Iniciar sesión directa si la cuenta ya existe, o pedir DUI solo si es nuevo)
+  const handleSelectGoogleAccount = async (account) => {
+    if (!account) return;
     setGoogleLoading(true);
-    setTimeout(() => {
+
+    try {
+      // 1. Verificar si ya tenemos el perfil de pasajero guardado en el dispositivo
+      const savedRaw = localStorage.getItem('demiempresa_passenger');
+      if (savedRaw) {
+        try {
+          const saved = JSON.parse(savedRaw);
+          if (
+            saved &&
+            (saved.email?.toLowerCase() === account.email?.toLowerCase() ||
+              saved.id === account.id ||
+              (saved.fullName && saved.dui))
+          ) {
+            const updated = {
+              ...saved,
+              fullName: saved.fullName || account.name,
+              email: account.email || saved.email,
+              photoUrl: account.photoUrl || saved.photoUrl,
+              provider: 'google'
+            };
+            setUserProfile(updated);
+            localStorage.setItem('demiempresa_passenger', JSON.stringify(updated));
+            setShowRegisterModal(false);
+            setGoogleDuiStep(false);
+            setGoogleTempUser(null);
+            setAppState('DECOY_FORM');
+            triggerSelectionFeedback();
+            speakAssistantMessage(`¡Bienvenido de vuelta, ${updated.fullName}!`);
+            setGoogleLoading(false);
+
+            // Sincronizar en segundo plano con el servidor
+            loginUserApi({
+              identifier: account.email,
+              email: account.email,
+              googleId: account.id
+            }).catch(() => {});
+
+            return;
+          }
+        } catch (e) {
+          console.warn('Error leyendo demiempresa_passenger local:', e);
+        }
+      }
+
+      // 2. Consultar en el backend si el usuario ya existe registrado (por email o Google ID)
+      const res = await loginUserApi({
+        identifier: account.email,
+        email: account.email,
+        googleId: account.id
+      });
+
+      if (res?.success && res.user) {
+        const safeReferralCode =
+          res.wallet?.referralCode ||
+          res.user.referralCode ||
+          (res.user.id ? `RMB${String(res.user.id).replace(/\D/g, '').slice(-6)}` : null);
+
+        const profile = {
+          id: res.user.id,
+          fullName: res.user.full_name || account.name,
+          email: res.user.email || account.email,
+          dui: res.user.dui,
+          phone: res.user.phone || '',
+          photoUrl: account.photoUrl || res.user.photo_url || null,
+          referralCode: safeReferralCode,
+          provider: 'google',
+          isVerified: true,
+          sessionToken: res.sessionToken || res.user.sessionToken || null
+        };
+
+        setUserProfile(profile);
+        localStorage.setItem('demiempresa_passenger', JSON.stringify(profile));
+        setShowRegisterModal(false);
+        setGoogleDuiStep(false);
+        setGoogleTempUser(null);
+        setAppState('DECOY_FORM');
+
+        triggerSelectionFeedback();
+        speakAssistantMessage(`¡Bienvenido de vuelta, ${profile.fullName}!`);
+        return;
+      }
+    } catch (err) {
+      console.log('Cuenta no encontrada con Google en backend (requiere registrar DUI):', err.message);
+    } finally {
       setGoogleLoading(false);
+    }
 
-      // Guardamos datos de Google (Nombre y Email)
-      setRegFullName(account.name);
-      setRegEmail(account.email);
-      setGoogleTempUser(account);
-
-      // Como requerimos todos los datos completos (nombre, dui, email), solicitamos el DUI
-      setGoogleDuiStep(true);
-      setShowRegisterModal(true);
-    }, 400);
+    // 3. Si no existe en la base de datos, es nuevo: solicitar DUI para completar su inscripción y recibir su bono de $1
+    setRegFullName(account.name);
+    setRegEmail(account.email);
+    setGoogleTempUser(account);
+    setGoogleDuiStep(true);
+    setShowRegisterModal(true);
+    setAppState('DECOY_FORM');
+    speakAssistantMessage('Por favor completa tu DUI para activar tu cuenta de Rumbo y recibir tu bono.');
   };
 
   // Inicializar botón oficial de Google Identity Services en el DOM (En Encabezado y en Modal)
