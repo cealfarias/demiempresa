@@ -1020,6 +1020,7 @@ function ViajesAppContent() {
       '585734148629-tdmrqos1msedm3hg0p4593fj55uhttle.apps.googleusercontent.com'
   );
   const [showGoogleConfigModal, setShowGoogleConfigModal] = useState(false);
+  const [useCustomGoogleAuth, setUseCustomGoogleAuth] = useState(false);
   const [configClientIdInput, setConfigClientIdInput] = useState('');
   const googleButtonContainerRef = React.useRef(null);
   const headerGoogleButtonRef = React.useRef(null);
@@ -3327,6 +3328,18 @@ function ViajesAppContent() {
     const clientId = googleClientId;
     if (!clientId) return;
 
+    // Si estamos en el subdominio viajes.demiempresa.online con el Client ID genérico no autorizado en Google Cloud Console,
+    // evitar llamadas a Google GSI que lanzan 403 Forbidden y [GSI_LOGGER] origin not allowed
+    const isDefaultClientId = clientId === '585734148629-tdmrqos1msedm3hg0p4593fj55uhttle.apps.googleusercontent.com';
+    const isSubdomain = typeof window !== 'undefined' && window.location.hostname.includes('viajes.');
+
+    if (isSubdomain && isDefaultClientId) {
+      if (headerGoogleButtonRef.current) headerGoogleButtonRef.current.innerHTML = '';
+      if (googleButtonContainerRef.current) googleButtonContainerRef.current.innerHTML = '';
+      setUseCustomGoogleAuth(true);
+      return;
+    }
+
     const renderOfficialGsiButton = () => {
       if (window.google?.accounts?.id) {
         try {
@@ -3413,8 +3426,8 @@ function ViajesAppContent() {
   // Abrir Google Identity Services real / Ventana emergente oficial de Google
   const handleGoogleSignInClick = () => {
     const clientId = googleClientId;
-    if (!clientId) {
-      // Si aún no está configurado el Client ID de Google Cloud, solicitarlo para abrir accounts.google.com
+    if (!clientId || useCustomGoogleAuth) {
+      // Si aún no está configurado el Client ID de Google Cloud o el subdominio no está autorizado, mostrar modal
       setShowGoogleConfigModal(true);
       return;
     }
@@ -3846,8 +3859,8 @@ function ViajesAppContent() {
                 ref={headerGoogleButtonRef}
                 className="min-h-[36px] flex items-center justify-end rounded-full overflow-hidden shadow-sm flex-shrink-0"
               />
-              {/* Fallback de respaldo en caso de bloqueo de script o sin conexión */}
-              {!window.google?.accounts?.id && (
+              {/* Fallback de respaldo en caso de bloqueo de script o sin conexión o subdominio no autorizado */}
+              {(!window.google?.accounts?.id || useCustomGoogleAuth) && (
                 <button
                   type="button"
                   onClick={handleGoogleSignInClick}
@@ -5842,7 +5855,7 @@ function ViajesAppContent() {
                 <div className="space-y-2 pt-1">
                   <div ref={googleButtonContainerRef} className="flex justify-center w-full min-h-[44px]" />
 
-                  {!window.google?.accounts?.id && (
+                  {(!window.google?.accounts?.id || useCustomGoogleAuth) && (
                     <button
                       type="button"
                       onClick={handleGoogleSignInClick}
@@ -5955,8 +5968,8 @@ function ViajesAppContent() {
                   {/* Contenedor oficial donde Google Identity Services inyecta su botón nativo de iframe */}
                   <div ref={googleButtonContainerRef} className="flex justify-center w-full min-h-[44px]" />
 
-                  {/* Botón de respaldo SOLO si Google Identity Services no ha cargado en el navegador */}
-                  {!window.google?.accounts?.id && (
+                  {/* Botón de respaldo si GSI no ha cargado o si el subdominio usa botón nativo */}
+                  {(!window.google?.accounts?.id || useCustomGoogleAuth) && (
                     <button
                       type="button"
                       onClick={handleGoogleSignInClick}
@@ -6367,6 +6380,20 @@ function ViajesAppContent() {
                 className="w-2/3 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs cursor-pointer shadow-lg shadow-blue-600/30"
               >
                 Guardar y Conectar con Google
+              </button>
+            </div>
+
+            <div className="pt-2 border-t border-slate-800 text-center">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowGoogleConfigModal(false);
+                  setShowRegisterModal(true);
+                  setAuthModalTab('LOGIN');
+                }}
+                className="text-xs text-amber-400 hover:text-amber-300 font-bold underline cursor-pointer"
+              >
+                O ingresar con mi número de Teléfono o DUI ➔
               </button>
             </div>
           </div>
