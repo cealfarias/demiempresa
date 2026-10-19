@@ -19,11 +19,15 @@ import {
   MessageCircle,
   Clock,
   Zap,
-  Tag
+  Tag,
+  Bell,
+  Moon,
+  ChevronDown
 } from 'lucide-react';
-import { submitLeadApi } from './api';
+import { submitLeadApi, scheduleAdReminderApi } from './api';
+import { subscribeUserToPush, isPushSupported } from './pushManager';
 
-export default function AdModal({ isOpen, onClose }) {
+export default function AdModal({ isOpen, onClose, userId }) {
   const [selectedPlan, setSelectedPlan] = useState('IMPACTO'); // 'VITRINA' | 'IMPACTO' | 'COMBO_FULL'
   const [billingPeriod, setBillingPeriod] = useState('WEEKLY'); // 'WEEKLY' | 'MONTHLY'
   const [businessName, setBusinessName] = useState('');
@@ -33,6 +37,12 @@ export default function AdModal({ isOpen, onClose }) {
   const [submitted, setSubmitted] = useState(false);
   const [copiedAccount, setCopiedAccount] = useState(false);
   const [copiedPhone, setCopiedPhone] = useState(false);
+
+  // Estados del recordatorio inteligente
+  const [showReminderSection, setShowReminderSection] = useState(false);
+  const [reminderType, setReminderType] = useState('TONIGHT'); // 'TONIGHT' | 'IN_24_HOURS' | 'NEXT_OPEN'
+  const [reminderScheduled, setReminderScheduled] = useState(false);
+  const [reminderLoading, setReminderLoading] = useState(false);
 
   if (!isOpen) return null;
 
@@ -116,6 +126,79 @@ export default function AdModal({ isOpen, onClose }) {
       setSubmitted(true);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleScheduleReminder = async () => {
+    setReminderLoading(true);
+    try {
+      // 1. Calcular hora objetivo
+      let scheduledAt = null;
+
+      if (reminderType === 'TONIGHT') {
+        const target = new Date();
+        target.setHours(20, 30, 0, 0); // 8:30 PM
+        if (Date.now() >= target.getTime()) {
+          target.setDate(target.getDate() + 1); // Mañana si ya pasaron las 8:30 PM
+        }
+        scheduledAt = target.toISOString();
+      } else if (reminderType === 'IN_24_HOURS') {
+        const target = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 horas
+        scheduledAt = target.toISOString();
+      } else {
+        scheduledAt = null; // En la próxima apertura
+      }
+
+      // 2. Intentar solicitar permiso y registrar suscripción Push si el navegador lo permite
+      if (isPushSupported()) {
+        try {
+          await subscribeUserToPush({ userId: userId || 'anon_' + Date.now() });
+        } catch (e) {
+          console.warn('Nota Push al agendar recordatorio:', e);
+        }
+      }
+
+      // 3. Guardar en localStorage para respaldo local
+      const reminderObj = {
+        id: 'ad_rem_' + Date.now(),
+        userId: userId || null,
+        planType: selectedPlan,
+        billingPeriod,
+        businessName: businessName || 'Mi Negocio',
+        whatsapp: whatsapp || '',
+        municipality,
+        reminderType,
+        scheduledAt,
+        createdAt: new Date().toISOString()
+      };
+      localStorage.setItem('rumbo_ad_reminder', JSON.stringify(reminderObj));
+
+      // 4. Registrar en el backend
+      await scheduleAdReminderApi({
+        userId,
+        businessName,
+        whatsapp,
+        municipality,
+        planType: selectedPlan,
+        billingPeriod,
+        reminderType,
+        scheduledAt
+      });
+
+      setReminderScheduled(true);
+
+      // Cierre suave tras 3.2 segundos
+      setTimeout(() => {
+        onClose();
+        setReminderScheduled(false);
+        setShowReminderSection(false);
+      }, 3200);
+
+    } catch (err) {
+      console.error('Error programando recordatorio:', err);
+      setReminderScheduled(true);
+    } finally {
+      setReminderLoading(false);
     }
   };
 
@@ -380,6 +463,195 @@ export default function AdModal({ isOpen, onClose }) {
             <p className="text-center text-[10px] text-slate-500">
               Atención directa por WhatsApp (+503 6989-3101) &bull; Activación en menos de 2 horas.
             </p>
+          </div>
+
+          {/* ============================================================== */}
+          {/* BOTÓN Y SECCIÓN: RECORDAR DESPUÉS / PENSARLO CON CALMA         */}
+          {/* ============================================================== */}
+          <div className="pt-2 border-t border-slate-800">
+            {!showReminderSection ? (
+              <div className="text-center space-y-1">
+                <button
+                  type="button"
+                  onClick={() => setShowReminderSection(true)}
+                  className="py-2.5 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 hover:border-amber-400/50 text-slate-300 hover:text-amber-300 text-xs font-bold inline-flex items-center gap-2 cursor-pointer transition-all"
+                >
+                  <Clock className="w-4 h-4 text-amber-400" />
+                  <span>¿Prefieres pensarlo? Recordar más tarde...</span>
+                  <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+                </button>
+                <p className="text-[10px] text-slate-500">
+                  Te guardamos la tarifa especial y te avisamos cuando estés relajado.
+                </p>
+              </div>
+            ) : reminderScheduled ? (
+              <div className="p-4 rounded-2xl bg-emerald-950/40 border border-emerald-500/40 text-center space-y-2 animate-fade-in">
+                <div className="w-10 h-10 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center mx-auto border border-emerald-400/30">
+                  <CheckCircle2 className="w-6 h-6" />
+                </div>
+                <h4 className="text-sm font-black text-white">¡Recordatorio Programado con Éxito!</h4>
+                <p className="text-xs text-slate-300 max-w-sm mx-auto leading-relaxed">
+                  Guardamos tu tarifa especial de <b>{currentPlan.name} (${currentPrice.toFixed(2)} USD)</b>. 
+                  {reminderType === 'TONIGHT' && ' Te avisaremos esta noche a las 8:30 PM para que lo revises con calma.'}
+                  {reminderType === 'IN_24_HOURS' && ' Te avisaremos mañana a esta misma hora con tu cupón reservado.'}
+                  {reminderType === 'NEXT_OPEN' && ' Te mostraremos la información guardada en tu próxima apertura de Rumbo.'}
+                </p>
+                <p className="text-[10px] text-emerald-400 font-bold flex items-center justify-center gap-1">
+                  <Bell className="w-3.5 h-3.5" />
+                  <span>Te enviaremos una notificación a tu pantalla o teléfono si estás fuera de la app.</span>
+                </p>
+              </div>
+            ) : (
+              <div className="p-4 rounded-2xl bg-slate-900 border border-amber-400/50 space-y-3.5 animate-fade-in text-left">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-lg bg-amber-400/20 text-amber-300 border border-amber-400/40 flex items-center justify-center font-bold">
+                      <Clock className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-black text-white uppercase tracking-wider">
+                        ¿Cuándo prefieres que te recordemos?
+                      </h4>
+                      <p className="text-[10px] text-slate-400">
+                        Te reservamos la tarifa y te enviamos un aviso a tu pantalla o celular.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowReminderSection(false)}
+                    className="text-slate-400 hover:text-white p-1 cursor-pointer"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                {/* 3 Opciones de Recordatorio */}
+                <div className="grid grid-cols-1 gap-2">
+                  
+                  {/* Opción 1: Por la noche (8:30 PM) */}
+                  <label
+                    onClick={() => setReminderType('TONIGHT')}
+                    className={`p-3 rounded-xl border flex items-start gap-3 cursor-pointer transition-all ${
+                      reminderType === 'TONIGHT'
+                        ? 'bg-amber-400/10 border-amber-400 text-white shadow-md'
+                        : 'bg-slate-950/60 border-slate-800 text-slate-300 hover:border-slate-700'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="reminderOption"
+                      checked={reminderType === 'TONIGHT'}
+                      onChange={() => setReminderType('TONIGHT')}
+                      className="mt-1 text-amber-400 accent-amber-400 cursor-pointer"
+                    />
+                    <div className="flex-1">
+                      <div className="flex items-center gap-1.5 font-black text-xs">
+                        <span>🌙 Por la noche (8:30 PM)</span>
+                        <span className="text-[9px] bg-amber-400 text-slate-950 px-1.5 py-0.2 rounded font-black uppercase">
+                          Recomendado
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-400 leading-tight mt-0.5">
+                        Cuando ya estés relajado en casa, descansando y sin el ajetreo del día para revisarlo con tranquilidad.
+                      </p>
+                    </div>
+                  </label>
+
+                  {/* Opción 2: Dentro de 24 horas */}
+                  <label
+                    onClick={() => setReminderType('IN_24_HOURS')}
+                    className={`p-3 rounded-xl border flex items-start gap-3 cursor-pointer transition-all ${
+                      reminderType === 'IN_24_HOURS'
+                        ? 'bg-amber-400/10 border-amber-400 text-white shadow-md'
+                        : 'bg-slate-950/60 border-slate-800 text-slate-300 hover:border-slate-700'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="reminderOption"
+                      checked={reminderType === 'IN_24_HOURS'}
+                      onChange={() => setReminderType('IN_24_HOURS')}
+                      className="mt-1 text-amber-400 accent-amber-400 cursor-pointer"
+                    />
+                    <div className="flex-1">
+                      <div className="font-black text-xs">
+                        ⏱️ Dentro de 24 horas (Mañana a esta misma hora)
+                      </div>
+                      <p className="text-[11px] text-slate-400 leading-tight mt-0.5">
+                        Para que puedas consultar tus costos o coordinarlo con tu socio comercial durante el día.
+                      </p>
+                    </div>
+                  </label>
+
+                  {/* Opción 3: Próxima vez que abra la app */}
+                  <label
+                    onClick={() => setReminderType('NEXT_OPEN')}
+                    className={`p-3 rounded-xl border flex items-start gap-3 cursor-pointer transition-all ${
+                      reminderType === 'NEXT_OPEN'
+                        ? 'bg-amber-400/10 border-amber-400 text-white shadow-md'
+                        : 'bg-slate-950/60 border-slate-800 text-slate-300 hover:border-slate-700'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="reminderOption"
+                      checked={reminderType === 'NEXT_OPEN'}
+                      onChange={() => setReminderType('NEXT_OPEN')}
+                      className="mt-1 text-amber-400 accent-amber-400 cursor-pointer"
+                    />
+                    <div className="flex-1">
+                      <div className="font-black text-xs">
+                        🚀 La próxima vez que ingrese a la app
+                      </div>
+                      <p className="text-[11px] text-slate-400 leading-tight mt-0.5">
+                        En cuanto vuelvas a abrir Rumbo en tu teléfono o navegador, te recordaremos tu selección.
+                      </p>
+                    </div>
+                  </label>
+
+                </div>
+
+                {/* Aviso sobre notificación si está fuera de la app */}
+                <div className="p-2.5 rounded-xl bg-slate-950 border border-slate-800 flex items-center gap-2 text-[11px] text-slate-400">
+                  <Bell className="w-4 h-4 text-amber-400 shrink-0" />
+                  <span>
+                    Si no estás dentro de la app en ese momento, te saltará una notificación en tu pantalla para que no pierdas la oferta.
+                  </span>
+                </div>
+
+                {/* Botón de Confirmación del Recordatorio */}
+                <div className="pt-1 flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleScheduleReminder}
+                    disabled={reminderLoading}
+                    className="flex-1 py-2.5 px-4 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-amber-500/20 transition-all disabled:opacity-50"
+                  >
+                    {reminderLoading ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Programando recordatorio...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Bell className="w-4 h-4" />
+                        <span>Confirmar y Programar Recordatorio</span>
+                      </>
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowReminderSection(false)}
+                    className="py-2.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold cursor-pointer"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+
+              </div>
+            )}
           </div>
 
         </div>

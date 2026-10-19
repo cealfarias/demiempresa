@@ -701,6 +701,80 @@ app.post('/api/ads/track', async (req, res) => {
 });
 
 // =====================================================================
+// 4.0.3 RECORDATORIOS DE PAUTAS PUBLICITARIAS PARA COMERCIANTES
+// =====================================================================
+
+app.post('/api/ads/schedule-reminder', async (req, res) => {
+  try {
+    const {
+      userId,
+      businessName,
+      whatsapp,
+      municipality,
+      planType,
+      billingPeriod,
+      reminderType,
+      scheduledAt
+    } = req.body;
+
+    if (!reminderType) {
+      return res.status(400).json({ success: false, error: 'reminderType es requerido' });
+    }
+
+    const insertRes = await pool.query(`
+      INSERT INTO viajes_ad_reminders (
+        user_id, business_name, whatsapp, municipality, plan_type, billing_period, reminder_type, scheduled_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      RETURNING *;
+    `, [
+      userId || null,
+      businessName || null,
+      whatsapp || null,
+      municipality || 'San Salvador',
+      planType || 'IMPACTO',
+      billingPeriod || 'WEEKLY',
+      reminderType,
+      scheduledAt ? new Date(scheduledAt) : null
+    ]);
+
+    res.json({ success: true, reminder: insertRes.rows[0] });
+  } catch (err) {
+    console.error('Error al registrar recordatorio de pauta:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.get('/api/ads/pending-reminder/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    if (!userId) return res.json({ success: true, reminder: null });
+
+    const result = await pool.query(`
+      SELECT * FROM viajes_ad_reminders
+      WHERE user_id = $1
+        AND sent = FALSE
+        AND (reminder_type = 'NEXT_OPEN' OR scheduled_at <= NOW())
+      ORDER BY created_at DESC
+      LIMIT 1;
+    `, [userId]);
+
+    res.json({ success: true, reminder: result.rows[0] || null });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/ads/dismiss-reminder/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    await pool.query('UPDATE viajes_ad_reminders SET sent = TRUE WHERE id = $1', [id]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// =====================================================================
 // 4.1 RED SOCIAL HIPERLOCAL & ARCADE EN TRAYECTO (RUMBO A MI DESTINO)
 // =====================================================================
 
@@ -3243,6 +3317,30 @@ async function initializeDatabase() {
       console.warn('⚠️ Nota sobre tabla viajes_ad_creatives:', e.message);
     }
 
+    // 1.1 Asegurar tabla de recordatorios de pauta publicitaria para comerciantes
+    try {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS viajes_ad_reminders (
+          id SERIAL PRIMARY KEY,
+          user_id VARCHAR(150),
+          business_name VARCHAR(150),
+          whatsapp VARCHAR(50),
+          municipality VARCHAR(100),
+          plan_type VARCHAR(50) DEFAULT 'IMPACTO',
+          billing_period VARCHAR(20) DEFAULT 'WEEKLY',
+          reminder_type VARCHAR(50) NOT NULL,
+          scheduled_at TIMESTAMP WITH TIME ZONE,
+          sent BOOLEAN DEFAULT FALSE,
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE INDEX IF NOT EXISTS idx_ad_reminders_user_id ON viajes_ad_reminders(user_id);
+        CREATE INDEX IF NOT EXISTS idx_ad_reminders_status ON viajes_ad_reminders(sent, scheduled_at);
+      `);
+      console.log('✅ Tabla viajes_ad_reminders verificada (Recordatorios inteligentes de pautas).');
+    } catch (e) {
+      console.warn('⚠️ Nota sobre tabla viajes_ad_reminders:', e.message);
+    }
+
     // 2. Sincronizar precios oficiales y de mercado vigentes ($5.13 Especial)
     try {
       await pool.query(`
@@ -4969,6 +5067,39 @@ export async function cleanupStaleTrips() {
 
 // Ejecutar limpieza periódica cada 10 minutos
 setInterval(cleanupStaleTrips, 1000 * 60 * 10);
+
+// 9. CRON WORKER AUTOMÁTICO: RECORDATORIOS DE PAUTAS PUBLICITARIAS A COMERCIANTES
+setInterval(async () => {
+  try {
+    if (!pool) return;
+    const dueReminders = await pool.query(`
+      SELECT * FROM viajes_ad_reminders
+      WHERE sent = FALSE
+        AND reminder_type != 'NEXT_OPEN'
+        AND scheduled_at <= NOW()
+      LIMIT 15;
+    `);
+
+    for (const rem of dueReminders.rows) {
+      if (rem.user_id) {
+        await PushService.sendNotificationToUser(rem.user_id, {
+          title: '🔔 Rumbo: ¿Listo para pautar tu negocio?',
+          body: `Hola${rem.business_name ? ' ' + rem.business_name : ''}, tu tarifa especial de ${rem.plan_type || 'Pauta'} sigue reservada. Paga fácil con Transferencia 365 Móvil (Davivienda 69893101).`,
+          icon: '/rumbo-logo.png',
+          badge: '/favicon.svg',
+          data: {
+            url: `/viajes?openAds=true&reminderId=${rem.id}`,
+            reminderId: rem.id
+          }
+        }).catch(() => {});
+      }
+      await pool.query('UPDATE viajes_ad_reminders SET sent = TRUE WHERE id = $1', [rem.id]).catch(() => {});
+      console.log(`⏰ [AD_REMINDER] Notificación push disparada para comerciante: ${rem.business_name || rem.user_id} (${rem.reminder_type})`);
+    }
+  } catch (err) {
+    console.warn('⚠️ Error en cron de recordatorios de pauta:', err.message);
+  }
+}, 1000 * 60); // Comprobación cada 60 segundos
 
 // Endpoint administrativo y de rescate para forzar limpieza de viajes huérfanos
 app.post('/api/trips/cleanup-stale', async (req, res) => {

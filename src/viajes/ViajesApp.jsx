@@ -613,6 +613,7 @@ function ViajesAppContent() {
   const [showArcadeModal, setShowArcadeModal] = useState(false);
   const [showInTripAdModal, setShowInTripAdModal] = useState(false);
   const [activeInTripAd, setActiveInTripAd] = useState(null);
+  const [pendingAdReminder, setPendingAdReminder] = useState(null);
 
   const [roadDistanceKm, setRoadDistanceKm] = useState(8.4);
   const [estimatedDurationMin, setEstimatedDurationMin] = useState(16);
@@ -1287,6 +1288,49 @@ function ViajesAppContent() {
         globalAvatar.style.display = '';
       }
     };
+  }, []);
+
+  // Detección de enlace Web Push (?openAds=true) y comprobación de recordatorios de pauta
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get('openAds') === 'true') {
+        setShowAdModal(true);
+        const cleanUrl = window.location.pathname;
+        window.history.replaceState({}, '', cleanUrl);
+      }
+    }
+
+    const checkPendingReminder = () => {
+      try {
+        const stored = localStorage.getItem('rumbo_ad_reminder');
+        if (stored) {
+          const rem = JSON.parse(stored);
+          const notifiedSession = sessionStorage.getItem(`rumbo_ad_rem_shown_${rem.id}`);
+          if (!notifiedSession) {
+            const now = Date.now();
+            let shouldTrigger = false;
+
+            if (rem.reminderType === 'NEXT_OPEN') {
+              shouldTrigger = true;
+            } else if (rem.scheduledAt && new Date(rem.scheduledAt).getTime() <= now) {
+              shouldTrigger = true;
+            }
+
+            if (shouldTrigger) {
+              setPendingAdReminder(rem);
+              sessionStorage.setItem(`rumbo_ad_rem_shown_${rem.id}`, 'true');
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('Nota verificando recordatorio ad:', err);
+      }
+    };
+
+    checkPendingReminder();
+    const interval = setInterval(checkPendingReminder, 25000);
+    return () => clearInterval(interval);
   }, []);
 
   // Disparar pauta publicitaria geosegmentada en trayecto (a los 3 segundos del inicio)
@@ -7611,8 +7655,67 @@ function ViajesAppContent() {
         );
       })()}
 
-      {/* Modal B2B Captación en Caliente */}
-      <AdModal isOpen={showAdModal} onClose={() => setShowAdModal(false)} />
+      {/* Modal B2B Captación en Caliente y Recordatorio Inteligente */}
+      <AdModal
+        isOpen={showAdModal}
+        onClose={() => setShowAdModal(false)}
+        userId={userProfile?.id}
+      />
+
+      {/* Banner / Toast Flotante de Recordatorio de Pauta para Comerciantes */}
+      {pendingAdReminder && (
+        <div className="fixed bottom-20 left-3 right-3 sm:left-auto sm:right-6 sm:w-96 z-[99999] bg-slate-900/95 border-2 border-amber-400 rounded-3xl p-4 shadow-2xl text-white space-y-3 backdrop-blur-md animate-pop-bounce">
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center font-black shrink-0 shadow-md shadow-amber-500/20">
+                <Bell className="w-5 h-5" />
+              </div>
+              <div>
+                <span className="text-[10px] font-black uppercase text-amber-400 tracking-wider block">
+                  Recordatorio de Pauta Comercial
+                </span>
+                <h4 className="text-xs font-black text-white leading-tight">
+                  ¿Listo para pautar {pendingAdReminder.businessName || 'tu negocio'}?
+                </h4>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setPendingAdReminder(null)}
+              className="text-slate-400 hover:text-white p-1 cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          <p className="text-[11px] text-slate-300 leading-relaxed">
+            Tu tarifa especial del <b>{pendingAdReminder.planType || 'Plan Impacto'}</b> sigue reservada. Paga rápido por <b>Transferencia 365 Móvil (Davivienda 69893101)</b> o consúltanos por WhatsApp.
+          </p>
+
+          <div className="flex items-center gap-2 pt-1">
+            <button
+              type="button"
+              onClick={() => {
+                setShowAdModal(true);
+                setPendingAdReminder(null);
+              }}
+              className="flex-1 py-2 px-3 rounded-xl bg-gradient-to-r from-amber-400 to-amber-300 text-slate-950 font-black text-xs text-center cursor-pointer shadow-md shadow-amber-500/20 active:scale-95 transition-all"
+            >
+              Ver Pautas y Pagar ➔
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                localStorage.removeItem('rumbo_ad_reminder');
+                setPendingAdReminder(null);
+              }}
+              className="py-2 px-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 text-[11px] font-bold cursor-pointer transition-colors"
+            >
+              Descartar
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Modal Exclusivo de Incentivos PEA (Rifas y Semanas de Viajes Gratis) */}
       <PeaIncentivesModal

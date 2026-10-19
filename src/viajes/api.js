@@ -1716,3 +1716,60 @@ export async function trackAdInteractionApi({ creativeId, action = 'IMPRESSION',
     return { success: false, error: err.message };
   }
 }
+
+/**
+ * 23. Recordatorios Inteligentes de Pautas Comerciales
+ */
+export async function scheduleAdReminderApi({
+  userId,
+  businessName,
+  whatsapp,
+  municipality,
+  planType,
+  billingPeriod,
+  reminderType,
+  scheduledAt
+}) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/ads/schedule-reminder`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId,
+        businessName,
+        whatsapp,
+        municipality,
+        planType,
+        billingPeriod,
+        reminderType,
+        scheduledAt
+      })
+    });
+    return await res.json();
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+}
+
+export async function fetchPendingAdReminderApi(userId) {
+  try {
+    if (!userId) return { success: true, reminder: null };
+    const res = await fetch(`${API_BASE_URL}/api/ads/pending-reminder/${encodeURIComponent(userId)}`);
+    if (!res.ok) return { success: false, reminder: null };
+    return await res.json();
+  } catch (err) {
+    return { success: false, error: err.message, reminder: null };
+  }
+}
+
+export async function dismissAdReminderApi(reminderId) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/ads/dismiss-reminder/${reminderId}`, {
+      method: 'POST'
+    });
+    return await res.json();
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+}
+
