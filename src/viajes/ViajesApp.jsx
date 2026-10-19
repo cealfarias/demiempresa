@@ -3328,18 +3328,6 @@ function ViajesAppContent() {
     const clientId = googleClientId;
     if (!clientId) return;
 
-    // Si estamos en el subdominio viajes.demiempresa.online con el Client ID genérico no autorizado en Google Cloud Console,
-    // evitar llamadas a Google GSI que lanzan 403 Forbidden y [GSI_LOGGER] origin not allowed
-    const isDefaultClientId = clientId === '585734148629-tdmrqos1msedm3hg0p4593fj55uhttle.apps.googleusercontent.com';
-    const isSubdomain = typeof window !== 'undefined' && window.location.hostname.includes('viajes.');
-
-    if (isSubdomain && isDefaultClientId) {
-      if (headerGoogleButtonRef.current) headerGoogleButtonRef.current.innerHTML = '';
-      if (googleButtonContainerRef.current) googleButtonContainerRef.current.innerHTML = '';
-      setUseCustomGoogleAuth(true);
-      return;
-    }
-
     const renderOfficialGsiButton = () => {
       if (window.google?.accounts?.id) {
         try {
@@ -3371,18 +3359,18 @@ function ViajesAppContent() {
             auto_select: false
           });
 
-          // Renderizar botón oficial GSI en el encabezado si no hay usuario logueado
+          // Renderizar botón oficial GSI en el encabezado (formato pequeño para que quepa perfecto)
           if (headerGoogleButtonRef.current && !userProfile) {
             headerGoogleButtonRef.current.innerHTML = '';
             const isSmallScreen = typeof window !== 'undefined' && window.innerWidth < 640;
             window.google.accounts.id.renderButton(headerGoogleButtonRef.current, {
               type: 'standard',
               theme: isLight ? 'outline' : 'filled_blue',
-              size: 'medium',
+              size: 'small', // Tamaño pequeño para que quepa perfectamente en el encabezado
               text: 'signin',
               shape: 'pill',
               logo_alignment: 'left',
-              width: isSmallScreen ? 125 : 180
+              width: isSmallScreen ? 115 : 135
             });
           }
 
@@ -3426,8 +3414,8 @@ function ViajesAppContent() {
   // Abrir Google Identity Services real / Ventana emergente oficial de Google
   const handleGoogleSignInClick = () => {
     const clientId = googleClientId;
-    if (!clientId || useCustomGoogleAuth) {
-      // Si aún no está configurado el Client ID de Google Cloud o el subdominio no está autorizado, mostrar modal
+    if (!clientId) {
+      // Si aún no está configurado el Client ID de Google Cloud, solicitarlo para abrir accounts.google.com
       setShowGoogleConfigModal(true);
       return;
     }
@@ -3859,8 +3847,8 @@ function ViajesAppContent() {
                 ref={headerGoogleButtonRef}
                 className="min-h-[36px] flex items-center justify-end rounded-full overflow-hidden shadow-sm flex-shrink-0"
               />
-              {/* Fallback de respaldo en caso de bloqueo de script o sin conexión o subdominio no autorizado */}
-              {(!window.google?.accounts?.id || useCustomGoogleAuth) && (
+              {/* Fallback de respaldo en caso de bloqueo de script o sin conexión */}
+              {!window.google?.accounts?.id && (
                 <button
                   type="button"
                   onClick={handleGoogleSignInClick}
@@ -5855,7 +5843,7 @@ function ViajesAppContent() {
                 <div className="space-y-2 pt-1">
                   <div ref={googleButtonContainerRef} className="flex justify-center w-full min-h-[44px]" />
 
-                  {(!window.google?.accounts?.id || useCustomGoogleAuth) && (
+                  {!window.google?.accounts?.id && (
                     <button
                       type="button"
                       onClick={handleGoogleSignInClick}
@@ -5968,8 +5956,8 @@ function ViajesAppContent() {
                   {/* Contenedor oficial donde Google Identity Services inyecta su botón nativo de iframe */}
                   <div ref={googleButtonContainerRef} className="flex justify-center w-full min-h-[44px]" />
 
-                  {/* Botón de respaldo si GSI no ha cargado o si el subdominio usa botón nativo */}
-                  {(!window.google?.accounts?.id || useCustomGoogleAuth) && (
+                  {/* Botón de respaldo SOLO si Google Identity Services no ha cargado en el navegador */}
+                  {!window.google?.accounts?.id && (
                     <button
                       type="button"
                       onClick={handleGoogleSignInClick}
