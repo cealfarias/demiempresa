@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Tetro Blocks Neo - Arcade de Lógica</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🕹️</text></svg>">
+</head>
+<body>
+
+    <div class="top-nav" style="display:flex; justify-content:space-between; align-items:center; width:100%; max-width:760px; margin-bottom:12px;">
+        <a href="../../index.html" class="nav-back-link">◀ Arcade</a>
+        <a href="../../index.html#juegos-retro" class="nav-back-link" style="border-color: rgba(255, 0, 110, 0.4); color: #ff006e;">🕹️ Juegos Retro</a>
+    </div>
+
+    <header>
+        <h1 class="logo">TETRO BLOCKS</h1>
+        <p class="subtitle">Arcade de Lógica &bull; Edición Neo</p>
+    </header>
+
+    <main class="game-container">
+        <!-- Panel Izquierdo: Hold y Estadísticas -->
+        <aside class="side-panel">
+            <div class="panel-card">
+                <h3 class="panel-title">Reserva (Hold)</h3>
+                <canvas id="hold-canvas" class="preview-canvas" width="120" height="100"></canvas>
+            </div>
+
+            <div class="panel-card">
+                <div class="stat-item">
+                    <h3 class="panel-title">Puntaje</h3>
+                    <div id="score" class="stat-value">0</div>
+                </div>
+                <div class="stat-item">
+                    <h3 class="panel-title">Líneas</h3>
+                    <div id="lines" class="stat-value">0</div>
+                </div>
+                <div class="stat-item">
+                    <h3 class="panel-title">Nivel</h3>
+                    <div id="level" class="stat-value">1</div>
+                </div>
+                <div class="stat-item">
+                    <h3 class="panel-title">Récord</h3>
+                    <div id="high-score" class="stat-value">0</div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Tablero Central -->
+        <section class="board-wrapper">
+            <canvas id="board" width="300" height="600"></canvas>
+
+            <!-- Pantalla de Inicio / Game Over -->
+            <div id="game-overlay" class="overlay">
+                <h2 id="overlay-title">TETRO BLOCKS</h2>
+                <p>Presiona para comenzar</p>
+                <button id="overlay-btn" class="btn-primary">Iniciar Juego</button>
+            </div>
+
+            <!-- Pantalla de Pausa -->
+            <div id="pause-overlay" class="overlay hidden">
+                <h2>PAUSA</h2>
+                <p>Juego en pausa</p>
+                <button id="btn-resume" class="btn-primary">Continuar</button>
+            </div>
+        </section>
+
+        <!-- Panel Derecho: Siguiente y Controles -->
+        <aside class="side-panel">
+            <div class="panel-card">
+                <h3 class="panel-title">Siguiente</h3>
+                <canvas id="next-canvas" class="preview-canvas" width="120" height="280"></canvas>
+            </div>
+
+            <div class="action-bar">
+                <button id="btn-pause" class="icon-btn" title="Pausar (P)">⏸️</button>
+                <button id="btn-music" class="icon-btn" title="Música Tetris (N)">🎵</button>
+                <button id="btn-sound" class="icon-btn" title="Efectos de Sonido (M)">🔊</button>
+            </div>
+
+            <div class="panel-card controls-panel">
+                <h3 class="panel-title">Controles</h3>
+                <div class="controls-guide">
+                    <ul>
+                        <li><span>Mover:</span> <span class="key-badge">◄ ► / A D</span></li>
+                        <li><span>Rotar:</span> <span class="key-badge">▲ / W</span></li>
+                        <li><span>Bajar suave:</span> <span class="key-badge">▼ / S</span></li>
+                        <li><span>Caída rápida:</span> <span class="key-badge">Espacio</span></li>
+                        <li><span>Guardar:</span> <span class="key-badge">C / Shift</span></li>
+                        <li><span>Música:</span> <span class="key-badge">N</span></li>
+                        <li><span>Sonidos:</span> <span class="key-badge">M</span></li>
+                        <li><span>Pausar:</span> <span class="key-badge">P</span></li>
+                    </ul>
+                </div>
+            </div>
+        </aside>
+    </main>
+
+    <!-- Controles táctiles en pantalla para móviles -->
+    <section class="touch-controls" id="touch-controls">
+        <div class="touch-row">
+            <button id="touch-hold" class="touch-btn" aria-label="Guardar pieza">📦 Hold</button>
+            <button id="touch-rotate" class="touch-btn primary" aria-label="Rotar pieza">🔄 Girar</button>
+            <button id="touch-drop" class="touch-btn accent" aria-label="Caída instantánea">⚡ Caer</button>
+        </div>
+        <div class="touch-row">
+            <button id="touch-left" class="touch-btn" aria-label="Mover a la izquierda">◀</button>
+            <button id="touch-down" class="touch-btn" aria-label="Bajar">▼</button>
+            <button id="touch-right" class="touch-btn" aria-label="Mover a la derecha">▶</button>
+        </div>
+    </section>
+
+    <!-- Scripts del juego -->
+    <script src="js/audio.js"></script>
+    <script src="js/tetris.js"></script>
+<script src=" /juegos/rumbo-game-bridge.js></script>\n</body>
+</html>

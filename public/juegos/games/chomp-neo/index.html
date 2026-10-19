@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Chomp Neo: Maze Eater - Clásico Arcade 1980</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🟡</text></svg>">
+</head>
+<body>
+
+    <!-- Navegación Superior -->
+    <nav class="top-nav">
+        <div class="nav-links-row">
+            <a href="../../index.html" class="nav-back-link">◀ Arcade Hub</a>
+            <a href="../../index.html#juegos-retro" class="nav-back-link nav-retro-link">🕹️ Juegos Retro</a>
+        </div>
+        <div class="nav-actions">
+            <button id="btn-pause" class="icon-btn" title="Pausar (Espacio)">⏸️</button>
+            <button id="btn-music" class="icon-btn" title="Sirena Arcade (N)">🎵</button>
+            <button id="btn-sound" class="icon-btn" title="Sonidos Waka-Waka (M)">🔊</button>
+        </div>
+    </nav>
+
+    <!-- Marcador HUD Superior Arcade -->
+    <header class="hud-panel">
+        <div class="hud-item">
+            <span class="hud-label">1UP SCORE</span>
+            <span id="score-val" class="hud-val" style="color: #ffea00;">0</span>
+        </div>
+        <div class="hud-item">
+            <span class="hud-label">HIGH SCORE</span>
+            <span id="high-val" class="hud-val" style="color: #00f7ff;">10000</span>
+        </div>
+        <div class="hud-item">
+            <span class="hud-label">NIVEL</span>
+            <span id="level-val" class="hud-val" style="color: #ffffff;">1</span>
+        </div>
+        <div class="hud-item">
+            <span class="hud-label">VIDAS</span>
+            <span id="lives-box" class="hud-val" style="font-size:0.95rem;">🟡 🟡 🟡</span>
+        </div>
+    </header>
+
+    <!-- Área Principal de Juego -->
+    <main class="game-viewport">
+        <div id="canvas-container">
+            <canvas id="game-canvas"></canvas>
+            <div id="ready-banner" class="overlay-banner">READY!</div>
+        </div>
+    </main>
+
+    <!-- Controles Táctiles para Pantallas Móviles -->
+    <footer class="touch-controls">
+        <div class="dpad">
+            <button id="btn-up" class="dpad-btn dpad-up">▲</button>
+            <button id="btn-left" class="dpad-btn dpad-left">◀</button>
+            <button id="btn-right" class="dpad-btn dpad-right">▶</button>
+            <button id="btn-down" class="dpad-btn dpad-down">▼</button>
+        </div>
+    </footer>
+
+    <!-- Modal de Inicio / Game Over -->
+    <div id="modal-overlay" class="modal-overlay">
+        <div class="modal-content">
+            <h1 id="modal-title" class="modal-title">CHOMP NEO</h1>
+            <p style="color:#00f7ff; font-weight:700; margin-bottom:14px; font-size:0.95rem;">
+                DEVORADOR DEL LABERINTO DE NEÓN (1980)
+            </p>
+
+            <div class="modal-instructions">
+                <ul>
+                    <li><strong>Misión:</strong> Devora todos los puntos amarillos del laberinto esquivando a los 4 espectros de colores.</li>
+                    <li><strong>Super Píldoras (Energizers):</strong> Come las píldoras grandes parpadeantes de las 4 esquinas para volver azules a los espectros y devorarlos (+200, +400, +800, +1600 pts).</li>
+                    <li><strong>Túneles de Teletransporte:</strong> Usa los túneles laterales de los bordes izquierdo y derecho para escapar rápidamente.</li>
+                    <li><strong>Frutas Especiales:</strong> Come las cerezas, fresas y gemas cibernéticas que aparecen en el centro para ganar puntos extra.</li>
+                    <li><strong>Controles:</strong> Flechas o WASD en PC / Cruceta táctil o deslizamiento (Swipe) en móvil.</li>
+                </ul>
+            </div>
+
+            <div id="modal-score" style="margin-bottom: 20px; font-size:1.05rem;"></div>
+
+            <button id="btn-start-modal" class="btn-primary">¡COMENZAR PARTIDA! ▶</button>
+        </div>
+    </div>
+
+    <!-- Scripts del Juego -->
+    <script src="js/audio.js"></script>
+    <script src="js/game.js"></script>
+<script src=" /juegos/rumbo-game-bridge.js></script>\n</body>
+</html>

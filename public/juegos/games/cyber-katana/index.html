@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Cyber Katana: Laser Slice - Acción Táctil Cyberpunk</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚔️</text></svg>">
+</head>
+<body>
+
+    <!-- Navegación Superior -->
+    <nav class="top-nav">
+        <div class="nav-links-row">
+            <a href="../../index.html" class="nav-back-link">◀ Arcade</a>
+            <a href="../../index.html#juegos-retro" class="nav-back-link nav-retro-link">🕹️ Juegos Retro</a>
+        </div>
+        <div class="nav-actions">
+            <button id="btn-music" class="icon-btn" title="Música Shamisen Synth">🎵</button>
+            <button id="btn-sound" class="icon-btn" title="Efectos de Corte">🔊</button>
+        </div>
+    </nav>
+
+    <!-- Marcador HUD -->
+    <header class="hud-panel">
+        <div class="hud-box">
+            <span class="hud-label">Puntos</span>
+            <span id="score-val" class="hud-val hud-score">0</span>
+        </div>
+
+        <div class="hud-box" style="align-items: center;">
+            <span class="hud-label">Baterías</span>
+            <span id="lives-box" class="lives-box">🔋🔋🔋</span>
+        </div>
+
+        <div class="hud-box" style="align-items: flex-end;">
+            <span class="hud-label">Récord</span>
+            <span id="best-val" class="hud-val" style="color: #ffd700;">0</span>
+        </div>
+    </header>
+
+    <!-- Contenedor del Canvas de Juego -->
+    <main class="canvas-wrapper">
+        <canvas id="katana-canvas"></canvas>
+
+        <!-- Pantalla de Inicio / Game Over -->
+        <div id="game-overlay" class="overlay">
+            <h2 id="overlay-title">CYBER KATANA</h2>
+            <p id="overlay-desc">
+                Desenvaina tu sable láser deslizando el dedo o ratón a toda velocidad.<br>
+                Rebana núcleos de plasma y cristales cuánticos en mitades.<br>
+                ¡Encadena 3 o más en un solo trazo para <b>COMBOS</b> y corta los cubos azules para activar <b>Tiempo Bala</b>!<br>
+                <b style="color:#ff0055;">⚠️ NO CORTES LAS BOMBAS EMP 💣</b>
+            </p>
+            <button id="btn-play-overlay" class="btn-primary">Desenvainar Sable ⚔️</button>
+        </div>
+    </main>
+
+    <!-- Guía de Controles -->
+    <footer class="guide-bottom">
+        <span>📱 <b>Móvil / PC:</b> Desliza el dedo o el ratón a través de los núcleos voladores para cortar.</span>
+    </footer>
+
+    <!-- Scripts -->
+    <script src="js/audio.js"></script>
+    <script src="js/game.js"></script>
+<script src=" /juegos/rumbo-game-bridge.js></script>\n</body>
+</html>

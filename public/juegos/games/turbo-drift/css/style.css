@@ -1,0 +1,418 @@
+:root {
+    --bg-dark: #0a0412;
+    --panel-bg: rgba(22, 12, 38, 0.88);
+    --panel-border: rgba(255, 0, 128, 0.25);
+    --neon-pink: #ff007f;
+    --neon-pink-glow: rgba(255, 0, 127, 0.5);
+    --neon-cyan: #00f7ff;
+    --neon-cyan-glow: rgba(0, 247, 255, 0.45);
+    --neon-yellow: #ffe600;
+    --neon-orange: #ff6600;
+    --neon-green: #00ff66;
+    --text-main: #f8f9fa;
+    --text-muted: #a39bb8;
+    --font-ui: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    --font-mono: 'Consolas', 'Courier New', monospace;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: manipulation;
+}
+
+body {
+    background-color: var(--bg-dark);
+    background-image: 
+        radial-gradient(circle at 50% 10%, rgba(255, 0, 127, 0.18) 0%, transparent 60%),
+        radial-gradient(circle at 80% 80%, rgba(0, 247, 255, 0.12) 0%, transparent 50%),
+        linear-gradient(180deg, #0d021a 0%, #05010a 100%);
+    color: var(--text-main);
+    font-family: var(--font-ui);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 8px;
+    overflow-x: hidden;
+}
+
+/* Navegación Superior */
+.top-nav {
+    width: 100%;
+    max-width: 500px;
+    margin-bottom: 8px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.nav-back-link {
+    color: var(--neon-cyan);
+    text-decoration: none;
+    font-size: 0.85rem;
+    font-weight: 700;
+    padding: 6px 14px;
+    background: rgba(0, 247, 255, 0.1);
+    border: 1px solid rgba(0, 247, 255, 0.35);
+    border-radius: 20px;
+    transition: all 0.2s ease;
+}
+
+.nav-back-link:hover {
+    background: rgba(0, 247, 255, 0.25);
+    box-shadow: 0 0 10px var(--neon-cyan-glow);
+    transform: translateX(-2px);
+}
+
+.nav-actions {
+    display: flex;
+    gap: 6px;
+}
+
+.icon-btn {
+    background: var(--panel-bg);
+    border: 1px solid var(--panel-border);
+    color: var(--text-main);
+    border-radius: 8px;
+    width: 36px;
+    height: 36px;
+    font-size: 1rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+}
+
+.icon-btn:hover {
+    border-color: var(--neon-pink);
+    box-shadow: 0 0 10px var(--neon-pink-glow);
+    transform: scale(1.05);
+}
+
+/* Panel HUD de Carrera */
+.hud-panel {
+    width: 100%;
+    max-width: 500px;
+    background: var(--panel-bg);
+    border: 1px solid var(--panel-border);
+    border-radius: 12px;
+    padding: 8px 12px;
+    margin-bottom: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+}
+
+.hud-row-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.speedometer-box {
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+}
+
+.speed-number {
+    font-family: var(--font-mono);
+    font-size: 2rem;
+    font-weight: 900;
+    color: var(--neon-cyan);
+    text-shadow: 0 0 12px var(--neon-cyan-glow);
+    letter-spacing: -1px;
+}
+
+.speed-unit {
+    font-size: 0.75rem;
+    font-weight: 800;
+    color: var(--neon-yellow);
+}
+
+.distance-box, .score-box {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.hud-label {
+    font-size: 0.65rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+}
+
+.hud-value {
+    font-family: var(--font-mono);
+    font-size: 1.15rem;
+    font-weight: 800;
+    color: #ffffff;
+}
+
+/* Barra de Combustible */
+.fuel-track-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.fuel-label {
+    font-size: 0.7rem;
+    font-weight: 800;
+    color: var(--neon-yellow);
+    min-width: 55px;
+}
+
+.fuel-bar-outer {
+    flex: 1;
+    height: 10px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 5px;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.fuel-bar-fill {
+    height: 100%;
+    width: 100%;
+    background-color: var(--neon-green);
+    border-radius: 5px;
+    transition: width 0.15s ease, background-color 0.3s ease;
+    box-shadow: 0 0 8px currentColor;
+}
+
+.fuel-pct {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    font-weight: 700;
+    min-width: 38px;
+    text-align: right;
+    color: #ffffff;
+}
+
+/* Barra de Nitro Turbo */
+.turbo-track-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.turbo-label {
+    font-size: 0.7rem;
+    font-weight: 800;
+    color: var(--neon-cyan);
+    min-width: 55px;
+}
+
+.turbo-bar-outer {
+    flex: 1;
+    height: 8px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+    overflow: hidden;
+    border: 1px solid rgba(0, 247, 255, 0.25);
+}
+
+.turbo-bar-fill {
+    height: 100%;
+    width: 100%;
+    background: linear-gradient(90deg, #0088ff, #00f7ff);
+    border-radius: 4px;
+    transition: width 0.15s ease;
+    box-shadow: 0 0 8px var(--neon-cyan-glow);
+}
+
+.turbo-status-text {
+    font-size: 0.65rem;
+    font-weight: 800;
+    letter-spacing: 0.5px;
+    min-width: 120px;
+    text-align: right;
+}
+
+/* Contenedor del Canvas */
+.canvas-wrapper {
+    position: relative;
+    width: 100%;
+    max-width: 480px;
+    aspect-ratio: 480 / 640;
+    background: #000;
+    border: 2px solid var(--panel-border);
+    border-radius: 14px;
+    overflow: hidden;
+    box-shadow: 0 0 30px rgba(255, 0, 127, 0.25);
+}
+
+#racer-canvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+    object-fit: contain;
+}
+
+/* Overlays (Inicio, Fin de Juego, Pausa) */
+.overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(10, 4, 18, 0.92);
+    backdrop-filter: blur(6px);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 24px;
+    text-align: center;
+    z-index: 20;
+    transition: opacity 0.25s ease;
+}
+
+.overlay.hidden {
+    opacity: 0;
+    pointer-events: none;
+    visibility: hidden;
+}
+
+.overlay h2 {
+    font-size: 2rem;
+    font-weight: 900;
+    color: var(--neon-pink);
+    text-shadow: 0 0 20px var(--neon-pink-glow);
+    margin-bottom: 12px;
+    letter-spacing: 1px;
+}
+
+.overlay p {
+    font-size: 0.95rem;
+    color: var(--text-main);
+    line-height: 1.5;
+    margin-bottom: 20px;
+    max-width: 360px;
+}
+
+.btn-primary {
+    background: linear-gradient(135deg, var(--neon-pink) 0%, #d6006c 100%);
+    color: #ffffff;
+    border: none;
+    font-size: 1.1rem;
+    font-weight: 800;
+    padding: 12px 28px;
+    border-radius: 30px;
+    cursor: pointer;
+    box-shadow: 0 0 25px var(--neon-pink-glow);
+    transition: all 0.2s ease;
+}
+
+.btn-primary:hover {
+    transform: scale(1.05);
+    box-shadow: 0 0 35px var(--neon-pink-glow);
+}
+
+/* Controles Inferiores para Móvil y Guía */
+.controls-bottom {
+    width: 100%;
+    max-width: 500px;
+    margin-top: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.touch-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1.2fr 1fr 1fr;
+    gap: 6px;
+    width: 100%;
+}
+
+.touch-btn {
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    color: #ffffff;
+    font-size: 0.85rem;
+    font-weight: 800;
+    padding: 12px 4px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background 0.1s ease, transform 0.08s ease;
+    touch-action: manipulation;
+}
+
+.touch-btn:active {
+    background: rgba(255, 255, 255, 0.25);
+    transform: scale(0.95);
+}
+
+.touch-btn-turbo {
+    background: linear-gradient(135deg, rgba(0, 247, 255, 0.3) 0%, rgba(0, 110, 255, 0.4) 100%);
+    border-color: var(--neon-cyan);
+    color: #ffffff;
+    box-shadow: 0 0 10px var(--neon-cyan-glow);
+}
+
+.touch-btn-brake {
+    background: rgba(255, 0, 80, 0.2);
+    border-color: #ff0055;
+    color: #ff88a3;
+}
+
+.touch-btn-horn {
+    background: rgba(255, 230, 0, 0.15);
+    border-color: var(--neon-yellow);
+    color: var(--neon-yellow);
+}
+
+.guide-box {
+    background: var(--panel-bg);
+    border: 1px solid var(--panel-border);
+    border-radius: 10px;
+    padding: 8px 12px;
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    line-height: 1.5;
+    text-align: center;
+}
+
+.guide-box b {
+    color: #ffffff;
+}
+
+.guide-box kbd {
+    background: rgba(255, 255, 255, 0.12);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    border-radius: 4px;
+    padding: 1px 5px;
+    font-size: 0.7rem;
+    font-family: var(--font-mono);
+    color: var(--neon-cyan);
+}
+
+/* Responsivo para móviles pequeños */
+@media (max-width: 480px) {
+    body {
+        padding: 4px;
+    }
+    .hud-panel {
+        padding: 6px 8px;
+    }
+    .speed-number {
+        font-size: 1.6rem;
+    }
+    .hud-value {
+        font-size: 1rem;
+    }
+    .touch-btn {
+        padding: 10px 2px;
+        font-size: 0.75rem;
+    }
+}

@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Hexa Defense: Neon Core - Tower Defense Táctico</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🛡️</text></svg>">
+</head>
+<body>
+
+    <!-- Navegación Superior -->
+    <nav class="top-nav">
+        <div class="nav-links-row">
+            <a href="../../index.html" class="nav-back-link">◀ Arcade</a>
+            <a href="../../index.html#juegos-retro" class="nav-back-link nav-retro-link">🕹️ Juegos Retro</a>
+        </div>
+        <div class="nav-actions">
+            <button id="btn-music" class="icon-btn" title="Música Synth Táctica">🎵</button>
+            <button id="btn-sound" class="icon-btn" title="Efectos de Armas">🔊</button>
+        </div>
+    </nav>
+
+    <!-- Marcador HUD Táctico -->
+    <header class="hud-panel">
+        <div class="hud-top-row">
+            <div class="stat-item">
+                <span class="credits-val">🪙 <span id="credits-val">350</span></span>
+            </div>
+
+            <div class="stat-item">
+                <span id="wave-val" class="wave-badge">1 / 10</span>
+            </div>
+
+            <div class="stat-item">
+                <span style="font-size:0.75rem; color:var(--text-muted);">NÚCLEO:</span>
+                <span id="core-hp-text" style="color:var(--neon-cyan); font-family:var(--font-mono);">100%</span>
+            </div>
+        </div>
+
+        <!-- Barra de Salud del Núcleo -->
+        <div class="core-track-row">
+            <div class="bar-outer">
+                <div id="core-hp-fill" class="core-hp-fill" style="width: 100%;"></div>
+            </div>
+        </div>
+
+        <!-- Controles de Oleada y Velocidad -->
+        <div class="wave-controls-row">
+            <button id="btn-start-wave" class="btn-wave">Iniciar Oleada 1 ⚔️</button>
+            <button id="btn-speed" class="btn-speed">1x ⏩</button>
+        </div>
+    </header>
+
+    <!-- Contenedor del Canvas de Juego -->
+    <main class="canvas-wrapper">
+        <canvas id="hexa-canvas"></canvas>
+
+        <!-- Panel de Construcción / Mejora Inferior -->
+        <div id="build-drawer" class="build-drawer hidden"></div>
+
+        <!-- Pantalla de Inicio / Game Over -->
+        <div id="game-overlay" class="overlay">
+            <h2 id="overlay-title">HEXA DEFENSE</h2>
+            <p id="overlay-desc">
+                Protege el Núcleo cuántico de las incursiones de ciber-virus.<br>
+                Toca los <b>nodos hexagonales</b> para construir torretas tácticas: Láser Pulsar 🔴, Bobina Tesla ⚡, Emisor Criogénico ❄️ y Mortero Plasma 💣.
+            </p>
+            <button id="btn-play-overlay" class="btn-primary">Desplegar Defensas 🛡️</button>
+        </div>
+    </main>
+
+    <!-- Guía de Controles -->
+    <footer class="guide-bottom">
+        <span>📱 <b>Móvil / PC:</b> Toca cualquier hexágono vacío para construir o una torreta existente para mejorarla/venderla.</span>
+    </footer>
+
+    <!-- Scripts -->
+    <script src="js/audio.js"></script>
+    <script src="js/game.js"></script>
+<script src=" /juegos/rumbo-game-bridge.js></script>\n</body>
+</html>

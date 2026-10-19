@@ -40,7 +40,8 @@ import {
   Eye,
   RefreshCw,
   ArrowRightLeft,
-  Send
+  Send,
+  ShoppingBag
 } from 'lucide-react';
 import { isPushSupported, getPushPermissionState, subscribeUserToPush, testPushNotification } from './pushManager';
 import {
@@ -52,6 +53,8 @@ import {
 import DeviceRoleConflictModal from './DeviceRoleConflictModal';
 import RumboLogo from './RumboLogo';
 import GasModal from './GasModal';
+import DriverSocialRadioModal from './DriverSocialRadioModal';
+import DriverGroupDealsModal from './DriverGroupDealsModal';
 import DriverRegistrationModal from './DriverRegistrationModal';
 import DriverInstallAppModal from './DriverInstallAppModal';
 import DriverLandingView from './DriverLandingView';
@@ -201,6 +204,8 @@ function DriverAppContent() {
       return null;
     }
   });
+
+  const [driverCoords, setDriverCoords] = useState({ lat: 13.6989, lng: -89.1914 });
 
   // Inicializar Telemetría Automática de Sesión y Permanencia (Conductores)
   useEffect(() => {
@@ -416,6 +421,8 @@ function DriverAppContent() {
   // Radar de Gasolineras & HUD en Ruta
   const [gasStations, setGasStations] = useState(DEFAULT_GAS_STATIONS);
   const [showGasModal, setShowGasModal] = useState(false);
+  const [showDriverRadioModal, setShowDriverRadioModal] = useState(false);
+  const [showGroupDealsModal, setShowGroupDealsModal] = useState(false);
   const [nearbyStationAlert, setNearbyStationAlert] = useState(null);
 
   // Viaje Asignado (Persistido para resistir F5 y recargas de página)
@@ -1032,6 +1039,7 @@ function DriverAppContent() {
               lat: pos.coords.latitude,
               lng: pos.coords.longitude
             };
+            setDriverCoords(currentCoords);
             socket.emit('driver:location_update', {
               tripId: activeTrip?.id || null,
               driverProfileId,
@@ -1390,6 +1398,24 @@ function DriverAppContent() {
               >
                 <Fuel className="w-4 h-4 text-amber-400" />
                 <span className="hidden md:inline">Radar Gasolina</span>
+              </button>
+
+              <button
+                onClick={() => setShowDriverRadioModal(true)}
+                title="Radio de Ruta: Retenes, alertas viales, zonas calientes y auxilio SOS entre choferes"
+                className="p-2 sm:px-2.5 sm:py-1.5 rounded-xl bg-gradient-to-r from-amber-500/20 to-yellow-500/20 border border-amber-400/40 text-amber-300 hover:bg-amber-500/30 text-xs font-black flex items-center gap-1.5 cursor-pointer transition-colors shadow-sm"
+              >
+                <Radio className="w-4 h-4 text-amber-400 animate-pulse" />
+                <span className="hidden sm:inline">Radio de Ruta</span>
+              </button>
+
+              <button
+                onClick={() => setShowGroupDealsModal(true)}
+                title="Club de Compras Colectivas: Descuentos masivos en aceite, repuestos, llantas y taller"
+                className="p-2 sm:px-2.5 sm:py-1.5 rounded-xl bg-gradient-to-r from-emerald-500/20 to-teal-500/20 border border-emerald-400/40 text-emerald-300 hover:bg-emerald-500/30 text-xs font-black flex items-center gap-1.5 cursor-pointer transition-colors shadow-sm"
+              >
+                <ShoppingBag className="w-4 h-4 text-emerald-400" />
+                <span className="hidden sm:inline">Club Taller</span>
               </button>
 
               <button
@@ -2746,6 +2772,22 @@ function DriverAppContent() {
         userProfile={driverProfile}
         initialCategory={inboxInitialCategory}
         prefillPaymentAmount={inboxPrefillAmount}
+      />
+
+      {/* Modal Estrella: Radio de Ruta & Red Social de Conductores */}
+      <DriverSocialRadioModal
+        isOpen={showDriverRadioModal}
+        onClose={() => setShowDriverRadioModal(false)}
+        driverProfile={driverProfile}
+        driverCoords={driverCoords}
+        activeDestinationMunicipality={activeTrip?.destinationMunicipality || null}
+      />
+
+      {/* Modal Club de Compras Colectivas: Repuestos, Mantenimiento, Llantas y Asesoría */}
+      <DriverGroupDealsModal
+        isOpen={showGroupDealsModal}
+        onClose={() => setShowGroupDealsModal(false)}
+        driverProfile={driverProfile}
       />
 
       {/* Modal de Registro y Expediente Digital de Conductor */}

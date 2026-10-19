@@ -65,6 +65,8 @@ import AdModal from './AdModal';
 import InTripSocialFeed, { PEA_TOPICS } from './InTripSocialFeed';
 import PeaIncentivesModal from './PeaIncentivesModal';
 import RumboInboxModal from './RumboInboxModal';
+import RumboSocialWorldModal from './RumboSocialWorldModal';
+import RumboArcadeModal from './RumboArcadeModal';
 import PickupMapModal from './PickupMapModal';
 import DestinationMapModal from './DestinationMapModal';
 import TripPreferencesModal from './TripPreferencesModal';
@@ -604,6 +606,8 @@ function ViajesAppContent() {
   });
   const [showPreferencesModal, setShowPreferencesModal] = useState(false);
   const [showInboxModal, setShowInboxModal] = useState(false);
+  const [showSocialWorldModal, setShowSocialWorldModal] = useState(false);
+  const [showArcadeModal, setShowArcadeModal] = useState(false);
 
   const [roadDistanceKm, setRoadDistanceKm] = useState(8.4);
   const [estimatedDurationMin, setEstimatedDurationMin] = useState(16);
@@ -1453,6 +1457,10 @@ function ViajesAppContent() {
         triggerSelectionFeedback();
         if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
         speakAssistantMessage('En trayecto hacia tu destino. ¡Buen viaje!');
+        setTimeout(() => {
+          setShowSocialWorldModal(true);
+          speakAssistantMessage('Explora y descubre muchas sorpresas en Rumbo a mi Destino.');
+        }, 3000);
       } else if (nextStatus === 'COMPLETED' || nextStatus === 'DONE') {
         setTripStatus('COMPLETED');
         setShowRatingModal(true);
@@ -1657,6 +1665,10 @@ function ViajesAppContent() {
           triggerSelectionFeedback();
           if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
           speakAssistantMessage('En trayecto hacia tu destino. ¡Buen viaje!');
+          setTimeout(() => {
+            setShowSocialWorldModal(true);
+            speakAssistantMessage('Explora y descubre muchas sorpresas en Rumbo a mi Destino.');
+          }, 3000);
         } else if ((nextStatus === 'COMPLETED' || nextStatus === 'DONE') && tripStatus !== 'COMPLETED') {
           setAppState('IN_TRIP_HUB');
           setTripStatus('COMPLETED');
@@ -7412,6 +7424,68 @@ function ViajesAppContent() {
           )}
 
           {/* ============================================================== */}
+          {/* BOTÓN ARCADE HUB & WALLET STREAK (13 JUEGOS RETRO & MODERNOS)  */}
+          {/* ============================================================== */}
+          <div className="w-full">
+            <button
+              type="button"
+              onClick={() => setShowArcadeModal(true)}
+              className="w-full p-3.5 sm:p-4 rounded-3xl bg-gradient-to-r from-purple-900 via-indigo-950 to-slate-900 hover:from-purple-850 hover:to-indigo-900 text-white font-black text-sm flex items-center justify-between shadow-xl shadow-purple-950/40 border border-purple-500/40 transition-all cursor-pointer"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-purple-500/20 border border-purple-400/40 text-purple-300 flex items-center justify-center font-black text-lg shadow-inner">
+                  🎮
+                </div>
+                <div className="text-left">
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                    <span className="text-[10px] font-black uppercase tracking-wider text-purple-300">
+                      Arcade DemiEmpresa • 13 Juegos
+                    </span>
+                  </div>
+                  <p className="text-xs sm:text-sm font-black text-white leading-snug">
+                    Racha 7 Días = Bono de $1.00 USD
+                  </p>
+                </div>
+              </div>
+              <div className="py-1.5 px-3 rounded-xl bg-purple-500/30 border border-purple-400/40 text-purple-200 text-xs font-black shadow-sm">
+                Jugar ›
+              </div>
+            </button>
+          </div>
+
+          {/* ============================================================== */}
+          {/* BOTÓN ESTRELLA: MUNDO SOCIAL Y ARCADE "RUMBO A MI DESTINO"    */}
+          {/* ============================================================== */}
+          <div className="w-full">
+            <button
+              type="button"
+              onClick={() => setShowSocialWorldModal(true)}
+              className="w-full p-3.5 sm:p-4 rounded-3xl bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 hover:from-amber-300 hover:to-yellow-300 text-slate-950 font-black text-sm flex items-center justify-between shadow-xl shadow-amber-500/25 border-2 border-amber-300 transition-all cursor-pointer animate-pop-bounce"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-slate-950 text-amber-400 flex items-center justify-center font-black text-lg shadow-inner">
+                  🌟
+                </div>
+                <div className="text-left">
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-slate-950 animate-ping" />
+                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-900">
+                      Rumbo a mi Destino
+                    </span>
+                  </div>
+                  <p className="text-xs sm:text-sm font-black text-slate-950 leading-snug">
+                    Red Social de Spots & Juegos con Bonos
+                  </p>
+                </div>
+              </div>
+              <div className="py-1.5 px-3 rounded-xl bg-slate-950 text-amber-300 text-xs font-black shadow-sm">
+                Explorar ›
+              </div>
+            </button>
+          </div>
+
+          {/* ============================================================== */}
           {/* FEED SOCIAL / REELS VERTICAL DE LA PEA: MONETIZACIÓN CAUTIVA */}
           {/* ============================================================== */}
           <InTripSocialFeed
@@ -7660,6 +7734,28 @@ function ViajesAppContent() {
         isOpen={showInboxModal}
         onClose={() => setShowInboxModal(false)}
         role="PASSENGER"
+        userProfile={userProfile}
+      />
+
+      {/* Modal Estrella: Red Social Hiperlocal & Arcade en Trayecto (Rumbo a mi Destino) */}
+      <RumboSocialWorldModal
+        isOpen={showSocialWorldModal}
+        onClose={() => setShowSocialWorldModal(false)}
+        tripInfo={{
+          destinationAddress,
+          destinationMunicipality
+        }}
+        userProfile={userProfile}
+        onSelectDestination={(dest) => {
+          if (dest.address) setDestinationAddress(dest.address);
+          if (dest.municipality) setDestinationMunicipality(dest.municipality);
+        }}
+      />
+
+      {/* Modal Arcade DemiEmpresa: Suite de 13 Minijuegos & Racha de Wallet (Bono $1.00 USD) */}
+      <RumboArcadeModal
+        isOpen={showArcadeModal}
+        onClose={() => setShowArcadeModal(false)}
         userProfile={userProfile}
       />
 

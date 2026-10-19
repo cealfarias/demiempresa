@@ -1352,3 +1352,294 @@ export async function fetchPendingTripsApi() {
   }
 }
 
+/**
+ * 47. RED SOCIAL HIPERLOCAL & ARCADE EN TRAYECTO (RUMBO A MI DESTINO)
+ */
+export async function fetchSocialCommunitiesApi() {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/social/communities`);
+    if (!res.ok) return { success: false, communities: [] };
+    return await res.json();
+  } catch (err) {
+    return { success: false, error: err.message, communities: [] };
+  }
+}
+
+export async function fetchSocialFeedApi({ communityId = 'ALL', municipality = '', userId = null, filter = 'ALL', limit = 20, offset = 0 } = {}) {
+  try {
+    const params = new URLSearchParams({
+      communityId,
+      municipality,
+      filter,
+      limit: String(limit),
+      offset: String(offset)
+    });
+    if (userId) params.append('userId', userId);
+    const res = await fetch(`${API_BASE_URL}/api/social/feed?${params.toString()}`);
+    if (!res.ok) return { success: false, posts: [] };
+    return await res.json();
+  } catch (err) {
+    return { success: false, error: err.message, posts: [] };
+  }
+}
+
+export async function createSocialPostApi(postData) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/social/posts`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(postData)
+    });
+    return await res.json();
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+}
+
+export async function toggleSocialLikeApi(postId, userId) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/social/posts/${encodeURIComponent(postId)}/like`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId })
+    });
+    return await res.json();
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+}
+
+export async function fetchUserContactsApi(userId) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/social/contacts/${encodeURIComponent(userId)}`);
+    if (!res.ok) return { success: false, contacts: [] };
+    return await res.json();
+  } catch (err) {
+    return { success: false, error: err.message, contacts: [] };
+  }
+}
+
+export async function playArcadeGameApi({ userId, tripId, gameType = 'WHEEL_OF_FORTUNE' }) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/arcade/play`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, tripId, gameType })
+    });
+    return await res.json();
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+}
+
+export async function fetchArcadeBalanceApi(userId) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/arcade/balance/${encodeURIComponent(userId)}`);
+    if (!res.ok) return { success: false, points: 0, recentRewards: [] };
+    return await res.json();
+  } catch (err) {
+    return { success: false, error: err.message, points: 0, recentRewards: [] };
+  }
+}
+
+/**
+ * 47.1 GAMIFICACIÓN ARCADE: RACHA DE 7 DÍAS CON BONO DE $1.00 USD (VIGENCIA 7 DÍAS)
+ */
+export async function fetchGameStreakApi(userId) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/wallet/game-streak/${encodeURIComponent(userId)}`);
+    if (!res.ok) return { success: false, streak: 0, daysRemaining: 7 };
+    return await res.json();
+  } catch (err) {
+    return { success: false, error: err.message, streak: 0, daysRemaining: 7 };
+  }
+}
+
+export async function recordGameStreakSessionApi({ userId, gameId, durationSeconds, score }) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/wallet/game-streak`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, gameId, durationSeconds, score })
+    });
+    if (!res.ok) return { success: false, error: 'Error del servidor al registrar partida' };
+    return await res.json();
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+}
+
+/**
+ * 48. RED SOCIAL & RADIO DE RUTA PARA CONDUCTORES (HERMANDAD DEL VOLANTE)
+ */
+export async function fetchDriverSocialPostsApi({
+  category = 'ALL',
+  municipality = 'ALL',
+  driverId = null,
+  driverLat = null,
+  driverLng = null,
+  radiusKm = 5,
+  destinationMunicipality = null,
+  limit = 30
+} = {}) {
+  try {
+    const params = new URLSearchParams({
+      category,
+      municipality,
+      limit: String(limit)
+    });
+    if (driverId) params.append('driverId', driverId);
+    if (driverLat !== null && driverLat !== undefined) params.append('driverLat', String(driverLat));
+    if (driverLng !== null && driverLng !== undefined) params.append('driverLng', String(driverLng));
+    if (radiusKm) params.append('radiusKm', String(radiusKm));
+    if (destinationMunicipality) params.append('destinationMunicipality', destinationMunicipality);
+
+    const res = await fetch(`${API_BASE_URL}/api/driver-social/posts?${params.toString()}`);
+    if (!res.ok) return { success: false, posts: [] };
+    return await res.json();
+  } catch (err) {
+    return { success: false, error: err.message, posts: [] };
+  }
+}
+
+export async function createDriverSocialPostApi(postData) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/driver-social/posts`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(postData)
+    });
+    return await res.json();
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+}
+
+export async function confirmDriverSocialAlertApi(postId, driverId) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/driver-social/posts/${encodeURIComponent(postId)}/confirm`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ driverId })
+    });
+    return await res.json();
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+}
+
+export async function fetchDriverBuddiesApi(driverId) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/driver-social/buddies/${encodeURIComponent(driverId)}`);
+    if (!res.ok) return { success: false, buddies: [] };
+    return await res.json();
+  } catch (err) {
+    return { success: false, error: err.message, buddies: [] };
+  }
+}
+
+export async function addDriverBuddyApi(driverId, buddyDriverId) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/driver-social/buddies`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ driverId, buddyDriverId })
+    });
+    return await res.json();
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+}
+
+export async function searchDriverBuddiesApi(query, currentDriverId) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/driver-social/buddies/search?q=${encodeURIComponent(query)}&currentDriverId=${encodeURIComponent(currentDriverId || '')}`);
+    if (!res.ok) return { success: false, drivers: [] };
+    return await res.json();
+  } catch (err) {
+    return { success: false, error: err.message, drivers: [] };
+  }
+}
+
+export async function fetchDriverPrivateMessagesApi(driverId) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/driver-social/messages/${encodeURIComponent(driverId)}`);
+    if (!res.ok) return { success: false, messages: [] };
+    return await res.json();
+  } catch (err) {
+    return { success: false, error: err.message, messages: [] };
+  }
+}
+
+export async function sendDriverPrivateMessageApi(msgData) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/driver-social/messages`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(msgData)
+    });
+    return await res.json();
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+}
+
+// =====================================================================
+// CLUB DE COMPRAS COLECTIVAS (REPUESTOS, TALLER, LEGAL)
+// =====================================================================
+
+export async function fetchGroupDealsApi() {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/driver-deals/active`);
+    if (!res.ok) return { success: false, deals: [] };
+    return await res.json();
+  } catch (err) {
+    return { success: false, error: err.message, deals: [] };
+  }
+}
+
+export async function createDealOrderApi(orderData) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/driver-deals/orders`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(orderData)
+    });
+    return await res.json();
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+}
+
+export async function fetchDriverDealOrdersApi(driverId) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/driver-deals/my-orders/${encodeURIComponent(driverId)}`);
+    if (!res.ok) return { success: false, orders: [] };
+    return await res.json();
+  } catch (err) {
+    return { success: false, error: err.message, orders: [] };
+  }
+}
+
+export async function submitDriverDemandApi(demandData) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/driver-deals/demand`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(demandData)
+    });
+    return await res.json();
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+}
+
+export async function fetchDemandSummaryApi() {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/driver-deals/demand-summary`);
+    if (!res.ok) return { success: false, summary: [] };
+    return await res.json();
+  } catch (err) {
+    return { success: false, error: err.message, summary: [] };
+  }
+}

@@ -232,6 +232,67 @@ export const LedgerService = {
   },
 
   /**
+   * 2.1 Acreditar Bono por Racha Semanal Arcade ($1.00 USD) - Válido por 7 Días (168 Horas)
+   * Se otorga al completar el ciclo de 7 días consecutivos de juego (mín. 60s o 1,000 pts por día)
+   */
+  async grantStreakBonus(userId, streakCycle = 1) {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query('SELECT pg_advisory_xact_lock($1)', [ADVISORY_LOCK_ID]);
+
+      const wallet = await this.getOrCreateWalletIdentity(userId, client);
+      const amount = '1.00';
+      const txType = 'STREAK_BONUS';
+      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+
+      const lastBlockRes = await client.query(
+        'SELECT current_hash, sequence_number FROM viajes_ledger_transactions ORDER BY sequence_number DESC LIMIT 1'
+      );
+      const lastBlock = lastBlockRes.rows[0];
+      const prevHash = lastBlock ? lastBlock.current_hash : GENESIS_PREV_HASH;
+      const nextSeq = lastBlock ? parseInt(lastBlock.sequence_number, 10) + 1 : 1;
+
+      const payload = `${prevHash}|${nextSeq}|${SYSTEM_MINT_ADDRESS}|${wallet.address}|${amount}|NONE|${txType}|${expiresAt}`;
+      const { privateKey } = getSystemAuthorityKeys();
+      const signature = signPayload(privateKey, payload);
+
+      const currentHash = calculateBlockHash({
+        previous_hash: prevHash,
+        sequence_number: nextSeq,
+        from_address: SYSTEM_MINT_ADDRESS,
+        to_address: wallet.address,
+        amount,
+        input_ref: null,
+        transaction_type: txType,
+        expires_at: expiresAt,
+        signature
+      });
+
+      const insertRes = await client.query(`
+        INSERT INTO viajes_ledger_transactions (
+          sequence_number, previous_hash, from_address, to_address, amount,
+          input_ref, is_spent, expires_at, status, spend_expires_at, activation_expires_at,
+          transaction_type, reference_id, referrer_user_id, referred_user_id,
+          signature, current_hash
+        ) VALUES ($1, $2, $3, $4, $5, NULL, FALSE, $6, 'ACTIVE', $6, NULL, $7, $8, NULL, NULL, $9, $10)
+        RETURNING *;
+      `, [
+        nextSeq, prevHash, SYSTEM_MINT_ADDRESS, wallet.address, amount,
+        expiresAt, txType, `STREAK_CYCLE_${streakCycle}_USER_${userId}`, signature, currentHash
+      ]);
+
+      await client.query('COMMIT');
+      return { success: true, transaction: insertRes.rows[0], wallet, amount: 1.00, expiresAt };
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  },
+
+  /**
    * 3. Registrar Referido en Estado PENDIENTE DE ACTIVACIÓN (Temporizador 7 Días)
    * Cortafuegos: ÚNICAMENTE usuarios con rol PASSENGER. Los conductores no participan en referidos.
    * El anfitrión ganará el bono solo si el invitado completa un viaje >= $4.00 en los próximos 7 días

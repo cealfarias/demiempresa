@@ -9,6 +9,7 @@ import { ReferralService } from './services/referralService.js';
 import { AdService, AD_PRICING_PLANS } from './services/adService.js';
 import { LedgerService } from './services/ledgerService.js';
 import { PushService, VAPID_PUBLIC_KEY } from './services/pushService.js';
+import { SocialService } from './services/socialService.js';
 
 dotenv.config();
 
@@ -472,6 +473,278 @@ app.get('/api/b2b/feed/:municipality', async (req, res) => {
     res.json(feed);
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// =====================================================================
+// 4.1 RED SOCIAL HIPERLOCAL & ARCADE EN TRAYECTO (RUMBO A MI DESTINO)
+// =====================================================================
+
+app.get('/api/social/communities', async (req, res) => {
+  try {
+    const communities = await SocialService.getCommunities();
+    res.json({ success: true, communities });
+  } catch (err) {
+    console.error('Error al obtener comunidades:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.get('/api/social/feed', async (req, res) => {
+  try {
+    const { communityId, municipality, userId, filter, limit, offset } = req.query;
+    const posts = await SocialService.getPosts({
+      communityId,
+      municipality,
+      userId,
+      filter,
+      limit: parseInt(limit) || 20,
+      offset: parseInt(offset) || 0
+    });
+    res.json({ success: true, posts });
+  } catch (err) {
+    console.error('Error al obtener feed social:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/social/posts', async (req, res) => {
+  try {
+    const post = await SocialService.createPost(req.body);
+    res.json({ success: true, post });
+  } catch (err) {
+    console.error('Error al crear post social:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/social/posts/:postId/like', async (req, res) => {
+  try {
+    const { postId } = req.params;
+    const { userId } = req.body;
+    if (!userId) {
+      return res.status(400).json({ success: false, error: 'userId es requerido' });
+    }
+    const result = await SocialService.toggleLike(postId, userId);
+    res.json({ success: true, ...result });
+  } catch (err) {
+    console.error('Error al dar like:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.get('/api/social/contacts/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const contacts = await SocialService.getUserContacts(userId);
+    res.json({ success: true, contacts });
+  } catch (err) {
+    console.error('Error al obtener contactos:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/arcade/play', async (req, res) => {
+  try {
+    const { userId, tripId, gameType } = req.body;
+    if (!userId) {
+      return res.status(400).json({ success: false, error: 'userId es requerido' });
+    }
+    const outcome = await SocialService.playArcadeGame({ userId, tripId, gameType });
+    res.json({ success: true, outcome });
+  } catch (err) {
+    console.error('Error al jugar en arcade:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.get('/api/arcade/balance/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const balance = await SocialService.getUserRewardBalance(userId);
+    res.json({ success: true, ...balance });
+  } catch (err) {
+    console.error('Error al obtener balance arcade:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// =====================================================================
+// 4.2 RED SOCIAL & RADIO DE RUTA PARA CONDUCTORES (HERMANDAD DEL VOLANTE)
+// =====================================================================
+
+app.get('/api/driver-social/posts', async (req, res) => {
+  try {
+    const { category, municipality, driverId, driverLat, driverLng, radiusKm, destinationMunicipality, limit } = req.query;
+    const posts = await SocialService.getDriverPosts({
+      category,
+      municipality,
+      driverId,
+      driverLat,
+      driverLng,
+      radiusKm,
+      destinationMunicipality,
+      limit: parseInt(limit) || 30
+    });
+    res.json({ success: true, posts });
+  } catch (err) {
+    console.error('Error al obtener alertas de conductores:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/driver-social/posts', async (req, res) => {
+  try {
+    const post = await SocialService.createDriverPost(req.body);
+    res.json({ success: true, post });
+  } catch (err) {
+    console.error('Error al publicar alerta de conductor:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/driver-social/posts/:postId/confirm', async (req, res) => {
+  try {
+    const { postId } = req.params;
+    const { driverId } = req.body;
+    const result = await SocialService.confirmDriverAlert(postId, driverId);
+    res.json({ success: true, ...result });
+  } catch (err) {
+    console.error('Error al confirmar alerta:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.get('/api/driver-social/buddies/:driverId', async (req, res) => {
+  try {
+    const { driverId } = req.params;
+    const buddies = await SocialService.getDriverBuddies(driverId);
+    res.json({ success: true, buddies });
+  } catch (err) {
+    console.error('Error al obtener colegas:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/driver-social/buddies', async (req, res) => {
+  try {
+    const { driverId, buddyDriverId } = req.body;
+    const result = await SocialService.addDriverBuddy(driverId, buddyDriverId);
+    res.json({ success: true, ...result });
+  } catch (err) {
+    console.error('Error al agregar colega:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.get('/api/driver-social/buddies/search', async (req, res) => {
+  try {
+    const { q, currentDriverId } = req.query;
+    if (!q || q.length < 2) return res.json({ success: true, drivers: [] });
+    const drivers = await SocialService.searchDriverBuddy(q, currentDriverId);
+    res.json({ success: true, drivers });
+  } catch (err) {
+    console.error('Error al buscar chofer:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.get('/api/driver-social/messages/:driverId', async (req, res) => {
+  try {
+    const { driverId } = req.params;
+    const messages = await SocialService.getPrivateMessages(driverId);
+    res.json({ success: true, messages });
+  } catch (err) {
+    console.error('Error al obtener mensajes privados:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/driver-social/messages', async (req, res) => {
+  try {
+    const msg = await SocialService.sendPrivateMessage(req.body);
+    res.json({ success: true, message: msg });
+  } catch (err) {
+    console.error('Error al enviar mensaje privado:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// =====================================================================
+// 4.3 CLUB DE COMPRAS COLECTIVAS (REPUESTOS, TALLER, LEGAL)
+// =====================================================================
+
+app.get('/api/driver-deals/active', async (req, res) => {
+  try {
+    const deals = await SocialService.getGroupDeals();
+    res.json({ success: true, deals });
+  } catch (err) {
+    console.error('Error al obtener lotes de compra colectiva:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/driver-deals/orders', async (req, res) => {
+  try {
+    const { dealId, driverId, driverName, vehiclePlate, amountPaid, transferReference, transferProofUrl } = req.body;
+    if (!dealId || !driverId || !transferReference) {
+      return res.status(400).json({ success: false, error: 'Faltan campos obligatorios (dealId, driverId, comprobante/referencia Transfer365)' });
+    }
+    const order = await SocialService.createDealOrder({
+      dealId,
+      driverId,
+      driverName,
+      vehiclePlate,
+      amountPaid,
+      transferReference,
+      transferProofUrl
+    });
+    res.json({ success: true, order });
+  } catch (err) {
+    console.error('Error al registrar pedido prepagado:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.get('/api/driver-deals/my-orders/:driverId', async (req, res) => {
+  try {
+    const { driverId } = req.params;
+    const orders = await SocialService.getDriverDealOrders(driverId);
+    res.json({ success: true, orders });
+  } catch (err) {
+    console.error('Error al obtener pedidos del chofer:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/driver-deals/demand', async (req, res) => {
+  try {
+    const { driverId, driverName, vehicleInfo, category, itemDescription, urgency } = req.body;
+    if (!itemDescription || !category) {
+      return res.status(400).json({ success: false, error: 'Categoría y descripción requeridas' });
+    }
+    const demand = await SocialService.submitDemandRequest({
+      driverId,
+      driverName,
+      vehicleInfo,
+      category,
+      itemDescription,
+      urgency
+    });
+    res.json({ success: true, demand });
+  } catch (err) {
+    console.error('Error al enviar solicitud de repuestos/taller:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.get('/api/driver-deals/demand-summary', async (req, res) => {
+  try {
+    const summary = await SocialService.getDemandSummary();
+    res.json({ success: true, summary });
+  } catch (err) {
+    console.error('Error al obtener resumen de demanda:', err);
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 
@@ -2246,6 +2519,234 @@ app.get('/api/wallet/audit', async (req, res) => {
 });
 
 // =====================================================================
+// 5.9 GAMIFICACIÓN ARCADE: RACHA DE 7 DÍAS CON BONO DE $1.00 USD (VIGENCIA 7 DÍAS)
+// =====================================================================
+
+// GET /api/wallet/game-streak/:userId - Consultar progreso de la racha (Día 1 a 7)
+app.get(['/api/wallet/game-streak', '/api/wallet/game-streak/:userId'], async (req, res) => {
+  try {
+    const userId = req.params.userId || req.query.userId || req.user?.id;
+    if (!userId) {
+      return res.status(400).json({ success: false, error: 'userId es requerido' });
+    }
+
+    // 1. Obtener o crear registro de racha
+    let streakRes = await pool.query(
+      `SELECT * FROM viajes_game_streaks WHERE user_id::text = $1`,
+      [userId.toString()]
+    );
+
+    let streak = streakRes.rows[0];
+    const today = new Date().toISOString().split('T')[0];
+
+    if (!streak) {
+      const ins = await pool.query(`
+        INSERT INTO viajes_game_streaks (user_id, current_streak, total_streaks_completed, last_played_date)
+        VALUES ($1, 0, 0, NULL)
+        RETURNING *;
+      `, [userId.toString()]);
+      streak = ins.rows[0];
+    } else {
+      // Verificar si la racha se rompió (si el último día jugado es anterior a ayer y streak > 0)
+      if (streak.last_played_date) {
+        const lastDate = new Date(streak.last_played_date);
+        const nowDate = new Date(today);
+        const diffDays = Math.floor((nowDate - lastDate) / (1000 * 60 * 60 * 24));
+        if (diffDays > 1 && streak.current_streak > 0) {
+          // Racha perdida: resetear a 0
+          await pool.query(
+            `UPDATE viajes_game_streaks SET current_streak = 0, updated_at = CURRENT_TIMESTAMP WHERE user_id::text = $1`,
+            [userId.toString()]
+          );
+          streak.current_streak = 0;
+        }
+      }
+    }
+
+    // Comprobar si ya jugó hoy
+    const playedToday = streak.last_played_date === today;
+
+    // Comprobar bono activo
+    const bonusActive = streak.bonus_expires_at && new Date(streak.bonus_expires_at) > new Date();
+
+    // Obtener últimas sesiones de juego
+    const sessionsRes = await pool.query(`
+      SELECT game_id, duration_seconds, score, qualified, created_at
+      FROM viajes_game_sessions
+      WHERE user_id::text = $1
+      ORDER BY created_at DESC
+      LIMIT 5;
+    `, [userId.toString()]);
+
+    res.json({
+      success: true,
+      streak: streak.current_streak,
+      daysTarget: 7,
+      daysRemaining: Math.max(0, 7 - streak.current_streak),
+      totalStreaksCompleted: streak.total_streaks_completed,
+      lastPlayedDate: streak.last_played_date,
+      playedToday,
+      bonusActive,
+      bonusExpiresAt: streak.bonus_expires_at,
+      currentBonusAmount: parseFloat(streak.current_bonus_amount || 0).toFixed(2),
+      totalBonusEarned: parseFloat(streak.total_bonus_earned || 0).toFixed(2),
+      recentSessions: sessionsRes.rows
+    });
+  } catch (err) {
+    console.error('Error en /api/wallet/game-streak:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/wallet/game-streak - Registrar partida, validar condición (60s / 1000pts), avanzar racha y premiar día 7
+app.post('/api/wallet/game-streak', async (req, res) => {
+  try {
+    const { userId, gameId = 'arcade-minigame', durationSeconds = 0, score = 0 } = req.body;
+    if (!userId) {
+      return res.status(400).json({ success: false, error: 'userId es requerido' });
+    }
+
+    const duration = parseInt(durationSeconds, 10) || 0;
+    const gameScore = parseInt(score, 10) || 0;
+    const isQualified = duration >= 60 || gameScore >= 1000;
+    const today = new Date().toISOString().split('T')[0];
+
+    // 1. Guardar la sesión de juego en telemetría / historial
+    await pool.query(`
+      INSERT INTO viajes_game_sessions (user_id, game_id, duration_seconds, score, qualified, played_date)
+      VALUES ($1, $2, $3, $4, $5, $6);
+    `, [userId.toString(), gameId, duration, gameScore, isQualified, today]);
+
+    if (!isQualified) {
+      return res.json({
+        success: true,
+        qualified: false,
+        message: 'Para validar el reto diario de tu racha necesitas jugar al menos 60 segundos o sumar 1,000 puntos.',
+        durationRequired: 60,
+        scoreRequired: 1000,
+        currentDuration: duration,
+        currentScore: gameScore
+      });
+    }
+
+    // 2. Obtener o crear racha con bloqueo de fila
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      let streakRes = await client.query(
+        `SELECT * FROM viajes_game_streaks WHERE user_id::text = $1 FOR UPDATE`,
+        [userId.toString()]
+      );
+
+      let streak = streakRes.rows[0];
+      if (!streak) {
+        const ins = await client.query(`
+          INSERT INTO viajes_game_streaks (user_id, current_streak, total_streaks_completed, last_played_date, last_played_at)
+          VALUES ($1, 0, 0, NULL, NULL)
+          RETURNING *;
+        `, [userId.toString()]);
+        streak = ins.rows[0];
+      }
+
+      // 3. Evaluar racha
+      if (streak.last_played_date === today) {
+        // Ya completó el reto hoy
+        await client.query('COMMIT');
+        return res.json({
+          success: true,
+          qualified: true,
+          alreadyCompletedToday: true,
+          streak: streak.current_streak,
+          daysRemaining: Math.max(0, 7 - streak.current_streak),
+          message: '¡Ya aseguraste tu racha de hoy! Sigue practicando para romper tu récord.'
+        });
+      }
+
+      let newStreak = 1;
+      if (streak.last_played_date) {
+        const lastDate = new Date(streak.last_played_date);
+        const nowDate = new Date(today);
+        const diffDays = Math.floor((nowDate - lastDate) / (1000 * 60 * 60 * 24));
+        if (diffDays === 1) {
+          // Día consecutivo: avanzar
+          newStreak = (streak.current_streak || 0) + 1;
+        } else {
+          // Racha rota: recomenzar en Día 1
+          newStreak = 1;
+        }
+      }
+
+      let wonBonus = false;
+      let bonusExpiresAt = null;
+
+      // 4. Si alcanza el día 7: Ciclo 7/7 Completado -> Otorgar $1.00 USD
+      if (newStreak >= 7) {
+        const streakCycle = (streak.total_streaks_completed || 0) + 1;
+        const bonusResult = await LedgerService.grantStreakBonus(userId, streakCycle);
+        bonusExpiresAt = bonusResult.expiresAt;
+        wonBonus = true;
+
+        await client.query(`
+          UPDATE viajes_game_streaks SET
+            current_streak = 0,
+            total_streaks_completed = total_streaks_completed + 1,
+            last_played_date = $1,
+            last_played_at = CURRENT_TIMESTAMP,
+            current_bonus_amount = 1.00,
+            bonus_expires_at = $2,
+            total_bonus_earned = total_bonus_earned + 1.00,
+            updated_at = CURRENT_TIMESTAMP
+          WHERE user_id::text = $3;
+        `, [today, bonusExpiresAt, userId.toString()]);
+
+        await client.query('COMMIT');
+
+        return res.json({
+          success: true,
+          qualified: true,
+          streak: 7,
+          wonBonus: true,
+          bonusAmount: 1.00,
+          bonusExpiresAt,
+          cycleCompleted: true,
+          message: '🎉 ¡JACKPOT DE RACHA! Completaste 7 días consecutivos. Se ha acreditado tu bono de $1.00 USD en tu billetera con vigencia de 7 días.'
+        });
+      } else {
+        // Actualizar racha normal (días 1 a 6)
+        await client.query(`
+          UPDATE viajes_game_streaks SET
+            current_streak = $1,
+            last_played_date = $2,
+            last_played_at = CURRENT_TIMESTAMP,
+            updated_at = CURRENT_TIMESTAMP
+          WHERE user_id::text = $3;
+        `, [newStreak, today, userId.toString()]);
+
+        await client.query('COMMIT');
+
+        return res.json({
+          success: true,
+          qualified: true,
+          streak: newStreak,
+          wonBonus: false,
+          daysRemaining: 7 - newStreak,
+          message: `🔥 ¡Día ${newStreak}/7 asegurado! Faltan ${7 - newStreak} día${7 - newStreak === 1 ? '' : 's'} para ganar tu bono de $1.00 USD.`
+        });
+      }
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  } catch (err) {
+    console.error('Error al registrar racha en /api/wallet/game-streak:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// =====================================================================
 // 6.1 SISTEMA DE TICKETS DE SOPORTE TÉCNICO Y MEJORAS AL SISTEMA
 // =====================================================================
 
@@ -2413,6 +2914,39 @@ async function initializeDatabase() {
       console.log('✅ Tabla viajes_telemetry_events verificada (con IPs, países y modelos de celulares para rifas).');
     } catch (e) {
       console.warn('⚠️ Nota sobre tabla viajes_telemetry_events:', e.message);
+    }
+
+    // 1.3 Crear tablas para Gamificación y Racha de Wallet (13 Minijuegos Arcade)
+    try {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS viajes_game_streaks (
+          user_id UUID PRIMARY KEY REFERENCES viajes_users(id) ON DELETE CASCADE,
+          current_streak INT NOT NULL DEFAULT 0,
+          total_streaks_completed INT NOT NULL DEFAULT 0,
+          last_played_date DATE,
+          last_played_at TIMESTAMP WITH TIME ZONE,
+          current_bonus_amount NUMERIC(10, 2) NOT NULL DEFAULT 0.00,
+          bonus_expires_at TIMESTAMP WITH TIME ZONE,
+          total_bonus_earned NUMERIC(10, 2) NOT NULL DEFAULT 0.00,
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE TABLE IF NOT EXISTS viajes_game_sessions (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          user_id UUID NOT NULL REFERENCES viajes_users(id) ON DELETE CASCADE,
+          game_id VARCHAR(50) NOT NULL,
+          duration_seconds INT NOT NULL DEFAULT 0,
+          score INT NOT NULL DEFAULT 0,
+          qualified BOOLEAN NOT NULL DEFAULT FALSE,
+          played_date DATE NOT NULL DEFAULT CURRENT_DATE,
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE INDEX IF NOT EXISTS idx_game_sessions_user_date ON viajes_game_sessions(user_id, played_date);
+        ALTER TABLE viajes_ledger_transactions DROP CONSTRAINT IF EXISTS viajes_ledger_transactions_transaction_type_check;
+      `);
+      console.log('✅ Tablas viajes_game_streaks y viajes_game_sessions verificadas (Racha 7/7 con Bono $1.00 USD).');
+    } catch (e) {
+      console.warn('⚠️ Nota sobre tablas de racha de juegos:', e.message);
     }
 
     // 2. Sincronizar precios oficiales y de mercado vigentes ($5.13 Especial)

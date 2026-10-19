@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Star Raider Neo - Arcade Espacial Retro</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🚀</text></svg>">
+</head>
+<body>
+
+    <!-- Navegación Superior -->
+    <nav class="top-nav">
+        <a href="../../index.html" class="nav-back-link">◀ Arcade</a>
+        <a href="../../index.html#juegos-retro" class="nav-back-link" style="border-color: rgba(255, 0, 110, 0.4); color: #ff006e;">🕹️ Juegos Retro</a>
+        <div class="nav-actions">
+            <button id="btn-pause" class="icon-btn" title="Pausar (P)">⏸️</button>
+            <button id="btn-music" class="icon-btn" title="Música Synthwave (N)">🎵</button>
+            <button id="btn-sound" class="icon-btn" title="Efectos de Sonido (M)">🔊</button>
+        </div>
+    </nav>
+
+    <!-- Marcador / HUD del Juego -->
+    <header class="game-hud">
+        <div class="hud-item">
+            <span class="hud-label">Puntos</span>
+            <span id="score-val" class="hud-val accent">0</span>
+        </div>
+        <div class="hud-item">
+            <span class="hud-label">Sector</span>
+            <span id="sector-val" class="hud-val">1 / 5</span>
+        </div>
+        <div class="hud-item">
+            <span class="hud-label">Vidas</span>
+            <span id="lives-val" class="hud-val">❤️❤️❤️</span>
+        </div>
+        <div class="hud-item">
+            <span class="hud-label">Arma</span>
+            <span id="weapon-val" class="hud-val" style="color: #ffbe0b; font-size: 0.88rem;">Láser 1x</span>
+        </div>
+        <div class="hud-item">
+            <span class="hud-label">Bombas</span>
+            <span id="bombs-val" class="hud-val" style="font-size: 0.9rem;">💣💣</span>
+        </div>
+        <div class="hud-item">
+            <span class="hud-label">Récord</span>
+            <span id="highscore-val" class="hud-val">0</span>
+        </div>
+    </header>
+
+    <!-- Barra de Vida del Jefe (Visible solo durante Boss Battles) -->
+    <div id="boss-hud-bar" class="boss-hud hidden">
+        <div class="boss-title-row">
+            <span class="boss-warning-blink">⚠️ ALERTA:</span>
+            <span id="boss-name-label" class="boss-name">TITÁN METEOROIDE</span>
+        </div>
+        <div class="boss-hp-track">
+            <div id="boss-hp-fill" class="boss-hp-fill" style="width: 100%;"></div>
+        </div>
+    </div>
+
+    <!-- Contenedor del Canvas de Juego -->
+    <main class="canvas-wrapper">
+        <canvas id="game-canvas"></canvas>
+
+        <!-- Anuncio Flotante de Sector -->
+        <div id="sector-banner" class="sector-banner hidden">
+            Sector Alfa: Cinturón de Asteroides
+        </div>
+
+        <!-- Pantalla de Inicio / Game Over -->
+        <div id="game-overlay" class="overlay">
+            <h2 id="overlay-title">STAR RAIDER</h2>
+            <p id="overlay-desc">5 Sectores Galácticos. Enfréntate a meteoritos ardientes, cazas alienígenas y Naves Nodriza. ¡Mejora tu cañón hasta Nivel 6 con misiles teledirigidos!</p>
+            <button id="btn-overlay-play" class="btn-primary">Despegar 🚀</button>
+        </div>
+
+        <!-- Pantalla de Pausa -->
+        <div id="pause-overlay" class="overlay hidden">
+            <h2>PAUSA</h2>
+            <p>Juego en pausa</p>
+            <button id="btn-resume" class="btn-primary">Reanudar</button>
+        </div>
+    </main>
+
+    <!-- Controles en pantalla y guía -->
+    <footer class="controls-bottom">
+        <div class="touch-action-bar">
+            <button id="touch-bomb" class="touch-btn-bomb">💣 BOMBA EMP</button>
+            <button id="touch-fire" class="touch-btn-fire">🔥 DISPARAR</button>
+        </div>
+
+        <div class="guide-box">
+            <span>🎮 <b>PC:</b> <kbd>Flechas / WASD</kbd> mover &bull; <kbd>Espacio</kbd> disparar &bull; <kbd>B</kbd> Bomba EMP.</span><br>
+            <span>📱 <b>Móvil:</b> Arrastra con el dedo para moverte (disparo automático) y usa el botón <b>💣 BOMBA</b>.</span>
+        </div>
+    </footer>
+
+    <!-- Scripts del juego -->
+    <script src="js/audio.js"></script>
+    <script src="js/game.js"></script>
+<script src=" /juegos/rumbo-game-bridge.js></script>\n</body>
+</html>

@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Cosmic Fusion: Supernova - Puzzle de Física 2D</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🪐</text></svg>">
+</head>
+<body>
+
+    <!-- Navegación Superior -->
+    <nav class="top-nav">
+        <div class="nav-links-row">
+            <a href="../../index.html" class="nav-back-link">◀ Arcade</a>
+            <a href="../../index.html#juegos-retro" class="nav-back-link nav-retro-link">🕹️ Juegos Retro</a>
+        </div>
+        <div class="nav-actions">
+            <button id="btn-music" class="icon-btn" title="Música Espacial">🎵</button>
+            <button id="btn-sound" class="icon-btn" title="Efectos Celestiales">🔊</button>
+        </div>
+    </nav>
+
+    <!-- Marcador HUD -->
+    <header class="hud-panel">
+        <div class="score-box">
+            <span class="hud-label">Puntos</span>
+            <span id="score-val" class="hud-val hud-score">0</span>
+        </div>
+
+        <div class="next-box">
+            <span class="hud-label">Siguiente</span>
+            <canvas id="next-canvas" width="44" height="44"></canvas>
+        </div>
+
+        <div class="best-box">
+            <span class="hud-label">Récord</span>
+            <span id="best-val" class="hud-val" style="color: #ffd700;">0</span>
+        </div>
+    </header>
+
+    <!-- Contenedor del Canvas de Juego -->
+    <main class="canvas-wrapper">
+        <canvas id="cosmic-canvas"></canvas>
+
+        <!-- Pantalla de Inicio / Game Over -->
+        <div id="game-overlay" class="overlay">
+            <h2 id="overlay-title">COSMIC FUSION</h2>
+            <p id="overlay-desc">
+                Suelta cuerpos celestes dentro del cilindro gravitatorio.<br>
+                Fusiona planetas iguales para evolucionarlos: <b>Luna ➔ Marte ➔ Mercurio ➔ Venus ➔ Tierra ➔ Neptuno ➔ Saturno ➔ Júpiter ➔ Sol ➔ ¡SUPERNOVA!</b><br>
+                ¡Evita que toquen la línea roja!
+            </p>
+            <button id="btn-play-overlay" class="btn-primary">Iniciar Fusión 🪐</button>
+        </div>
+    </main>
+
+    <!-- Guía y Leyenda de Tiers -->
+    <footer class="guide-bottom">
+        <span>📱 <b>Móvil / PC:</b> Desliza el dedo o ratón horizontalmente para apuntar y suelta para lanzar el planeta.</span>
+        <div class="tiers-row">
+            <span>🌑➔🌙➔🔴➔🔵➔🟢➔🌍➔❄️➔🪐➔🌀➔☀️➔🌌</span>
+        </div>
+    </footer>
+
+    <!-- Scripts -->
+    <script src="js/audio.js"></script>
+    <script src="js/game.js"></script>
+<script src=" /juegos/rumbo-game-bridge.js></script>\n</body>
+</html>

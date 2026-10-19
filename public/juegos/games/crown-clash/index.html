@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Crown Clash: Arena Royale - Duelos de Torres 1v1</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>👑</text></svg>">
+</head>
+<body>
+
+    <!-- Navegación Superior -->
+    <nav class="top-nav">
+        <div class="nav-links-row">
+            <a href="../../index.html" class="nav-back-link">◀ Arcade</a>
+            <a href="../../index.html#juegos-retro" class="nav-back-link nav-retro-link">🕹️ Juegos Retro</a>
+        </div>
+        <div class="nav-actions">
+            <button id="btn-music" class="icon-btn" title="Música Real">🎵</button>
+            <button id="btn-sound" class="icon-btn" title="Efectos de Batalla">🔊</button>
+        </div>
+    </nav>
+
+    <!-- Marcador HUD de Batalla Royale -->
+    <header class="hud-panel">
+        <div id="crowns-player" class="crowns-badge" style="color: #00f7ff;">
+            👑 0
+        </div>
+
+        <div class="timer-box">
+            <span style="font-size:0.65rem; color:var(--text-muted); font-weight:700;">TIEMPO RESTANTE</span>
+            <span id="match-timer" class="timer-text">03:00</span>
+        </div>
+
+        <div id="crowns-enemy" class="crowns-badge" style="color: #ff0055;">
+            0 👑
+        </div>
+    </header>
+
+    <!-- Contenedor del Canvas de la Arena -->
+    <main class="canvas-wrapper">
+        <canvas id="crown-canvas"></canvas>
+
+        <!-- Pantalla de Inicio / Fin de Partida -->
+        <div id="game-overlay" class="overlay">
+            <h2 id="overlay-title">CROWN CLASH</h2>
+            <p id="overlay-desc">
+                Duelos en tiempo real 1v1 estilo <b>Clash Royale</b>.<br>
+                Administra tu barra de <b>Elixir 💧</b>, despliega tropas tácticas por los dos puentes y derriba las torres enemigas para ganar <b>Coronas 👑</b>.
+            </p>
+            <button id="btn-play-overlay" class="btn-primary">¡A la Batalla! ⚔️</button>
+        </div>
+    </main>
+
+    <!-- Barra de Elixir -->
+    <section class="elixir-container">
+        <span class="elixir-icon-label">ELIXIR 💧</span>
+        <div class="elixir-bar-outer">
+            <div id="elixir-bar-fill" class="elixir-bar-fill"></div>
+        </div>
+        <span id="elixir-val-text" class="elixir-val-text">5 / 10</span>
+    </section>
+
+    <!-- Muelle de Cartas en Mano -->
+    <footer class="cards-dock">
+        <div id="next-card-slot" class="next-card-slot">
+            <small style="font-size:0.55rem; color:#ffd700;">SIGUIENTE</small>
+            <span style="font-size:1.1rem;">🛡️</span>
+        </div>
+
+        <div id="cards-hand-row" class="cards-hand-row">
+            <!-- Rellenado dinámicamente con las 4 cartas -->
+        </div>
+    </footer>
+
+    <!-- Guía de Controles Inferior -->
+    <section class="guide-bottom">
+        <span>📱 <b>Móvil / PC:</b> Toca la carta abajo para seleccionarla y luego toca en tu territorio para desplegar la tropa o hechizo.</span>
+    </section>
+
+    <!-- Scripts -->
+    <script src="js/audio.js"></script>
+    <script src="js/game.js"></script>
+<script src=" /juegos/rumbo-game-bridge.js></script>\n</body>
+</html>

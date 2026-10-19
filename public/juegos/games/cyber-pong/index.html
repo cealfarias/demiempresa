@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Cyber Pong Neo - Ping Pong Arcade Retro</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏓</text></svg>">
+</head>
+<body>
+
+    <!-- Navegación Superior -->
+    <nav class="top-nav">
+        <a href="../../index.html" class="nav-back-link">◀ Arcade</a>
+        <a href="../../index.html#juegos-retro" class="nav-back-link" style="border-color: rgba(255, 0, 110, 0.4); color: #ff006e;">🕹️ Juegos Retro</a>
+        <div class="nav-actions">
+            <button id="btn-pause" class="icon-btn" title="Pausar (P)">⏸️</button>
+            <button id="btn-music" class="icon-btn" title="Música Synthwave (N)">🎵</button>
+            <button id="btn-sound" class="icon-btn" title="Efectos de Sonido (M)">🔊</button>
+        </div>
+    </nav>
+
+    <!-- Barra de Configuración: Modo y Dificultad -->
+    <section class="config-bar">
+        <div class="mode-selector">
+            <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 700;">MODO:</span>
+            <button id="btn-mode-1p" class="btn-pill mode-btn active">👤 1 Jugador (vs CPU)</button>
+            <button id="btn-mode-2p" class="btn-pill mode-btn">👥 2 Jugadores (Local)</button>
+        </div>
+
+        <div id="difficulty-group" class="diff-selector">
+            <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 700;">IA:</span>
+            <button id="btn-diff-easy" class="btn-pill diff-btn">Fácil</button>
+            <button id="btn-diff-medium" class="btn-pill diff-btn active">Media</button>
+            <button id="btn-diff-hard" class="btn-pill diff-btn">Pro / Imposible</button>
+        </div>
+    </section>
+
+    <!-- Marcador de Puntos y Rally -->
+    <header class="scoreboard">
+        <div class="score-player">
+            <span class="player-label p1-color">JUGADOR 1</span>
+            <span id="score1-val" class="score-val p1-color">0</span>
+        </div>
+
+        <div class="rally-box">
+            <span class="rally-title">Rally Actual</span>
+            <span id="rally-val" class="rally-val">0</span>
+            <span style="font-size: 0.65rem; color: var(--text-muted);">Récord: <b id="best-rally-val" style="color: #fff;">0</b></span>
+        </div>
+
+        <div class="score-player">
+            <span id="score2-val" class="score-val p2-color">0</span>
+            <span id="p2-label" class="player-label p2-color">CPU (MEDIA)</span>
+        </div>
+    </header>
+
+    <!-- Área de Juego (Canvas y Overlays) -->
+    <main class="canvas-wrapper">
+        <canvas id="pong-canvas"></canvas>
+
+        <!-- Pantalla de Inicio / Game Over -->
+        <div id="game-overlay" class="overlay">
+            <h2 id="overlay-title">CYBER PONG NEO</h2>
+            <p id="overlay-desc">El clásico arcade de ping-pong con física de efecto, aceleración progresiva y sonidos fuertes de impacto.</p>
+            <button id="btn-overlay-play" class="btn-primary">Comenzar Partido 🏓</button>
+        </div>
+
+        <!-- Pantalla de Pausa -->
+        <div id="pause-overlay" class="overlay hidden">
+            <h2>PAUSA</h2>
+            <p>Juego en pausa</p>
+            <button id="btn-resume" class="btn-primary">Continuar</button>
+        </div>
+    </main>
+
+    <!-- Guía rápida para pantalla táctil y PC -->
+    <footer class="guide-box">
+        <span>🎮 <b>En PC:</b> Mueve la paleta con el <b>Ratón</b> o teclas <kbd>W / S</kbd> (Jugador 2: <kbd>▲ / ▼</kbd>).</span>
+        <span>📱 <b>En Móvil:</b> Desliza tu dedo verticalmente en la pantalla para mover la paleta al instante.</span>
+    </footer>
+
+    <!-- Scripts del juego -->
+    <script src="js/audio.js"></script>
+    <script src="js/pong.js"></script>
+<script src=" /juegos/rumbo-game-bridge.js></script>\n</body>
+</html>

@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Turbo Drift Neo - Carreras Arcade Retro 80s</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏎️</text></svg>">
+</head>
+<body>
+
+    <!-- Navegación Superior -->
+    <nav class="top-nav">
+        <a href="../../index.html" class="nav-back-link">◀ Arcade</a>
+        <a href="../../index.html#juegos-retro" class="nav-back-link" style="border-color: rgba(255, 0, 127, 0.5); color: #ff007f;">🕹️ Juegos Retro</a>
+        <div class="nav-actions">
+            <button id="btn-pause" class="icon-btn" title="Pausar (P)">⏸️</button>
+            <button id="btn-music" class="icon-btn" title="Música Synthwave (N)">🎵</button>
+            <button id="btn-sound" class="icon-btn" title="Efectos de Sonido (M)">🔊</button>
+        </div>
+    </nav>
+
+    <!-- Marcador HUD de Carrera -->
+    <header class="hud-panel">
+        <div class="hud-row-top">
+            <div class="speedometer-box">
+                <span id="speed-val" class="speed-number">0</span>
+                <span class="speed-unit">KM/H</span>
+            </div>
+
+            <div class="distance-box">
+                <span class="hud-label">Distancia</span>
+                <div><span id="dist-val" class="hud-value">0.00</span> <small style="color: var(--neon-yellow); font-weight:700;">KM</small></div>
+            </div>
+
+            <div class="score-box">
+                <span class="hud-label">Puntos</span>
+                <span id="score-val" class="hud-value" style="color: var(--neon-yellow);">0</span>
+            </div>
+
+            <div class="score-box">
+                <span class="hud-label">Récord</span>
+                <span id="best-val" class="hud-value" style="color: var(--neon-cyan);">0</span>
+            </div>
+        </div>
+
+        <!-- Indicador de Combustible -->
+        <div class="fuel-track-row">
+            <span class="fuel-label">⛽ FUEL:</span>
+            <div class="fuel-bar-outer">
+                <div id="fuel-bar-fill" class="fuel-bar-fill" style="width: 100%;"></div>
+            </div>
+            <span id="fuel-pct" class="fuel-pct">100%</span>
+        </div>
+
+        <!-- Indicador de Turbo Nitro -->
+        <div class="turbo-track-row">
+            <span class="turbo-label">⚡ NITRO:</span>
+            <div class="turbo-bar-outer">
+                <div id="turbo-gauge-fill" class="turbo-bar-fill" style="width: 100%;"></div>
+            </div>
+            <span id="turbo-status" class="turbo-status-text" style="color: #ffff00;">NITRO LISTO (ESPACIO)</span>
+        </div>
+    </header>
+
+    <!-- Contenedor del Canvas de Juego -->
+    <main class="canvas-wrapper">
+        <canvas id="racer-canvas"></canvas>
+
+        <!-- Pantalla de Inicio / Game Over -->
+        <div id="game-overlay" class="overlay">
+            <h2 id="overlay-title">TURBO DRIFT NEO</h2>
+            <p id="overlay-desc">
+                Pisa a fondo en la autopista Synthwave de los 80s.<br>
+                Esquiva el tráfico, recoge bidones de combustible ⛽ y monedas 🪙, evita manchas de aceite 🛢️ y activa el <b>NITRO ⚡</b> para rebasar a 300 km/h.
+            </p>
+            <button id="btn-play-overlay" class="btn-primary">Arrancar Motor 🏁</button>
+        </div>
+
+        <!-- Pantalla de Pausa -->
+        <div id="pause-overlay" class="overlay hidden">
+            <h2>PAUSA</h2>
+            <p>Juego en pausa</p>
+            <button id="btn-resume" class="btn-primary">Continuar 🏁</button>
+        </div>
+    </main>
+
+    <!-- Controles Inferiores para Móvil y Guía de Teclas -->
+    <footer class="controls-bottom">
+        <div class="touch-grid">
+            <button id="touch-left" class="touch-btn">◀ IZQ</button>
+            <button id="touch-right" class="touch-btn">DER ▶</button>
+            <button id="touch-turbo" class="touch-btn touch-btn-turbo">⚡ NITRO</button>
+            <button id="touch-brake" class="touch-btn touch-btn-brake">🛑 FRENO</button>
+            <button id="touch-horn" class="touch-btn touch-btn-horn">📢 CLAXON</button>
+        </div>
+
+        <div class="guide-box">
+            <span>🎮 <b>PC:</b> <kbd>A</kbd>/<kbd>D</kbd> o <kbd>◀</kbd>/<kbd>▶</kbd> Girar &bull; <kbd>W</kbd>/<kbd>Espacio</kbd> Nitro &bull; <kbd>S</kbd>/<kbd>▼</kbd> Frenar &bull; <kbd>H</kbd> Claxon</span><br>
+            <span>📱 <b>Móvil:</b> Arrastra con el dedo en la pantalla o usa los botones táctiles de abajo.</span>
+        </div>
+    </footer>
+
+    <!-- Scripts de Audio y Juego -->
+    <script src="js/audio.js"></script>
+    <script src="js/racer.js"></script>
+<script src=" /juegos/rumbo-game-bridge.js></script>\n</body>
+</html>

@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Neon Survivor: Cyber Siege - Roguelite Auto-Shooter</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚡</text></svg>">
+</head>
+<body>
+
+    <!-- Navegación Superior -->
+    <nav class="top-nav">
+        <div class="nav-links-row">
+            <a href="../../index.html" class="nav-back-link">◀ Arcade</a>
+            <a href="../../index.html#juegos-retro" class="nav-back-link nav-retro-link">🕹️ Juegos Retro</a>
+        </div>
+        <div class="nav-actions">
+            <button id="btn-music" class="icon-btn" title="Música Darkwave">🎵</button>
+            <button id="btn-sound" class="icon-btn" title="Efectos de Sonido">🔊</button>
+        </div>
+    </nav>
+
+    <!-- Marcador HUD Táctico -->
+    <header class="hud-panel">
+        <div class="hud-top-row">
+            <div class="stat-item">
+                <span style="color: var(--text-muted); font-size:0.75rem;">TIEMPO:</span>
+                <span id="timer-val" class="timer-val">00:00</span>
+            </div>
+
+            <div class="stat-item">
+                <span id="level-val" class="level-badge">NV. 1</span>
+            </div>
+
+            <div class="stat-item">
+                <span style="color: var(--text-muted); font-size:0.75rem;">BAJAS:</span>
+                <span id="kills-val" class="kills-val">0</span>
+            </div>
+        </div>
+
+        <!-- Barra de Salud (HP) -->
+        <div class="hp-track-row">
+            <span style="font-size:0.7rem; font-weight:800; color:#ff0055; min-width:30px;">HP</span>
+            <div class="bar-outer">
+                <div id="hp-fill" class="hp-fill" style="width: 100%;"></div>
+            </div>
+            <span id="hp-text" class="bar-text" style="color:#00ff88;">100 / 100</span>
+        </div>
+
+        <!-- Barra de Experiencia (XP) -->
+        <div class="xp-track-row">
+            <span style="font-size:0.7rem; font-weight:800; color:var(--neon-cyan); min-width:30px;">XP</span>
+            <div class="bar-outer">
+                <div id="xp-fill" class="xp-fill" style="width: 0%;"></div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Contenedor del Canvas de Juego -->
+    <main class="canvas-wrapper">
+        <canvas id="survivor-canvas"></canvas>
+
+        <!-- Pantalla de Inicio / Game Over -->
+        <div id="game-overlay" class="overlay">
+            <h2 id="overlay-title">NEON SURVIVOR</h2>
+            <p id="overlay-desc">
+                Sobrevive a las hordas biomecánicas en la arena cibernética.<br>
+                Tu arma dispara <b>automáticamente</b>. Concéntrate en esquivar, recolectar gemas de XP y escoger mejoras de cartas tácticamente al subir de nivel.
+            </p>
+            <button id="btn-play-overlay" class="btn-primary">Iniciar Asedio ⚡</button>
+        </div>
+
+        <!-- Modal de Selección de Mejoras / Cartas -->
+        <div id="upgrade-modal" class="overlay hidden">
+            <h2 style="color: #ffd700; text-shadow: 0 0 15px rgba(255,215,0,0.5);">¡NIVEL SUPERADO!</h2>
+            <p style="margin-bottom: 8px;">Elige una mejora táctica para tu arsenal:</p>
+            <div id="upgrade-cards" class="upgrade-cards-container"></div>
+        </div>
+    </main>
+
+    <!-- Guía de Controles -->
+    <footer class="guide-bottom">
+        <span>🎮 <b>PC:</b> <kbd>WASD</kbd> o Flechas para moverte &bull; El ataque es 100% automático.</span><br>
+        <span>📱 <b>Móvil:</b> Arrastra con el dedo en cualquier punto de la pantalla para guiar al héroe con el joystick táctil.</span>
+    </footer>
+
+    <!-- Scripts -->
+    <script src="js/audio.js"></script>
+    <script src="js/game.js"></script>
+<script src=" /juegos/rumbo-game-bridge.js></script>\n</body>
+</html>

@@ -462,4 +462,269 @@ CREATE TRIGGER trg_check_passenger_referral_integrity
     FOR EACH ROW
     EXECUTE FUNCTION fn_check_passenger_referral_integrity();
 
+-- =====================================================================
+-- 12. RED SOCIAL HIPERLOCAL & ARCADE EN TRAYECTO (RUMBO A MI DESTINO)
+-- =====================================================================
+
+CREATE TABLE IF NOT EXISTS viajes_social_connections (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_a_id UUID NOT NULL REFERENCES viajes_users(id) ON DELETE CASCADE,
+    user_b_id UUID NOT NULL REFERENCES viajes_users(id) ON DELETE CASCADE,
+    connection_type VARCHAR(30) NOT NULL DEFAULT 'REFERRAL',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_social_connection UNIQUE (user_a_id, user_b_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_social_connections_a ON viajes_social_connections(user_a_id);
+CREATE INDEX IF NOT EXISTS idx_social_connections_b ON viajes_social_connections(user_b_id);
+
+CREATE OR REPLACE FUNCTION fn_auto_create_social_connection()
+RETURNS TRIGGER AS $$
+BEGIN
+    INSERT INTO viajes_social_connections (user_a_id, user_b_id, connection_type)
+    VALUES (NEW.referrer_user_id, NEW.referred_user_id, 'REFERRAL')
+    ON CONFLICT (user_a_id, user_b_id) DO NOTHING;
+
+    INSERT INTO viajes_social_connections (user_a_id, user_b_id, connection_type)
+    VALUES (NEW.referred_user_id, NEW.referrer_user_id, 'REFERRAL')
+    ON CONFLICT (user_a_id, user_b_id) DO NOTHING;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_auto_create_social_connection ON viajes_referrals;
+CREATE TRIGGER trg_auto_create_social_connection
+    AFTER INSERT ON viajes_referrals
+    FOR EACH ROW
+    EXECUTE FUNCTION fn_auto_create_social_connection();
+
+CREATE TABLE IF NOT EXISTS viajes_social_communities (
+    id VARCHAR(50) PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    description TEXT NOT NULL,
+    icon VARCHAR(50) NOT NULL,
+    tagline VARCHAR(150),
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+INSERT INTO viajes_social_communities (id, name, description, icon, tagline)
+VALUES
+    ('turismo-interno', '🏖️ Rutas & Turismo', 'Playas, miradores, volcanes, lagos y pueblos mágicos con viajes planificados o de fin de semana.', 'MapPin', 'Descubre rincones de El Salvador'),
+    ('gastronomia', '🍔 Cenas, Almuerzos & Cafés', 'Las mejores pupuserías, restaurantes, huecas de comida y promociones 2x1.', 'Utensils', 'Sabor salvadoreño garantizado'),
+    ('vida-nocturna', '🎉 Noches & Fiestas', 'Bares, eventos musicales, conciertos y discotecas con viaje seguro garantizado de ida y vuelta.', 'PartyPopper', 'La noche es joven y segura'),
+    ('escapadas-parejas', '🤫 Escapadas & Parejas', 'Moteles discretos, cabañas románticas y glamping con total privacidad, reserva y pago en efectivo.', 'Heart', 'Privacidad y confort'),
+    ('distracciones', '⚡ Eventos & Distracciones', 'Centros comerciales, ferias familiares, cines, parques y planes para romper la rutina.', 'Sparkles', 'Planes de hoy')
+ON CONFLICT (id) DO UPDATE SET
+    name = EXCLUDED.name,
+    description = EXCLUDED.description,
+    icon = EXCLUDED.icon,
+    tagline = EXCLUDED.tagline;
+
+CREATE TABLE IF NOT EXISTS viajes_social_posts (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    author_id UUID REFERENCES viajes_users(id) ON DELETE SET NULL,
+    community_id VARCHAR(50) NOT NULL REFERENCES viajes_social_communities(id) ON DELETE CASCADE,
+    title VARCHAR(200) NOT NULL,
+    description TEXT NOT NULL,
+    hook VARCHAR(200),
+    media_url TEXT,
+    media_type VARCHAR(20) NOT NULL DEFAULT 'IMAGE',
+    location_name VARCHAR(150) NOT NULL,
+    location_lat NUMERIC(10, 7),
+    location_lng NUMERIC(10, 7),
+    municipality VARCHAR(100) NOT NULL DEFAULT 'San Salvador',
+    privacy VARCHAR(20) NOT NULL DEFAULT 'PUBLIC',
+    anonymous_alias VARCHAR(100) NULL,
+    merchant_id UUID REFERENCES viajes_merchants(id) ON DELETE SET NULL,
+    likes_count INT NOT NULL DEFAULT 0,
+    shares_count INT NOT NULL DEFAULT 0,
+    is_pinned BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_social_posts_community ON viajes_social_posts(community_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_social_posts_author ON viajes_social_posts(author_id);
+CREATE INDEX IF NOT EXISTS idx_social_posts_muni ON viajes_social_posts(municipality);
+
+CREATE TABLE IF NOT EXISTS viajes_social_likes (
+    post_id UUID NOT NULL REFERENCES viajes_social_posts(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES viajes_users(id) ON DELETE CASCADE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (post_id, user_id)
+);
+
+CREATE TABLE IF NOT EXISTS viajes_arcade_rewards (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES viajes_users(id) ON DELETE CASCADE,
+    trip_id UUID REFERENCES viajes_trips(id) ON DELETE SET NULL,
+    game_type VARCHAR(30) NOT NULL,
+    points_won INT NOT NULL DEFAULT 0,
+    bonus_amount NUMERIC(4,2) NOT NULL DEFAULT 0.00,
+    reward_description VARCHAR(200) NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_arcade_rewards_user ON viajes_arcade_rewards(user_id);
+
+CREATE TABLE IF NOT EXISTS viajes_user_reward_balance (
+    user_id UUID PRIMARY KEY REFERENCES viajes_users(id) ON DELETE CASCADE,
+    accumulated_points INT NOT NULL DEFAULT 0 CHECK (accumulated_points >= 0),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- =====================================================================
+-- 13. RED SOCIAL & RADIO DE RUTA PARA CONDUCTORES (HERMANDAD DEL VOLANTE)
+-- =====================================================================
+
+CREATE TABLE IF NOT EXISTS viajes_driver_social_posts (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    driver_id UUID REFERENCES viajes_driver_profiles(id) ON DELETE SET NULL,
+    driver_name VARCHAR(150) NOT NULL DEFAULT 'Conductor Rumbo',
+    vehicle_info VARCHAR(100) NULL,
+    category VARCHAR(50) NOT NULL DEFAULT 'ALERTA_VIAL',
+    sub_type VARCHAR(50) NOT NULL DEFAULT 'TRAFICO',
+    title VARCHAR(200) NOT NULL,
+    description TEXT NOT NULL,
+    location_name VARCHAR(150) NOT NULL,
+    location_lat NUMERIC(10, 7) NULL,
+    location_lng NUMERIC(10, 7) NULL,
+    municipality VARCHAR(100) NOT NULL DEFAULT 'San Salvador',
+    urgency VARCHAR(20) NOT NULL DEFAULT 'NORMAL',
+    driver_phone VARCHAR(20) NULL,
+    confirmations_count INT NOT NULL DEFAULT 1,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    expires_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT (CURRENT_TIMESTAMP + INTERVAL '8 hours'),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_driver_social_category ON viajes_driver_social_posts(category, is_active, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_driver_social_municipality ON viajes_driver_social_posts(municipality);
+CREATE INDEX IF NOT EXISTS idx_driver_social_active ON viajes_driver_social_posts(is_active, expires_at);
+
+CREATE TABLE IF NOT EXISTS viajes_driver_social_confirmations (
+    post_id UUID NOT NULL REFERENCES viajes_driver_social_posts(id) ON DELETE CASCADE,
+    driver_id UUID NOT NULL REFERENCES viajes_driver_profiles(id) ON DELETE CASCADE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (post_id, driver_id)
+);
+
+-- 14. FRECUENCIA PRIVADA Y RED DE COLEGAS DE CONFIANZA
+CREATE TABLE IF NOT EXISTS viajes_driver_buddies (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    driver_id UUID NOT NULL REFERENCES viajes_driver_profiles(id) ON DELETE CASCADE,
+    buddy_driver_id UUID NOT NULL REFERENCES viajes_driver_profiles(id) ON DELETE CASCADE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_driver_buddy UNIQUE (driver_id, buddy_driver_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_driver_buddies_driver ON viajes_driver_buddies(driver_id);
+
+CREATE TABLE IF NOT EXISTS viajes_driver_private_messages (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    sender_driver_id UUID NOT NULL REFERENCES viajes_driver_profiles(id) ON DELETE CASCADE,
+    recipient_driver_id UUID NULL REFERENCES viajes_driver_profiles(id) ON DELETE CASCADE,
+    sender_name VARCHAR(150) NOT NULL DEFAULT 'Colega Rumbo',
+    sender_vehicle VARCHAR(100) NULL,
+    message_text TEXT NOT NULL,
+    is_read BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_driver_private_recipient ON viajes_driver_private_messages(recipient_driver_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_driver_private_sender ON viajes_driver_private_messages(sender_driver_id, created_at DESC);
+
+-- =====================================================================
+-- 15. CLUB DE COMPRAS COLECTIVAS DE MANTENIMIENTO, REPUESTOS Y ASESORÍA
+-- =====================================================================
+
+CREATE TABLE IF NOT EXISTS viajes_driver_group_deals (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    title VARCHAR(200) NOT NULL,
+    category VARCHAR(50) NOT NULL,
+    supplier_name VARCHAR(150) NOT NULL,
+    supplier_address VARCHAR(200) NULL,
+    supplier_phone VARCHAR(25) NULL,
+    normal_price NUMERIC(8,2) NOT NULL,
+    group_price NUMERIC(8,2) NOT NULL,
+    savings_amount NUMERIC(8,2) GENERATED ALWAYS AS (normal_price - group_price) STORED,
+    min_participants INT NOT NULL DEFAULT 10,
+    current_paid_count INT NOT NULL DEFAULT 0,
+    payment_deadline TIMESTAMP WITH TIME ZONE NOT NULL,
+    delivery_date DATE NOT NULL,
+    status VARCHAR(30) NOT NULL DEFAULT 'OPEN_PAYMENT',
+    terms_details TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_group_deals_status ON viajes_driver_group_deals(status, payment_deadline);
+
+CREATE TABLE IF NOT EXISTS viajes_driver_deal_orders (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    deal_id UUID NOT NULL REFERENCES viajes_driver_group_deals(id) ON DELETE CASCADE,
+    driver_id UUID NOT NULL REFERENCES viajes_driver_profiles(id) ON DELETE CASCADE,
+    driver_name VARCHAR(150) NOT NULL,
+    vehicle_plate VARCHAR(30) NOT NULL,
+    amount_paid NUMERIC(8,2) NOT NULL,
+    bank_name VARCHAR(50) NOT NULL DEFAULT 'DAVIVIENDA',
+    transfer_phone VARCHAR(20) NOT NULL DEFAULT '69893101',
+    account_holder VARCHAR(100) NOT NULL DEFAULT 'Cesar Arias',
+    transfer_reference VARCHAR(100) NOT NULL,
+    transfer_proof_url TEXT NULL,
+    status VARCHAR(30) NOT NULL DEFAULT 'PAID_VERIFIED',
+    redemption_code VARCHAR(30) NOT NULL UNIQUE,
+    collected_at TIMESTAMP WITH TIME ZONE NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_deal_orders_driver ON viajes_driver_deal_orders(driver_id);
+CREATE INDEX IF NOT EXISTS idx_deal_orders_redemption ON viajes_driver_deal_orders(redemption_code);
+
+CREATE TABLE IF NOT EXISTS viajes_driver_demand_requests (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    driver_id UUID NOT NULL REFERENCES viajes_driver_profiles(id) ON DELETE CASCADE,
+    driver_name VARCHAR(150) NOT NULL,
+    vehicle_info VARCHAR(150) NOT NULL,
+    category VARCHAR(50) NOT NULL,
+    item_description TEXT NOT NULL,
+    urgency VARCHAR(30) NOT NULL DEFAULT 'ESTA_SEMANA',
+    status VARCHAR(30) NOT NULL DEFAULT 'GATHERING_DEMAND',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_driver_demand_cat ON viajes_driver_demand_requests(category, status);
+
+-- 15. GAMIFICACIÓN ARCADE: RACHA DE LEALTAD 7 DÍAS CON BONO DE $1.00 USD
+CREATE TABLE IF NOT EXISTS viajes_game_streaks (
+    user_id UUID PRIMARY KEY REFERENCES viajes_users(id) ON DELETE CASCADE,
+    current_streak INT NOT NULL DEFAULT 0,
+    total_streaks_completed INT NOT NULL DEFAULT 0,
+    last_played_date DATE,
+    last_played_at TIMESTAMP WITH TIME ZONE,
+    current_bonus_amount NUMERIC(10, 2) NOT NULL DEFAULT 0.00,
+    bonus_expires_at TIMESTAMP WITH TIME ZONE,
+    total_bonus_earned NUMERIC(10, 2) NOT NULL DEFAULT 0.00,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS viajes_game_sessions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES viajes_users(id) ON DELETE CASCADE,
+    game_id VARCHAR(50) NOT NULL,
+    duration_seconds INT NOT NULL DEFAULT 0,
+    score INT NOT NULL DEFAULT 0,
+    qualified BOOLEAN NOT NULL DEFAULT FALSE,
+    played_date DATE NOT NULL DEFAULT CURRENT_DATE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_game_sessions_user_date ON viajes_game_sessions(user_id, played_date);
+
+
+
+
+
+
 

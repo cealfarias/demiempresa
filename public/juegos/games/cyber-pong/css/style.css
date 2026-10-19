@@ -1,0 +1,314 @@
+:root {
+    --bg-dark: #070914;
+    --panel-bg: rgba(18, 22, 42, 0.85);
+    --panel-border: rgba(255, 255, 255, 0.12);
+    --cyan: #00f5d4;
+    --cyan-glow: rgba(0, 245, 212, 0.4);
+    --magenta: #ff006e;
+    --magenta-glow: rgba(255, 0, 110, 0.4);
+    --yellow: #ffbe0b;
+    --text-main: #f0f3f8;
+    --text-muted: #8b9bb4;
+    --font-ui: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    --font-mono: 'Consolas', 'Courier New', monospace;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+body {
+    background-color: var(--bg-dark);
+    background-image: 
+        radial-gradient(circle at 20% 30%, rgba(0, 245, 212, 0.1) 0%, transparent 55%),
+        radial-gradient(circle at 80% 70%, rgba(255, 0, 110, 0.1) 0%, transparent 55%);
+    color: var(--text-main);
+    font-family: var(--font-ui);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 10px;
+    overflow-x: hidden;
+}
+
+/* Navegación Superior */
+.top-nav {
+    width: 100%;
+    max-width: 820px;
+    margin-bottom: 8px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.nav-back-link {
+    color: var(--cyan);
+    text-decoration: none;
+    font-size: 0.85rem;
+    font-weight: 600;
+    padding: 6px 14px;
+    background: rgba(0, 245, 212, 0.1);
+    border: 1px solid rgba(0, 245, 212, 0.3);
+    border-radius: 20px;
+    transition: all 0.2s ease;
+}
+
+.nav-back-link:hover {
+    background: rgba(0, 245, 212, 0.25);
+    transform: translateX(-2px);
+}
+
+.nav-actions {
+    display: flex;
+    gap: 6px;
+}
+
+.icon-btn {
+    background: var(--panel-bg);
+    border: 1px solid var(--panel-border);
+    color: var(--text-main);
+    border-radius: 8px;
+    width: 36px;
+    height: 36px;
+    font-size: 1rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+}
+
+.icon-btn:hover {
+    border-color: var(--cyan);
+}
+
+/* Barra de Configuración y Modos */
+.config-bar {
+    width: 100%;
+    max-width: 820px;
+    background: var(--panel-bg);
+    border: 1px solid var(--panel-border);
+    backdrop-filter: blur(10px);
+    border-radius: 12px;
+    padding: 8px 14px;
+    margin-bottom: 8px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.mode-selector, .diff-selector {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.btn-pill {
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid var(--panel-border);
+    color: var(--text-muted);
+    border-radius: 16px;
+    padding: 5px 12px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-pill.active {
+    background: rgba(0, 245, 212, 0.2);
+    border-color: var(--cyan);
+    color: var(--cyan);
+}
+
+.diff-btn.active {
+    background: rgba(255, 0, 110, 0.2);
+    border-color: var(--magenta);
+    color: var(--magenta);
+}
+
+/* Marcador Principal */
+.scoreboard {
+    width: 100%;
+    max-width: 820px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 4px 20px;
+    margin-bottom: 6px;
+}
+
+.score-player {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.player-label {
+    font-size: 0.85rem;
+    font-weight: 800;
+    letter-spacing: 1px;
+}
+
+.score-val {
+    font-family: var(--font-mono);
+    font-size: 2.2rem;
+    font-weight: 900;
+}
+
+.p1-color {
+    color: var(--cyan);
+    text-shadow: 0 0 15px var(--cyan-glow);
+}
+
+.p2-color {
+    color: var(--magenta);
+    text-shadow: 0 0 15px var(--magenta-glow);
+}
+
+.rally-box {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.rally-title {
+    font-size: 0.68rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.rally-val {
+    font-family: var(--font-mono);
+    font-size: 1.4rem;
+    font-weight: bold;
+    color: var(--yellow);
+}
+
+/* Marco del Canvas */
+.canvas-wrapper {
+    position: relative;
+    width: 100%;
+    max-width: 820px;
+    border: 2px solid rgba(0, 245, 212, 0.3);
+    border-radius: 14px;
+    overflow: hidden;
+    box-shadow: 0 0 30px rgba(0, 245, 212, 0.15), 0 10px 30px rgba(0, 0, 0, 0.7);
+}
+
+#pong-canvas {
+    display: block;
+    width: 100%;
+    height: auto;
+    aspect-ratio: 800 / 500;
+    touch-action: none;
+    cursor: default;
+    background: #0a0d1a;
+}
+
+/* Overlays */
+.overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(7, 9, 20, 0.88);
+    backdrop-filter: blur(8px);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+    padding: 20px;
+    text-align: center;
+}
+
+.overlay.hidden {
+    display: none;
+}
+
+.overlay h2 {
+    font-size: 2.3rem;
+    font-weight: 900;
+    letter-spacing: 2px;
+    margin-bottom: 8px;
+    background: linear-gradient(135deg, var(--cyan), var(--magenta));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.overlay p {
+    color: var(--text-muted);
+    font-size: 0.95rem;
+    margin-bottom: 22px;
+    max-width: 80%;
+    line-height: 1.5;
+}
+
+.btn-primary {
+    background: linear-gradient(135deg, var(--cyan), #3a86ff);
+    color: #060914;
+    border: none;
+    border-radius: 25px;
+    padding: 12px 30px;
+    font-size: 1rem;
+    font-weight: 800;
+    letter-spacing: 1px;
+    cursor: pointer;
+    box-shadow: 0 4px 18px var(--cyan-glow);
+    transition: all 0.2s ease;
+}
+
+.btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 24px rgba(0, 245, 212, 0.6);
+}
+
+/* Guía de controles */
+.guide-box {
+    width: 100%;
+    max-width: 820px;
+    margin-top: 8px;
+    background: rgba(18, 22, 42, 0.6);
+    border: 1px dashed var(--panel-border);
+    border-radius: 10px;
+    padding: 8px 14px;
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+@media (max-width: 600px) {
+    body {
+        padding: 6px;
+    }
+
+    .scoreboard {
+        padding: 2px 8px;
+    }
+
+    .score-val {
+        font-size: 1.7rem;
+    }
+
+    .player-label {
+        font-size: 0.75rem;
+    }
+
+    .overlay h2 {
+        font-size: 1.8rem;
+    }
+}

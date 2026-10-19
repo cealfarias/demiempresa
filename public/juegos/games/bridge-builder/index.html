@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Bridge Builder 2D - Física y Lógica</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌉</text></svg>">
+</head>
+<body>
+
+    <!-- Navegación Superior -->
+    <nav class="top-nav">
+        <a href="../../index.html" class="nav-back-link">◀ Arcade</a>
+        <a href="../../index.html#juegos-retro" class="nav-back-link" style="border-color: rgba(255, 0, 110, 0.4); color: #ff006e;">🕹️ Juegos Retro</a>
+        <div class="top-nav-actions">
+            <button id="btn-tutorial-help" class="action-btn-sm" title="Abrir Guía y Tutorial">❓ Guía & Tutorial</button>
+            <button id="btn-sound" class="mini-btn" title="Silenciar / Activar Sonido">🔊</button>
+        </div>
+    </nav>
+
+    <!-- Barra de Estado: Nivel y Presupuesto -->
+    <header class="status-bar">
+        <div class="level-selector">
+            <button id="btn-prev-lvl" class="mini-btn" title="Nivel Anterior">◀</button>
+            <span id="level-name" class="level-name">1. El Desfiladero Corto</span>
+            <button id="btn-next-lvl" class="mini-btn" title="Siguiente Nivel">▶</button>
+        </div>
+
+        <div class="budget-box">
+            <span class="budget-label">Presupuesto:</span>
+            <span id="budget-val" class="budget-val">$2,400</span>
+        </div>
+    </header>
+
+    <!-- Banner Tutorial Interactivo y Guía Paso a Paso -->
+    <section id="tutorial-banner" class="tutorial-banner">
+        <div class="tutorial-content">
+            <span class="tutorial-badge" id="tutorial-step-tag">PASO 1</span>
+            <span id="tutorial-text" class="tutorial-text">
+                <b>Inicia con Carretera:</b> Selecciona <b>🛣️ Carretera</b> y arrastra desde el anclaje izquierdo (🟡) hasta el derecho.
+            </span>
+        </div>
+        <button id="btn-toggle-blueprint" class="blueprint-btn active" title="Activar o desactivar plano guía con líneas punteadas">
+            📐 Pistas: ON
+        </button>
+    </section>
+
+    <!-- Área de Juego (Canvas y Overlays) -->
+    <main class="canvas-wrapper">
+        <canvas id="bridge-canvas"></canvas>
+
+        <!-- Overlay de Victoria / Fallo -->
+        <div id="bridge-overlay" class="overlay hidden">
+            <h2 id="overlay-title">🎉 ¡PUENTE EXITOSO!</h2>
+            <p id="overlay-msg">El vehículo cruzó de forma segura al otro lado.</p>
+            <button id="btn-overlay-next" class="btn-primary">Siguiente Nivel ▶</button>
+        </div>
+
+        <!-- Modal de Guía / Tutorial Completo -->
+        <div id="tutorial-modal" class="overlay hidden">
+            <div class="modal-card">
+                <div class="modal-header">
+                    <h2>📐 Guía de Construcción</h2>
+                    <button id="btn-close-modal" class="modal-close">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="guide-step-card">
+                        <div class="step-num">1</div>
+                        <div class="step-desc">
+                            <h4>¿Con qué material iniciar?</h4>
+                            <p>Inicia <b>siempre con la 🛣️ Carretera</b>. Conecta los dos acantilados de extremo a extremo para formar la pista horizontal por donde rodarán las ruedas del camión.</p>
+                        </div>
+                    </div>
+
+                    <div class="guide-step-card">
+                        <div class="step-num">2</div>
+                        <div class="step-desc">
+                            <h4>¿Dónde colocar las vigas de madera?</h4>
+                            <p>Una carretera sola se dobla y cae. Selecciona <b>🪵 Viga de madera</b> y conéctala a los anclajes inferiores o superiores formando <b>triángulos</b>. Los triángulos son la figura más rígida en la ingeniería y distribuyen el peso.</p>
+                        </div>
+                    </div>
+
+                    <div class="guide-step-card">
+                        <div class="step-num">3</div>
+                        <div class="step-desc">
+                            <h4>Colores de Tensión (Física en Vivo)</h4>
+                            <p>Al presionar <b>▶ PROBAR PUENTE</b>:</p>
+                            <ul class="stress-legend">
+                                <li><span class="color-dot dot-green"></span> <b>Verde:</b> Carga ligera y segura.</li>
+                                <li><span class="color-dot dot-yellow"></span> <b>Amarillo:</b> Esfuerzo considerable.</li>
+                                <li><span class="color-dot dot-red"></span> <b>Rojo:</b> Carga crítica al 100% (¡A punto de partirse!).</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                <button id="btn-modal-gotit" class="btn-primary" style="margin-top: 14px; width: 100%;">¡Entendido, a Construir! 🚀</button>
+            </div>
+        </div>
+    </main>
+
+    <!-- Barra de Herramientas -->
+    <section class="toolbar">
+        <div class="tools-group">
+            <button id="tool-road" class="tool-btn active" title="Carretera (las ruedas ruedan aquí)">🛣️ Carretera ($220)</button>
+            <button id="tool-wood" class="tool-btn" title="Viga de madera (soporte estructural)">🪵 Viga ($110)</button>
+            <button id="tool-delete" class="tool-btn" title="Borrar viga">❌ Borrar</button>
+        </div>
+
+        <div class="tools-group">
+            <button id="btn-undo" class="action-btn" title="Deshacer última acción">↩ Deshacer</button>
+            <button id="btn-clear" class="action-btn" title="Limpiar todo el puente">🗑️ Limpiar</button>
+            <button id="btn-simulate" class="btn-primary" title="Probar el puente con el vehículo">▶ PROBAR PUENTE</button>
+        </div>
+    </section>
+
+    <!-- Guía rápida para pantalla táctil y PC -->
+    <footer class="guide-card">
+        <span>💡 <b>Cómo construir:</b> Toca un anclaje dorado o nodo blanco y arrastra con el dedo o ratón hacia el siguiente punto.</span>
+        <span>📐 Puedes apoyarte en las <b>líneas punteadas (pistas)</b> para guiarte en cada nivel.</span>
+    </footer>
+
+    <!-- Scripts del juego -->
+    <script src="js/audio.js"></script>
+    <script src="js/bridge.js"></script>
+<script src=" /juegos/rumbo-game-bridge.js></script>\n</body>
+</html>

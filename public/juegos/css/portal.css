@@ -1,0 +1,435 @@
+:root {
+    --bg-dark: #0a0b16;
+    --panel-bg: rgba(22, 27, 46, 0.75);
+    --panel-border: rgba(255, 255, 255, 0.1);
+    --accent: #00f5d4;
+    --accent-glow: rgba(0, 245, 212, 0.35);
+    --accent-orange: #fb5607;
+    --accent-pink: #ff006e;
+    --text-main: #f0f3f8;
+    --text-muted: #8b9bb4;
+    --font-ui: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    --font-mono: 'Consolas', 'Courier New', monospace;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    background-color: var(--bg-dark);
+    background-image: 
+        radial-gradient(circle at 50% 15%, rgba(131, 56, 236, 0.18) 0%, transparent 65%),
+        radial-gradient(circle at 85% 85%, rgba(0, 245, 212, 0.1) 0%, transparent 50%),
+        radial-gradient(circle at 15% 80%, rgba(255, 0, 110, 0.08) 0%, transparent 50%);
+    color: var(--text-main);
+    font-family: var(--font-ui);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 30px 16px;
+}
+
+.portal-header {
+    text-align: center;
+    max-width: 680px;
+    margin-bottom: 36px;
+}
+
+.portal-title {
+    font-size: 2.8rem;
+    font-weight: 900;
+    letter-spacing: 3px;
+    background: linear-gradient(135deg, #00f5d4, #3a86ff, #ff006e);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    text-shadow: 0 0 30px rgba(0, 245, 212, 0.25);
+    margin-bottom: 8px;
+}
+
+.portal-subtitle {
+    color: var(--text-muted);
+    font-size: 1.05rem;
+    line-height: 1.5;
+}
+
+/* Grid de juegos */
+.games-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 24px;
+    width: 100%;
+    max-width: 900px;
+    margin-bottom: 40px;
+}
+
+/* Tarjeta de juego */
+.game-card {
+    background: var(--panel-bg);
+    border: 1px solid var(--panel-border);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border-radius: 20px;
+    overflow: hidden;
+    text-decoration: none;
+    color: inherit;
+    display: flex;
+    flex-direction: column;
+    transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+    position: relative;
+}
+
+.game-card:hover {
+    transform: translateY(-6px);
+    border-color: var(--accent);
+    box-shadow: 0 14px 40px var(--accent-glow);
+}
+
+.card-banner {
+    height: 140px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 4.5rem;
+    position: relative;
+    overflow: hidden;
+}
+
+.banner-tetro {
+    background: linear-gradient(135deg, rgba(131, 56, 236, 0.4), rgba(0, 245, 212, 0.2));
+    border-bottom: 1px solid rgba(0, 245, 212, 0.2);
+}
+
+.banner-bridge {
+    background: linear-gradient(135deg, rgba(251, 86, 7, 0.35), rgba(58, 134, 255, 0.25));
+    border-bottom: 1px solid rgba(251, 86, 7, 0.2);
+}
+
+.banner-shooter {
+    background: linear-gradient(135deg, rgba(255, 0, 110, 0.4), rgba(0, 245, 212, 0.25));
+    border-bottom: 1px solid rgba(255, 0, 110, 0.3);
+}
+
+.banner-pong {
+    background: linear-gradient(135deg, rgba(0, 245, 212, 0.35), rgba(255, 0, 110, 0.35));
+    border-bottom: 1px solid rgba(0, 245, 212, 0.3);
+}
+
+.banner-racer {
+    background: linear-gradient(135deg, rgba(255, 0, 127, 0.4), rgba(255, 230, 0, 0.25));
+    border-bottom: 1px solid rgba(255, 0, 127, 0.3);
+}
+
+.banner-cosmic {
+    background: linear-gradient(135deg, rgba(189, 0, 255, 0.4), rgba(0, 247, 255, 0.25));
+    border-bottom: 1px solid rgba(189, 0, 255, 0.3);
+}
+
+.banner-survivor {
+    background: linear-gradient(135deg, rgba(0, 247, 255, 0.35), rgba(0, 255, 136, 0.25));
+    border-bottom: 1px solid rgba(0, 247, 255, 0.3);
+}
+
+.banner-katana {
+    background: linear-gradient(135deg, rgba(255, 0, 127, 0.4), rgba(0, 247, 255, 0.3));
+    border-bottom: 1px solid rgba(255, 0, 127, 0.3);
+}
+
+.banner-hexa {
+    background: linear-gradient(135deg, rgba(255, 215, 0, 0.35), rgba(0, 102, 255, 0.3));
+    border-bottom: 1px solid rgba(255, 215, 0, 0.3);
+}
+
+.banner-galaxy {
+    background: linear-gradient(135deg, rgba(255, 0, 51, 0.45), rgba(0, 247, 255, 0.3));
+    border-bottom: 1px solid rgba(255, 0, 51, 0.35);
+}
+
+.banner-crown {
+    background: linear-gradient(135deg, rgba(255, 215, 0, 0.4), rgba(213, 0, 249, 0.35));
+    border-bottom: 1px solid rgba(255, 215, 0, 0.35);
+}
+
+.banner-rallyx {
+    background: linear-gradient(135deg, rgba(0, 85, 255, 0.45), rgba(255, 215, 0, 0.35));
+    border-bottom: 1px solid rgba(0, 247, 255, 0.4);
+}
+
+.banner-chomp {
+    background: linear-gradient(135deg, rgba(255, 234, 0, 0.45), rgba(0, 85, 255, 0.35));
+    border-bottom: 1px solid rgba(255, 234, 0, 0.4);
+}
+
+
+
+
+
+.card-body {
+    padding: 22px;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+}
+
+.game-title {
+    font-size: 1.45rem;
+    font-weight: 800;
+    margin-bottom: 8px;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.play-arrow {
+    color: var(--accent);
+    font-size: 1.2rem;
+    transition: transform 0.2s;
+}
+
+.game-card:hover .play-arrow {
+    transform: translateX(4px);
+}
+
+.game-desc {
+    color: var(--text-muted);
+    font-size: 0.92rem;
+    line-height: 1.5;
+    margin-bottom: 18px;
+    flex: 1;
+}
+
+.badges-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 18px;
+}
+
+.badge {
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    padding: 4px 10px;
+    border-radius: 20px;
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--text-muted);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.badge.highlight {
+    background: rgba(0, 245, 212, 0.15);
+    color: var(--accent);
+    border-color: rgba(0, 245, 212, 0.3);
+}
+
+.btn-card-play {
+    width: 100%;
+    padding: 12px;
+    border-radius: 12px;
+    font-weight: 800;
+    font-size: 0.95rem;
+    text-align: center;
+    border: none;
+    cursor: pointer;
+    background: linear-gradient(135deg, var(--accent), #3a86ff);
+    color: #070a14;
+    transition: all 0.2s;
+}
+
+.game-card:hover .btn-card-play {
+    filter: brightness(1.1);
+}
+
+/* Footer */
+footer {
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    margin-top: auto;
+}
+
+/* Barra de Acceso Directo y Filtros */
+.direct-nav-container {
+    width: 100%;
+    max-width: 900px;
+    margin-bottom: 28px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+}
+
+/* Enlace principal destacado a Juegos Retro */
+.retro-hero-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    background: linear-gradient(135deg, rgba(255, 0, 110, 0.25) 0%, rgba(131, 56, 236, 0.35) 100%);
+    border: 2px solid #ff006e;
+    color: #ffffff;
+    font-size: 1.15rem;
+    font-weight: 800;
+    padding: 12px 28px;
+    border-radius: 40px;
+    text-decoration: none;
+    box-shadow: 0 0 25px rgba(255, 0, 110, 0.45);
+    transition: all 0.25s ease;
+    cursor: pointer;
+}
+
+.retro-hero-link:hover {
+    transform: translateY(-2px) scale(1.03);
+    box-shadow: 0 0 35px rgba(255, 0, 110, 0.7);
+    background: linear-gradient(135deg, rgba(255, 0, 110, 0.4) 0%, rgba(131, 56, 236, 0.5) 100%);
+}
+
+.retro-hero-link .badge-count {
+    background: #ff006e;
+    color: #fff;
+    font-size: 0.8rem;
+    padding: 3px 9px;
+    border-radius: 12px;
+    font-weight: 900;
+}
+
+/* Barra de Píldoras / Accesos Rápidos a cada juego */
+.quick-pills-bar {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+}
+
+.quick-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    color: var(--text-main);
+    text-decoration: none;
+    font-size: 0.85rem;
+    font-weight: 600;
+    padding: 7px 14px;
+    border-radius: 20px;
+    transition: all 0.2s ease;
+}
+
+.quick-pill:hover {
+    background: rgba(0, 245, 212, 0.15);
+    border-color: var(--accent);
+    color: var(--accent);
+    transform: translateY(-2px);
+    box-shadow: 0 0 12px var(--accent-glow);
+}
+
+.quick-pill.retro-pill {
+    border-color: rgba(255, 0, 110, 0.35);
+}
+
+.quick-pill.retro-pill:hover {
+    border-color: #ff006e;
+    color: #ff006e;
+    box-shadow: 0 0 12px rgba(255, 0, 110, 0.4);
+}
+
+/* Pestañas de Filtro de Categoría */
+.filter-tabs {
+    display: flex;
+    gap: 8px;
+    background: rgba(14, 18, 35, 0.8);
+    border: 1px solid var(--panel-border);
+    padding: 5px;
+    border-radius: 30px;
+}
+
+.filter-tab {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    font-size: 0.88rem;
+    font-weight: 700;
+    padding: 8px 18px;
+    border-radius: 25px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.filter-tab:hover {
+    color: #fff;
+}
+
+.filter-tab.active {
+    background: linear-gradient(135deg, var(--accent), #3a86ff);
+    color: #070a14;
+    box-shadow: 0 0 15px var(--accent-glow);
+}
+
+.filter-tab.active-retro {
+    background: linear-gradient(135deg, #ff006e, #8338ec);
+    color: #ffffff;
+    box-shadow: 0 0 15px rgba(255, 0, 110, 0.45);
+}
+
+/* Animación de filtrado de tarjetas */
+.game-card.hidden-card {
+    display: none !important;
+}
+
+.game-card {
+    animation: fadeInCard 0.35s ease forwards;
+}
+
+@keyframes fadeInCard {
+    from {
+        opacity: 0;
+        transform: translateY(12px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@media (max-width: 600px) {
+    .portal-title {
+        font-size: 2.1rem;
+    }
+
+    .portal-subtitle {
+        font-size: 0.95rem;
+    }
+
+    .retro-hero-link {
+        font-size: 1rem;
+        padding: 10px 20px;
+        width: 100%;
+        justify-content: center;
+    }
+
+    .filter-tabs {
+        width: 100%;
+        justify-content: space-between;
+    }
+
+    .filter-tab {
+        padding: 6px 12px;
+        font-size: 0.8rem;
+    }
+
+    .card-banner {
+        height: 110px;
+        font-size: 3.5rem;
+    }
+
+    .card-body {
+        padding: 16px;
+    }
+}
+

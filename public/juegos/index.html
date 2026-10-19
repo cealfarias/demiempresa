@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Arcade Hub - Juegos Modernos y Retro Web</title>
+    <link rel="stylesheet" href="css/portal.css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚡</text></svg>">
+</head>
+<body>
+
+    <!-- Barra de retorno a Rumbo Viajes -->
+    <div style="background: linear-gradient(90deg, #050714, #0f172a); border-bottom: 1px solid rgba(245, 158, 11, 0.4); padding: 8px 16px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 1000;">
+        <a href="/viajes" onclick="if(window.parent && window.parent !== window){ window.parent.postMessage({type:'RUMBO_CLOSE_ARCADE'},'*'); return false; }" style="text-decoration: none; color: #fbbf24; font-weight: 800; font-size: 13px; display: flex; align-items: center; gap: 6px;">
+            <span>◀ Volver a Rumbo Viajes</span>
+        </a>
+        <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="font-size: 11px; color: #38bdf8; font-weight: 700; background: rgba(56, 189, 248, 0.15); padding: 2px 8px; border-radius: 999px; border: 1px solid rgba(56, 189, 248, 0.3);">
+                🎁 Racha 7 Días = $1.00 USD
+            </span>
+        </div>
+    </div>
+
+    <header class="portal-header">
+        <h1 class="portal-title">ARCADE HUB</h1>
+        <p class="portal-subtitle">Minijuegos modernos y clásicos retro listos para jugar en tu celular o computadora sin instalar nada.</p>
+    </header>
+
+    <!-- Contenedor de Acceso Directo y Navegación Rápida -->
+    <nav class="direct-nav-container">
+        <!-- Enlaces principales destacados a Colecciones -->
+        <div style="display:flex; flex-wrap:wrap; justify-content:center; gap:12px; width:100%;">
+            <a href="#juegos-modernos" id="btn-hero-modern" class="retro-hero-link" style="border-color:#00f7ff; box-shadow:0 0 25px rgba(0,247,255,0.45); background:linear-gradient(135deg, rgba(0,247,255,0.25) 0%, rgba(0,102,255,0.35) 100%);" title="Acceso directo a juegos modernos con mejores gráficos">
+                <span>✨ JUEGOS MODERNOS</span>
+                <span class="badge-count" style="background:#00f7ff; color:#050714;">4 NUEVOS</span>
+                <span>➔</span>
+            </a>
+
+            <a href="#juegos-retro" id="btn-hero-retro" class="retro-hero-link" title="Acceso directo a los clásicos arcade retro">
+                <span>🕹️ JUEGOS RETRO</span>
+                <span class="badge-count">6 CLÁSICOS</span>
+                <span>➔</span>
+            </a>
+        </div>
+
+        <!-- Accesos directos rápidos con 1 toque a cada juego -->
+        <div class="quick-pills-bar">
+            <!-- Juegos Modernos -->
+            <a href="games/crown-clash/index.html" class="quick-pill" style="border-color:rgba(255,215,0,0.5); color:#ffd700;" title="Duelos de torres 1v1 estilo Clash Royale">👑 Crown Clash</a>
+            <a href="games/galaxy-clash/index.html" class="quick-pill" style="border-color:rgba(255,0,51,0.5); color:#ff3355;" title="Estrategia e invasión estilo Clash of Clans">⚔️ Galaxy Clash</a>
+            <a href="games/cosmic-fusion/index.html" class="quick-pill" style="border-color:rgba(189,0,255,0.4);" title="Fusión elástica de planetas tipo Suika">🪐 Cosmic Fusion</a>
+            <a href="games/neon-survivor/index.html" class="quick-pill" style="border-color:rgba(0,247,255,0.4);" title="Auto-shooter tipo Vampire Survivors">⚡ Neon Survivor</a>
+            <a href="games/cyber-katana/index.html" class="quick-pill" style="border-color:rgba(255,0,127,0.4);" title="Cortes con espada láser tipo Fruit Ninja">⚔️ Cyber Katana</a>
+            <a href="games/hexa-defense/index.html" class="quick-pill" style="border-color:rgba(255,215,0,0.4);" title="Tower Defense táctico hexagonal">🛡️ Hexa Defense</a>
+
+            <!-- Juegos Retro y Lógica -->
+            <a href="games/chomp-neo/index.html" class="quick-pill retro-pill" style="border-color:rgba(255,234,0,0.6); color:#ffea00;" title="El devorador del laberinto de neón clásico">🟡 Chomp Neo</a>
+            <a href="games/new-rally-x/index.html" class="quick-pill retro-pill" style="border-color:rgba(0,102,255,0.6); color:#00f7ff;" title="Namco 1981 con radar, banderas y humo">🏎️ New Rally-X</a>
+            <a href="games/turbo-drift/index.html" class="quick-pill retro-pill" title="Carreras de autopista ochentera">🏎️ Carritos Retro</a>
+            <a href="games/star-raider/index.html" class="quick-pill retro-pill" title="Disparos espaciales verticales">🚀 Naves Espaciales</a>
+            <a href="games/cyber-pong/index.html" class="quick-pill retro-pill" title="Ping-Pong con sonidos fuertes">🏓 Ping Pong</a>
+            <a href="games/tetro-blocks/index.html" class="quick-pill retro-pill" title="Tetris clásico con música rusa">🕹️ Tetris Neo</a>
+            <a href="games/bridge-builder/index.html" class="quick-pill" title="Construcción y simulación física">🌉 Puente Físico</a>
+        </div>
+
+        <!-- Pestañas de Filtrado -->
+        <div class="filter-tabs" role="tablist">
+            <button class="filter-tab active" data-filter="all">Todos (13)</button>
+            <button class="filter-tab" id="tab-modern" data-filter="modern">✨ Juegos Modernos (6)</button>
+            <button class="filter-tab" id="tab-retro" data-filter="retro">🕹️ Juegos Retro (6)</button>
+            <button class="filter-tab" data-filter="physics">🧠 Lógica & Física (1)</button>
+        </div>
+    </nav>
+
+    <div id="juegos-modernos"></div>
+    <div id="juegos-retro"></div>
+
+    <main class="games-grid">
+        <!-- ==================== JUEGOS MODERNOS ==================== -->
+
+        <!-- Tarjeta 1: Cosmic Fusion (Suika 2048) -->
+        <a href="games/cosmic-fusion/index.html" class="game-card" data-category="modern">
+            <div class="card-banner banner-cosmic">
+                <span>🪐</span>
+            </div>
+            <div class="card-body">
+                <div class="badges-row">
+                    <span class="badge highlight" style="background:rgba(189,0,255,0.2); color:#d500f9; border-color:rgba(189,0,255,0.4);">MODERNO &bull; FUSIÓN</span>
+                    <span class="badge">FÍSICA 2D</span>
+                    <span class="badge">SUIKA 2048</span>
+                    <span class="badge">GLASSMORPHISM</span>
+                </div>
+                <h2 class="game-title">
+                    Cosmic Fusion: Supernova
+                    <span class="play-arrow">➔</span>
+                </h2>
+                <p class="game-desc">
+                    El género viral del momento. Suelta cuerpos celestes con física elástica en un contenedor gravitatorio de cristal. Fusiona planetas idénticos para evolucionarlos hasta la mítica Supernova.
+                </p>
+                <div class="btn-card-play" style="background:linear-gradient(135deg, #00f7ff, #bd00ff); color:#fff;">Jugar Ahora ▶</div>
+            </div>
+        </a>
+
+        <!-- Tarjeta 2: Neon Survivor (Vampire Survivors) -->
+        <a href="games/neon-survivor/index.html" class="game-card" data-category="modern">
+            <div class="card-banner banner-survivor">
+                <span>⚡</span>
+            </div>
+            <div class="card-body">
+                <div class="badges-row">
+                    <span class="badge highlight" style="background:rgba(0,255,136,0.2); color:#00ff88; border-color:rgba(0,255,136,0.4);">MODERNO &bull; ROGUELITE</span>
+                    <span class="badge">AUTO-SHOOTER</span>
+                    <span class="badge">ILUMINACIÓN 2D</span>
+                    <span class="badge">UPGRADES</span>
+                </div>
+                <h2 class="game-title">
+                    Neon Survivor: Cyber Siege
+                    <span class="play-arrow">➔</span>
+                </h2>
+                <p class="game-desc">
+                    Sobrevive a hordas biomecánicas en la arena neón. Tu héroe dispara automáticamente; esquiva, absorbe gemas de XP con magnetismo y elige cartas de mejoras (drones orbitales, rayos Tesla, plasma).
+                </p>
+                <div class="btn-card-play" style="background:linear-gradient(135deg, #00f7ff, #0066ff); color:#fff;">Jugar Ahora ▶</div>
+            </div>
+        </a>
+
+        <!-- Tarjeta 3: Cyber Katana (Fruit Ninja) -->
+        <a href="games/cyber-katana/index.html" class="game-card" data-category="modern">
+            <div class="card-banner banner-katana">
+                <span>⚔️</span>
+            </div>
+            <div class="card-body">
+                <div class="badges-row">
+                    <span class="badge highlight" style="background:rgba(255,0,127,0.2); color:#ff007f; border-color:rgba(255,0,127,0.4);">MODERNO &bull; SLICER</span>
+                    <span class="badge">TIEMPO BALA</span>
+                    <span class="badge">COMBOS</span>
+                    <span class="badge">CORTE LÁSER</span>
+                </div>
+                <h2 class="game-title">
+                    Cyber Katana: Laser Slice
+                    <span class="play-arrow">➔</span>
+                </h2>
+                <p class="game-desc">
+                    Desliza el dedo o el ratón a toda velocidad trazando estelas de sable láser para rebanar núcleos cuánticos en mitades. Encadena combos espectaculares y activa la cámara lenta Chrono.
+                </p>
+                <div class="btn-card-play" style="background:linear-gradient(135deg, #ff007f, #00f7ff); color:#fff;">Jugar Ahora ▶</div>
+            </div>
+        </a>
+
+        <!-- Tarjeta 4: Hexa Defense (Tower Defense) -->
+        <a href="games/hexa-defense/index.html" class="game-card" data-category="modern">
+            <div class="card-banner banner-hexa">
+                <span>🛡️</span>
+            </div>
+            <div class="card-body">
+                <div class="badges-row">
+                    <span class="badge highlight" style="background:rgba(255,215,0,0.2); color:#ffd700; border-color:rgba(255,215,0,0.4);">MODERNO &bull; ESTRATEGIA</span>
+                    <span class="badge">TOWER DEFENSE</span>
+                    <span class="badge">CIRCUITOS</span>
+                    <span class="badge">10 OLEADAS</span>
+                </div>
+                <h2 class="game-title">
+                    Hexa Defense: Neon Core
+                    <span class="play-arrow">➔</span>
+                </h2>
+                <p class="game-desc">
+                    Defensa de torres táctica en una rejilla hexagonal. Construye y mejora torretas de rayos láser, bobinas Tesla, pulsos criogénicos y morteros de plasma para proteger el Núcleo de los virus.
+                </p>
+                <div class="btn-card-play" style="background:linear-gradient(135deg, #ffd700, #0066ff); color:#fff;">Jugar Ahora ▶</div>
+            </div>
+        </a>
+
+        <!-- Tarjeta 5: Galaxy Clash: Hero Wars (Clash of Clans Galáctico) -->
+        <a href="games/galaxy-clash/index.html" class="game-card" data-category="modern">
+            <div class="card-banner banner-galaxy">
+                <span>⚔️</span>
+            </div>
+            <div class="card-body">
+                <div class="badges-row">
+                    <span class="badge highlight" style="background:rgba(255,0,51,0.25); color:#ff3355; border-color:rgba(255,0,51,0.4);">CLASH OF CLANS &bull; 2.5D</span>
+                    <span class="badge">HÉROE LORD DRAKON</span>
+                    <span class="badge">SABLES LÁSER</span>
+                    <span class="badge">ASALTOS 3⭐</span>
+                </div>
+                <h2 class="game-title">
+                    Galaxy Clash: Hero Wars
+                    <span class="play-arrow">➔</span>
+                </h2>
+                <p class="game-desc">
+                    Estrategia galáctica isométrica al estilo Clash of Clans. Construye tu base estelar, extrae cristales Kyber y desata a soldados de asalto, mecas y al temible héroe <b>Lord Drakon</b> con su Furia de la Fuerza para asaltar bases enemigas y conseguir 3 Estrellas.
+                </p>
+                <div class="btn-card-play" style="background:linear-gradient(135deg, #ff0033, #00f7ff); color:#fff;">Jugar Ahora ▶</div>
+            </div>
+        </a>
+
+        <!-- Tarjeta 6: Crown Clash: Arena Royale (Clash Royale) -->
+        <a href="games/crown-clash/index.html" class="game-card" data-category="modern">
+            <div class="card-banner banner-crown">
+                <span>👑</span>
+            </div>
+            <div class="card-body">
+                <div class="badges-row">
+                    <span class="badge highlight" style="background:rgba(255,215,0,0.25); color:#ffd700; border-color:rgba(255,215,0,0.4);">CLASH ROYALE &bull; 1v1</span>
+                    <span class="badge">BARRA DE ELIXIR</span>
+                    <span class="badge">8 CARTAS</span>
+                    <span class="badge">DOBLE ELIXIR</span>
+                </div>
+                <h2 class="game-title">
+                    Crown Clash: Arena Royale
+                    <span class="play-arrow">➔</span>
+                </h2>
+                <p class="game-desc">
+                    Duelos de torres en tiempo real en una arena con 2 puentes. Administra tu barra de elixir, despliega titanes de roca, cazadoras, dragones voladores y hordas espectrales, y derriba la Torre del Rey rival para ganar 3 Coronas.
+                </p>
+                <div class="btn-card-play" style="background:linear-gradient(135deg, #ffd700, #d500f9); color:#070914;">Jugar Ahora ▶</div>
+            </div>
+        </a>
+
+        <!-- ==================== JUEGOS RETRO Y LÓGICA ==================== -->
+
+        <!-- Tarjeta 5: Chomp Neo: Maze Eater (Homenaje Pac-Man 1980) -->
+        <a href="games/chomp-neo/index.html" class="game-card" data-category="retro">
+            <div class="card-banner banner-chomp">
+                <span>🟡</span>
+            </div>
+            <div class="card-body">
+                <div class="badges-row">
+                    <span class="badge highlight" style="background:rgba(255,234,0,0.25); color:#ffea00; border-color:rgba(255,234,0,0.5);">ARCADE 1980</span>
+                    <span class="badge">HOMENAJE PAC-MAN</span>
+                    <span class="badge">WAKA-WAKA</span>
+                    <span class="badge">4 ESPECTROS</span>
+                </div>
+                <h2 class="game-title">
+                    Chomp Neo: Maze Eater
+                    <span class="play-arrow">➔</span>
+                </h2>
+                <p class="game-desc">
+                    El legendario rey de las recreativas con identidad propia y 100% libre de conflictos de copyright. Recorre el laberinto de neón devorando puntos con el auténtico sonido "waka-waka", esquiva a los 4 espectros (Volt, Pulse, Glitch y Spark) y activa las Super Píldoras para devorarlos a ellos.
+                </p>
+                <div class="btn-card-play" style="background:linear-gradient(135deg, #ffea00, #ff9900); color:#05070e;">Jugar Ahora ▶</div>
+            </div>
+        </a>
+
+        <!-- Tarjeta 6: New Rally-X (Clásico Namco 1981) -->
+        <a href="games/new-rally-x/index.html" class="game-card" data-category="retro">
+            <div class="card-banner banner-rallyx">
+                <span>🏎️</span>
+            </div>
+            <div class="card-body">
+                <div class="badges-row">
+                    <span class="badge highlight" style="background:rgba(0,102,255,0.25); color:#00f7ff; border-color:rgba(0,247,255,0.5);">ARCADE 1981</span>
+                    <span class="badge">RADAR NAMCO</span>
+                    <span class="badge">CORTINA DE HUMO</span>
+                    <span class="badge">BANDERAS S & L</span>
+                </div>
+                <h2 class="game-title">
+                    New Rally-X (1981)
+                    <span class="play-arrow">➔</span>
+                </h2>
+                <p class="game-desc">
+                    La recreación fiel del inmortal clásico de Namco. Pilota el bólido azul en un laberinto con radar en tiempo real, recoge las 10 banderas, suelta cortinas de humo para hacer patinar a los coches rojos y disfruta de su mítica e inolvidable música chiptune.
+                </p>
+                <div class="btn-card-play" style="background:linear-gradient(135deg, #00f7ff, #0055ff); color:#050714;">Jugar Ahora ▶</div>
+            </div>
+        </a>
+
+        <!-- Tarjeta 6: Turbo Drift Neo (Carreras Retro) -->
+        <a href="games/turbo-drift/index.html" class="game-card" data-category="retro">
+            <div class="card-banner banner-racer">
+                <span>🏎️</span>
+            </div>
+            <div class="card-body">
+                <div class="badges-row">
+                    <span class="badge highlight">CARRERAS RETRO</span>
+                    <span class="badge">TURBO NITRO ⚡</span>
+                    <span class="badge">COMBUSTIBLE ⛽</span>
+                    <span class="badge">SYNTHWAVE 80s</span>
+                </div>
+                <h2 class="game-title">
+                    Turbo Drift Neo
+                    <span class="play-arrow">➔</span>
+                </h2>
+                <p class="game-desc">
+                    Siente la velocidad pura en una autopista synthwave de los 80s. Conduce un superdeportivo rojo a más de 300 km/h, esquiva el tráfico en 4 carriles, recoge combustible y monedas, y desata el Nitro.
+                </p>
+                <div class="btn-card-play">Jugar Ahora ▶</div>
+            </div>
+        </a>
+
+        <!-- Tarjeta 6: Star Raider Neo (Naves Espaciales) -->
+        <a href="games/star-raider/index.html" class="game-card" data-category="retro">
+            <div class="card-banner banner-shooter">
+                <span>🚀</span>
+            </div>
+            <div class="card-body">
+                <div class="badges-row">
+                    <span class="badge highlight">ARCADE</span>
+                    <span class="badge">SHOOT'EM UP</span>
+                    <span class="badge">MÓVIL & PC</span>
+                    <span class="badge">SYNTHWAVE</span>
+                </div>
+                <h2 class="game-title">
+                    Star Raider Neo
+                    <span class="play-arrow">➔</span>
+                </h2>
+                <p class="game-desc">
+                    El clásico arcade de disparos espaciales vertical. Destruye invasores alienígenas y meteoritos que se dividen, recolecta power-ups de armas y escudo, y esquiva ráfagas de láser.
+                </p>
+                <div class="btn-card-play">Jugar Ahora ▶</div>
+            </div>
+        </a>
+
+        <!-- Tarjeta 7: Cyber Pong Neo (Ping-Pong Retro) -->
+        <a href="games/cyber-pong/index.html" class="game-card" data-category="retro">
+            <div class="card-banner banner-pong">
+                <span>🏓</span>
+            </div>
+            <div class="card-body">
+                <div class="badges-row">
+                    <span class="badge highlight">ARCADE RETRO</span>
+                    <span class="badge">1P / 2P LOCAL</span>
+                    <span class="badge">MÓVIL & PC</span>
+                    <span class="badge">SONIDO FUERTE</span>
+                </div>
+                <h2 class="game-title">
+                    Cyber Pong Neo
+                    <span class="play-arrow">➔</span>
+                </h2>
+                <p class="game-desc">
+                    El legendario Ping-Pong retro con sonidos de impacto ultra contundentes. Modo contra la CPU (Fácil, Media, Imposible) o 2 Jugadores en la misma pantalla. Golpes SMASH de alta velocidad y contador de rally.
+                </p>
+                <div class="btn-card-play">Jugar Ahora ▶</div>
+            </div>
+        </a>
+
+        <!-- Tarjeta 8: Tetro Blocks Neo (Tetris Retro) -->
+        <a href="games/tetro-blocks/index.html" class="game-card" data-category="retro">
+            <div class="card-banner banner-tetro">
+                <span>🕹️</span>
+            </div>
+            <div class="card-body">
+                <div class="badges-row">
+                    <span class="badge highlight">LÓGICA</span>
+                    <span class="badge">ARCADE</span>
+                    <span class="badge">MÓVIL & PC</span>
+                    <span class="badge">AUDIO 8-BIT</span>
+                </div>
+                <h2 class="game-title">
+                    Tetro Blocks Neo
+                    <span class="play-arrow">➔</span>
+                </h2>
+                <p class="game-desc">
+                    El clásico arcade de piezas geométricas que caen. Incluye sistema 7-Bag, pieza fantasma, reserva (Hold), efectos de partículas y la mítica melodía retro sintetizada en tiempo real.
+                </p>
+                <div class="btn-card-play">Jugar Ahora ▶</div>
+            </div>
+        </a>
+
+        <!-- Tarjeta 9: Bridge Builder 2D (Física & Lógica) -->
+        <a href="games/bridge-builder/index.html" class="game-card" data-category="physics">
+            <div class="card-banner banner-bridge">
+                <span>🌉</span>
+            </div>
+            <div class="card-body">
+                <div class="badges-row">
+                    <span class="badge highlight">FÍSICA 2D</span>
+                    <span class="badge">INGENIERÍA</span>
+                    <span class="badge">MÓVIL & PC</span>
+                    <span class="badge">PUZZLE</span>
+                </div>
+                <h2 class="game-title">
+                    Bridge Builder 2D
+                    <span class="play-arrow">➔</span>
+                </h2>
+                <p class="game-desc">
+                    Construye puentes con carreteras y vigas de madera dentro de tu presupuesto. Pon a prueba tu estructura con física real de tensión y compresión cuando el vehículo intente cruzar.
+                </p>
+                <div class="btn-card-play">Jugar Ahora ▶</div>
+            </div>
+        </a>
+    </main>
+
+    <footer>
+        <p>Desarrollado con HTML5 Canvas, JavaScript y Web Audio API &bull; Totalmente libre de dependencias y de copyright</p>
+    </footer>
+
+    <!-- Script Interactivo de Filtros y Enrutamiento de Hash -->
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const tabs = document.querySelectorAll('.filter-tab');
+            const cards = document.querySelectorAll('.game-card');
+            const heroModernBtn = document.getElementById('btn-hero-modern');
+            const heroRetroBtn = document.getElementById('btn-hero-retro');
+
+            function filterCategory(category) {
+                tabs.forEach(tab => {
+                    const matches = tab.getAttribute('data-filter') === category;
+                    tab.classList.toggle('active', matches);
+                    if (category === 'retro') {
+                        tab.classList.toggle('active-retro', matches);
+                    } else {
+                        tab.classList.remove('active-retro');
+                    }
+                });
+
+                cards.forEach(card => {
+                    if (category === 'all' || card.getAttribute('data-category') === category) {
+                        card.classList.remove('hidden-card');
+                    } else {
+                        card.classList.add('hidden-card');
+                    }
+                });
+            }
+
+            // Click en pestañas
+            tabs.forEach(tab => {
+                tab.addEventListener('click', () => {
+                    const filter = tab.getAttribute('data-filter');
+                    filterCategory(filter);
+                });
+            });
+
+            // Click en botones principales
+            heroModernBtn.addEventListener('click', () => filterCategory('modern'));
+            heroRetroBtn.addEventListener('click', () => filterCategory('retro'));
+
+            // Enrutamiento por URL Hash
+            if (window.location.hash === '#modern' || window.location.hash === '#juegos-modernos') {
+                filterCategory('modern');
+            } else if (window.location.hash === '#retro' || window.location.hash === '#juegos-retro') {
+                filterCategory('retro');
+            }
+        });
+    </script>
+    <script src="/juegos/rumbo-game-bridge.js"></script>
+</body>
+</html>

@@ -1,0 +1,305 @@
+/* ============================================================================
+   CHOMP NEO: ESTILOS ARCADE CLÁSICOS (1980 Homage)
+   Acrílico arcade, Neón azul cobalto, Glow amarillo y controles táctiles
+   ============================================================================ */
+
+:root {
+    --bg-dark: #05070f;
+    --neon-blue: #0055ff;
+    --neon-cyan: #00f7ff;
+    --neon-yellow: #ffea00;
+    --neon-pink: #ff007f;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: manipulation;
+}
+
+body {
+    background-color: var(--bg-dark);
+    color: #ffffff;
+    font-family: 'Courier New', Monaco, monospace;
+    overflow: hidden;
+    height: 100vh;
+    width: 100vw;
+    display: flex;
+    flex-direction: column;
+}
+
+/* 1. Navegación Superior */
+.top-nav {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 14px;
+    background: rgba(8, 12, 24, 0.95);
+    border-bottom: 2px solid var(--neon-blue);
+    z-index: 100;
+}
+
+.nav-links-row {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.nav-back-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--neon-cyan);
+    text-decoration: none;
+    font-weight: 700;
+    font-size: 0.82rem;
+    padding: 5px 12px;
+    border-radius: 6px;
+    background: rgba(0, 247, 255, 0.1);
+    border: 1px solid rgba(0, 247, 255, 0.35);
+    transition: all 0.2s ease;
+}
+
+.nav-back-link:hover {
+    background: rgba(0, 247, 255, 0.25);
+    box-shadow: 0 0 10px rgba(0, 247, 255, 0.4);
+}
+
+.nav-retro-link {
+    color: #ffea00;
+    border-color: rgba(255, 234, 0, 0.4);
+    background: rgba(255, 234, 0, 0.12);
+}
+
+.nav-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.icon-btn {
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: #fff;
+    font-size: 1.1rem;
+    border-radius: 6px;
+    width: 36px;
+    height: 36px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+}
+
+.icon-btn:hover {
+    background: rgba(255, 234, 0, 0.25);
+    border-color: var(--neon-yellow);
+}
+
+/* 2. Marcador HUD Arcade */
+.hud-panel {
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    padding: 6px 12px;
+    background: #060914;
+    border-bottom: 1px solid rgba(0, 85, 255, 0.3);
+    font-size: 0.85rem;
+    font-weight: 700;
+    letter-spacing: 1px;
+}
+
+.hud-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.hud-label {
+    font-size: 0.65rem;
+    color: #7d8ea8;
+    margin-bottom: 2px;
+}
+
+.hud-val {
+    font-size: 1.15rem;
+    color: #fff;
+    text-shadow: 0 0 8px rgba(255, 255, 255, 0.4);
+}
+
+/* 3. Área del Canvas */
+.game-viewport {
+    flex: 1;
+    position: relative;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    overflow: hidden;
+    background: #020307;
+    padding: 6px;
+}
+
+#canvas-container {
+    position: relative;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    height: 100%;
+}
+
+#game-canvas {
+    display: block;
+    box-shadow: 0 0 25px rgba(0, 85, 255, 0.4);
+    border: 2px solid rgba(0, 85, 255, 0.6);
+    border-radius: 6px;
+    image-rendering: pixelated;
+}
+
+/* Banners Flotantes */
+.overlay-banner {
+    position: absolute;
+    top: 55%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 1.5rem;
+    font-weight: 900;
+    color: var(--neon-yellow);
+    text-shadow: 0 0 12px currentColor;
+    background: rgba(5, 8, 20, 0.88);
+    border: 2px solid currentColor;
+    padding: 8px 20px;
+    border-radius: 8px;
+    pointer-events: none;
+    letter-spacing: 2px;
+    display: none;
+    z-index: 50;
+    text-align: center;
+    animation: pulseGlow 1s infinite alternate;
+}
+
+@keyframes pulseGlow {
+    from { transform: translate(-50%, -50%) scale(0.96); box-shadow: 0 0 15px rgba(255, 234, 0, 0.3); }
+    to { transform: translate(-50%, -50%) scale(1.04); box-shadow: 0 0 25px rgba(255, 234, 0, 0.7); }
+}
+
+/* 4. Controles Táctiles para Móviles */
+.touch-controls {
+    display: none;
+    padding: 10px 0;
+    background: rgba(5, 7, 15, 0.98);
+    border-top: 1px solid rgba(0, 85, 255, 0.3);
+    justify-content: center;
+    align-items: center;
+    z-index: 100;
+}
+
+.dpad {
+    display: grid;
+    grid-template-columns: repeat(3, 56px);
+    grid-template-rows: repeat(3, 56px);
+    gap: 6px;
+}
+
+.dpad-btn {
+    background: rgba(0, 85, 255, 0.25);
+    border: 2px solid var(--neon-cyan);
+    color: #fff;
+    font-size: 1.5rem;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 0 10px rgba(0, 247, 255, 0.3);
+}
+
+.dpad-btn:active {
+    background: var(--neon-yellow);
+    color: #000;
+    transform: scale(0.95);
+}
+
+.dpad-up { grid-column: 2; grid-row: 1; }
+.dpad-left { grid-column: 1; grid-row: 2; }
+.dpad-right { grid-column: 3; grid-row: 2; }
+.dpad-down { grid-column: 2; grid-row: 3; }
+
+/* 5. Modal de Inicio y Game Over */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.88);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    backdrop-filter: blur(4px);
+}
+
+.modal-content {
+    background: #070d1e;
+    border: 3px solid var(--neon-yellow);
+    border-radius: 12px;
+    padding: 30px;
+    text-align: center;
+    max-width: 440px;
+    width: 90%;
+    box-shadow: 0 0 35px rgba(255, 234, 0, 0.4);
+}
+
+.modal-title {
+    font-size: 2.2rem;
+    color: var(--neon-yellow);
+    margin-bottom: 8px;
+    text-shadow: 0 0 15px rgba(255, 234, 0, 0.7);
+}
+
+.modal-instructions {
+    font-size: 0.84rem;
+    line-height: 1.6;
+    color: #b0c2de;
+    margin-bottom: 20px;
+    text-align: left;
+    background: rgba(0, 0, 0, 0.5);
+    padding: 14px;
+    border-radius: 8px;
+    border: 1px solid rgba(0, 85, 255, 0.3);
+}
+
+.modal-instructions li {
+    margin-bottom: 6px;
+    margin-left: 18px;
+}
+
+.btn-primary {
+    background: linear-gradient(135deg, #ffea00, #ff9900);
+    color: #05070e;
+    border: none;
+    padding: 12px 32px;
+    font-size: 1.15rem;
+    font-weight: 900;
+    border-radius: 8px;
+    cursor: pointer;
+    box-shadow: 0 0 20px rgba(255, 234, 0, 0.5);
+    transition: all 0.2s;
+    letter-spacing: 1px;
+}
+
+.btn-primary:hover {
+    transform: scale(1.05);
+    box-shadow: 0 0 30px rgba(255, 234, 0, 0.8);
+}
+
+/* Responsive para pantallas táctiles */
+@media (max-width: 768px) {
+    .touch-controls {
+        display: flex;
+    }
+}

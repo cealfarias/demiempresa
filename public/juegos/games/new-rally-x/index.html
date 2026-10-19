@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>New Rally-X - Clásico Arcade 1981</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏎️</text></svg>">
+</head>
+<body>
+
+    <!-- Navegación Superior -->
+    <nav class="top-nav">
+        <div class="nav-links-row">
+            <a href="../../index.html" class="nav-back-link">◀ Arcade Hub</a>
+            <a href="../../index.html#juegos-retro" class="nav-back-link nav-retro-link">🕹️ Juegos Retro</a>
+        </div>
+        <div class="nav-actions">
+            <button id="btn-pause" class="icon-btn" title="Pausar (P)">⏸️</button>
+            <button id="btn-music" class="icon-btn" title="Música New Rally-X (N)">🎵</button>
+            <button id="btn-sound" class="icon-btn" title="Efectos de Sonido (M)">🔊</button>
+        </div>
+    </nav>
+
+    <!-- Marcador HUD Superior Namco -->
+    <header class="hud-panel">
+        <div class="hud-item">
+            <span class="hud-label">1UP SCORE</span>
+            <span id="score-val" class="hud-val" style="color: #00f7ff;">0</span>
+        </div>
+        <div class="hud-item">
+            <span class="hud-label">HIGH SCORE</span>
+            <span id="high-val" class="hud-val" style="color: #ffd700;">10000</span>
+        </div>
+        <div class="hud-item">
+            <span class="hud-label">ROUND</span>
+            <span id="round-val" class="hud-val" style="color: #ffffff;">1</span>
+        </div>
+        <div class="hud-item">
+            <span class="hud-label">BANDERAS</span>
+            <span id="flags-left-val" class="hud-val" style="color: #ffff00;">0/10</span>
+        </div>
+        <div class="hud-item">
+            <span class="hud-label">VIDAS</span>
+            <span id="lives-box" class="hud-val" style="font-size:0.9rem;">🏎️ 🏎️ 🏎️</span>
+        </div>
+    </header>
+
+    <!-- Área Principal de Juego: Canvas + Radar Lateral -->
+    <main class="game-viewport">
+        <!-- Contenedor del Laberinto y Cámara -->
+        <div id="canvas-container">
+            <canvas id="game-canvas"></canvas>
+
+            <!-- Banners Flotantes -->
+            <div id="stage-banner" class="overlay-banner">ROUND 1</div>
+            <div id="special-banner" class="overlay-banner special-alert">★ DOUBLE POINTS ACTIVE! ★</div>
+        </div>
+
+        <!-- Panel Lateral Radar CRT Clásico Namco -->
+        <aside class="radar-sidebar">
+            <div class="radar-header">RADAR NAMCO</div>
+
+            <div id="radar-container">
+                <canvas id="radar-canvas"></canvas>
+            </div>
+
+            <!-- Indicador de Combustible -->
+            <div class="fuel-box">
+                <div class="fuel-title-row">
+                    <span>⛽ FUEL</span>
+                    <span id="fuel-text">100%</span>
+                </div>
+                <div class="fuel-bar-outer">
+                    <div id="fuel-bar-fill" class="fuel-bar-fill"></div>
+                </div>
+            </div>
+
+            <!-- Leyenda del Radar -->
+            <div class="radar-legend">
+                <div class="legend-row">
+                    <span class="legend-dot" style="background:#00f7ff;"></span>
+                    <span>Tu Coche Azul</span>
+                </div>
+                <div class="legend-row">
+                    <span class="legend-dot" style="background:#ff0044;"></span>
+                    <span>Enemigo Rojo</span>
+                </div>
+                <div class="legend-row">
+                    <span class="legend-dot" style="background:#ffff00;"></span>
+                    <span>Bandera "F"</span>
+                </div>
+                <div class="legend-row">
+                    <span class="legend-dot" style="background:#ff0033;"></span>
+                    <span>Especial "S" (x2)</span>
+                </div>
+                <div class="legend-row">
+                    <span class="legend-dot" style="background:#00ff88;"></span>
+                    <span>Lucky "L" (Gas)</span>
+                </div>
+            </div>
+        </aside>
+    </main>
+
+    <!-- Controles Táctiles para Pantallas Móviles -->
+    <footer class="touch-controls">
+        <div class="dpad">
+            <button id="btn-up" class="dpad-btn dpad-up">▲</button>
+            <button id="btn-left" class="dpad-btn dpad-left">◀</button>
+            <button id="btn-right" class="dpad-btn dpad-right">▶</button>
+            <button id="btn-down" class="dpad-btn dpad-down">▼</button>
+        </div>
+
+        <div class="action-buttons">
+            <button id="btn-smoke" class="btn-smoke">
+                <span>HUMO</span>
+                <span class="smoke-hint">SMOKE</span>
+            </button>
+        </div>
+    </footer>
+
+    <!-- Modal de Inicio / Game Over -->
+    <div id="modal-overlay" class="modal-overlay">
+        <div class="modal-content">
+            <h1 id="modal-title" class="modal-title">NEW RALLY-X</h1>
+            <p style="color:#00f7ff; font-weight:700; margin-bottom:14px; font-size:0.95rem;">
+                CLÁSICO ARCADE NAMCO (1981)
+            </p>
+
+            <div class="modal-instructions">
+                <ul>
+                    <li><strong>Objetivo:</strong> Recoge las <strong>10 banderas</strong> del laberinto esquivando a los coches patrulla rojos y las rocas.</li>
+                    <li><strong>Cortina de Humo (ESPACIO / Botón HUMO):</strong> Despliega nubes de humo para hacer patinar a los coches enemigos.</li>
+                    <li><strong>Bandera Especial (S):</strong> Duplica todos los puntos restantes de la ronda.</li>
+                    <li><strong>Bandera Afortunada (L):</strong> Otorga bono de combustible y recarga tu tanque.</li>
+                    <li><strong>Radar:</strong> Consulta el mapa de la derecha para rastrear banderas y coches enemigos.</li>
+                    <li><strong>Controles:</strong> Flechas / WASD para girar, Barra Espaciadora para Humo.</li>
+                </ul>
+            </div>
+
+            <div id="modal-score" style="margin-bottom: 20px; font-size:1.05rem;"></div>
+
+            <button id="btn-start-modal" class="btn-primary">¡INICIAR PARTIDA! ▶</button>
+        </div>
+    </div>
+
+    <!-- Scripts del Juego -->
+    <script src="js/audio.js"></script>
+    <script src="js/game.js"></script>
+<script src=" /juegos/rumbo-game-bridge.js></script>\n</body>
+</html>

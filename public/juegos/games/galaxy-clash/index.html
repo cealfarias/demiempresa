@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Galaxy Clash: Hero Wars - Estrategia Isométrica Galáctica</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚔️</text></svg>">
+</head>
+<body>
+
+    <!-- Navegación Superior -->
+    <nav class="top-nav">
+        <div class="nav-links-row">
+            <a href="../../index.html" class="nav-back-link">◀ Arcade</a>
+            <a href="../../index.html#juegos-retro" class="nav-back-link nav-retro-link">🕹️ Juegos Retro</a>
+        </div>
+        <div class="nav-actions">
+            <button id="btn-music" class="icon-btn" title="Marcha Galáctica">🎵</button>
+            <button id="btn-sound" class="icon-btn" title="Efectos de Sable y Láser">🔊</button>
+        </div>
+    </nav>
+
+    <!-- Marcador HUD Galáctico -->
+    <header class="hud-panel">
+        <div class="hud-top-row">
+            <span id="mode-title" class="mode-badge">MI BASE GALÁCTICA</span>
+
+            <div class="resources-group">
+                <div class="res-item" style="color: var(--neon-gold);">
+                    <span>🪙</span>
+                    <span id="credits-val">500</span>
+                </div>
+                <div class="res-item" style="color: var(--neon-purple);">
+                    <span>⚡</span>
+                    <span id="kyber-val">350</span>
+                </div>
+            </div>
+
+            <button id="btn-switch-mode" class="btn-switch-mode">⚔️ Atacar Base Rival</button>
+        </div>
+
+        <!-- Barra de Información de Batalla (Solo visible durante combate) -->
+        <div id="battle-bar" class="battle-info-row hidden">
+            <div>
+                <span style="font-size:0.75rem; color:var(--text-muted);">DESTRUCCIÓN:</span>
+                <span id="destruction-text" class="destruction-text">0%</span>
+            </div>
+            <div>
+                <span id="stars-display" class="stars-text">☆☆☆</span>
+            </div>
+            <div>
+                <span style="font-size:0.75rem; color:var(--text-muted);">TIEMPO:</span>
+                <span id="battle-timer" style="font-family:var(--font-mono); font-weight:800; color:#fff;">02:00</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Contenedor del Canvas Isométrico -->
+    <main class="canvas-wrapper">
+        <canvas id="clash-canvas"></canvas>
+
+        <!-- Pantalla de Inicio / Fin de Batalla -->
+        <div id="game-overlay" class="overlay">
+            <h2 id="overlay-title">GALAXY CLASH</h2>
+            <p id="overlay-desc">
+                Construye tu base estelar, recolecta cristales Kyber ⚡ y Beskar 🪙.<br>
+                Comanda a soldados de asalto, caballeros de sable láser y al imponente <b>Lord Drakon</b> para asaltar bases enemigas y conseguir 3 Estrellas (⭐⭐⭐).
+            </p>
+            <button id="btn-play-overlay" class="btn-primary">Comandar la Galaxia ⚔️</button>
+        </div>
+    </main>
+
+    <!-- Barra de Controles y Despliegue de Tropas -->
+    <footer class="deploy-bar">
+        <!-- Controles en Modo Base -->
+        <div id="base-controls" style="display:flex; justify-content:center; gap:8px;">
+            <span style="font-size:0.8rem; color:var(--text-muted);">Toca los extractores para recolectar recursos &bull; Toca el Centro de Mando para mejorar.</span>
+        </div>
+
+        <!-- Barra de Tropas en Modo Batalla -->
+        <div class="troops-scroll-row">
+            <button class="deploy-btn active" data-troop="trooper">
+                <span class="troop-icon">🪖</span>
+                <span style="font-size:0.65rem; font-weight:700;">Soldado</span>
+                <span id="count-trooper" class="troop-count">x12</span>
+            </button>
+
+            <button class="deploy-btn" data-troop="saber">
+                <span class="troop-icon">⚔️</span>
+                <span style="font-size:0.65rem; font-weight:700;">Sable</span>
+                <span id="count-saber" class="troop-count">x6</span>
+            </button>
+
+            <button class="deploy-btn" data-troop="walker">
+                <span class="troop-icon">🤖</span>
+                <span style="font-size:0.65rem; font-weight:700;">Meca</span>
+                <span id="count-walker" class="troop-count">x3</span>
+            </button>
+
+            <button class="deploy-btn" data-troop="bomber">
+                <span class="troop-icon">💣</span>
+                <span style="font-size:0.65rem; font-weight:700;">Droide</span>
+                <span id="count-bomber" class="troop-count">x4</span>
+            </button>
+
+            <button class="deploy-btn hero-btn" data-troop="hero">
+                <span class="troop-icon">👑</span>
+                <span style="font-size:0.65rem; font-weight:700; color:var(--neon-red);">Lord Drakon</span>
+                <span id="count-hero" class="troop-count" style="color:var(--neon-red);">x1</span>
+            </button>
+        </div>
+
+        <!-- Botón de Habilidad del Héroe -->
+        <div class="hero-super-action-row">
+            <button id="btn-hero-super" class="btn-hero-super" disabled>
+                ⚡ SUPER DE HÉROE: Furia de la Fuerza (Lord Drakon)
+            </button>
+        </div>
+    </footer>
+
+    <!-- Guía de Controles Inferior -->
+    <section class="guide-bottom">
+        <span>📱 <b>Móvil / PC:</b> En combate, selecciona la tropa abajo y toca en el mapa <b>fuera del perímetro rojo</b> para desplegarla.</span>
+    </section>
+
+    <!-- Scripts -->
+    <script src="js/audio.js"></script>
+    <script src="js/game.js"></script>
+<script src=" /juegos/rumbo-game-bridge.js></script>\n</body>
+</html>
