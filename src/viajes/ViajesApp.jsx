@@ -67,6 +67,7 @@ import PeaIncentivesModal from './PeaIncentivesModal';
 import RumboInboxModal from './RumboInboxModal';
 import RumboSocialWorldModal from './RumboSocialWorldModal';
 import RumboArcadeModal from './RumboArcadeModal';
+import RumboInTripAdModal from './RumboInTripAdModal';
 import PickupMapModal from './PickupMapModal';
 import DestinationMapModal from './DestinationMapModal';
 import TripPreferencesModal from './TripPreferencesModal';
@@ -110,7 +111,8 @@ import {
   dismissReferralNoticeApi,
   initSessionTelemetry,
   fetchTripActiveOffersApi,
-  fetchTripStatusApi
+  fetchTripStatusApi,
+  fetchInTripAdSpotApi
 } from './api';
 
 // Formatear destino resuelto por geocodificador para la cajita de punto de llegada
@@ -608,6 +610,8 @@ function ViajesAppContent() {
   const [showInboxModal, setShowInboxModal] = useState(false);
   const [showSocialWorldModal, setShowSocialWorldModal] = useState(false);
   const [showArcadeModal, setShowArcadeModal] = useState(false);
+  const [showInTripAdModal, setShowInTripAdModal] = useState(false);
+  const [activeInTripAd, setActiveInTripAd] = useState(null);
 
   const [roadDistanceKm, setRoadDistanceKm] = useState(8.4);
   const [estimatedDurationMin, setEstimatedDurationMin] = useState(16);
@@ -1284,6 +1288,19 @@ function ViajesAppContent() {
     };
   }, []);
 
+  // Disparar pauta publicitaria geosegmentada en trayecto (a los 3 segundos del inicio)
+  const triggerInTripAdSpot = async () => {
+    try {
+      const res = await fetchInTripAdSpotApi(destinationMunicipality || 'TODOS');
+      if (res.success && res.ad) {
+        setActiveInTripAd(res.ad);
+        setShowInTripAdModal(true);
+      }
+    } catch (e) {
+      console.warn('Nota al cargar pauta en trayecto:', e);
+    }
+  };
+
   // Inicializar Socket y Eventos
   useEffect(() => {
     const effectiveUserId = userProfile?.id || localStorage.getItem('rumbo_guest_passenger_id') || `guest-${Date.now()}`;
@@ -1458,6 +1475,7 @@ function ViajesAppContent() {
         if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
         speakAssistantMessage('En trayecto hacia tu destino. ¡Buen viaje!');
         setTimeout(() => {
+          triggerInTripAdSpot();
           setShowSocialWorldModal(true);
           speakAssistantMessage('Explora y descubre muchas sorpresas en Rumbo a mi Destino.');
         }, 3000);
@@ -1666,6 +1684,7 @@ function ViajesAppContent() {
           if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
           speakAssistantMessage('En trayecto hacia tu destino. ¡Buen viaje!');
           setTimeout(() => {
+            triggerInTripAdSpot();
             setShowSocialWorldModal(true);
             speakAssistantMessage('Explora y descubre muchas sorpresas en Rumbo a mi Destino.');
           }, 3000);
@@ -7757,6 +7776,15 @@ function ViajesAppContent() {
         isOpen={showArcadeModal}
         onClose={() => setShowArcadeModal(false)}
         userProfile={userProfile}
+      />
+
+      {/* Modal de Publicidad y Pauta Comercial Desplegada a los 3 segundos del trayecto */}
+      <RumboInTripAdModal
+        isOpen={showInTripAdModal}
+        onClose={() => setShowInTripAdModal(false)}
+        ad={activeInTripAd}
+        tripId={tripId}
+        userId={userProfile?.id}
       />
 
       {/* Modal de Regla de Dispositivo Único Implacable para Pasajeros */}

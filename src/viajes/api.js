@@ -1643,3 +1643,76 @@ export async function fetchDemandSummaryApi() {
     return { success: false, error: err.message, summary: [] };
   }
 }
+
+/**
+ * 50. GESTIÓN DE PUBLICIDAD & PAUTAS EN TRAYECTO (ADMIN & PASAJERO)
+ */
+export async function fetchAdminAdsApi() {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/admin/ads`);
+    if (!res.ok) return { success: false, ads: [], stats: {} };
+    return await res.json();
+  } catch (err) {
+    return { success: false, error: err.message, ads: [], stats: {} };
+  }
+}
+
+export async function createAdminAdApi(adData) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/admin/ads`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(adData)
+    });
+    return await res.json();
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+}
+
+export async function updateAdminAdApi(adId, adData) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/admin/ads/${encodeURIComponent(adId)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(adData)
+    });
+    return await res.json();
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+}
+
+export async function deleteAdminAdApi(adId) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/admin/ads/${encodeURIComponent(adId)}`, {
+      method: 'DELETE'
+    });
+    return await res.json();
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+}
+
+export async function fetchInTripAdSpotApi(municipality = 'TODOS') {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/ads/in-trip-spot?municipality=${encodeURIComponent(municipality)}`);
+    if (!res.ok) return { success: false, ad: null };
+    return await res.json();
+  } catch (err) {
+    return { success: false, error: err.message, ad: null };
+  }
+}
+
+export async function trackAdInteractionApi({ creativeId, action = 'IMPRESSION', tripId = null, userId = null }) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/ads/track`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ creativeId, action, tripId, userId })
+    });
+    return await res.json();
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+}

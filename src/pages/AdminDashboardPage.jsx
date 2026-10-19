@@ -53,10 +53,15 @@ import {
   ArrowUpDown,
   Award,
   Zap,
-  Navigation
+  Navigation,
+  Megaphone,
+  PlusCircle,
+  ToggleLeft,
+  ToggleRight
 } from 'lucide-react';
 import RumboLogo from '../viajes/RumboLogo';
 import ExitIntentRescueModal from '../viajes/ExitIntentRescueModal';
+import AdminAdsTab from './AdminAdsTab';
 import {
   loginAdminSecureApi,
   fetchAdminStatsApi,
@@ -73,7 +78,11 @@ import {
   fetchAdminTelemetryStatsApi,
   fetchAdminOfficialGasPricesApi,
   updateAdminOfficialGasPricesApi,
-  fetchAdminDriverGasReportsApi
+  fetchAdminDriverGasReportsApi,
+  fetchAdminAdsApi,
+  createAdminAdApi,
+  updateAdminAdApi,
+  deleteAdminAdApi
 } from '../viajes/api';
 
 export default function AdminDashboardPage() {
@@ -837,6 +846,22 @@ export default function AdminDashboardPage() {
               {driverGasReports.length}
             </span>
           )}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('ADS')}
+          className={`py-3 px-4 text-xs font-black border-b-2 transition-all flex items-center gap-2 cursor-pointer relative ${
+            activeTab === 'ADS'
+              ? 'border-amber-400 text-amber-400 bg-amber-500/10'
+              : 'border-transparent text-slate-400 hover:text-white'
+          }`}
+        >
+          <Megaphone className="w-4 h-4 text-amber-400" />
+          <span>Publicidad & Pautas en Trayecto</span>
+          <span className="px-1.5 py-0.5 rounded-full bg-emerald-500 text-slate-950 font-black text-[9px] uppercase tracking-wider">
+            3s SPOT
+          </span>
         </button>
       </nav>
 
@@ -3850,6 +3875,11 @@ export default function AdminDashboardPage() {
             </div>
           </div>
         )}
+
+        {/* ================================================================== */}
+        {/* PESTAÑA: PUBLICIDAD Y PAUTAS COMERCIALES EN TRAYECTO (SPOT 3S) */}
+        {/* ================================================================== */}
+        {activeTab === 'ADS' && <AdminAdsTab />}
 
       </main>
 

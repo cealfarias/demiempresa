@@ -477,6 +477,230 @@ app.get('/api/b2b/feed/:municipality', async (req, res) => {
 });
 
 // =====================================================================
+// 4.0 GESTIÓN DE PUBLICIDAD Y PAUTAS COMERCIALES EN TRAYECTO (ADMIN & PASAJERO)
+// =====================================================================
+
+// GET /api/admin/ads - Listar todas las pautas publicitarias con métricas
+app.get('/api/admin/ads', async (req, res) => {
+  try {
+    const adsRes = await pool.query(`
+      SELECT * FROM viajes_ad_creatives
+      ORDER BY created_at DESC;
+    `);
+
+    const statsRes = await pool.query(`
+      SELECT 
+        COUNT(*) as total_ads,
+        COUNT(CASE WHEN is_active = TRUE THEN 1 END) as active_ads,
+        COALESCE(SUM(impressions_count), 0) as total_impressions,
+        COALESCE(SUM(clicks_count), 0) as total_clicks
+      FROM viajes_ad_creatives;
+    `);
+
+    res.json({
+      success: true,
+      ads: adsRes.rows,
+      stats: {
+        totalAds: parseInt(statsRes.rows[0]?.total_ads || 0),
+        activeAds: parseInt(statsRes.rows[0]?.active_ads || 0),
+        totalImpressions: parseInt(statsRes.rows[0]?.total_impressions || 0),
+        totalClicks: parseInt(statsRes.rows[0]?.total_clicks || 0),
+        pricingPlans: AD_PRICING_PLANS
+      }
+    });
+  } catch (err) {
+    console.error('Error al obtener pautas publicitarias:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/admin/ads - Crear nueva pauta comercial
+app.post('/api/admin/ads', async (req, res) => {
+  try {
+    const {
+      businessName,
+      whatsapp,
+      phone,
+      title,
+      description,
+      mediaUrl,
+      creativeType = 'INTERSTITIAL_POPUP',
+      targetLink,
+      targetMunicipality = 'TODOS',
+      ctaText = 'Pedir por WhatsApp',
+      couponCode,
+      planType = 'IMPACTO',
+      triggerDelaySeconds = 3,
+      displayDurationSeconds = 10,
+      isActive = true
+    } = req.body;
+
+    if (!businessName || !title || !mediaUrl) {
+      return res.status(400).json({ success: false, error: 'businessName, title y mediaUrl son obligatorios' });
+    }
+
+    const insertRes = await pool.query(`
+      INSERT INTO viajes_ad_creatives (
+        business_name, whatsapp, phone, title, description, media_url,
+        creative_type, target_link, target_municipality, cta_text, coupon_code,
+        plan_type, trigger_delay_seconds, display_duration_seconds, is_active
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+      RETURNING *;
+    `, [
+      businessName.trim(),
+      whatsapp ? whatsapp.trim() : null,
+      phone ? phone.trim() : null,
+      title.trim(),
+      description ? description.trim() : null,
+      mediaUrl.trim(),
+      creativeType,
+      targetLink ? targetLink.trim() : null,
+      targetMunicipality || 'TODOS',
+      ctaText ? ctaText.trim() : 'Pedir por WhatsApp',
+      couponCode ? couponCode.trim() : null,
+      planType,
+      parseInt(triggerDelaySeconds, 10) || 3,
+      parseInt(displayDurationSeconds, 10) || 10,
+      isActive !== false
+    ]);
+
+    res.json({ success: true, ad: insertRes.rows[0] });
+  } catch (err) {
+    console.error('Error al crear pauta comercial:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// PUT /api/admin/ads/:id - Actualizar pauta o alternar activación
+app.put('/api/admin/ads/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const {
+      businessName,
+      whatsapp,
+      phone,
+      title,
+      description,
+      mediaUrl,
+      creativeType,
+      targetLink,
+      targetMunicipality,
+      ctaText,
+      couponCode,
+      planType,
+      triggerDelaySeconds,
+      displayDurationSeconds,
+      isActive
+    } = req.body;
+
+    const updateRes = await pool.query(`
+      UPDATE viajes_ad_creatives SET
+        business_name = COALESCE($1, business_name),
+        whatsapp = COALESCE($2, whatsapp),
+        phone = COALESCE($3, phone),
+        title = COALESCE($4, title),
+        description = COALESCE($5, description),
+        media_url = COALESCE($6, media_url),
+        creative_type = COALESCE($7, creative_type),
+        target_link = COALESCE($8, target_link),
+        target_municipality = COALESCE($9, target_municipality),
+        cta_text = COALESCE($10, cta_text),
+        coupon_code = COALESCE($11, coupon_code),
+        plan_type = COALESCE($12, plan_type),
+        trigger_delay_seconds = COALESCE($13, trigger_delay_seconds),
+        display_duration_seconds = COALESCE($14, display_duration_seconds),
+        is_active = COALESCE($15, is_active),
+        updated_at = CURRENT_TIMESTAMP
+      WHERE id::text = $16
+      RETURNING *;
+    `, [
+      businessName, whatsapp, phone, title, description, mediaUrl,
+      creativeType, targetLink, targetMunicipality, ctaText, couponCode,
+      planType, triggerDelaySeconds, displayDurationSeconds, isActive, id.toString()
+    ]);
+
+    if (updateRes.rowCount === 0) {
+      return res.status(404).json({ success: false, error: 'Pauta no encontrada' });
+    }
+
+    res.json({ success: true, ad: updateRes.rows[0] });
+  } catch (err) {
+    console.error('Error al actualizar pauta comercial:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// DELETE /api/admin/ads/:id - Eliminar pauta comercial
+app.delete('/api/admin/ads/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    await pool.query('DELETE FROM viajes_ad_creatives WHERE id::text = $1', [id.toString()]);
+    res.json({ success: true, message: 'Pauta eliminada' });
+  } catch (err) {
+    console.error('Error al eliminar pauta comercial:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// GET /api/ads/in-trip-spot - Obtener pauta activa para desplegar a los 3 segundos del viaje
+app.get('/api/ads/in-trip-spot', async (req, res) => {
+  try {
+    const { municipality = 'TODOS' } = req.query;
+
+    const query = `
+      SELECT * FROM viajes_ad_creatives
+      WHERE is_active = TRUE
+        AND (
+          target_municipality = 'TODOS'
+          OR LOWER(target_municipality) = LOWER($1)
+          OR target_municipality ILIKE '%' || $1 || '%'
+        )
+      ORDER BY 
+        CASE WHEN LOWER(target_municipality) = LOWER($1) THEN 1 ELSE 2 END,
+        RANDOM()
+      LIMIT 1;
+    `;
+
+    const spotRes = await pool.query(query, [municipality]);
+    const ad = spotRes.rows[0] || null;
+
+    res.json({ success: true, ad });
+  } catch (err) {
+    console.error('Error al obtener pauta en trayecto:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/ads/track - Registrar impresión o click de pauta
+app.post('/api/ads/track', async (req, res) => {
+  try {
+    const { creativeId, action = 'IMPRESSION', tripId, userId } = req.body;
+    if (!creativeId) return res.status(400).json({ success: false });
+
+    if (action === 'CLICK') {
+      await pool.query(`
+        UPDATE viajes_ad_creatives SET clicks_count = clicks_count + 1 WHERE id::text = $1;
+      `, [creativeId.toString()]);
+    } else {
+      await pool.query(`
+        UPDATE viajes_ad_creatives SET impressions_count = impressions_count + 1 WHERE id::text = $1;
+      `, [creativeId.toString()]);
+      if (tripId) {
+        await pool.query(`
+          INSERT INTO viajes_ad_impressions (creative_id, trip_id, viewer_user_id)
+          VALUES ($1, $2, $3)
+          ON CONFLICT DO NOTHING;
+        `, [creativeId.toString(), tripId, userId || null]).catch(() => {});
+      }
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// =====================================================================
 // 4.1 RED SOCIAL HIPERLOCAL & ARCADE EN TRAYECTO (RUMBO A MI DESTINO)
 // =====================================================================
 
@@ -2947,6 +3171,76 @@ async function initializeDatabase() {
       console.log('✅ Tablas viajes_game_streaks y viajes_game_sessions verificadas (Racha 7/7 con Bono $1.00 USD).');
     } catch (e) {
       console.warn('⚠️ Nota sobre tablas de racha de juegos:', e.message);
+    }
+
+    // 1.4 Asegurar tabla de creativos publicitarios B2B y configuración de pautas en trayecto
+    try {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS viajes_ad_creatives (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          business_name VARCHAR(150) NOT NULL,
+          whatsapp VARCHAR(30),
+          phone VARCHAR(30),
+          title VARCHAR(200) NOT NULL,
+          description TEXT,
+          media_url TEXT NOT NULL,
+          creative_type VARCHAR(30) DEFAULT 'INTERSTITIAL_POPUP',
+          target_link TEXT,
+          target_municipality VARCHAR(100) NOT NULL DEFAULT 'TODOS',
+          cta_text VARCHAR(100) DEFAULT 'Pedir por WhatsApp',
+          coupon_code VARCHAR(50),
+          plan_type VARCHAR(30) DEFAULT 'IMPACTO',
+          trigger_delay_seconds INT DEFAULT 3,
+          display_duration_seconds INT DEFAULT 10,
+          impressions_count INT DEFAULT 0,
+          clicks_count INT DEFAULT 0,
+          is_active BOOLEAN NOT NULL DEFAULT TRUE,
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        );
+        ALTER TABLE viajes_ad_creatives ADD COLUMN IF NOT EXISTS business_name VARCHAR(150);
+        ALTER TABLE viajes_ad_creatives ADD COLUMN IF NOT EXISTS whatsapp VARCHAR(30);
+        ALTER TABLE viajes_ad_creatives ADD COLUMN IF NOT EXISTS phone VARCHAR(30);
+        ALTER TABLE viajes_ad_creatives ADD COLUMN IF NOT EXISTS title VARCHAR(200);
+        ALTER TABLE viajes_ad_creatives ADD COLUMN IF NOT EXISTS description TEXT;
+        ALTER TABLE viajes_ad_creatives ADD COLUMN IF NOT EXISTS cta_text VARCHAR(100) DEFAULT 'Pedir por WhatsApp';
+        ALTER TABLE viajes_ad_creatives ADD COLUMN IF NOT EXISTS coupon_code VARCHAR(50);
+        ALTER TABLE viajes_ad_creatives ADD COLUMN IF NOT EXISTS plan_type VARCHAR(30) DEFAULT 'IMPACTO';
+        ALTER TABLE viajes_ad_creatives ADD COLUMN IF NOT EXISTS trigger_delay_seconds INT DEFAULT 3;
+        ALTER TABLE viajes_ad_creatives ADD COLUMN IF NOT EXISTS display_duration_seconds INT DEFAULT 10;
+        ALTER TABLE viajes_ad_creatives ADD COLUMN IF NOT EXISTS impressions_count INT DEFAULT 0;
+        ALTER TABLE viajes_ad_creatives ADD COLUMN IF NOT EXISTS clicks_count INT DEFAULT 0;
+        ALTER TABLE viajes_ad_creatives ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;
+      `);
+
+      const checkAd = await pool.query('SELECT count(*) FROM viajes_ad_creatives');
+      if (parseInt(checkAd.rows[0]?.count || 0) === 0) {
+        await pool.query(`
+          INSERT INTO viajes_ad_creatives (
+            business_name, whatsapp, phone, title, description, media_url,
+            creative_type, target_municipality, cta_text, coupon_code, plan_type,
+            trigger_delay_seconds, display_duration_seconds, is_active
+          ) VALUES (
+            'Pupusería & Mariscos El Buen Rumbo',
+            '50370001122',
+            '7000-1122',
+            '¡15% de Descuento en tu consumo al mostrar tu viaje Rumbo!',
+            'Especialidad en pupusas de arroz, mariscada fresca y café de altura. A solo 5 minutos de tu destino.',
+            'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=800&q=80',
+            'INTERSTITIAL_POPUP',
+            'TODOS',
+            'Canjear Cupón por WhatsApp',
+            'RUMBO15',
+            'IMPACTO',
+            3,
+            12,
+            TRUE
+          );
+        `);
+      }
+      console.log('✅ Tabla viajes_ad_creatives verificada (Publicidad a 3 segundos del trayecto).');
+    } catch (e) {
+      console.warn('⚠️ Nota sobre tabla viajes_ad_creatives:', e.message);
     }
 
     // 2. Sincronizar precios oficiales y de mercado vigentes ($5.13 Especial)
