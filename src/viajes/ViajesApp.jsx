@@ -68,6 +68,7 @@ import RumboInboxModal from './RumboInboxModal';
 import RumboSocialWorldModal from './RumboSocialWorldModal';
 import RumboArcadeModal from './RumboArcadeModal';
 import RumboInTripAdModal from './RumboInTripAdModal';
+import MerchantAdPill from './MerchantAdPill';
 import PickupMapModal from './PickupMapModal';
 import DestinationMapModal from './DestinationMapModal';
 import TripPreferencesModal from './TripPreferencesModal';
@@ -7229,13 +7230,18 @@ function ViajesAppContent() {
 
             {/* Banner de En Trayecto */}
             {tripStatus === 'IN_TRANSIT' && (
-              <div className="p-3.5 bg-gradient-to-r from-emerald-500/20 via-teal-500/15 to-slate-900 border border-emerald-400/40 rounded-2xl flex items-center gap-3 shadow-lg">
-                <div className="w-10 h-10 rounded-xl bg-emerald-400 text-slate-950 flex items-center justify-center font-black text-xl shrink-0 shadow-sm">
-                  🚗
+              <div className="space-y-2">
+                <div className="p-3.5 bg-gradient-to-r from-emerald-500/20 via-teal-500/15 to-slate-900 border border-emerald-400/40 rounded-2xl flex items-center gap-3 shadow-lg">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-400 text-slate-950 flex items-center justify-center font-black text-xl shrink-0 shadow-sm">
+                    🚗
+                  </div>
+                  <div className="flex-1">
+                    <h4 className="text-xs font-black text-emerald-300 uppercase tracking-wide">En trayecto hacia tu destino</h4>
+                    <p className="text-[11px] text-slate-200">Viaje en curso seguro con tarifa acordada. {driverEtaMinutes ? `Tiempo estimado: ~${driverEtaMinutes} min.` : '¡Buen viaje!'}</p>
+                  </div>
                 </div>
-                <div>
-                  <h4 className="text-xs font-black text-emerald-300 uppercase tracking-wide">En trayecto hacia tu destino</h4>
-                  <p className="text-[11px] text-slate-200">Viaje en curso seguro con tarifa acordada. {driverEtaMinutes ? `Tiempo estimado: ~${driverEtaMinutes} min.` : '¡Buen viaje!'}</p>
+                <div className="flex justify-center pt-0.5">
+                  <MerchantAdPill onClick={() => setShowAdModal(true)} />
                 </div>
               </div>
             )}
@@ -7595,14 +7601,8 @@ function ViajesAppContent() {
             )}
 
             {/* Micro-Enlace de Captación en Caliente al pie */}
-            <div className="text-center pt-2">
-              <button
-                onClick={() => setShowAdModal(true)}
-                className="text-xs text-amber-400 hover:underline font-semibold inline-flex items-center gap-1 cursor-pointer"
-              >
-                <span>¿Quieres que los pasajeros vean tu local aquí? Toca aquí</span>
-                <ChevronRight className="w-3.5 h-3.5" />
-              </button>
+            <div className="text-center pt-3 flex justify-center">
+              <MerchantAdPill onClick={() => setShowAdModal(true)} />
             </div>
 
           </div>
@@ -7785,6 +7785,7 @@ function ViajesAppContent() {
         ad={activeInTripAd}
         tripId={tripId}
         userId={userProfile?.id}
+        onOpenAdRates={() => setShowAdModal(true)}
       />
 
       {/* Modal de Regla de Dispositivo Único Implacable para Pasajeros */}

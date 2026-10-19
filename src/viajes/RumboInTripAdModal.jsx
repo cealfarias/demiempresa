@@ -13,8 +13,9 @@ import {
   ShieldCheck
 } from 'lucide-react';
 import { trackAdInteractionApi } from './api';
+import MerchantAdPill from './MerchantAdPill';
 
-export default function RumboInTripAdModal({ isOpen, onClose, ad, tripId, userId }) {
+export default function RumboInTripAdModal({ isOpen, onClose, ad, tripId, userId, onOpenAdRates }) {
   const [countdown, setCountdown] = useState(5);
   const [copiedCoupon, setCopiedCoupon] = useState(false);
   const [canClose, setCanClose] = useState(false);
@@ -198,6 +199,17 @@ export default function RumboInTripAdModal({ isOpen, onClose, ad, tripId, userId
             >
               Continuar con mi viaje o juego ›
             </button>
+
+            {/* Enlace pequeño pero llamativo para dueños de negocios */}
+            <div className="pt-2 border-t border-slate-800 flex items-center justify-center">
+              <MerchantAdPill
+                onClick={() => {
+                  if (onOpenAdRates) {
+                    onOpenAdRates();
+                  }
+                }}
+              />
+            </div>
           </div>
         </div>
 
